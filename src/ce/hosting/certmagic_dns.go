@@ -7,12 +7,12 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	"github.com/aws/aws-sdk-go-v2/service/route53/types"
 	"github.com/libdns/libdns"
 	"github.com/stormkit-io/stormkit-io/src/lib/integrations"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"go.uber.org/zap"
 )
 
@@ -37,7 +37,20 @@ func NewDNSProvider() *DNSProvider {
 }
 
 func (d *DNSProvider) prepareInput(actionType, zone string, record libdns.Record) *route53.ChangeResourceRecordSetsInput {
-	slog.Infof("preparing input for obtaining certificates: actionType=%s, zone=%s, record_name=%s", actionType, zone, record.Name)
+	r := record.RR()
+
+	slog.Debug(slog.LogOpts{
+		Msg:   "preparing dns record input",
+		Level: slog.DL1,
+		Payload: []zap.Field{
+			zap.String("actionType", actionType),
+			zap.String("zone", zone),
+			zap.String("name", r.Name),
+			zap.String("type", r.Type),
+			zap.String("data", r.Data),
+			zap.Int64("ttl", int64(r.TTL)),
+		},
+	})
 
 	return &route53.ChangeResourceRecordSetsInput{
 		ChangeBatch: &types.ChangeBatch{
@@ -45,19 +58,19 @@ func (d *DNSProvider) prepareInput(actionType, zone string, record libdns.Record
 				{
 					Action: types.ChangeAction(actionType),
 					ResourceRecordSet: &types.ResourceRecordSet{
-						Name: aws.String(libdns.AbsoluteName(record.Name, zone)),
+						Name: utils.Ptr(libdns.AbsoluteName(r.Name, zone)),
 						ResourceRecords: []types.ResourceRecord{
 							{
-								Value: aws.String(record.Value),
+								Value: utils.Ptr(r.Data),
 							},
 						},
-						TTL:  aws.Int64(int64(record.TTL)),
-						Type: types.RRType(record.Type),
+						TTL:  utils.Ptr(int64(r.TTL)),
+						Type: types.RRType(r.Type),
 					},
 				},
 			},
 		},
-		HostedZoneId: aws.String(d.zoneID),
+		HostedZoneId: utils.Ptr(d.zoneID),
 	}
 }
 
@@ -73,27 +86,28 @@ func (d *DNSProvider) AppendRecords(ctx context.Context, zone string, records []
 	var createdRecords []libdns.Record
 
 	for _, record := range records {
-		if record.Type == "TXT" {
-			record.Value = strconv.Quote(record.Value)
+		r := record.RR()
+
+		if r.Type == "TXT" {
+			r.Data = strconv.Quote(r.Data)
 		}
 
 		input := d.prepareInput("UPSERT", zone, record)
-		record.TTL = 60
+		r.TTL = 60
 
 		if _, err := d.awscli.Route53().ChangeResourceRecordSets(ctx, input); err != nil {
 			slog.Errorf("error while changing record set=%s, zone=%s, record=%v", err.Error(), zone, record)
 			return nil, err
 		}
 
-		record.TTL = time.Duration(record.TTL) * time.Second
+		r.TTL = time.Duration(r.TTL) * time.Second
 		createdRecords = append(createdRecords, record)
 
 		slog.Debug(slog.LogOpts{
 			Msg:   "created dns record",
 			Level: slog.DL1,
 			Payload: []zap.Field{
-				zap.String("name", record.Name),
-				zap.String("id", record.ID),
+				zap.String("name", r.Name),
 			},
 		})
 	}
@@ -116,7 +130,8 @@ func (d *DNSProvider) DeleteRecords(ctx context.Context, zone string, records []
 			return nil, err
 		}
 
-		record.TTL = time.Duration(record.TTL) * time.Second
+		r := record.RR()
+		r.TTL = time.Duration(r.TTL) * time.Second
 		deletedRecords = append(deletedRecords, record)
 	}
 

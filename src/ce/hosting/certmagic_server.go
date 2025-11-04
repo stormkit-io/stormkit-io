@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/caddyserver/certmagic"
-	redisstore "github.com/gamalan/caddy-tlsredis"
+	redisstore "github.com/pberkel/caddy-storage-redis"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
@@ -24,13 +24,8 @@ func storage() certmagic.Storage {
 	slog.Infof("using redis storage for certificates")
 
 	storage := &redisstore.RedisStorage{
-		Address:   config.Get().RedisAddr,
+		Address:   []string{config.Get().RedisAddr},
 		KeyPrefix: "le_",
-	}
-
-	// see https://github.com/gamalan/caddy-tlsredis/issues/10#issuecomment-644409893
-	if err := storage.BuildRedisClient(context.TODO()); err != nil {
-		slog.Errorf("error while building redis client: %v", err)
 	}
 
 	return storage
@@ -82,7 +77,9 @@ func Magic(opts MagicOpts) {
 				DisableTLSALPNChallenge: true,
 				Logger:                  logger,
 				DNS01Solver: &certmagic.DNS01Solver{
-					DNSProvider: NewDNSProvider(),
+					DNSManager: certmagic.DNSManager{
+						DNSProvider: NewDNSProvider(),
+					},
 				},
 			}),
 		}
