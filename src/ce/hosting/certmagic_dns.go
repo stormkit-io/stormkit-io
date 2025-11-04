@@ -91,13 +91,13 @@ func (d *DNSProvider) AppendRecords(ctx context.Context, zone string, records []
 		}
 
 		input := d.prepareInput("UPSERT", zone, r)
+		r.TTL = time.Duration(60) * time.Second
 
 		if _, err := d.awscli.Route53().ChangeResourceRecordSets(ctx, input); err != nil {
 			slog.Errorf("error while changing record set=%s, zone=%s, record=%v", err.Error(), zone, record)
 			return nil, err
 		}
 
-		r.TTL = time.Duration(60) * time.Second
 		createdRecords = append(createdRecords, r)
 
 		slog.Debug(slog.LogOpts{
