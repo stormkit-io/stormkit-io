@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/redis/go-redis/v9/maintnotifications"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 )
@@ -27,6 +28,13 @@ const ListenerChannel = "redis-listener"
 func newClient() (*redis.Client, error) {
 	client := redis.NewClient(&redis.Options{
 		Addr: config.Get().RedisAddr,
+
+		// Explicitly disable maintenance notifications
+		// This prevents the client from sending CLIENT MAINT_NOTIFICATIONS ON
+		// See https://github.com/redis/go-redis/issues/3536#issuecomment-3449792377
+		MaintNotificationsConfig: &maintnotifications.Config{
+			Mode: maintnotifications.ModeDisabled,
+		},
 	})
 
 	_, err := client.Ping(context.Background()).Result()
