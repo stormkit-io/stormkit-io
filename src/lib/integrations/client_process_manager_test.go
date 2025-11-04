@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/goccy/go-yaml"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/applog"
 	"github.com/stormkit-io/stormkit-io/src/lib/html"
 	"github.com/stormkit-io/stormkit-io/src/lib/integrations"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -26,9 +25,8 @@ import (
 type ProcessManagerSuite struct {
 	suite.Suite
 
-	tmpdir           string
-	pm               *integrations.ProcessManager
-	originalQueueLog func(l ...*applog.Log) error
+	tmpdir string
+	pm     *integrations.ProcessManager
 }
 
 func (s *ProcessManagerSuite) SetupSuite() {
