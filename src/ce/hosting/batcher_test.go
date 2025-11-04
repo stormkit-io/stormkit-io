@@ -58,8 +58,10 @@ func (s *BatcherSuite) Test_Queueing() {
 		s.NoError(err)
 		s.NoError(json.Unmarshal([]byte(msg), &readRecord))
 
-		readRecord.Analytics.RequestTS = record.Analytics.RequestTS // Normalize for comparison
-		s.Equal(readRecord, *record)
+		// Normalize for comparison
+		readRecord.Analytics.RequestTS = utils.UnixFrom(record.Analytics.RequestTS.Time)
+
+		s.Equal(*record, readRecord)
 
 		return true
 	}, 5*time.Second, 100*time.Millisecond, "Expected 1 item in the queue")
