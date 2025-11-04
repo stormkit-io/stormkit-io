@@ -36,9 +36,7 @@ func NewDNSProvider() *DNSProvider {
 	}
 }
 
-func (d *DNSProvider) prepareInput(actionType, zone string, record libdns.Record) *route53.ChangeResourceRecordSetsInput {
-	r := record.RR()
-
+func (d *DNSProvider) prepareInput(actionType, zone string, r libdns.RR) *route53.ChangeResourceRecordSetsInput {
 	slog.Debug(slog.LogOpts{
 		Msg:   "preparing dns record input",
 		Level: slog.DL1,
@@ -92,16 +90,15 @@ func (d *DNSProvider) AppendRecords(ctx context.Context, zone string, records []
 			r.Data = strconv.Quote(r.Data)
 		}
 
-		input := d.prepareInput("UPSERT", zone, record)
-		r.TTL = 60
+		input := d.prepareInput("UPSERT", zone, r)
 
 		if _, err := d.awscli.Route53().ChangeResourceRecordSets(ctx, input); err != nil {
 			slog.Errorf("error while changing record set=%s, zone=%s, record=%v", err.Error(), zone, record)
 			return nil, err
 		}
 
-		r.TTL = time.Duration(r.TTL) * time.Second
-		createdRecords = append(createdRecords, record)
+		r.TTL = time.Duration(60) * time.Second
+		createdRecords = append(createdRecords, r)
 
 		slog.Debug(slog.LogOpts{
 			Msg:   "created dns record",
@@ -123,7 +120,7 @@ func (d *DNSProvider) DeleteRecords(ctx context.Context, zone string, records []
 	slog.Infof("dns-resolver -- delete operation zone=%s, records=%v", zone, records)
 
 	for _, record := range records {
-		input := d.prepareInput("DELETE", zone, record)
+		input := d.prepareInput("DELETE", zone, record.RR())
 
 		if _, err := d.awscli.Route53().ChangeResourceRecordSets(ctx, input); err != nil {
 			slog.Errorf("dns-resolver -- failed deleting %v", err)
@@ -132,7 +129,7 @@ func (d *DNSProvider) DeleteRecords(ctx context.Context, zone string, records []
 
 		r := record.RR()
 		r.TTL = time.Duration(r.TTL) * time.Second
-		deletedRecords = append(deletedRecords, record)
+		deletedRecords = append(deletedRecords, r)
 	}
 
 	return deletedRecords, nil
