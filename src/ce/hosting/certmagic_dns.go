@@ -128,7 +128,6 @@ func (d *DNSProvider) DeleteRecords(ctx context.Context, zone string, records []
 		}
 
 		r := record.RR()
-		r.TTL = time.Duration(r.TTL) * time.Second
 		deletedRecords = append(deletedRecords, r)
 	}
 
