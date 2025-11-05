@@ -1,0 +1,92 @@
+name: Test
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.25"
+
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      # Install libvips using apt
+      - name: Install libvips
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvips-dev
+
+      - name: Create .env file for testing
+        run: |
+          cat > .env << EOF
+          POSTGRES_HOST=localhost
+          POSTGRES_PORT=5432
+          POSTGRES_DB=stormkit_db
+          POSTGRES_USER=stormkit_admin
+          POSTGRES_PASSWORD=testpassword123
+          POSTGRES_SSL=disable
+          REDIS_ADDR=localhost:6379
+          STORMKIT_APP_SECRET=sktest_secret_key_32_chars_long
+          DEBUG=0
+          EOF
+
+      - name: Start PostgreSQL and Redis services
+        run: |
+          docker compose up -d db redis
+
+      - name: Wait for PostgreSQL to be ready
+        run: |
+          timeout 60s bash -c 'until docker compose exec db pg_isready -U ${POSTGRES_USER:-stormkit_admin}; do sleep 2; done'
+
+      - name: Wait for Redis to be ready
+        run: |
+          timeout 60s bash -c 'until docker compose exec redis redis-cli ping; do sleep 2; done'
+
+      - name: Create test database
+        run: |
+          docker compose exec db createdb -U ${POSTGRES_USER:-stormkit_admin} sktest
+
+      - name: Download Go dependencies
+        run: go mod download
+
+      - name: Run tests
+        run: |
+          go test -p 1 -v -failfast -coverprofile=coverage.out ./...
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.out
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+      - name: Generate coverage report
+        run: |
+          go tool cover -func=coverage.out > coverage.txt
+          echo "## Test Coverage" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat coverage.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose down -v
