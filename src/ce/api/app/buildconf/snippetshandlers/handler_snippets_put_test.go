@@ -174,92 +174,45 @@ func (s *HandlerSnippetsPutSuite) Test_Success_ResetOnlyRelatedDomains() {
 		Token:      null.StringFrom(utils.RandomToken(32)),
 	}))
 
-	// The first call should reset all domains because we're switching from `no host` => `host`
-	s.mockCacheService.On("Reset", env.ID).Return(nil).Once()
+	expectations := []map[string]any{
+		// The first call should reset all domains because we're switching from `no host` => `host`
+		{"newHosts": []string{"www.Example.org"}, "args": []any{env.ID}},
+		// The second call should reset only www.example.org
+		{"newHosts": []string{"www.example.org"}, "args": []any{env.ID, "www.example.org"}},
+		// The third call should reset all domains (because we're changing www.example.org => *.dev)
+		{"newHosts": []string{"*.dev"}, "args": []any{env.ID, fmt.Sprintf("^%s(?:--\\d+)?", app.DisplayName), "www.example.org"}},
+	}
 
-	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(snippetshandlers.Services).Router().Handler(),
-		shttp.MethodPut,
-		"/snippets",
-		map[string]any{
-			"appId": app.ID.String(),
-			"envId": env.ID.String(),
-			"snippet": map[string]any{
-				"title":    "Edited Snippet 1",
-				"content":  snippets[0].Content,
-				"enabled":  snippets[0].Enabled,
-				"prepend":  snippets[0].Prepend,
-				"location": "head",
-				"id":       snippets[0].ID.String(),
-				"rules": map[string]any{
-					"hosts": []string{"www.Example.org"},
+	for i, exp := range expectations {
+		s.mockCacheService.On("Reset", exp["args"].([]any)...).Return(nil).Once()
+
+		response := shttptest.RequestWithHeaders(
+			shttp.NewRouter().RegisterService(snippetshandlers.Services).Router().Handler(),
+			shttp.MethodPut,
+			"/snippets",
+			map[string]any{
+				"appId": app.ID.String(),
+				"envId": env.ID.String(),
+				"snippet": map[string]any{
+					"title":    fmt.Sprintf("Edited Snippet %d", i),
+					"content":  snippets[0].Content,
+					"enabled":  snippets[0].Enabled,
+					"prepend":  snippets[0].Prepend,
+					"location": "head",
+					"id":       snippets[0].ID.String(),
+					"rules": map[string]any{
+						"hosts": exp["newHosts"].([]string),
+					},
 				},
 			},
-		},
-		map[string]string{
-			"Authorization": usertest.Authorization(usr.ID),
-		},
-	)
-
-	s.Equal(http.StatusOK, response.Code)
-
-	// The second call should reset only www.example.org
-	s.mockCacheService.On("Reset", env.ID, "www.example.org").Return(nil).Once()
-
-	response = shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(snippetshandlers.Services).Router().Handler(),
-		shttp.MethodPut,
-		"/snippets",
-		map[string]any{
-			"appId": app.ID.String(),
-			"envId": env.ID.String(),
-			"snippet": map[string]any{
-				"title":    "Edited Snippet 2",
-				"content":  snippets[0].Content,
-				"enabled":  snippets[0].Enabled,
-				"prepend":  snippets[0].Prepend,
-				"location": "head",
-				"id":       snippets[0].ID.String(),
-				"rules": map[string]any{
-					"hosts": []string{"www.example.org"},
-				},
+			map[string]string{
+				"Authorization": usertest.Authorization(usr.ID),
 			},
-		},
-		map[string]string{
-			"Authorization": usertest.Authorization(usr.ID),
-		},
-	)
+		)
 
-	s.Equal(http.StatusOK, response.Code)
-
-	// The third call should reset all domains (because we're changing www.example.org => *.dev)
-	s.mockCacheService.On("Reset", env.ID, fmt.Sprintf("^%s(?:--\\d+)?", app.DisplayName), "www.example.org").Return(nil).Once()
-
-	response = shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(snippetshandlers.Services).Router().Handler(),
-		shttp.MethodPut,
-		"/snippets",
-		map[string]any{
-			"appId": app.ID.String(),
-			"envId": env.ID.String(),
-			"snippet": map[string]any{
-				"title":    "Edited Snippet 2",
-				"content":  snippets[0].Content,
-				"enabled":  snippets[0].Enabled,
-				"prepend":  snippets[0].Prepend,
-				"location": "head",
-				"id":       snippets[0].ID.String(),
-				"rules": map[string]any{
-					"hosts": []string{"*.dev"},
-				},
-			},
-		},
-		map[string]string{
-			"Authorization": usertest.Authorization(usr.ID),
-		},
-	)
-
-	s.Equal(http.StatusOK, response.Code)
+		s.mockCacheService.AssertExpectations(s.T())
+		s.Equal(http.StatusOK, response.Code)
+	}
 }
 
 func (s *HandlerSnippetsPutSuite) Test_Fail_InvalidHost() {
