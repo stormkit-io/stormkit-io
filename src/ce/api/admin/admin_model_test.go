@@ -25,6 +25,7 @@ type AdminModelSuite struct {
 }
 
 func (s *AdminModelSuite) BeforeTest(_, _ string) {
+	utils.SetAppKey([]byte(utils.RandomToken(32)))
 	s.mockMise = &mocks.MiseInterface{}
 	s.mockCommand = &mocks.CommandInterface{}
 	s.mockService = &mocks.MicroServiceInterface{}
