@@ -43,7 +43,7 @@ jobs:
           POSTGRES_PASSWORD=testpassword123
           POSTGRES_SSL=disable
           REDIS_ADDR=localhost:6379
-          STORMKIT_APP_SECRET=sktest_secret_key_32_chars_long
+          STORMKIT_APP_SECRET=sk_test_secret_key_32_chars_long
           DEBUG=0
           EOF
 
