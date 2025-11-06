@@ -534,6 +534,12 @@ func (s *HandlerForwardSuite) Test_Analytics() {
 	s.Equal(http.StatusOK, res.Status)
 
 	s.Eventually(func() bool {
+		item := hosting.Batcher.Items(0)
+
+		if item == nil {
+			return false
+		}
+
 		s.Equal(&jobs.HostingRecord{
 			AppID:        types.ID(25),
 			EnvID:        types.ID(100),
@@ -550,7 +556,7 @@ func (s *HandlerForwardSuite) Test_Analytics() {
 				UserAgent:   null.StringFrom("mozilla test agent"),
 			},
 			TotalBandwidth: 112,
-		}, hosting.Batcher.Items(0))
+		}, item)
 
 		return true
 	}, time.Second*5, time.Millisecond*100)
