@@ -53,6 +53,11 @@ func (s *BatcherSuite) Test_Queueing() {
 
 	s.Eventually(func() bool {
 		msg, err := rediscache.Client().LPop(context.Background(), hosting.QueueName).Result()
+
+		if err != nil {
+			return false
+		}
+
 		readRecord := jobs.HostingRecord{}
 
 		s.NoError(err)
