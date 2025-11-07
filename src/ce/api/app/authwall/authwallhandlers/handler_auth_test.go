@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/authwall"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/authwall/authwallhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
@@ -27,8 +26,6 @@ type HandlerAuthSuite struct {
 }
 
 func (s *HandlerAuthSuite) BeforeTest(suiteName, _ string) {
-	admin.SetMockLicense()
-
 	s.conn = databasetest.InitTx(suiteName)
 	s.Factory = factory.New(s.conn)
 
@@ -45,7 +42,6 @@ func (s *HandlerAuthSuite) BeforeTest(suiteName, _ string) {
 }
 
 func (s *HandlerAuthSuite) AfterTest(_, _ string) {
-	admin.ResetMockLicense()
 	s.conn.CloseTx()
 }
 

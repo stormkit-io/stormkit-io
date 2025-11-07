@@ -18,7 +18,9 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodPost, "", app.WithApp(handlerAuthCreate, opts)).
 		Handler(shttp.MethodDelete, "", app.WithApp(handlerAuthDelete, opts)).
 		Handler(shttp.MethodGet, "/config", app.WithApp(handlerAuthConfigGet, opts)).
-		Handler(shttp.MethodPost, "/config", app.WithApp(handlerAuthConfigSet, opts)).
+		Handler(shttp.MethodPost, "/config", app.WithApp(handlerAuthConfigSet, opts))
+
+	s.NewEndpoint("/auth-wall").
 		Handler(shttp.MethodPost, "/login", shttp.WithRateLimit(handlerAuth, nil))
 
 	return s

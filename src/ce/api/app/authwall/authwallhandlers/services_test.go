@@ -32,13 +32,18 @@ func (s *ServicesSuite) Test_EE() {
 	services := shttp.NewRouter().RegisterService(authwallhandlers.Services)
 	s.NotNil(services)
 
-	// All handlers are EE only
+	// Most handlers are EE-only, except for the /login endpoint
 	for k, fn := range services.HandlerFuncs() {
-		s.Equal(
-			http.StatusPaymentRequired,
-			fn(&shttp.RequestContext{}).Status,
-			"handler %s should return 402", k,
-		)
+		res := fn(&shttp.RequestContext{
+			Request: &http.Request{},
+		})
+
+		if k == "POST:/auth-wall/login" {
+			s.NotNil(res.Redirect, "redirect should be set for handler %s", k)
+			continue
+		}
+
+		s.Equal(http.StatusPaymentRequired, res.Status, "handler %s should return 402", k)
 	}
 }
 
