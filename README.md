@@ -40,15 +40,6 @@ To run Stormkit locally for development purposes:
 
 You can install `go` and `node` using [mise](https://mise.jdx.dev/), which is a polyglot tool version manager.
 
-### Local DNS
-
-If you are using a MacOS, running the following script will set up a dns mask on your local environment
-so that you can access stormkit through `http://stormkit` domain.
-
-```bash
-./scripts/dnsqmasq.sh
-```
-
 ### Update environment variables
 
 - Copy [.env.example](./.env.example) and create an `.env` file. Provide the missing variables.
