@@ -10,23 +10,21 @@ import (
 	"strings"
 
 	"github.com/caddyserver/certmagic"
-	redisstore "github.com/pberkel/caddy-storage-redis"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
+	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
-func storage() certmagic.Storage {
+func storage(logger *zap.Logger) certmagic.Storage {
 	slog.Infof("using redis storage for certificates")
 
-	storage := &redisstore.RedisStorage{
-		Address:   []string{config.Get().RedisAddr},
-		KeyPrefix: "le_",
-	}
+	storage := NewRedisStorage(logger)
+	storage.SetClient(rediscache.Client())
 
 	return storage
 }
@@ -49,7 +47,7 @@ func Magic(opts MagicOpts) {
 
 	certmagic.HTTPPort = utils.StringToInt(utils.GetString(os.Getenv("STORMKIT_HTTP_PORT"), "80"))
 	certmagic.HTTPSPort = utils.StringToInt(utils.GetString(os.Getenv("STORMKIT_HTTPS_PORT"), "443"))
-	certmagic.Default.Storage = storage()
+	certmagic.Default.Storage = storage(logger)
 	certmagic.Default.Logger = logger
 	certmagic.DefaultACME.Agreed = true
 	certmagic.DefaultACME.CA = certmagic.LetsEncryptProductionCA
