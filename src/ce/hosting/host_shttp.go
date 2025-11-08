@@ -8,13 +8,13 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/caddyserver/certmagic"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -125,7 +125,7 @@ func WithHost(handler func(*RequestContext) *shttp.Response) shttp.RequestFunc {
 
 		if isCloud && appconf.IsStormkitDevStrict(req.Host) {
 			return &shttp.Response{
-				Redirect: aws.String("https://www.stormkit.io"),
+				Redirect: utils.Ptr("https://www.stormkit.io"),
 				Status:   http.StatusTemporaryRedirect,
 			}
 		}
