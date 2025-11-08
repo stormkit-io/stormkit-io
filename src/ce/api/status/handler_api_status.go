@@ -122,8 +122,14 @@ func handlerAPIStatus(req *shttp.RequestContext) *shttp.Response {
 
 	var qb strings.Builder
 
+	hash := cfg.Version.Hash
+
+	if len(hash) > 7 {
+		hash = hash[:7]
+	}
+
 	data := map[string]any{
-		"hash":         cfg.Version.Hash[0:7],
+		"hash":         hash,
 		"version":      cfg.Version.Tag,
 		"env":          config.Env(),
 		"isSelfHosted": fmt.Sprintf("%v", config.IsSelfHosted()),
