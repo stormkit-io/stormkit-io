@@ -47,8 +47,13 @@ export default function BasicAuthRegister() {
               window.location.reload();
             }
           })
-          .catch(() => {
-            setError("Something went wrong, try again.");
+          .catch(async res => {
+            if (res.status === 400) {
+              const { error } = (await res.json()) as { error: string };
+              setError(error);
+            } else {
+              setError("Something went wrong, try again.");
+            }
           })
           .finally(() => {
             setLoading(false);
