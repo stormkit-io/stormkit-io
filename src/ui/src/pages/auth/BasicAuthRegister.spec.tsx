@@ -91,4 +91,52 @@ describe("pages/auth/BasicAuthRegister", () => {
 
     expect(window.location.reload).not.toHaveBeenCalled();
   });
+
+  it("should display the backend error message when receiving a 400 status", async () => {
+    const email = wrapper.getByLabelText("Email");
+    const password = wrapper.getByLabelText("Password");
+    const passwordCnfrm = wrapper.getByLabelText("Password confirmation");
+    const submit = wrapper.getByRole("button", { name: "Create account" });
+    const scope = mockAdminRegister({
+      status: 400,
+      payload: { email: "my-email@example.org", password: "short" },
+      response: { error: "Password must be at least 6 characters long." },
+    });
+
+    await userEvent.type(email, "my-email@example.org");
+    await userEvent.type(password, "short");
+    await userEvent.type(passwordCnfrm, "short");
+    await userEvent.click(submit);
+
+    await waitFor(() => {
+      expect(scope.isDone()).toBeTruthy();
+      wrapper.getByText("Password must be at least 6 characters long.");
+    });
+
+    expect(window.location.reload).not.toHaveBeenCalled();
+  });
+
+  it("should display a generic error message for non-400 errors", async () => {
+    const email = wrapper.getByLabelText("Email");
+    const password = wrapper.getByLabelText("Password");
+    const passwordCnfrm = wrapper.getByLabelText("Password confirmation");
+    const submit = wrapper.getByRole("button", { name: "Create account" });
+    const scope = mockAdminRegister({
+      status: 500,
+      payload: { email: "my-email@example.org", password: "my-password" },
+      response: {},
+    });
+
+    await userEvent.type(email, "my-email@example.org");
+    await userEvent.type(password, "my-password");
+    await userEvent.type(passwordCnfrm, "my-password");
+    await userEvent.click(submit);
+
+    await waitFor(() => {
+      expect(scope.isDone()).toBeTruthy();
+      wrapper.getByText("Something went wrong, try again.");
+    });
+
+    expect(window.location.reload).not.toHaveBeenCalled();
+  });
 });
