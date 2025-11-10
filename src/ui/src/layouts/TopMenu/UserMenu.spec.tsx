@@ -21,7 +21,7 @@ describe("~/components/UserMenu.tsx", () => {
 
     it.each`
       text               | href
-      ${"Documentation"} | ${"https://www.stormkit.io/docs"}
+      ${"Documentation"} | ${"https://www.stormkit.io/docs/welcome/getting-started"}
       ${"Account"}       | ${"/user/account"}
       ${"Log out"}       | ${"/logout"}
     `("should load menu item: $text", ({ text, href }) => {

@@ -19,7 +19,7 @@ const menuItems: MenuItem[][] = [
   [
     { to: "/user/account", text: "Account" },
     {
-      to: "https://www.stormkit.io/docs",
+      to: "https://www.stormkit.io/docs/welcome/getting-started",
       text: "Documentation",
     },
     { to: "/logout", text: "Log out" },
