@@ -60,6 +60,11 @@ mise trust && mise install
 ./scripts/start.sh
 ```
 
+After starting the services:
+
+- The application will be available at `https://localhost:5400`
+- The API will be available at `http://api.localhost:8888`
+
 ## Project Structure
 
 ```
@@ -117,3 +122,73 @@ go test -p 1 -coverprofile=coverage.out ./...
 # Custom timeout
 go test -p 1 -timeout 30m ./...
 ```
+
+## Troubleshooting
+
+### `go: command not found` after running `mise install`
+
+**Problem:** After running `mise install`, which reports "all tools are installed", running `./scripts/start.sh` fails with:
+
+```
+./scripts/start.sh: line 29: go: command not found
+```
+
+**Solution:** The mise tools aren't activated in your shell. You need to add mise activation to your shell configuration:
+
+```bash
+# Add mise activation to your shell config
+echo 'eval "$(mise activate zsh)"' >> ~/.zshrc
+
+# Reload the configuration
+source ~/.zshrc
+
+# Verify go is now available
+which go
+```
+
+For other shells, replace `zsh` with your shell (e.g., `bash`, `fish`). See [mise activation docs](https://mise.jdx.dev/getting-started.html#_2-activate-mise) for more details.
+
+### `pkg-config: executable file not found` - hosting service crashes
+
+**Problem:** After starting the services, the hosting service immediately crashes with:
+
+```
+hosting      | github.com/h2non/bimg: exec: "pkg-config": executable file not found in $PATH
+hosting      | Exited with code 1
+services     | Interrupting...
+```
+
+**Cause:** The hosting service uses `github.com/h2non/bimg` for image processing, which requires `libvips` and `pkg-config` system libraries.
+
+**Solution on macOS:**
+
+```bash
+# Install libvips and pkg-config via Homebrew
+brew install vips pkg-config
+
+# Verify installation
+pkg-config --modversion vips
+
+# Restart services
+./scripts/start.sh
+```
+
+### API endpoints return 500 errors - `/api/auth/providers` and `/api/instance`
+
+**Problem:** When accessing the application at `https://localhost:5400`, the auth page may fail to load properly and you may see 500 Internal Server Error responses on API endpoints like `/api/auth/providers` and `/api/instance` in the browser's Network tab.
+
+**Solution:**
+
+```bash
+# Add api.localhost to your hosts file
+echo "127.0.0.1       api.localhost" | sudo tee -a /etc/hosts
+
+# Verify it resolves correctly
+ping -c 1 api.localhost
+
+# Restart the services
+./scripts/start.sh
+```
+
+After applying this fix, the API proxy will work correctly and the endpoints will return proper responses.
+
