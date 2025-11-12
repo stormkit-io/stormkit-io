@@ -3,7 +3,6 @@ volumes:
 
 services:
   db:
-    platform: linux/amd64
     image: postgres:17
     container_name: database
     restart: always
@@ -15,7 +14,6 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 
   redis:
-    platform: linux/amd64
     container_name: redis
     image: redis:7
     restart: always
