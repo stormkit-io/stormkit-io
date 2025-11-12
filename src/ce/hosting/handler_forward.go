@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/h2non/bimg"
 	"github.com/redis/go-redis/v9"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
@@ -495,16 +494,8 @@ func (r *RequestServer) OptimizeImage(content []byte) ([]byte, error) {
 		return content, nil
 	}
 
-	image := bimg.NewImage(content)
-
-	var optimized []byte
-	var err error
-
-	if thumb == "true" {
-		optimized, err = image.SmartCrop(width, height)
-	} else {
-		optimized, err = image.ForceResize(width, height)
-	}
+	optimizer := NewImageOptimizer()
+	optimized, err := optimizer.Optimize(content, width, height, thumb == "true")
 
 	if optimized != nil {
 		if err := r.cache.Set(ctx, key, num+1, time.Hour*24).Err(); err != nil {

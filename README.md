@@ -158,10 +158,11 @@ hosting      | Exited with code 1
 services     | Interrupting...
 ```
 
-**Cause:** The hosting service uses `github.com/h2non/bimg` for image processing, which requires `libvips` and `pkg-config` system libraries.
+**Cause:** This error only occurs if the hosting service was built with image optimization enabled (using `-tags=imageopt`). Image optimization requires `libvips` and `pkg-config` system libraries.
 
-**Solution on macOS:**
+**Solution 1 - Install the required dependencies (if you need image optimization):**
 
+On macOS:
 ```bash
 # Install libvips and pkg-config via Homebrew
 brew install vips pkg-config
@@ -172,6 +173,24 @@ pkg-config --modversion vips
 # Restart services
 ./scripts/start.sh
 ```
+
+On Ubuntu/Debian:
+```bash
+apt-get update
+apt-get install -y libvips-dev pkg-config
+```
+
+**Solution 2 - Build without image optimization (recommended for development):**
+
+By default, Stormkit is built without image optimization to avoid requiring additional dependencies. If your build includes the `imageopt` tag, rebuild without it:
+
+```bash
+# Build without image optimization
+go build ./src/ce/hosting
+```
+
+See [docs/IMAGE_OPTIMIZATION.md](docs/IMAGE_OPTIMIZATION.md) for more details on enabling and using image optimization.
+
 
 ### API endpoints return 500 errors - `/api/auth/providers` and `/api/instance`
 
