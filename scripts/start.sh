@@ -16,6 +16,26 @@ if ! command -v tmux &>/dev/null; then
     exit
 fi
 
+# Start dependent services
+docker compose up -d db redis
+
+echo "Waiting for database to be ready..."
+until docker compose exec db pg_isready -U ${POSTGRES_USER:-stormkit_admin} > /dev/null 2>&1; do
+  echo "Database is unavailable - sleeping"
+  sleep 2
+done
+
+echo "Database is ready!"
+
+echo "Waiting for Redis to be ready..."
+
+until docker compose exec redis redis-cli ping > /dev/null 2>&1; do
+  echo "Redis is unavailable - sleeping"
+  sleep 2
+done
+
+echo "Redis is ready!"
+echo "All services are ready, starting application..."
 echo "Loading environment variables from from .env file".
 
 if [ -f "$WORKDIR/.env" ]; then
