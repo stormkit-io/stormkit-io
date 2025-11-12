@@ -98,7 +98,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/analytics/Visitors.tsx", () =>
     });
   });
 
-  it.only("should fetch with specified time span", async () => {
+  it("should fetch with specified time span", async () => {
     vi.useFakeTimers({
       now: new Date("2024-01-14").getTime(),
       toFake: ["Date"],

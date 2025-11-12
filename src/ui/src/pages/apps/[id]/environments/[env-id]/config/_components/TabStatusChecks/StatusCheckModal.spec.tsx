@@ -57,7 +57,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabStatusCh
       expect(wrapper.getByText("Command is a required field.")).toBeTruthy();
     });
 
-    it.only("should submit the form and create a status check", async () => {
+    it("should submit the form and create a status check", async () => {
       await userEvent.type(wrapper.getByLabelText("Command"), "npm run test");
       await userEvent.type(wrapper.getByLabelText("Name"), "Run e2e tests");
       await userEvent.type(wrapper.getByLabelText("Description"), "desc");
