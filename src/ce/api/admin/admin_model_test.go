@@ -175,6 +175,27 @@ func (s *AdminModelSuite) Test_Store() {
 	s.Equal(vc.ProxyConfig.Rules["example.com"].Headers, cnf.ProxyConfig.Rules["example.com"].Headers)
 }
 
+func (s *AdminModelSuite) Test_SignUpMode() {
+	vc := admin.InstanceConfig{}
+	s.Equal(admin.SIGNUP_MODE_ON, vc.SignUpMode())
+
+	vc.AuthConfig = &admin.AuthConfig{
+		UserManagement: admin.UserManagement{
+			SignUpMode: admin.SIGNUP_MODE_OFF,
+		},
+	}
+
+	s.Equal(admin.SIGNUP_MODE_OFF, vc.SignUpMode())
+
+	vc.AuthConfig = &admin.AuthConfig{
+		UserManagement: admin.UserManagement{
+			SignUpMode: admin.SIGNUP_MODE_WAITLIST,
+		},
+	}
+
+	s.Equal(admin.SIGNUP_MODE_WAITLIST, vc.SignUpMode())
+}
+
 func TestAdminModel(t *testing.T) {
 	suite.Run(t, &AdminModelSuite{})
 }

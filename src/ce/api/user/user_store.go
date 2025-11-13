@@ -87,7 +87,7 @@ func (s *Store) selectUsers(ctx context.Context, query string, params ...any) ([
 			&user.ID, &user.Avatar, &user.DisplayName,
 			&user.FirstName, &user.LastName, &emails,
 			&user.CreatedAt, &user.IsAdmin,
-			&user.Metadata, &user.LastLogin,
+			&user.Metadata, &user.LastLogin, &user.IsApproved,
 		)
 
 		if err != nil {
@@ -315,7 +315,7 @@ func (s *Store) insertUser(user *User) (*User, error) {
 
 	params := []any{
 		user.FirstName, user.LastName, user.DisplayName,
-		user.Avatar, user.Metadata, user.IsAdmin,
+		user.Avatar, user.Metadata, user.IsAdmin, user.IsApproved,
 		team.DEFAULT_TEAM_NAME, slug.Make(team.DEFAULT_TEAM_NAME),
 	}
 
@@ -490,8 +490,8 @@ func (s *Store) MustUser(authUser *oauth.User) (*User, error) {
 
 	// Otherwise let's create one
 	if user == nil || user.ID == 0 {
+		signUpStatus := null.BoolFrom(true)
 
-		// Check whether we need to make the user admin
 		if isSelfHosted {
 			count, err := s.SelectTotalUsers(ctx)
 
@@ -505,6 +505,14 @@ func (s *Store) MustUser(authUser *oauth.User) (*User, error) {
 			if license.IsEnterprise() && int64(license.Seats) <= count {
 				return nil, errors.New("seats-full")
 			}
+
+			switch admin.MustConfig().SignUpMode() {
+			case admin.SIGNUP_MODE_OFF:
+				return nil, errors.New("new-users-not-allowed")
+			case admin.SIGNUP_MODE_WAITLIST:
+				// TODO: Check if user email is in the whitelist
+				signUpStatus = null.Bool{}
+			}
 		}
 
 		user = &User{
@@ -512,6 +520,7 @@ func (s *Store) MustUser(authUser *oauth.User) (*User, error) {
 			Avatar:      null.NewString(authUser.AvatarURI, authUser.AvatarURI != ""),
 			DisplayName: authUser.DisplayName,
 			IsAdmin:     authUser.IsAdmin,
+			IsApproved:  signUpStatus,
 			IsNew:       true,
 		}
 

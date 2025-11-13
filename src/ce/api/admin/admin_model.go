@@ -22,6 +22,12 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	SIGNUP_MODE_ON       = "on"
+	SIGNUP_MODE_OFF      = "off"
+	SIGNUP_MODE_WAITLIST = "waitlist"
+)
+
 type mdwrs = []func(stack *middleware.Stack) error
 
 type VolumesConfig struct {
@@ -84,10 +90,16 @@ type BitbucketConfig struct {
 	DeployKey    string
 }
 
+type UserManagement struct {
+	Whitelist  []string `json:"whitelist"`  // Whitelist of pre-approved email domains (e.g. "example.com")
+	SignUpMode string   `json:"signUpMode"` // "on" | "off" | "waitlist" (default: on)
+}
+
 type AuthConfig struct {
-	Github    GithubConfig    `json:"github,omitempty"`
-	Gitlab    GitlabConfig    `json:"gitlab,omitempty"`
-	Bitbucket BitbucketConfig `json:"bitbucket,omitempty"`
+	Github         GithubConfig    `json:"github,omitempty"`
+	Gitlab         GitlabConfig    `json:"gitlab,omitempty"`
+	Bitbucket      BitbucketConfig `json:"bitbucket,omitempty"`
+	UserManagement UserManagement  `json:"userManagement,omitempty"`
 }
 
 type DomainConfig struct {
@@ -237,6 +249,25 @@ func (vc InstanceConfig) IsGithubEnabled() bool {
 		vc.AuthConfig.Github.PrivateKey != "" &&
 		vc.AuthConfig.Github.Account != "" &&
 		vc.AuthConfig.Github.AppID > 0
+}
+
+// SignUpMode returns the configured sign up mode.
+// If the AuthConfig or UserManagement configurations are not defined,
+// the default is `on`
+func (vc InstanceConfig) SignUpMode() string {
+	if vc.AuthConfig == nil || vc.AuthConfig.UserManagement.SignUpMode == "" {
+		return SIGNUP_MODE_ON
+	}
+
+	// Just to make sure we don't return something random
+	switch vc.AuthConfig.UserManagement.SignUpMode {
+	case SIGNUP_MODE_OFF:
+		return SIGNUP_MODE_OFF
+	case SIGNUP_MODE_WAITLIST:
+		return SIGNUP_MODE_WAITLIST
+	default:
+		return SIGNUP_MODE_ON
+	}
 }
 
 // SetURL sets the domain config based on the given domain.

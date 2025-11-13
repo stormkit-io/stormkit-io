@@ -399,6 +399,7 @@ CREATE TABLE IF NOT EXISTS skitapi.users (
     updated_at timestamp without time zone,
     last_login_at timestamp without time zone,
     deleted_at timestamp without time zone,
+    is_approved boolean, -- Null means pending, false means not approved, true means approved
     metadata JSONB
 );
 
