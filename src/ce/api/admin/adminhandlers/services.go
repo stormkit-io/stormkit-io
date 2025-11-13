@@ -35,6 +35,10 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodGet, "", user.WithAdmin(handlerAdminDomainsGet)).
 		Handler(shttp.MethodPost, "", user.WithAdmin(handlerAdminDomainsSet))
 
+	s.NewEndpoint("/admin/users").
+		Handler(shttp.MethodGet, "/sign-up-mode", user.WithAdmin(handlerUserManagementGet)).
+		Handler(shttp.MethodPost, "/sign-up-mode", user.WithAdmin(handlerUserManagementSet))
+
 	if config.IsStormkitCloud() || config.IsDevelopment() {
 		s.NewEndpoint("/admin/cloud").
 			Handler(shttp.MethodPost, "/impersonate", user.WithAdmin(handlerImpersonate)).

@@ -63,13 +63,10 @@ type User struct {
 	LastLogin   utils.Unix    `json:"-"`
 	FirstName   null.String   `json:"-"`
 	LastName    null.String   `json:"-"`
+	IsAdmin     bool          `json:"isAdmin,omitempty"`
+	IsNew       bool          `json:"-"` // Whether the user is newly created or not.
+	IsApproved  null.Bool     `json:"-"` // Null => pending, FALSE => not allowed, TRUE => allowed
 	Metadata    UserMeta      `json:"metadata,omitempty"`
-
-	// Whether the user is an admin or not.
-	IsAdmin bool `json:"isAdmin,omitempty"`
-
-	// Whether the user is newly created or not.
-	IsNew bool `json:"-"`
 }
 
 type Mail struct {

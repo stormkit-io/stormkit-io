@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
@@ -41,6 +42,7 @@ func (s *UserStoreSuite) Test_MustUser() {
 	s.Greater(int64(user.ID), int64(0))
 	s.Equal("test@stormkit.io", user.PrimaryEmail())
 	s.False(user.IsAdmin)
+	s.True(user.IsApproved.ValueOrZero())
 
 	teams, err := team.NewStore().Teams(ctx, user.ID)
 	s.NoError(err)
@@ -51,6 +53,28 @@ func (s *UserStoreSuite) Test_MustUser() {
 	apiKeys, err := apikey.NewStore().APIKeys(ctx, user.ID, apikey.SCOPE_USER)
 	s.NoError(err)
 	s.Len(apiKeys, 1)
+}
+
+func (s *UserStoreSuite) Test_MustUser_Approval() {
+	config.SetIsSelfHosted(true)
+	defer config.SetIsSelfHosted(false)
+
+	cfg := admin.InstanceConfig{
+		AuthConfig: &admin.AuthConfig{
+			UserManagement: admin.UserManagement{
+				SignUpMode: admin.SIGNUP_MODE_WAITLIST,
+			},
+		},
+	}
+
+	s.NoError(admin.Store().UpsertConfig(context.Background(), cfg))
+
+	user, err := user.NewStore().MustUser(&oauth.User{
+		Emails: []oauth.Email{{Address: "test@stormkit.io", IsPrimary: true, IsVerified: true}},
+	})
+
+	s.NoError(err)
+	s.False(user.IsApproved.Valid)
 }
 
 func (s *UserStoreSuite) Test_MustUser_IsAdmin() {
