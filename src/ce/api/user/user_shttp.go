@@ -136,6 +136,26 @@ func WithAuth(handler func(*RequestContext) *shttp.Response) shttp.RequestFunc {
 			return shttp.NotAllowed()
 		}
 
+		if config.IsSelfHosted() && admin.MustConfig().SignUpMode() != admin.SIGNUP_MODE_ON {
+			if !usr.IsApproved.Valid {
+				return &shttp.Response{
+					Status: http.StatusForbidden,
+					Data: map[string]any{
+						"error": "Your account is pending approval by an administrator.",
+					},
+				}
+			}
+
+			if !usr.IsApproved.ValueOrZero() {
+				return &shttp.Response{
+					Status: http.StatusForbidden,
+					Data: map[string]any{
+						"error": "Your account is not approved by an administrator. You cannot access this resource.",
+					},
+				}
+			}
+		}
+
 		return handler(&RequestContext{
 			RequestContext: req,
 			User:           usr,

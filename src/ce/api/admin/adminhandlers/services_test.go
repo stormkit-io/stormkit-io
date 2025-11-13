@@ -26,6 +26,7 @@ func (s *ServicesSuite) Test_Services_SelfHosted() {
 		"GET:/admin/system/mise",
 		"GET:/admin/system/proxies",
 		"GET:/admin/system/runtimes",
+		"GET:/admin/users/sign-up-mode",
 		"POST:/admin/domains",
 		"POST:/admin/git/configure",
 		"POST:/admin/git/github/manifest",
@@ -34,6 +35,7 @@ func (s *ServicesSuite) Test_Services_SelfHosted() {
 		"POST:/admin/license",
 		"POST:/admin/system/mise",
 		"POST:/admin/system/runtimes",
+		"POST:/admin/users/sign-up-mode",
 		"PUT:/admin/system/proxies",
 	}
 
@@ -55,6 +57,7 @@ func (s *ServicesSuite) Test_Services_Cloud() {
 		"GET:/admin/system/mise",
 		"GET:/admin/system/proxies",
 		"GET:/admin/system/runtimes",
+		"GET:/admin/users/sign-up-mode",
 		"POST:/admin/cloud/impersonate",
 		"POST:/admin/cloud/license",
 		"POST:/admin/domains",
@@ -65,6 +68,7 @@ func (s *ServicesSuite) Test_Services_Cloud() {
 		"POST:/admin/license",
 		"POST:/admin/system/mise",
 		"POST:/admin/system/runtimes",
+		"POST:/admin/users/sign-up-mode",
 		"PUT:/admin/system/proxies",
 	}
 

@@ -41,9 +41,9 @@ func (u *MockUser) Insert(conn databasetest.TestDB) error {
 			new_user AS (
 				INSERT INTO users (
 					first_name, last_name, display_name,
-					avatar_uri, is_admin, created_at, metadata
+					avatar_uri, is_admin, created_at, is_approved, metadata
 				) VALUES (
-					$1, $2, $3, $4, $5, $6, $7
+					$1, $2, $3, $4, $5, $6, $7, $8
 				)
 				RETURNING user_id
 			),
@@ -51,7 +51,7 @@ func (u *MockUser) Insert(conn databasetest.TestDB) error {
 				INSERT INTO teams
 					(team_name, team_slug, user_id, is_default, created_at)
 				VALUES
-					($8, $9, (SELECT user_id FROM new_user), TRUE, NOW())
+					($9, $10, (SELECT user_id FROM new_user), TRUE, NOW())
 				RETURNING team_id
 			),
 			new_team_member AS (
@@ -67,7 +67,7 @@ func (u *MockUser) Insert(conn databasetest.TestDB) error {
 				(user_id, email, is_verified, is_primary)
 			SELECT
 				(SELECT user_id FROM new_user),
-				$10,
+				$11,
 				TRUE,
 				TRUE
 			RETURNING
@@ -76,7 +76,7 @@ func (u *MockUser) Insert(conn databasetest.TestDB) error {
 			`,
 	).QueryRow(
 		u.FirstName, u.LastName, u.DisplayName,
-		u.Avatar, u.IsAdmin, u.CreatedAt, u.Metadata,
+		u.Avatar, u.IsAdmin, u.CreatedAt, u.IsApproved, u.Metadata,
 		team.DEFAULT_TEAM_NAME, slug.Make(team.DEFAULT_TEAM_NAME),
 		u.PrimaryEmail(),
 	).Scan(&u.ID, &u.DefaultTeamID)
@@ -131,6 +131,7 @@ func (f *Factory) MockUser(overwrites ...map[string]interface{}) *MockUser {
 	usr.LastName = null.NewString("Lorenzo", true)
 	usr.DisplayName = "dlorenzo"
 	usr.IsAdmin = false
+	usr.IsApproved = null.BoolFrom(true)
 	usr.Metadata = user.UserMeta{
 		SeatsPurchased: 1,
 		PackageName:    config.PackagePremium,

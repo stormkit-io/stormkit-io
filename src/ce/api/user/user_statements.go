@@ -42,7 +42,7 @@ var ustmt = &userStatement{
 				ORDER BY ue.email_id ASC
 			) as emails,
 			u.created_at, u.is_admin, u.metadata,
-			u.last_login_at
+			u.last_login_at, u.is_approved
 		FROM
 			users u
 		LEFT JOIN
@@ -118,16 +118,16 @@ var ustmt = &userStatement{
 		WITH
 			new_user AS (
 				INSERT INTO users
-					(first_name, last_name, display_name, avatar_uri, metadata, is_admin)
+					(first_name, last_name, display_name, avatar_uri, metadata, is_admin, is_approved)
 				VALUES
-					($1, $2, $3, $4, $5, $6)
+					($1, $2, $3, $4, $5, $6, $7)
 				RETURNING user_id
 			),
 			new_team AS (
 				INSERT INTO teams
 					(team_name, team_slug, user_id, is_default, created_at)
 				VALUES
-					($7, $8, (SELECT user_id FROM new_user), TRUE, NOW())
+					($8, $9, (SELECT user_id FROM new_user), TRUE, NOW())
 				RETURNING team_id
 			),
 			new_team_member AS (
