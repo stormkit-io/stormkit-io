@@ -85,15 +85,7 @@ We love feature suggestions! Please:
    # Edit .env with your local configuration
    ```
 
-3. **Set the PostgreSQL password
-
-   ```bash
-   POSTGRES_PASSWORD='yourpassword'
-   ```
-   inside your .env file before starting the application.
-
-
-4. **Run the application**
+3. **Run the application**
 
    ```bash
    ./scripts/start.sh

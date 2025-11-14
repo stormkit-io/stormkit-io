@@ -43,11 +43,7 @@ You can install `go` and `node` using [mise](https://mise.jdx.dev/), which is a 
 ### Update environment variables
 
 - Copy [.env.example](./.env.example) and create an `.env` file. Provide the missing variables.
-- **Set a PostgreSQL password before running any service:**
-
-  ```bash
-  POSTGRES_PASSWORD='yourpassword'
-  ```
+- Generate a 32 random token and set the `STORMKIT_APP_SECRET` environment variable.
 
 ### Running the services
 
@@ -195,4 +191,3 @@ ping -c 1 api.localhost
 ```
 
 After applying this fix, the API proxy will work correctly and the endpoints will return proper responses.
-

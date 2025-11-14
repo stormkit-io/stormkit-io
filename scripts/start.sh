@@ -5,6 +5,10 @@ DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 WORKDIR="$(dirname "${DIR}")"
 
 cd "${WORKDIR}"
+if [ ! -f "$WORKDIR/.env" ] && [ -f "$WORKDIR/.env.example" ]; then
+  echo "Creating .env from .env.example"
+  cp "$WORKDIR/.env.example" "$WORKDIR/.env"
+fi
 
 if ! command -v overmind &>/dev/null; then
     echo "overmind could not be found"
