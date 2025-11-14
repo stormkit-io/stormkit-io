@@ -67,7 +67,12 @@ We love feature suggestions! Please:
 - **Node.js 24+**
 - **PostgreSQL 14+**
 - **Redis 6+**
-- **Docker**
+- **Docker Engine with Compose v2 plugin**
+- **tmux 3+**
+- **[Overmind (Procfile) binary](https://github.com/DarthSim/overmind)**
+
+> [!IMPORTANT]
+> Debian/Ubuntu `overmind` packages deliver the SaaS CLI and do **not** expose Procfile commands. `./scripts/start.sh` detects this and, on Linux, automatically downloads the Procfile release into `./bin/overmind` when necessary. You can still download the release yourself from [github.com/DarthSim/overmind/releases](https://github.com/DarthSim/overmind/releases) and either add it to your `PATH` or set `OVERMIND_BIN` if you prefer to manage the binary manually. When `tmux` is missing on Debian/Ubuntu, the script attempts to install it via `apt-get`; otherwise install it yourself with `sudo apt install tmux`.
 
 ### Local Development
 
@@ -89,6 +94,12 @@ We love feature suggestions! Please:
 
    ```bash
    ./scripts/start.sh
+   ```
+
+   If the Procfile binary is not on your `PATH`, reference it explicitly:
+
+   ```bash
+   OVERMIND_BIN=$HOME/bin/overmind ./scripts/start.sh
    ```
 
 ### Project Structure
