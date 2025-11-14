@@ -47,11 +47,11 @@ You can install `go` and `node` using [mise](https://mise.jdx.dev/), which is a 
 > Debian/Ubuntu `overmind` packages install the SaaS CLI, not the Procfile process manager that `scripts/start.sh` expects. The start script now checks for the SaaS CLI and, on Linux, automatically downloads the Procfile release into `./bin/overmind` when needed. You can still download the release yourself from [github.com/DarthSim/overmind/releases](https://github.com/DarthSim/overmind/releases), place it somewhere on your `PATH` (for example `~/bin/overmind`), or set the `OVERMIND_BIN` environment variable to point to the binary if you prefer to manage it manually. If `tmux` is missing on Debian/Ubuntu, the script tries to install it with `apt-get`; otherwise, install it manually via `sudo apt install tmux`.
 
 > [!TIP]
-> Ubuntu/Debian toplu kurulumu için örnek:
+> Example setup for Ubuntu/Debian:
 > ```bash
 > sudo apt update
 > sudo apt install curl gnupg ca-certificates libvips-dev pkg-config
-> # Docker Engine + Compose v2 resmi depodan
+> # Docker Engine + Compose v2 (official repo)
 > curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
 > echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
 > sudo apt update
