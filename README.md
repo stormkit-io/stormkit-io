@@ -1,9 +1,9 @@
 # Welcome
 
-[![codecov](https://codecov.io/gh/Taiizor/stormkit-io/branch/main/graph/badge.svg)](https://codecov.io/gh/Taiizor/stormkit-io)
-[![Test Backend](https://github.com/Taiizor/stormkit-io/actions/workflows/test-be.yml/badge.svg)](https://github.com/Taiizor/stormkit-io/actions/workflows/test-be.yml)
-[![Test Frontend](https://github.com/Taiizor/stormkit-io/actions/workflows/test-fe.yml/badge.svg)](https://github.com/Taiizor/stormkit-io/actions/workflows/test-fe.yml)
-[![Go Version](https://img.shields.io/github/go-mod/go-version/Taiizor/stormkit-io)](https://github.com/Taiizor/stormkit-io/blob/main/go.mod)
+[![codecov](https://codecov.io/gh/stormkit-io/stormkit-io/branch/main/graph/badge.svg)](https://codecov.io/gh/stormkit-io/stormkit-io)
+[![Test Backend](https://github.com/stormkit-io/stormkit-io/actions/workflows/test-be.yml/badge.svg)](https://github.com/stormkit-io/stormkit-io/actions/workflows/test-be.yml)
+[![Test Frontend](https://github.com/stormkit-io/stormkit-io/actions/workflows/test-fe.yml/badge.svg)](https://github.com/stormkit-io/stormkit-io/actions/workflows/test-fe.yml)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/stormkit-io/stormkit-io)](https://github.com/stormkit-io/stormkit-io/blob/main/go.mod)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
 [Stormkit](https://www.stormkit.io) is a hosting solution for seamless deployment and management of modern web applications.

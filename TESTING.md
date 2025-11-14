@@ -137,7 +137,7 @@ Coverage is checked on every PR:
 ### Coverage Reports
 
 Reports are uploaded to:
-- **Codecov**: https://codecov.io/gh/Taiizor/stormkit-io
+- **Codecov**: https://codecov.io/gh/stormkit-io/stormkit-io
 - **GitHub Artifacts**: Available for 30 days
 
 ## Improving Coverage
