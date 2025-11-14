@@ -43,7 +43,11 @@ You can install `go` and `node` using [mise](https://mise.jdx.dev/), which is a 
 ### Update environment variables
 
 - Copy [.env.example](./.env.example) and create an `.env` file. Provide the missing variables.
-- Generate a 32 random token and set the `STORMKIT_APP_SECRET` environment variable.
+- **Set a PostgreSQL password before running any service:**
+
+  ```bash
+  POSTGRES_PASSWORD='yourpassword'
+  ```
 
 ### Running the services
 
