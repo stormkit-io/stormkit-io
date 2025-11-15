@@ -15,7 +15,6 @@ import Card from "~/components/Card";
 import CardRow from "~/components/CardRow";
 import CardHeader from "~/components/CardHeader";
 import CardFooter from "~/components/CardFooter";
-import { stat } from "fs";
 
 type Status = "ok" | "sent" | "processing" | "error";
 
@@ -53,6 +52,8 @@ const useFetchRuntimes = () => {
         setAutoInstall(autoInstall);
         setStatus(s);
         setInstalled(installed);
+
+        console.log("Runtimes status:", runtimes);
 
         if (s !== "ok" && s !== "error") {
           clearTimeout(timeout);
