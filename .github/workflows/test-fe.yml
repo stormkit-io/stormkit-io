@@ -32,8 +32,7 @@ jobs:
         run: npm install
 
       - name: Run tests
-        working-directory: src/ui
-        run: npm run test
+        run: make test-fe
 
       - name: Generate test summary
         if: always()
