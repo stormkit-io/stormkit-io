@@ -1,3 +1,5 @@
+//go:build imageopt
+
 package hosting_test
 
 import (
@@ -27,9 +29,9 @@ func (s *ImageOptimizerSuite) Test_Optimize_NoOp() {
 	// When built without imageopt tag, Optimize should return an error
 	optimizer := hosting.NewImageOptimizer()
 	content := []byte("test image content")
-	
+
 	result, err := optimizer.Optimize(content, 100, 100, false)
-	
+
 	if !hosting.IsImageOptimizationEnabled() {
 		// Should return error when optimization is disabled
 		s.Error(err)
