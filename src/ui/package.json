@@ -11,6 +11,8 @@
     "dev": "vite serve",
     "test:watch": "vitest --reporter=basic --disable-console-intercept",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "coverage": "vitest run --coverage && open coverage/index.html",
     "lint": "eslint .",
     "prettier": "prettier \"**/*.{ts,js,tsx,md}\" --write"
   },

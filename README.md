@@ -1,5 +1,11 @@
 # Welcome
 
+[![codecov](https://codecov.io/gh/stormkit-io/stormkit-io/branch/main/graph/badge.svg)](https://codecov.io/gh/stormkit-io/stormkit-io)
+[![Test Backend](https://github.com/stormkit-io/stormkit-io/actions/workflows/test-be.yml/badge.svg)](https://github.com/stormkit-io/stormkit-io/actions/workflows/test-be.yml)
+[![Test Frontend](https://github.com/stormkit-io/stormkit-io/actions/workflows/test-fe.yml/badge.svg)](https://github.com/stormkit-io/stormkit-io/actions/workflows/test-fe.yml)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/stormkit-io/stormkit-io)](https://github.com/stormkit-io/stormkit-io/blob/main/go.mod)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+
 [Stormkit](https://www.stormkit.io) is a hosting solution for seamless deployment and management of modern web applications.
 
 ![Stormkit](./.github/assets/deployment-page.png)
@@ -95,9 +101,30 @@ stormkit-io/
 
 ## Testing
 
-Tests require PostgreSQL with a test database named `sktest` and Redis to be running.
+We maintain **80%+ code coverage** across both backend and frontend. For detailed testing guidelines, see [TESTING.md](TESTING.md).
+
+### Quick Start
+
+```bash
+# Run all tests with coverage
+make test-coverage
+
+# Backend tests only
+make test-be
+
+# Frontend tests only
+make test-fe
+
+# View coverage report
+make coverage-report
+
+# Generate HTML coverage report
+make coverage-html
+```
 
 ### Setup
+
+Tests require PostgreSQL with a test database named `sktest` and Redis to be running.
 
 ```bash
 # Start services
@@ -107,7 +134,7 @@ docker compose up -d db redis
 docker compose exec db createdb -U ${POSTGRES_USER} sktest
 ```
 
-### Running Tests
+### Running Tests Manually
 
 ```bash
 # Run all tests (sequential execution required)

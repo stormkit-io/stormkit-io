@@ -31,12 +31,56 @@ jobs:
         working-directory: src/ui
         run: npm install
 
-      - name: Run tests
+      - name: Run tests with coverage
         working-directory: src/ui
-        run: npm run test
+        run: npm run test -- --coverage --coverage.reporter=json --coverage.reporter=lcov --coverage.reporter=text
+
+      - name: Check coverage threshold
+        working-directory: src/ui
+        run: |
+          if [ -f coverage/coverage-summary.json ]; then
+            COVERAGE=$(cat coverage/coverage-summary.json | jq '.total.lines.pct')
+            echo "Total coverage: ${COVERAGE}%"
+            THRESHOLD=60.0
+            if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
+              echo "❌ Coverage ${COVERAGE}% is below threshold ${THRESHOLD}%"
+              echo "⚠️ Warning: Coverage is below target. Current: ${COVERAGE}%, Target: 80%+" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "✅ Coverage ${COVERAGE}% meets threshold ${THRESHOLD}%"
+            fi
+          fi
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./src/ui/coverage/lcov.info
+          flags: frontend
+          name: frontend-coverage
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Generate test summary
         if: always()
+        working-directory: src/ui
         run: |
-          echo "## Frontend Tests Completed" >> $GITHUB_STEP_SUMMARY
-          echo "Test run finished for frontend components" >> $GITHUB_STEP_SUMMARY
+          echo "## 📊 Frontend Test Coverage Report" >> $GITHUB_STEP_SUMMARY
+          if [ -f coverage/coverage-summary.json ]; then
+            LINES=$(cat coverage/coverage-summary.json | jq '.total.lines.pct')
+            BRANCHES=$(cat coverage/coverage-summary.json | jq '.total.branches.pct')
+            FUNCTIONS=$(cat coverage/coverage-summary.json | jq '.total.functions.pct')
+            STATEMENTS=$(cat coverage/coverage-summary.json | jq '.total.statements.pct')
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Metric | Coverage | Target |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------|----------|--------|" >> $GITHUB_STEP_SUMMARY
+            echo "| Lines | ${LINES}% | 80% |" >> $GITHUB_STEP_SUMMARY
+            echo "| Branches | ${BRANCHES}% | 80% |" >> $GITHUB_STEP_SUMMARY
+            echo "| Functions | ${FUNCTIONS}% | 80% |" >> $GITHUB_STEP_SUMMARY
+            echo "| Statements | ${STATEMENTS}% | 80% |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-coverage-report
+          path: src/ui/coverage/
+          retention-days: 30

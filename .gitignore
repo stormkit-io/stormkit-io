@@ -39,6 +39,12 @@ node_modules/
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+coverage.out
+coverage.txt
+coverage.html
+
+# Frontend coverage reports
+src/ui/coverage/
 
 # Dependency directories (remove the comment below to include it)
 # vendor/

@@ -1,0 +1,69 @@
+# Codecov configuration for Stormkit
+# Documentation: https://docs.codecov.com/docs/codecov-yaml
+
+coverage:
+  precision: 2
+  round: down
+  range: "60...100"
+
+  status:
+    project:
+      default:
+        target: 80%
+        threshold: 2%
+        informational: false
+      backend:
+        flags:
+          - backend
+        target: 80%
+        threshold: 2%
+      frontend:
+        flags:
+          - frontend
+        target: 80%
+        threshold: 2%
+    
+    patch:
+      default:
+        target: 70%
+        threshold: 5%
+        informational: true
+
+  # Files to ignore in coverage reports
+  ignore:
+    - "**/*_test.go"
+    - "**/*.test.ts"
+    - "**/*.test.tsx"
+    - "**/*.spec.ts"
+    - "**/*.spec.tsx"
+    - "**/mocks/**"
+    - "**/testutils/**"
+    - "src/ui/src/testing/**"
+    - "**/__mocks__/**"
+    - "**/__tests__/**"
+    - "**/node_modules/**"
+    - "src/migrations/**"
+
+comment:
+  layout: "reach,diff,flags,tree"
+  behavior: default
+  require_changes: false
+  require_base: false
+  require_head: true
+
+flags:
+  backend:
+    paths:
+      - src/ce/
+      - src/ee/
+      - src/lib/
+    carryforward: true
+  
+  frontend:
+    paths:
+      - src/ui/src/
+    carryforward: true
+
+# Pull request comments configuration
+github_checks:
+  annotations: true

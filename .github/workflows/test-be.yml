@@ -68,23 +68,56 @@ jobs:
 
       - name: Run tests
         run: |
-          go test -p 1 -v -failfast -coverprofile=coverage.out ./...
+          go test -p 1 -v -failfast -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Check coverage threshold
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print substr($3, 1, length($3)-1)}')
+          echo "Total coverage: ${COVERAGE}%"
+          THRESHOLD=60.0
+          if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
+            echo "❌ Coverage ${COVERAGE}% is below threshold ${THRESHOLD}%"
+            echo "⚠️ Warning: Coverage is below target. Current: ${COVERAGE}%, Target: 80%+" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ Coverage ${COVERAGE}% meets threshold ${THRESHOLD}%"
+          fi
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           file: ./coverage.out
-          flags: unittests
-          name: codecov-umbrella
+          flags: backend
+          name: backend-coverage
           fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Generate coverage report
         run: |
           go tool cover -func=coverage.out > coverage.txt
-          echo "## Test Coverage" >> $GITHUB_STEP_SUMMARY
+          TOTAL_COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}')
+          echo "## 📊 Test Coverage Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Total Coverage: ${TOTAL_COVERAGE}**" >> $GITHUB_STEP_SUMMARY
+          echo "**Target: 80%+**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Detailed Coverage" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          cat coverage.txt >> $GITHUB_STEP_SUMMARY
+          cat coverage.txt | tail -20 >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Generate HTML coverage report
+        run: |
+          go tool cover -html=coverage.out -o coverage.html
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: |
+            coverage.out
+            coverage.txt
+            coverage.html
+          retention-days: 30
 
       - name: Cleanup
         if: always()
