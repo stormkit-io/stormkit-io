@@ -37,8 +37,28 @@ To run Stormkit locally for development purposes:
 - Node.js 24+
 - PostgreSQL 17+
 - Redis 7+
+- tmux 3+
+- [Overmind (Procfile process manager)](https://github.com/DarthSim/overmind) binary
+- Docker Engine with Compose v2 plugin
 
 You can install `go` and `node` using [mise](https://mise.jdx.dev/), which is a polyglot tool version manager.
+
+> [!NOTE]
+> Debian/Ubuntu `overmind` packages install the SaaS CLI, not the Procfile process manager that `scripts/start.sh` expects. The start script now checks for the SaaS CLI and, on Linux, automatically downloads the Procfile release into `./bin/overmind` when needed. You can still download the release yourself from [github.com/DarthSim/overmind/releases](https://github.com/DarthSim/overmind/releases), place it somewhere on your `PATH` (for example `~/bin/overmind`), or set the `OVERMIND_BIN` environment variable to point to the binary if you prefer to manage it manually. If `tmux` is missing on Debian/Ubuntu, the script tries to install it with `apt-get`; otherwise, install it manually via `sudo apt install tmux`.
+
+> [!TIP]
+> Example setup for Ubuntu/Debian:
+> ```bash
+> sudo apt update
+> sudo apt install curl gnupg ca-certificates libvips-dev pkg-config
+> # Docker Engine + Compose v2 (official repo)
+> curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+> echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+> sudo apt update
+> sudo apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+> sudo usermod -aG docker $USER && newgrp docker
+> ```
+> After installing these packages, `./scripts/start.sh` will find Docker/Compose, tmux, and libvips on Debian/Ubuntu systems without extra setup.
 
 ### Update environment variables
 
@@ -59,6 +79,8 @@ mise trust && mise install
 # Start all services (includes database setup and migrations)
 ./scripts/start.sh
 ```
+
+If you keep the Procfile Overmind binary outside of your `PATH`, point the script to it with `OVERMIND_BIN=/path/to/overmind ./scripts/start.sh`.
 
 After starting the services:
 
