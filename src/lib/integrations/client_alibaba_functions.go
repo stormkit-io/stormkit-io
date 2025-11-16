@@ -1,3 +1,5 @@
+//go:build alibaba
+
 package integrations
 
 import (

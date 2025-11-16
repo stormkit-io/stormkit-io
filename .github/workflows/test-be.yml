@@ -68,7 +68,7 @@ jobs:
 
       - name: Run tests
         run: |
-          go test -tags=imageopt -p 1 -v -failfast -coverprofile=coverage.out ./...
+          go test -tags=imageopt,alibaba -p 1 -v -failfast -coverprofile=coverage.out ./...
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3

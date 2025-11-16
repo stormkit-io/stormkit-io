@@ -1,3 +1,5 @@
+//go:build alibaba
+
 package integrations
 
 import (
@@ -16,6 +18,13 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
+
+func init() {
+	slog.Debug(slog.LogOpts{
+		Msg:   "alibaba integration is enabled",
+		Level: slog.DL1,
+	})
+}
 
 type AlibabaSDK interface {
 	GetFunction(*string, *alibaba.GetFunctionRequest) (*alibaba.GetFunctionResponse, error)

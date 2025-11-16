@@ -1,3 +1,5 @@
+//go:build alibaba
+
 package integrations_test
 
 import (
@@ -13,12 +15,12 @@ import (
 	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/smithy-go/middleware"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/integrations"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/file"
 	"github.com/stretchr/testify/suite"
 )
@@ -171,8 +173,8 @@ func (s *AlibabaOSSSuite) Test_GetFile() {
 							return middleware.FinalizeOutput{
 								Result: &s3.GetObjectOutput{
 									Body:          io.NopCloser(bytes.NewReader([]byte("Hello world"))),
-									ContentType:   aws.String("text/html; charset=utf-8"),
-									ContentLength: aws.Int64(int64(len("Hello world"))),
+									ContentType:   utils.Ptr("text/html; charset=utf-8"),
+									ContentLength: utils.Ptr(int64(len("Hello world"))),
 								},
 							}, middleware.Metadata{}, nil
 						}
