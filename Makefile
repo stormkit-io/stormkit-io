@@ -173,7 +173,7 @@ endif
 # Phony Targets
 # ==============================================================================
 
-.PHONY: help check-deps start dev print-env
+.PHONY: help check-deps start dev print-env test test-fe test-be
 
 # ==============================================================================
 # Tasks
@@ -213,6 +213,22 @@ start:
 	$(call wait_for_service,db,pg_isready -U postgres,PostgreSQL)
 	$(call wait_for_service,redis,redis-cli ping,Redis)
 	@echo "All services are ready!"
+	go install github.com/mattn/goreman@latest
+	goreman start
+
+# Run all tests
+test: test-fe test-be
+
+# Test frontend services
+test-fe:
+	@echo "Running frontend tests..."
+	cd src/ui && npm run test
+
+# Test backend services
+test-be:
+	@echo "Running tests..."
+	go test -tags=imageopt,alibaba -p 1 -v -failfast -coverprofile=coverage.out ./...
+	go test -p 1 -v -failfast ./src/lib/integrations/
 
 # Development workflow - check dependencies and start services
 dev: check-deps start
