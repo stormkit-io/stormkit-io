@@ -13,7 +13,6 @@ import (
 	"path"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/goccy/go-yaml"
@@ -118,14 +117,7 @@ func (s *Service) Kill() {
 			},
 		})
 
-		pgid, err := syscall.Getpgid(s.cmd.Process.Pid)
-
-		// Stop children processes
-		if err == nil {
-			if err := syscall.Kill(-pgid, syscall.SIGTERM); err != nil {
-				slog.Errorf("error while killing process group: %s", err.Error())
-			}
-		}
+		s.killProcessGroup()
 	}
 
 	if s.timer != nil {
@@ -418,7 +410,7 @@ func (pm *ProcessManager) Start(ctx context.Context, args *InvokeArgs, workDir s
 			Env:         vars,
 			Stdout:      outfile,
 			Stderr:      outfile,
-			SysProcAttr: &syscall.SysProcAttr{Setpgid: true},
+			SysProcAttr: getSysProcAttr(),
 		}).Cmd()
 
 		if err := s.cmd.Start(); err != nil {
