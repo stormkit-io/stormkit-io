@@ -148,49 +148,12 @@ which go
 
 For other shells, replace `zsh` with your shell (e.g., `bash`, `fish`). See [mise activation docs](https://mise.jdx.dev/getting-started.html#_2-activate-mise) for more details.
 
-### `pkg-config: executable file not found` - hosting service crashes
+### Image optimization does not work on my local environment
 
-**Problem:** After starting the services, the hosting service immediately crashes with:
-
-```
-hosting      | github.com/h2non/bimg: exec: "pkg-config": executable file not found in $PATH
-hosting      | Exited with code 1
-services     | Interrupting...
-```
-
-**Cause:** This error only occurs if the hosting service was built with image optimization enabled (using `-tags=imageopt`). Image optimization requires `libvips` and `pkg-config` system libraries.
-
-**Solution 1 - Install the required dependencies (if you need image optimization):**
-
-On macOS:
-```bash
-# Install libvips and pkg-config via Homebrew
-brew install vips pkg-config
-
-# Verify installation
-pkg-config --modversion vips
-
-# Restart services
-./scripts/start.sh
-```
-
-On Ubuntu/Debian:
-```bash
-apt-get update
-apt-get install -y libvips-dev pkg-config
-```
-
-**Solution 2 - Build without image optimization (recommended for development):**
-
-By default, Stormkit is built without image optimization to avoid requiring additional dependencies. If your build includes the `imageopt` tag, rebuild without it:
-
-```bash
-# Build without image optimization
-go build ./src/ce/hosting
-```
+Image optimization is disabled by default on local environments to avoid
+requiring additional dependencies.
 
 See [docs/IMAGE_OPTIMIZATION.md](docs/IMAGE_OPTIMIZATION.md) for more details on enabling and using image optimization.
-
 
 ### API endpoints return 500 errors - `/api/auth/providers` and `/api/instance`
 

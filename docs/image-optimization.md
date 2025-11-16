@@ -8,11 +8,11 @@ Image optimization is controlled at **build time** using Go build tags. By defau
 
 ### Building with Image Optimization Enabled
 
-To enable image optimization, run the hosting service with the `imageopt` build tag:
+To enable image optimization, add the following environment variable
+to your `.env` file:
 
-```yml
-# ProcFile
-hosting: go run -tags=imageopt src/ee/hosting/main.go
+```bash
+GO_BUILD_TAGS=imageopt
 ```
 
 ## System Dependencies
