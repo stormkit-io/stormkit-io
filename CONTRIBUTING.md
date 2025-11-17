@@ -105,7 +105,7 @@ stormkit-io/
 
 4. **Test your changes**
 
-   See [Testing](../README.md#testing) section in the main README for more details.
+   See [Testing](./README.md#testing) section in the main README for more details.
 
 5. **Commit your changes**
 
