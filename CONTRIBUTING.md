@@ -71,7 +71,7 @@ We love feature suggestions! Please:
 
 ### Local Development
 
-See [Running the services](../README.md#running-the-services) in the main README for detailed setup instructions.
+See [Running the services](./README.md#running-the-services) in the main README for detailed setup instructions.
 
 ### Project Structure
 
