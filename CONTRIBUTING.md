@@ -71,25 +71,7 @@ We love feature suggestions! Please:
 
 ### Local Development
 
-1. **Clone the repository**
-
-   ```bash
-   git clone https://github.com/stormkit-io/stormkit-io.git
-   cd stormkit-io
-   ```
-
-2. **Set up environment**
-
-   ```bash
-   cp .env.example .env
-   # Edit .env with your local configuration
-   ```
-
-3. **Run the application**
-
-   ```bash
-   ./scripts/start.sh
-   ```
+See [Running the services](../README.md#running-the-services) in the main README for detailed setup instructions.
 
 ### Project Structure
 
@@ -123,13 +105,7 @@ stormkit-io/
 
 4. **Test your changes**
 
-   ```bash
-   # Run tests
-   go test -p 1 ./...
-
-   # Run linters
-   golangci-lint run
-   ```
+   See [Testing](../README.md#testing) section in the main README for more details.
 
 5. **Commit your changes**
 

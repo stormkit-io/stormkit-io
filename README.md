@@ -108,27 +108,24 @@ docker compose exec db createdb -U ${POSTGRES_USER} sktest
 ### Running Tests
 
 ```bash
-# Run all tests (sequential execution required)
-go test -p 1 ./...
+# Run backend and frontend tests
+make test
 
-# With verbose output
-go test -p 1 -v ./...
+# Run only backend tests
+make test-be
 
-# With coverage
-go test -p 1 -coverprofile=coverage.out ./...
-
-# Custom timeout
-go test -p 1 -timeout 30m ./...
+# Run only frontend tests
+make test-fe
 ```
 
 ## Troubleshooting
 
 ### `go: command not found` after running `mise install`
 
-**Problem:** After running `mise install`, which reports "all tools are installed", running `./scripts/start.sh` fails with:
+**Problem:** After running `mise install`, which reports "all tools are installed", running `make dev` fails with:
 
 ```
-./scripts/start.sh: line 29: go: command not found
+go: command not found
 ```
 
 **Solution:** The mise tools aren't activated in your shell. You need to add mise activation to your shell configuration:
