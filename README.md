@@ -153,7 +153,7 @@ For other shells, replace `zsh` with your shell (e.g., `bash`, `fish`). See [mis
 Image optimization is disabled by default on local environments to avoid
 requiring additional dependencies.
 
-See [docs/IMAGE_OPTIMIZATION.md](docs/IMAGE_OPTIMIZATION.md) for more details on enabling and using image optimization.
+See [docs/image-optimization.md](docs/image-optimization.md) for more details on enabling and using image optimization.
 
 ### API endpoints return 500 errors - `/api/auth/providers` and `/api/instance`
 
