@@ -24,9 +24,16 @@ ifeq ($(UNIX_LIKE),FALSE)
   # Suppress mise warning on PowerShell 5
   export MISE_PWSH_CHPWD_WARNING := 0
 
-  SHELL        := powershell.exe
-  .SHELLFLAGS  := -NoProfile -NoLogo
+  SHELL       := powershell.exe
+  .SHELLFLAGS := -NoProfile -NoLogo
+  RUNNER_BIN  := runner.exe
+else
+  RUNNER_BIN := runner
 endif
+
+export STORMKIT_PROJECT_ROOT := $(CURDIR)
+export STORMKIT_DEPLOYER_DIR := ${CURDIR}/build
+export STORMKIT_DEPLOYER_EXECUTABLE := $(CURDIR)/bin/$(RUNNER_BIN)
 
 # ==============================================================================
 # Dependency Check Messages
@@ -195,6 +202,8 @@ print-env:
 	@echo "UNAME_S: $(UNAME_S)"
 	@echo "SHELL: $(SHELL)"
 	@echo "PATH: $(PATH)"
+	@echo "RUNNER_BIN: $(RUNNER_BIN)"
+	@echo "STORMKIT_PROJECT_ROOT: $(STORMKIT_PROJECT_ROOT)"
 	@echo "============================"
 
 # Check all dependencies
@@ -214,7 +223,7 @@ start:
 	$(call wait_for_service,redis,redis-cli ping,Redis)
 	@echo "All services are ready!"
 	go install github.com/mattn/goreman@latest
-	go build -o ./bin/runner ./src/ee/runner
+	go build -o ./bin/$(RUNNER_BIN) ./src/ee/runner
 	goreman start
 
 # Run all tests
