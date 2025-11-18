@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/runner"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/mise"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/sys"
@@ -178,6 +179,87 @@ func (s *InstallerSuite) Test_Install_Yarn() {
 	lines := []string{
 		"[sk-step] enable yarn workspaces",
 		"yarn",
+	}
+
+	logs := s.config.Reporter.Logs()
+
+	for _, line := range lines {
+		s.Contains(logs, line)
+	}
+}
+
+func (s *InstallerSuite) Test_Install_Npm() {
+	s.config.Repo.PackageJson = &runner.PackageJson{}
+	s.config.Repo.PackageLockFile = true
+	s.config.Repo.IsNpm = true
+
+	p := runner.NewInstaller(s.config)
+
+	commands := [][]string{
+		{"echo", "-n", "registry: "},
+		{"npm", "config", "get", "registry"},
+		{"npm", "ci", "--no-audit", "--include=dev"},
+	}
+
+	for _, cmd := range commands {
+		s.mockCmd.On("SetOpts", sys.CommandOpts{
+			Name:   cmd[0],
+			Args:   cmd[1:],
+			Dir:    s.config.Repo.Dir,
+			Env:    s.config.Build.EnvVarsRaw,
+			Stdout: s.config.Reporter.File(),
+			Stderr: s.config.Reporter.File(),
+		}).Return(s.mockCmd).Once()
+
+		s.mockCmd.On("Run").Return(nil, nil).Once()
+	}
+
+	s.NoError(p.Install(context.Background()))
+
+	lines := []string{
+		"[sk-step] npm ci",
+	}
+
+	logs := s.config.Reporter.Logs()
+
+	for _, line := range lines {
+		s.Contains(logs, line)
+	}
+}
+
+func (s *InstallerSuite) Test_Install_Npm_Windows() {
+	config.IsWindows = true
+	defer func() { config.IsWindows = false }()
+
+	s.config.Repo.PackageJson = &runner.PackageJson{}
+	s.config.Repo.PackageLockFile = true
+	s.config.Repo.IsNpm = true
+
+	p := runner.NewInstaller(s.config)
+
+	commands := [][]string{
+		{"powershell.exe", "-NoProfile", "-Command", "Write-Host -NoNewline 'registry: '"},
+		{"npm", "config", "get", "registry"},
+		{"npm", "ci", "--no-audit", "--include=dev"},
+	}
+
+	for _, cmd := range commands {
+		s.mockCmd.On("SetOpts", sys.CommandOpts{
+			Name:   cmd[0],
+			Args:   cmd[1:],
+			Dir:    s.config.Repo.Dir,
+			Env:    s.config.Build.EnvVarsRaw,
+			Stdout: s.config.Reporter.File(),
+			Stderr: s.config.Reporter.File(),
+		}).Return(s.mockCmd).Once()
+
+		s.mockCmd.On("Run").Return(nil, nil).Once()
+	}
+
+	s.NoError(p.Install(context.Background()))
+
+	lines := []string{
+		"[sk-step] npm ci",
 	}
 
 	logs := s.config.Reporter.Logs()

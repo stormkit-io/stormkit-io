@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path"
 	"strings"
 
@@ -345,7 +344,7 @@ func (p *Installer) installNpm(ctx context.Context) error {
 	printCmd := []string{"echo", "-n", "registry: "}
 
 	if config.IsWindows {
-		printCmd = []string{"powershell.exe", "-NoProfile", "-Command", "Write-Host", "-NoNewline", "registry: "}
+		printCmd = []string{"powershell.exe", "-NoProfile", "-Command", "Write-Host -NoNewline 'registry: '"}
 	}
 
 	cmds := [][]string{
@@ -355,11 +354,14 @@ func (p *Installer) installNpm(ctx context.Context) error {
 	}
 
 	for _, eval := range cmds {
-		cmd := exec.CommandContext(ctx, eval[0], eval[1:]...)
-		cmd.Env = p.envVars
-		cmd.Stdout = p.reporter.File()
-		cmd.Stderr = p.reporter.File()
-		cmd.Dir = p.workDir
+		cmd := sys.Command(ctx, sys.CommandOpts{
+			Name:   eval[0],
+			Args:   eval[1:],
+			Dir:    p.workDir,
+			Env:    p.envVars,
+			Stdout: p.reporter.File(),
+			Stderr: p.reporter.File(),
+		})
 
 		if err := cmd.Run(); err != nil {
 			return err
