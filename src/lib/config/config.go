@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -14,6 +15,7 @@ import (
 )
 
 var LocalhostPort = utils.GetString(os.Getenv("STORMKIT_HTTP_PORT"), "8888")
+var IsWindows = runtime.GOOS == "windows"
 
 const (
 	// List of supported runtimes for serverless functions
