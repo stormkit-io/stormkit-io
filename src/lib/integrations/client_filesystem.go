@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -56,7 +57,7 @@ func (c *FilesysClient) Invoke(args InvokeArgs) (*InvokeResult, error) {
 	fnPath, fnHandler := c.parseFunctionLocation(args.ARN)
 
 	if args.Command != "" {
-		return c.ProcessManager().Invoke(args, path.Dir(fnPath))
+		return c.ProcessManager().Invoke(args, filepath.Dir(fnPath))
 	}
 
 	requestPayload, err := json.Marshal(prepareInvokeRequest(args))
@@ -67,8 +68,8 @@ func (c *FilesysClient) Invoke(args InvokeArgs) (*InvokeResult, error) {
 
 	var script string
 
-	fileName := path.Base(fnPath)
-	fileDir := path.Dir(fnPath)
+	fileName := filepath.Base(fnPath)
+	fileDir := filepath.Dir(fnPath)
 
 	if strings.HasSuffix(fnPath, ".mjs") {
 		script = fmt.Sprintf(`import("./%s").then(m => m.%s(%s, {}, (e, r) => console.log(JSON.stringify(r))).then(r => r && console.log(JSON.stringify(r))))`, fileName, fnHandler, string(requestPayload))
@@ -76,11 +77,33 @@ func (c *FilesysClient) Invoke(args InvokeArgs) (*InvokeResult, error) {
 		script = fmt.Sprintf(`require("./%s").%s(%s, {}, (e,r) => console.log(JSON.stringify(r)))`, fileName, fnHandler, string(requestPayload))
 	}
 
-	vars := []string{}
+	vars := []string{
+		"HOME=" + os.Getenv("HOME"),
+		"PATH=" + os.Getenv("PATH"),
+	}
+
+	// Add NODE_PATH to help Node.js find dependencies
+	// Look for node_modules in the fileDir and parent directories
+	nodeModulesPath := filepath.Join(fileDir, "node_modules")
+	if _, err := os.Stat(nodeModulesPath); err == nil {
+		vars = append(vars, fmt.Sprintf("NODE_PATH=%s", nodeModulesPath))
+	} else {
+		// Try parent directory
+		parentDir := filepath.Dir(fileDir)
+		nodeModulesPath = filepath.Join(parentDir, "node_modules")
+		if _, err := os.Stat(nodeModulesPath); err == nil {
+			vars = append(vars, fmt.Sprintf("NODE_PATH=%s", nodeModulesPath))
+		}
+	}
 
 	for k, v := range args.EnvVariables {
 		vars = append(vars, fmt.Sprintf("%s=%s", k, v))
 	}
+
+	fmt.Println("DEBUG fnPath:", fnPath)
+	fmt.Println("DEBUG fileName:", fileName)
+	fmt.Println("DEBUG fileDir:", fileDir)
+	fmt.Println("DEBUG script:", script)
 
 	cmd := sys.Command(context.Background(), sys.CommandOpts{
 		Name: "node",
@@ -92,7 +115,7 @@ func (c *FilesysClient) Invoke(args InvokeArgs) (*InvokeResult, error) {
 	out, err := cmd.CombinedOutput()
 
 	if err != nil {
-		slog.Errorf("error while running local command: %v", err)
+		slog.Errorf("error while running local command: %v, output: %s", err, string(out))
 		return nil, err
 	}
 
@@ -251,14 +274,36 @@ func (c *FilesysClient) uploadZip(args UploadArgs, to string) (UploadOverview, e
 }
 
 func (c *FilesysClient) parseFunctionLocation(location string) (string, string) {
-	pieces := strings.Split(strings.TrimPrefix(location, "local:"), ":")
+	fmt.Println("DEBUG parseFunctionLocation input:", location)
 
-	if len(pieces) == 1 {
-		return pieces[0] + "/.", ""
+	// Remove the local: prefix
+	location = strings.TrimPrefix(location, "local:")
+
+	// On Windows, we need to handle the drive letter (C:) specially
+	// The format is: path:handler or just path
+	// Windows paths look like: C:\Users\...\file.mjs:handler
+
+	// Find the last colon which should be the handler separator
+	// But we need to skip the drive letter colon on Windows
+	lastColon := strings.LastIndex(location, ":")
+
+	// If no colon found, or it's just the drive letter (position 1 on Windows)
+	if lastColon == -1 || (lastColon == 1 && len(location) > 2) {
+		return location + "/.", ""
 	}
 
-	// location, handler
-	return pieces[0], pieces[1]
+	// If the colon is at position 1, it's a drive letter, look for another colon
+	if lastColon == 1 {
+		return location + "/.", ""
+	}
+
+	// Split into path and handler
+	filePath := location[:lastColon]
+	handler := location[lastColon+1:]
+
+	fmt.Println("DEBUG parsed path:", filePath, "handler:", handler)
+
+	return filePath, handler
 }
 
 // getDeploymentPath returns the deployment path from a location. The location
