@@ -23,6 +23,7 @@ endif
 ifeq ($(UNIX_LIKE),FALSE)
   # Suppress mise warning on PowerShell 5
   export MISE_PWSH_CHPWD_WARNING := 0
+  export GO_BUILD_TAGS := windows
 
   SHELL       := powershell.exe
   .SHELLFLAGS := -NoProfile -NoLogo
