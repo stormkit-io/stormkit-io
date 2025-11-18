@@ -9,6 +9,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/mise"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/sys"
 )
@@ -341,8 +342,14 @@ func (p *Installer) installNpm(ctx context.Context) error {
 
 	p.reporter.AddStep(fmt.Sprintf("npm %s", installCmd))
 
+	printCmd := []string{"echo", "-n", "registry: "}
+
+	if config.IsWindows {
+		printCmd = []string{"powershell.exe", "-NoProfile", "-Command", "Write-Host", "-NoNewline", "registry: "}
+	}
+
 	cmds := [][]string{
-		{"echo", "-n", "registry: "},
+		printCmd,
 		{"npm", "config", "get", "registry"},
 		{"npm", installCmd, "--no-audit", "--include=dev"},
 	}
