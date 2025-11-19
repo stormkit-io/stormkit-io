@@ -22,7 +22,6 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/file"
-	"github.com/stormkit-io/stormkit-io/src/lib/utils/sys"
 )
 
 //go:embed assets/stormkit-api.mjs
@@ -428,14 +427,15 @@ func (b Bundler) bundleServerSideStormkitSubfolder() ([]string, string, error) {
 	// Move required node_modules to .stormkit/server/node_modules
 	// This is because in this case we deploy only `.stormkit/server` folder
 	for _, dep := range dependencies {
-		cmd := sys.Command(context.Background(), sys.CommandOpts{
-			Name: "rsync",
-			Args: []string{"-a", "-R", dep, StormkitServerFolder},
-			Dir:  b.workDir,
+		err := file.Rsync(file.RsyncArgs{
+			Context:     context.Background(),
+			Source:      dep,
+			Destination: StormkitServerFolder,
+			WorkDir:     b.workDir,
 		})
 
-		if err := cmd.Run(); err != nil {
-			slog.Errorf("error while copying dependency %s: %s, cmd: %s", dep, err.Error(), cmd.String())
+		if err != nil {
+			slog.Errorf("error while copying dependency %s: %s", dep, err.Error())
 		}
 	}
 
