@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -722,7 +721,7 @@ func (b Bundler) BundleDependencies(ctx context.Context, destination string, inc
 				continue
 			}
 
-			parentFolder = filepath.Join(nodeModules, path.Dir(dep.Name))
+			parentFolder = filepath.Join(nodeModules, filepath.Dir(dep.Name))
 		}
 
 		cmd := exec.CommandContext(ctx, "cp", "-R", dep.FullPath, parentFolder)
