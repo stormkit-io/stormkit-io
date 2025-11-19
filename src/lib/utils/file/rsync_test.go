@@ -89,13 +89,13 @@ func (s *RsyncSuite) TestRsync_Windows_SingleFile() {
 	args := file.RsyncArgs{
 		Context:     context.Background(),
 		Source:      "file.txt",
-		Destination: "C:\\dest\\path",
+		Destination: "dest\\path",
 		WorkDir:     s.tmpdir,
 	}
 
 	s.mockCmd.On("SetOpts", sys.CommandOpts{
 		Name: "robocopy",
-		Args: []string{s.tmpdir, filepath.Join(s.tmpdir, "C:\\dest\\path"), "file.txt", "/DCOPY:DAT", "/R:0", "/W:0"},
+		Args: []string{s.tmpdir, filepath.Join(s.tmpdir, "dest\\path"), "file.txt", "/DCOPY:DAT", "/R:0", "/W:0"},
 	}).Return(s.mockCmd).Once()
 
 	s.mockCmd.On("Run").Return(nil).Once()
@@ -114,13 +114,13 @@ func (s *RsyncSuite) TestRsync_Windows_Directory() {
 	args := file.RsyncArgs{
 		Context:     context.Background(),
 		Source:      "test",
-		Destination: "C:\\dest\\path",
+		Destination: "dest\\path",
 		WorkDir:     s.tmpdir,
 	}
 
 	s.mockCmd.On("SetOpts", sys.CommandOpts{
 		Name: "robocopy",
-		Args: []string{s.tmpdir, filepath.Join(s.tmpdir, "C:\\dest\\path"), "/E", "/DCOPY:DAT", "/R:0", "/W:0"},
+		Args: []string{s.tmpdir, filepath.Join(s.tmpdir, "dest\\path"), "/E", "/DCOPY:DAT", "/R:0", "/W:0"},
 	}).Return(s.mockCmd).Once()
 
 	s.mockCmd.On("Run").Return(nil).Once()
