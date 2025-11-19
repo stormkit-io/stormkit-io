@@ -3,7 +3,7 @@ package runner
 import (
 	"encoding/json"
 	"os"
-	"path"
+	"path/filepath"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 )
@@ -56,7 +56,7 @@ func (dt *DependencyTree) ResolvedDepedencies() []Depedency {
 	for dep := range dt.resolvedDependencies {
 		resolved = append(resolved, Depedency{
 			Name:     dep,
-			FullPath: path.Join(dt.pathToNodeModules, dep),
+			FullPath: filepath.Join(dt.pathToNodeModules, dep),
 		})
 	}
 
@@ -64,7 +64,7 @@ func (dt *DependencyTree) ResolvedDepedencies() []Depedency {
 }
 
 func (dt *DependencyTree) resolveChildDeps(dependency string) []string {
-	pckJsonPath := path.Join(dt.pathToNodeModules, dependency, "package.json")
+	pckJsonPath := filepath.Join(dt.pathToNodeModules, dependency, "package.json")
 
 	// No package json file found - return early
 	if _, err := os.Stat(pckJsonPath); err != nil {

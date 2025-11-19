@@ -121,7 +121,7 @@ func (a *Artifacts) APIFiles() []deploy.APIFile {
 	}
 
 	for _, dir := range a.ApiDirs {
-		fullPath := path.Join(a.workDir, dir)
+		fullPath := filepath.Join(a.workDir, dir)
 
 		if !file.Exists(fullPath) {
 			continue
@@ -167,7 +167,7 @@ func (a *Artifacts) CDNFiles() []deploy.CDNFile {
 	}
 
 	for _, dir := range a.ClientDirs {
-		fullPath := path.Join(a.workDir, dir)
+		fullPath := filepath.Join(a.workDir, dir)
 
 		if !file.Exists(fullPath) {
 			continue
@@ -221,7 +221,7 @@ func findDistDir(opts RunnerOpts) string {
 	candidates := []string{"dist", "build", "output", "out"}
 
 	for _, dir := range candidates {
-		if file.Exists(path.Join(opts.WorkDir, dir)) {
+		if file.Exists(filepath.Join(opts.WorkDir, dir)) {
 			return dir
 		}
 	}
@@ -248,18 +248,18 @@ func distDirs(opts RunnerOpts) ([]string, []string, []string) {
 	apiDirs := []string{}
 
 	// If the repository exposes a public folder, include it by default
-	if file.Exists(path.Join(opts.WorkDir, "public")) {
+	if file.Exists(filepath.Join(opts.WorkDir, "public")) {
 		clientDirs = append(clientDirs, "public")
 	}
 
 	// The `.stormkit/api` folder has the highest precedence, because we
 	// build this folder automatically
-	if file.Exists(path.Join(opts.WorkDir, ".stormkit", "api")) {
+	if file.Exists(filepath.Join(opts.WorkDir, ".stormkit", "api")) {
 		apiDirs = append(apiDirs, StormkitAPIFolder)
 	}
 
-	hasStormkitPublicSubfolder := file.Exists(path.Join(opts.WorkDir, ".stormkit", "public"))
-	hasStormkitServerSubfolder := file.Exists(path.Join(opts.WorkDir, ".stormkit", "server"))
+	hasStormkitPublicSubfolder := file.Exists(filepath.Join(opts.WorkDir, ".stormkit", "public"))
+	hasStormkitServerSubfolder := file.Exists(filepath.Join(opts.WorkDir, ".stormkit", "server"))
 
 	if hasStormkitPublicSubfolder {
 		clientDirs = append(clientDirs, StormkitPublicFolder)
@@ -291,15 +291,15 @@ func distDirs(opts RunnerOpts) ([]string, []string, []string) {
 	changed := false
 
 	for _, subfolder := range publicSubfolders {
-		if file.Exists(path.Join(opts.WorkDir, distDir, subfolder)) {
-			clientDirs = append(clientDirs, path.Join(distDir, subfolder))
+		if file.Exists(filepath.Join(opts.WorkDir, distDir, subfolder)) {
+			clientDirs = append(clientDirs, filepath.Join(distDir, subfolder))
 			changed = true
 			break
 		}
 	}
 
-	if file.Exists(path.Join(opts.WorkDir, distDir, "server")) {
-		serverDirs = append(serverDirs, path.Join(distDir, "server"))
+	if file.Exists(filepath.Join(opts.WorkDir, distDir, "server")) {
+		serverDirs = append(serverDirs, filepath.Join(distDir, "server"))
 		changed = true
 	}
 
@@ -312,7 +312,7 @@ func distDirs(opts RunnerOpts) ([]string, []string, []string) {
 }
 
 func NewBundler(opts RunnerOpts) BundlerInterface {
-	distDir := path.Join(opts.RootDir, "dist")
+	distDir := filepath.Join(opts.RootDir, "dist")
 
 	// Just in case it does not exist
 	_ = os.MkdirAll(distDir, 0776)
@@ -411,7 +411,7 @@ func (b Bundler) findServerDependencies(commands []utils.Command) []string {
 // bundleServerSideStormkitSubfolder bundles the server side code when the built files
 // are located inside `.stormkit/server` folder. This is mainly used for serverless deployments.
 func (b Bundler) bundleServerSideStormkitSubfolder() ([]string, string, error) {
-	pathToDist := path.Join(b.workDir, b.serverDirs[0])
+	pathToDist := filepath.Join(b.workDir, b.serverDirs[0])
 	serverEntry, functionHandler := autoDetectServerFile(pathToDist)
 
 	if serverEntry == "" {
@@ -466,7 +466,7 @@ func (b Bundler) bundleServerSide() ([]string, string, error) {
 	additionalDeps := []string{}
 
 	for _, commandDep := range commandDeps {
-		target, err := os.Readlink(path.Join(b.workDir, "node_modules", ".bin", commandDep))
+		target, err := os.Readlink(filepath.Join(b.workDir, "node_modules", ".bin", commandDep))
 
 		if os.IsNotExist(err) || target == "" {
 			continue
@@ -488,7 +488,7 @@ func (b Bundler) bundleServerSide() ([]string, string, error) {
 		if len(segments) > 0 {
 			if strings.HasPrefix(segments[0], "@") && len(segments) > 1 {
 				// Scoped package (e.g., @remix-run/serve)
-				packageName = path.Join(segments[0], segments[1])
+				packageName = filepath.Join(segments[0], segments[1])
 			} else {
 				// Regular package (e.g., express)
 				packageName = segments[0]
@@ -500,7 +500,7 @@ func (b Bundler) bundleServerSide() ([]string, string, error) {
 	}
 
 	for _, dir := range b.serverDirs {
-		absolutePath := path.Join(b.workDir, dir)
+		absolutePath := filepath.Join(b.workDir, dir)
 
 		if dir == "" || !file.Exists(absolutePath) {
 			continue
@@ -525,14 +525,14 @@ func (b Bundler) bundleServerSide() ([]string, string, error) {
 // also bundles dependencies by looking at the top-level api dir.
 func (b Bundler) bundleApiFolder(ctx context.Context) ([]string, string, error) {
 	for _, dir := range b.apiDirs {
-		absDir := path.Join(b.workDir, dir)
+		absDir := filepath.Join(b.workDir, dir)
 
 		if dir == "" {
 			continue
 		}
 
 		if file.Exists(absDir) {
-			err := os.WriteFile(path.Join(absDir, "stormkit-api.mjs"), []byte(APIWrapper), 0664)
+			err := os.WriteFile(filepath.Join(absDir, "stormkit-api.mjs"), []byte(APIWrapper), 0664)
 
 			if err != nil {
 				return nil, "", err
@@ -553,7 +553,7 @@ func (b Bundler) bundleClientSide() ([]string, error) {
 	retVal := []string{}
 
 	for _, dir := range b.clientDirs {
-		if file.Exists(path.Join(b.workDir, dir)) {
+		if file.Exists(filepath.Join(b.workDir, dir)) {
 			retVal = append(retVal, dir)
 		}
 	}
@@ -650,7 +650,7 @@ func (b Bundler) bundleDependencies(entryFile string, includedDeps ...string) ([
 		dependenciesMap[fmt.Sprintf("node_modules/%s", dep)] = true
 	}
 
-	dt := NewDepedencyTree(bundledDependencies, path.Join(b.workDir, "node_modules"))
+	dt := NewDepedencyTree(bundledDependencies, filepath.Join(b.workDir, "node_modules"))
 	dt.Walk()
 
 	resolved := dt.ResolvedDepedencies()
@@ -696,12 +696,12 @@ func (b Bundler) BundleDependencies(ctx context.Context, destination string, inc
 
 	b.reporter.AddStep("bundling server packages")
 
-	pathToNodeModules := path.Join(b.workDir, "node_modules")
+	pathToNodeModules := filepath.Join(b.workDir, "node_modules")
 	dt := NewDepedencyTree(bundledDependencies, pathToNodeModules)
 	dt.Walk()
 
 	resolved := dt.ResolvedDepedencies()
-	nodeModules := path.Join(destination, "node_modules")
+	nodeModules := filepath.Join(destination, "node_modules")
 
 	if !file.Exists(nodeModules) {
 		if err := os.MkdirAll(nodeModules, 0776); err != nil {
@@ -717,12 +717,12 @@ func (b Bundler) BundleDependencies(ctx context.Context, destination string, inc
 		// If the name is something like `@swc/helpers` we need to prepare the folder
 		// beforehand and upload the files inside that folder.
 		if strings.Contains(dep.Name, "/") {
-			if err := os.MkdirAll(path.Join(nodeModules, dep.Name), 0776); err != nil {
+			if err := os.MkdirAll(filepath.Join(nodeModules, dep.Name), 0776); err != nil {
 				slog.Errorf("error while making folder: %s", err.Error())
 				continue
 			}
 
-			parentFolder = path.Join(nodeModules, path.Dir(dep.Name))
+			parentFolder = filepath.Join(nodeModules, path.Dir(dep.Name))
 		}
 
 		cmd := exec.CommandContext(ctx, "cp", "-R", dep.FullPath, parentFolder)
@@ -759,9 +759,9 @@ func (b Bundler) Zip(artifacts *Artifacts) error {
 		})
 	}
 
-	clientZip := path.Join(b.distDir, "sk-client.zip")
-	serverZip := path.Join(b.distDir, "sk-server.zip")
-	apiZip := path.Join(b.distDir, "sk-api.zip")
+	clientZip := filepath.Join(b.distDir, "sk-client.zip")
+	serverZip := filepath.Join(b.distDir, "sk-server.zip")
+	apiZip := filepath.Join(b.distDir, "sk-api.zip")
 
 	if err := zip(clientZip, artifacts.ClientDirs, false); err != nil {
 		return err
@@ -804,7 +804,7 @@ func (b Bundler) ParseHeaders(artifacts *Artifacts) error {
 		return nil
 	}
 
-	pathToFile := path.Join(b.workDir, b.headersFile)
+	pathToFile := filepath.Join(b.workDir, b.headersFile)
 	headers, err := deploy.ParseHeadersFile(pathToFile)
 
 	if err != nil {
@@ -838,13 +838,13 @@ func (b Bundler) ParseRedirects(artifacts *Artifacts) error {
 	files := []string{}
 
 	if b.redirectsFile != "" {
-		files = append(files, path.Join(b.workDir, b.redirectsFile))
+		files = append(files, filepath.Join(b.workDir, b.redirectsFile))
 	} else {
 		files = append(files,
-			path.Join(b.workDir, "redirects.json"),
-			path.Join(b.repoDir, "redirects.json"),
-			path.Join(b.workDir, "_redirects"),
-			path.Join(b.repoDir, "_redirects"),
+			filepath.Join(b.workDir, "redirects.json"),
+			filepath.Join(b.repoDir, "redirects.json"),
+			filepath.Join(b.workDir, "_redirects"),
+			filepath.Join(b.repoDir, "_redirects"),
 		)
 	}
 
@@ -986,7 +986,7 @@ func autoDetectServerFile(pathToServerlessFolder string) (string, string) {
 	for _, lookupFile := range lookupFiles {
 		for _, ext := range extensions {
 			fileName := lookupFile + ext
-			filePath := path.Join(pathToServerlessFolder, fileName)
+			filePath := filepath.Join(pathToServerlessFolder, fileName)
 
 			if file.Exists(filePath) {
 				return fileName, "handler"
