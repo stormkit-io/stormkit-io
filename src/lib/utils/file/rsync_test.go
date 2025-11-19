@@ -80,7 +80,7 @@ func (s *RsyncSuite) TestRsync_Unix_Error() {
 	s.mockCmd.AssertExpectations(s.T())
 }
 
-func (s *RsyncSuite) TestRsync_Windows() {
+func (s *RsyncSuite) TestRsync_Windows_SingleFile() {
 	config.IsWindows = true
 	defer func() { config.IsWindows = false }()
 
@@ -95,8 +95,32 @@ func (s *RsyncSuite) TestRsync_Windows() {
 
 	s.mockCmd.On("SetOpts", sys.CommandOpts{
 		Name: "robocopy",
-		Args: []string{s.tmpdir, filepath.Join(s.tmpdir, "C:\\dest\\path"), "file.txt", "/E", "/DCOPY:DAT", "/R:0", "/W:0"},
-		Dir:  args.WorkDir,
+		Args: []string{s.tmpdir, filepath.Join(s.tmpdir, "C:\\dest\\path"), "file.txt", "/DCOPY:DAT", "/R:0", "/W:0"},
+	}).Return(s.mockCmd).Once()
+
+	s.mockCmd.On("Run").Return(nil).Once()
+
+	s.NoError(file.Rsync(args))
+
+	s.mockCmd.AssertExpectations(s.T())
+}
+
+func (s *RsyncSuite) TestRsync_Windows_Directory() {
+	config.IsWindows = true
+	defer func() { config.IsWindows = false }()
+
+	os.MkdirAll(filepath.Join(s.tmpdir, "test"), 0755)
+
+	args := file.RsyncArgs{
+		Context:     context.Background(),
+		Source:      "test",
+		Destination: "C:\\dest\\path",
+		WorkDir:     s.tmpdir,
+	}
+
+	s.mockCmd.On("SetOpts", sys.CommandOpts{
+		Name: "robocopy",
+		Args: []string{s.tmpdir, filepath.Join(s.tmpdir, "C:\\dest\\path"), "/E", "/DCOPY:DAT", "/R:0", "/W:0"},
 	}).Return(s.mockCmd).Once()
 
 	s.mockCmd.On("Run").Return(nil).Once()

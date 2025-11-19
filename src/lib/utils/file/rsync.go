@@ -12,9 +12,9 @@ import (
 
 type RsyncArgs struct {
 	Context     context.Context
-	Source      string
-	Destination string
-	WorkDir     string
+	Source      string // Relative path
+	Destination string // Relative path
+	WorkDir     string // Absolute path
 }
 
 // Rsync copies files using rsync (Unix) or robocopy (Windows).
@@ -33,27 +33,32 @@ func Rsync(args RsyncArgs) error {
 // /R:0 - Retry 0 times on failed copies
 // /W:0 - Wait 0 seconds between retries
 func rsyncWindows(args RsyncArgs) error {
-	source := args.Source
-	destination := filepath.Join(args.WorkDir, args.Destination)
+	sourceDir := filepath.Dir(args.Source)
+	sourceFile := filepath.Base(args.Source)
 
-	info, err := os.Stat(filepath.Join(args.WorkDir, source))
+	info, err := os.Stat(filepath.Join(args.WorkDir, args.Source))
+
 	if err != nil {
 		return err
 	}
 
+	cmdArgs := []string{
+		filepath.Join(args.WorkDir, sourceDir),
+		filepath.Join(args.WorkDir, args.Destination, sourceDir),
+	}
+
 	if info.IsDir() {
-		// Source is a directory - copy all contents
-		source = "*.*"
+		cmdArgs = append(cmdArgs, "/E", "/DCOPY:DAT", "/R:0", "/W:0")
+	} else {
+		cmdArgs = append(cmdArgs, sourceFile, "/DCOPY:DAT", "/R:0", "/W:0")
 	}
 
 	cmd := sys.Command(args.Context, sys.CommandOpts{
 		Name: "robocopy",
-		Args: []string{args.WorkDir, destination, source, "/E", "/DCOPY:DAT", "/R:0", "/W:0"},
-		Dir:  args.WorkDir,
+		Args: cmdArgs,
 	})
 
-	err = cmd.Run()
-	if err != nil {
+	if err := cmd.Run(); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			exitCode := exitErr.ExitCode()
 			// Exit codes 0-7 are considered successful for robocopy
@@ -61,9 +66,11 @@ func rsyncWindows(args RsyncArgs) error {
 				return nil
 			}
 		}
+
+		return err
 	}
 
-	return err
+	return nil
 }
 
 // rsyncUnix copies files using the rsync command on Unix systems.
