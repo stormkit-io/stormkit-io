@@ -43,16 +43,6 @@ func handler() http.Handler {
 	return r.WithGzip().Handler()
 }
 
-func installDependencies() {
-	ctx := context.Background()
-
-	if config.IsSelfHosted() && os.Getenv("STORMKIT_DASHBOARD") != "off" {
-		if err := admin.InstallStormkitUI(ctx); err != nil {
-			slog.Errorf("failed to install stormkit ui: %v", err)
-		}
-	}
-}
-
 func main() {
 	os.Setenv("STORMKIT_SERVICE_NAME", rediscache.ServiceHosting)
 
@@ -65,9 +55,6 @@ func main() {
 
 	// Register redis listeners
 	hosting.RegisterListeners()
-
-	// Do not block main thread for installing depedndencies
-	go installDependencies()
 
 	if c.Tracking != nil && c.Tracking.Prometheus {
 		tracking.Prometheus(tracking.PrometheusOpts{

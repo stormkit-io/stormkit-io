@@ -5,7 +5,6 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path"
 	"strings"
@@ -18,7 +17,6 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/mise"
-	"github.com/stormkit-io/stormkit-io/src/lib/utils/sys"
 	"go.uber.org/zap"
 )
 
@@ -366,33 +364,6 @@ func (vc InstanceConfig) DeploymentLogsURL(appID, deploymentID types.ID) string 
 // RuntimeLogsURL returns the URL to preview runtime logs on the App.
 func (vc InstanceConfig) RuntimeLogsURL(appID, envID, deploymentID types.ID) string {
 	return vc.AppURL(path.Join("apps", appID.String(), "environments", envID.String(), "deployments", deploymentID.String(), "runtime-logs"))
-}
-
-// InstallStormkitUI installs the Stormkit UI in the shared directory.
-// It downloads the latest build from GitHub and unzips it into the /shared/ui directory.
-func InstallStormkitUI(ctx context.Context) error {
-	cmds := [][]string{
-		{"rm", "-rf", "/shared/ui/"},
-		{"mkdir", "-p", "/shared/ui/"},
-		{"curl", "-L", "https://github.com/stormkit-io/app-stormkit-io/releases/latest/download/build.zip", "-o", "/shared/ui/build.zip"},
-		{"unzip", "/shared/ui/build.zip", "-d", "/shared/ui/"},
-	}
-
-	for _, cmd := range cmds {
-		command := sys.Command(ctx, sys.CommandOpts{
-			Name:   cmd[0],
-			Args:   cmd[1:],
-			Stdout: io.Discard,
-			Stderr: io.Discard,
-		})
-
-		if err := command.Run(); err != nil {
-			return fmt.Errorf("error running command %v: %w", cmd, err)
-		}
-	}
-
-	slog.Info("installed stormkit ui successfully")
-	return nil
 }
 
 // AddRuntimes adds the given runtimes to the list of dependencies.
