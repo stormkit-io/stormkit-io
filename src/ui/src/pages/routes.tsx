@@ -150,6 +150,10 @@ const routes: Array<ExtendedRouterProps> = [
     element: Async(() => import("~/pages/admin/Git"), adminLayout),
   },
   {
+    path: "/admin/auth",
+    element: Async(() => import("~/pages/admin/AuthConfig"), adminLayout),
+  },
+  {
     path: "/:team",
     element: Async(() => import("~/pages/apps"), teamLayout),
   },
