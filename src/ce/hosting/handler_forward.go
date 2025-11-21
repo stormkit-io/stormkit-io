@@ -645,7 +645,7 @@ func analyticsRecord(req *RequestContext, res *shttp.Response) *analytics.Record
 	return &analytics.Record{
 		AppID:       req.Host.Config.AppID,
 		EnvID:       req.Host.Config.EnvID,
-		VisitorIP:   strings.Split(req.RemoteAddr(), ":")[0], // Don't need the port
+		VisitorIP:   shttp.ClientIP(req.Request), // Proxy-aware IP extraction
 		RequestTS:   utils.NewUnix(),
 		RequestPath: req.OriginalPath,
 		StatusCode:  res.Status,
