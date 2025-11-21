@@ -154,9 +154,9 @@ export default (mode: "dark" | "light") => {
             color: "#ffffff",
           },
           standardSuccess: {
-            backgroundColor: isDark ? "#0db6102e" : "#ffffff",
-            border: isDark ? "" : "1px solid #289c13",
-            color: isDark ? "#ffffff" : "#289c13",
+            backgroundColor: isDark ? "#124c13" : "#1f7629",
+            border: isDark ? "1px solid transparent" : "1px solid #289c13",
+            color: "#ffffff",
           },
         },
       },
