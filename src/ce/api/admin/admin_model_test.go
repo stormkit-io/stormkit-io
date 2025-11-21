@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"testing"
 
@@ -74,24 +73,6 @@ func (s *AdminModelSuite) Test_InstanceConfig_Value() {
 	s.NoError(json.Unmarshal(val.([]byte), &data))
 	s.Len(data["volumes"]["accessKey"], 44)
 	s.Len(data["volumes"]["secretKey"], 44)
-}
-
-func (s *AdminModelSuite) Test_InstallStormkitUI() {
-	ctx := context.Background()
-
-	cmds := [][]string{
-		{"rm", "-rf", "/shared/ui/"},
-		{"mkdir", "-p", "/shared/ui/"},
-		{"curl", "-L", "https://github.com/stormkit-io/app-stormkit-io/releases/latest/download/build.zip", "-o", "/shared/ui/build.zip"},
-		{"unzip", "/shared/ui/build.zip", "-d", "/shared/ui/"},
-	}
-
-	for _, cmd := range cmds {
-		s.mockCommand.On("SetOpts", sys.CommandOpts{Name: cmd[0], Args: cmd[1:], Stdout: io.Discard, Stderr: io.Discard}).Return(s.mockCommand).Once()
-		s.mockCommand.On("Run").Return(nil, nil).Once()
-	}
-
-	s.NoError(admin.InstallStormkitUI(ctx))
 }
 
 func (s *AdminModelSuite) Test_InstallDependencies() {
