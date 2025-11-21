@@ -181,7 +181,7 @@ endif
 # Phony Targets
 # ==============================================================================
 
-.PHONY: help check-deps start dev print-env test test-fe test-be
+.PHONY: help check-deps start dev print-env test test-fe test-be test-fe-watch
 
 # ==============================================================================
 # Tasks
@@ -234,6 +234,11 @@ test: test-fe test-be
 test-fe:
 	@echo "Running frontend tests..."
 	cd src/ui && npm run test
+
+# Test frontend services in watch mode
+test-fe-watch:
+	@echo "Running frontend tests in watch mode..."
+	cd src/ui && npm run test:watch
 
 # Test backend services
 test-be:
