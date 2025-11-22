@@ -6,6 +6,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
 // handlerUserSession returns the current user session, if any.
@@ -49,10 +50,10 @@ func handlerUserSession(req *user.RequestContext) *shttp.Response {
 				"bandwidthInBytes":    metrics.BandwidthUsedInBytes,
 			},
 			"max": map[string]any{
-				"buildMinutes":        limits.BuildMinutes * int64(metrics.Metadata.SeatsPurchased),
-				"functionInvocations": limits.FunctionInvocations * int64(metrics.Metadata.SeatsPurchased),
-				"storageInBytes":      limits.StorageInBytes * int64(metrics.Metadata.SeatsPurchased),
-				"bandwidthInBytes":    limits.BandwidthInBytes * int64(metrics.Metadata.SeatsPurchased),
+				"buildMinutes":        limits.BuildMinutes * int64(utils.GetInt(metrics.Metadata.SeatsPurchased, 1)),
+				"functionInvocations": limits.FunctionInvocations * int64(utils.GetInt(metrics.Metadata.SeatsPurchased, 1)),
+				"storageInBytes":      limits.StorageInBytes * int64(utils.GetInt(metrics.Metadata.SeatsPurchased, 1)),
+				"bandwidthInBytes":    limits.BandwidthInBytes * int64(utils.GetInt(metrics.Metadata.SeatsPurchased, 1)),
 			},
 		}
 	}

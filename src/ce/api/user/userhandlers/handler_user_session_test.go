@@ -113,6 +113,50 @@ func (s *UserSessionSuite) Test_Success_Cloud() {
 	s.JSONEq(expected, string(received))
 }
 
+func (s *UserSessionSuite) Test_Success_Cloud_FreeUser() {
+	config.SetIsStormkitCloud(true)
+	usr := s.MockUser(map[string]any{
+		"Metadata": user.UserMeta{
+			PackageName: config.PackageFree,
+		},
+	})
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(userhandlers.Services).Router().Handler(),
+		shttp.MethodGet,
+		"/user",
+		nil,
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+
+	var data map[string]any
+
+	s.Equal(response.Code, http.StatusOK)
+	s.NoError(json.Unmarshal(response.Byte(), &data))
+	s.Equal(data["user"].(map[string]any)["id"], usr.ID.String())
+
+	expected := `{
+		"max": {
+			"bandwidthInBytes": 1e+11,
+			"storageInBytes": 1e+11,
+			"buildMinutes": 300,
+			"functionInvocations": 500000
+	    },
+		"used": {
+			"bandwidthInBytes": 0,
+			"buildMinutes": 0,
+			"functionInvocations": 0,
+			"storageInBytes": 0
+		}
+	}`
+
+	received, err := json.Marshal(data["metrics"].(map[string]any))
+	s.NoError(err)
+	s.JSONEq(expected, string(received))
+}
+
 func (s *UserSessionSuite) Test_NotAllowedBecauseExpired() {
 	req := &user.RequestContext{}
 	tkn, _ := req.JWT(map[string]any{
