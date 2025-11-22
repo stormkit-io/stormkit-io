@@ -112,29 +112,32 @@ func zipWindows(args ZipArgs) error {
 
 		isDir := info.IsDir()
 
-		// Use PowerShell -LiteralPath to avoid command injection
-		// -LiteralPath treats paths literally without interpretation
+		// PowerShell path escaping: single quotes need to be doubled
+		escapedAbsPath := escapePowerShellPath(absolutePath)
+		escapedZipPath := escapePowerShellPath(zipPath)
+
 		var psScript string
 		if !isDir {
 			// For single files
 			psScript = fmt.Sprintf(
 				`Compress-Archive -LiteralPath '%s' -DestinationPath '%s' -Update -CompressionLevel Optimal`,
-				escapePowerShellPath(absolutePath),
-				escapePowerShellPath(zipPath),
+				escapedAbsPath,
+				escapedZipPath,
 			)
 		} else if args.IncludeParent {
 			// Include parent directory in zip
 			psScript = fmt.Sprintf(
 				`Compress-Archive -LiteralPath '%s' -DestinationPath '%s' -Update -CompressionLevel Optimal`,
-				escapePowerShellPath(absolutePath),
-				escapePowerShellPath(zipPath),
+				escapedAbsPath,
+				escapedZipPath,
 			)
 		} else {
 			// Don't include parent directory - zip contents only
+			// Use Get-ChildItem to enumerate files then compress
 			psScript = fmt.Sprintf(
-				`Compress-Archive -Path (Join-Path -LiteralPath '%s' -ChildPath '*') -DestinationPath '%s' -Update -CompressionLevel Optimal`,
-				escapePowerShellPath(absolutePath),
-				escapePowerShellPath(zipPath),
+				`$items = Get-ChildItem -LiteralPath '%s' -Recurse; if ($items) { Compress-Archive -LiteralPath $items.FullName -DestinationPath '%s' -Update -CompressionLevel Optimal }`,
+				escapedAbsPath,
+				escapedZipPath,
 			)
 		}
 
