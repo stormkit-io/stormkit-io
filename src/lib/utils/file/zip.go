@@ -8,7 +8,9 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/sys"
 )
@@ -31,6 +33,14 @@ type ZipArgs struct {
 // If the zip file already exists, this function will open and
 // re-use that.
 func ZipV2(args ZipArgs) error {
+	if config.IsWindows {
+		return zipWindows(args)
+	}
+	return zipUnix(args)
+}
+
+// zipUnix handles zipping on Unix-like systems (Linux, macOS)
+func zipUnix(args ZipArgs) error {
 	for _, dirOrFile := range args.Source {
 		absolutePath := path.Join(args.WorkingDir, dirOrFile)
 		info, err := os.Stat(absolutePath)
@@ -73,6 +83,66 @@ func ZipV2(args ZipArgs) error {
 
 		if err := cmd.Run(); err != nil {
 			return err
+		}
+	}
+
+	return nil
+}
+
+// zipWindows handles zipping on Windows systems using PowerShell
+func zipWindows(args ZipArgs) error {
+	for _, dirOrFile := range args.Source {
+		absolutePath := filepath.Join(args.WorkingDir, dirOrFile)
+		info, err := os.Stat(absolutePath)
+
+		if os.IsNotExist(err) {
+			continue
+		}
+
+		if err != nil {
+			slog.Errorf("error while zipping %s: %v", dirOrFile, err)
+			continue
+		}
+
+		// Convert paths to absolute for PowerShell
+		zipPath := args.ZipName
+		if !filepath.IsAbs(zipPath) {
+			zipPath = filepath.Join(args.WorkingDir, zipPath)
+		}
+
+		isDir := info.IsDir()
+		var command string
+
+		if !isDir {
+			// For single files
+			command = fmt.Sprintf(
+				`Compress-Archive -Path '%s' -DestinationPath '%s' -Update -CompressionLevel Optimal`,
+				absolutePath,
+				zipPath,
+			)
+		} else if args.IncludeParent {
+			// Include parent directory in zip
+			command = fmt.Sprintf(
+				`Compress-Archive -Path '%s' -DestinationPath '%s' -Update -CompressionLevel Optimal`,
+				absolutePath,
+				zipPath,
+			)
+		} else {
+			// Don't include parent directory - zip contents only
+			command = fmt.Sprintf(
+				`Compress-Archive -Path '%s\*' -DestinationPath '%s' -Update -CompressionLevel Optimal`,
+				absolutePath,
+				zipPath,
+			)
+		}
+
+		cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", command)
+		cmd.Stdout = io.Discard
+		cmd.Stderr = os.Stderr
+		cmd.Env = envVars()
+
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to zip %s: %w", dirOrFile, err)
 		}
 	}
 
