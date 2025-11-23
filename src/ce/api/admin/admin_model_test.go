@@ -177,6 +177,62 @@ func (s *AdminModelSuite) Test_SignUpMode() {
 	s.Equal(admin.SIGNUP_MODE_WAITLIST, vc.SignUpMode())
 }
 
+func (s *AdminModelSuite) Test_IsUserWhitelisted() {
+	// Sign up mode waitlist
+	vc := admin.InstanceConfig{
+		AuthConfig: &admin.AuthConfig{
+			UserManagement: admin.UserManagement{
+				SignUpMode: admin.SIGNUP_MODE_WAITLIST,
+				Whitelist:  []string{"example.com"},
+			},
+		},
+	}
+
+	s.True(vc.IsUserWhitelisted("user@example.com"))
+	s.False(vc.IsUserWhitelisted("user@notwhitelisted.com"))
+
+	// Sign up mode off
+	vc = admin.InstanceConfig{
+		AuthConfig: &admin.AuthConfig{
+			UserManagement: admin.UserManagement{
+				SignUpMode: admin.SIGNUP_MODE_OFF,
+			},
+		},
+	}
+
+	s.False(vc.IsUserWhitelisted("user@example.com"))
+	s.False(vc.IsUserWhitelisted("user@notwhitelisted.com"))
+
+	// Sign up mode on
+	vc = admin.InstanceConfig{
+		AuthConfig: &admin.AuthConfig{
+			UserManagement: admin.UserManagement{
+				SignUpMode: admin.SIGNUP_MODE_ON,
+			},
+		},
+	}
+
+	s.True(vc.IsUserWhitelisted("user@EXAMPLE.com"))
+	s.True(vc.IsUserWhitelisted("user@notwhitelisted.com"))
+}
+
+func (s *AdminModelSuite) Test_IsUserWhitelisted_DenialMode() {
+	// Sign up mode waitlist
+	vc := admin.InstanceConfig{
+		AuthConfig: &admin.AuthConfig{
+			UserManagement: admin.UserManagement{
+				SignUpMode: admin.SIGNUP_MODE_WAITLIST,
+				Whitelist:  []string{"!example.com", "!test.com"},
+			},
+		},
+	}
+
+	s.False(vc.IsUserWhitelisted("user@example.com"))
+	s.False(vc.IsUserWhitelisted("user@TEST.com"))
+	s.True(vc.IsUserWhitelisted("user@notblacklisted.com"))
+
+}
+
 func TestAdminModel(t *testing.T) {
 	suite.Run(t, &AdminModelSuite{})
 }

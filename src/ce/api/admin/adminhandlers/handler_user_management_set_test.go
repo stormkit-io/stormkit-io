@@ -40,7 +40,7 @@ func (s *HandlerUserManagementSetSuite) Test_Success() {
 		"/admin/users/sign-up-mode",
 		map[string]any{
 			"signUpMode": admin.SIGNUP_MODE_WAITLIST,
-			"whitelist":  []string{"example.org"},
+			"whitelist":  []string{"example.org", "test.com"},
 		},
 		map[string]string{
 			"Authorization": usertest.Authorization(usr.ID),
@@ -52,7 +52,7 @@ func (s *HandlerUserManagementSetSuite) Test_Success() {
 	s.Equal(http.StatusOK, response.Code)
 	s.NotNil(cfg)
 	s.Equal(admin.SIGNUP_MODE_WAITLIST, cfg.UserManagement.SignUpMode)
-	s.Equal([]string{"example.org"}, cfg.UserManagement.Whitelist)
+	s.Equal([]string{"example.org", "test.com"}, cfg.UserManagement.Whitelist)
 }
 
 func (s *HandlerUserManagementSetSuite) Test_NonAdmin() {
@@ -69,6 +69,80 @@ func (s *HandlerUserManagementSetSuite) Test_NonAdmin() {
 	)
 
 	s.Equal(http.StatusUnauthorized, response.Code)
+}
+
+func (s *HandlerUserManagementSetSuite) Test_SuccessWithDenyMode() {
+	usr := s.MockUser(map[string]any{
+		"IsAdmin": true,
+	})
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(adminhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/admin/users/sign-up-mode",
+		map[string]any{
+			"signUpMode": admin.SIGNUP_MODE_WAITLIST,
+			"whitelist":  []string{"!spam.com", "!blocked.org"},
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+
+	cfg := admin.MustConfig().AuthConfig
+
+	s.Equal(http.StatusOK, response.Code)
+	s.NotNil(cfg)
+	s.Equal(admin.SIGNUP_MODE_WAITLIST, cfg.UserManagement.SignUpMode)
+	s.Equal([]string{"!spam.com", "!blocked.org"}, cfg.UserManagement.Whitelist)
+}
+
+func (s *HandlerUserManagementSetSuite) Test_FailsWhenMixingAllowAndDeny() {
+	usr := s.MockUser(map[string]any{
+		"IsAdmin": true,
+	})
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(adminhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/admin/users/sign-up-mode",
+		map[string]any{
+			"signUpMode": admin.SIGNUP_MODE_WAITLIST,
+			"whitelist":  []string{"example.org", "!spam.com"},
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusBadRequest, response.Code)
+	s.Contains(response.Body.String(), "All domains must either be allowed or denied")
+}
+
+func (s *HandlerUserManagementSetSuite) Test_SuccessWithEmptyWhitelist() {
+	usr := s.MockUser(map[string]any{
+		"IsAdmin": true,
+	})
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(adminhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/admin/users/sign-up-mode",
+		map[string]any{
+			"signUpMode": admin.SIGNUP_MODE_ON,
+			"whitelist":  []string{},
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+
+	cfg := admin.MustConfig().AuthConfig
+
+	s.Equal(http.StatusOK, response.Code)
+	s.NotNil(cfg)
+	s.Equal(admin.SIGNUP_MODE_ON, cfg.UserManagement.SignUpMode)
+	s.Equal([]string{}, cfg.UserManagement.Whitelist)
 }
 
 func TestHandlerUserManagementSetMode(t *testing.T) {

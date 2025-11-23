@@ -268,6 +268,62 @@ func (vc InstanceConfig) SignUpMode() string {
 	}
 }
 
+// IsUserWhitelisted returns whether the given email is whitelisted.
+// If the sign up mode is `on`, all users are whitelisted. If the sign up mode
+// is `off`, no users are whitelisted. If the sign up mode is `waitlist`, only
+// users in the whitelist are allowed.
+//
+// The whitelist supports two modes:
+// 1. Allow mode: ["example.com", "test.com"] - only these domains are allowed
+// 2. Deny mode: ["!spam.com", "!blocked.com"] - all domains except these are allowed
+func (vc InstanceConfig) IsUserWhitelisted(email string) bool {
+	signUpMode := vc.SignUpMode()
+
+	if signUpMode == SIGNUP_MODE_ON {
+		return true
+	}
+
+	if signUpMode == SIGNUP_MODE_OFF {
+		return false
+	}
+
+	whitelist := vc.AuthConfig.UserManagement.Whitelist
+
+	if len(whitelist) == 0 {
+		return false
+	}
+
+	pieces := strings.SplitN(email, "@", 2)
+
+	if len(pieces) != 2 {
+		return false
+	}
+
+	domain := pieces[1]
+
+	// Check if we're in deny mode (first entry starts with !)
+	if strings.HasPrefix(whitelist[0], "!") {
+		// Deny mode: allow all domains except those prefixed with !
+		for _, entry := range whitelist {
+			if len(entry) > 1 && entry[0] == '!' {
+				deniedDomain := entry[1:] // Remove the ! prefix
+
+				if strings.EqualFold(domain, deniedDomain) {
+					return false // Domain is explicitly denied
+				}
+			}
+		}
+		return true // Domain is not in the deny list, so allow it
+	}
+
+	// Allow mode: only allow domains in the whitelist
+	if utils.InSliceString(vc.AuthConfig.UserManagement.Whitelist, domain) {
+		return true
+	}
+
+	return false
+}
+
 // SetURL sets the domain config based on the given domain.
 func (vc InstanceConfig) SetURL(domain string) {
 	// Only set the URL in test mode.

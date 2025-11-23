@@ -506,12 +506,20 @@ func (s *Store) MustUser(authUser *oauth.User) (*User, error) {
 				return nil, errors.New("seats-full")
 			}
 
-			switch admin.MustConfig().SignUpMode() {
+			cnf := admin.MustConfig()
+
+			switch cnf.SignUpMode() {
 			case admin.SIGNUP_MODE_OFF:
 				return nil, errors.New("new-users-not-allowed")
 			case admin.SIGNUP_MODE_WAITLIST:
-				// TODO: Check if user email is in the whitelist
 				signUpStatus = null.Bool{}
+
+				for _, email := range authUser.Emails {
+					if cnf.IsUserWhitelisted(email.Address) {
+						signUpStatus = null.BoolFrom(true)
+						break
+					}
+				}
 			}
 		}
 

@@ -77,6 +77,30 @@ func (s *UserStoreSuite) Test_MustUser_Approval() {
 	s.False(user.IsApproved.Valid)
 }
 
+func (s *UserStoreSuite) Test_MustUser_Approval_Whitelisted() {
+	config.SetIsSelfHosted(true)
+	defer config.SetIsSelfHosted(false)
+
+	cfg := admin.InstanceConfig{
+		AuthConfig: &admin.AuthConfig{
+			UserManagement: admin.UserManagement{
+				SignUpMode: admin.SIGNUP_MODE_WAITLIST,
+				Whitelist:  []string{"stormkit.io"},
+			},
+		},
+	}
+
+	s.NoError(admin.Store().UpsertConfig(context.Background(), cfg))
+
+	user, err := user.NewStore().MustUser(&oauth.User{
+		Emails: []oauth.Email{{Address: "test@STORMKIT.io", IsPrimary: true, IsVerified: true}},
+	})
+
+	s.NoError(err)
+	s.True(user.IsApproved.Valid)
+	s.True(user.IsApproved.ValueOrZero())
+}
+
 func (s *UserStoreSuite) Test_MustUser_IsAdmin() {
 	store := user.NewStore()
 	ctx := context.Background()

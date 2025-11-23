@@ -34,6 +34,26 @@ func handlerUserManagementSet(req *user.RequestContext) *shttp.Response {
 		})
 	}
 
+	// Validate whitelist entries: ensure all are in allow mode or all in deny mode
+	if len(data.Whitelist) > 0 {
+		hasAllow := false
+		hasDeny := false
+
+		for _, entry := range data.Whitelist {
+			if len(entry) > 0 && entry[0] == '!' {
+				hasDeny = true
+			} else {
+				hasAllow = true
+			}
+		}
+
+		if hasAllow && hasDeny {
+			return shttp.BadRequest(map[string]any{
+				"error": "All domains must either be allowed or denied. You cannot mix negated domains (!) with regular domains",
+			})
+		}
+	}
+
 	vc := admin.MustConfig()
 
 	if vc.AuthConfig == nil {
