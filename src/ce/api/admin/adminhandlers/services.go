@@ -37,7 +37,8 @@ func Services(r *shttp.Router) *shttp.Service {
 
 	s.NewEndpoint("/admin/users").
 		Handler(shttp.MethodGet, "/sign-up-mode", user.WithAdmin(handlerUserManagementGet)).
-		Handler(shttp.MethodPost, "/sign-up-mode", user.WithAdmin(handlerUserManagementSet))
+		Handler(shttp.MethodPost, "/sign-up-mode", user.WithAdmin(handlerUserManagementSet)).
+		Handler(shttp.MethodGet, "/pending", user.WithAdmin(handlerUsersPending))
 
 	if config.IsStormkitCloud() || config.IsDevelopment() {
 		s.NewEndpoint("/admin/cloud").
