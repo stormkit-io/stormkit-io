@@ -136,6 +136,22 @@ func (s *Store) UserByID(userID types.ID) (*User, error) {
 	return users[0], nil
 }
 
+// PendingUsers returns the list of users pending approval.
+func (s *Store) PendingUsers(ctx context.Context) ([]*User, error) {
+	var wr bytes.Buffer
+
+	data := map[string]any{
+		"where": "u.deleted_at IS NULL AND u.is_approved IS NULL",
+		"limit": 100,
+	}
+
+	if err := s.selectTmpl.Execute(&wr, data); err != nil {
+		return nil, err
+	}
+
+	return s.selectUsers(ctx, wr.String())
+}
+
 // TeamOwner returns the owner user of a team.
 func (s *Store) TeamOwner(teamID types.ID) (*User, error) {
 	var wr bytes.Buffer
