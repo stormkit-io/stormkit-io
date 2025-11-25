@@ -123,7 +123,7 @@ func (f *Factory) SeedProviders(usr *MockUser) {
 	}
 }
 
-func (f *Factory) MockUser(overwrites ...map[string]interface{}) *MockUser {
+func (f *Factory) MockUser(overwrites ...map[string]any) *MockUser {
 	userCounter = userCounter + 1
 	usr := user.New(fmt.Sprintf("test-%d@stormkit.io", userCounter))
 	usr.Avatar = null.NewString("https://avatars3.githubusercontent.com/u/55663230?v=4", true)
