@@ -36,6 +36,7 @@ func (s *ServicesSuite) Test_Services_SelfHosted() {
 		"POST:/admin/license",
 		"POST:/admin/system/mise",
 		"POST:/admin/system/runtimes",
+		"POST:/admin/users/manage",
 		"POST:/admin/users/sign-up-mode",
 		"PUT:/admin/system/proxies",
 	}
@@ -70,6 +71,7 @@ func (s *ServicesSuite) Test_Services_Cloud() {
 		"POST:/admin/license",
 		"POST:/admin/system/mise",
 		"POST:/admin/system/runtimes",
+		"POST:/admin/users/manage",
 		"POST:/admin/users/sign-up-mode",
 		"PUT:/admin/system/proxies",
 	}

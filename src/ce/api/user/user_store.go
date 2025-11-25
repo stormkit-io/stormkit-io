@@ -152,6 +152,12 @@ func (s *Store) PendingUsers(ctx context.Context) ([]*User, error) {
 	return s.selectUsers(ctx, wr.String())
 }
 
+// UpdateApprovalStatus updates the approval status for the given user ids.
+func (s *Store) UpdateApprovalStatus(ctx context.Context, userIDs []types.ID, approved bool) error {
+	_, err := s.Exec(ctx, ustmt.updateApprovalStatus, approved, pq.Array(userIDs))
+	return err
+}
+
 // TeamOwner returns the owner user of a team.
 func (s *Store) TeamOwner(teamID types.ID) (*User, error) {
 	var wr bytes.Buffer

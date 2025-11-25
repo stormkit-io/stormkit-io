@@ -26,6 +26,7 @@ type userStatement struct {
 	updateLastLogin           string
 	userMetrics               string
 	updateUsageMetrics        string
+	updateApprovalStatus      string
 }
 
 var ustmt = &userStatement{
@@ -240,5 +241,9 @@ var ustmt = &userStatement{
 		DO UPDATE SET
 			bandwidth_bytes = user_metrics.bandwidth_bytes + EXCLUDED.bandwidth_bytes,
 			function_invocations = user_metrics.function_invocations + EXCLUDED.function_invocations;
+	`,
+
+	updateApprovalStatus: `
+		UPDATE users SET is_approved = $1 WHERE user_id = ANY($2);
 	`,
 }
