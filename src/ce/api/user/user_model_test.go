@@ -95,7 +95,7 @@ func (s *UserModelSuite) Test_IsAuthorizedToLogin_On() {
 	}
 }
 
-// No users is authorized to login when sign up mode is "off".
+// No user is authorized to login when sign up mode is "off".
 func (s *UserModelSuite) Test_IsAuthorizedToLogin_Off() {
 	cnf := &admin.InstanceConfig{
 		AuthConfig: &admin.AuthConfig{
