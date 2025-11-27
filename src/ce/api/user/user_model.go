@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
@@ -167,7 +167,28 @@ func (u User) JSON() map[string]any {
 	return userData
 }
 
-var TimeSince = time.Since
+// IsAuthorizedToLogin checks if the user is authorized to login based on
+// the current sign-up mode and the user's approval status.
+func (u User) IsAuthorizedToLogin() bool {
+	// If user was rejected, deny login immediately.
+	if u.IsApproved.Valid && !u.IsApproved.ValueOrZero() {
+		return false
+	}
+
+	if u.IsApproved.Valid && u.IsApproved.ValueOrZero() {
+		return true
+	}
+
+	cnf := admin.MustConfig()
+
+	for _, email := range u.Emails {
+		if cnf.IsUserWhitelisted(email.Address) {
+			return true
+		}
+	}
+
+	return false
+}
 
 // ConnectedAccount represents a connected account.
 type ConnectedAccount struct {
