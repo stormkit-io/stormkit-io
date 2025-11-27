@@ -43,3 +43,31 @@ export const updateAuthConfig = ({
 }: UpdateAuthConfigProps) => {
   return api.post("/admin/users/sign-up-mode", { whitelist, signUpMode });
 };
+
+interface FetchPendingUsersProps {
+  refreshToken?: number;
+}
+
+export const useFetchPendingUsers = ({
+  refreshToken,
+}: FetchPendingUsersProps) => {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>();
+  const [users, setUsers] = useState<User[]>([]);
+
+  useEffect(() => {
+    api
+      .fetch<{ users: User[] }>("/admin/users/pending")
+      .then(({ users }) => {
+        setUsers(users);
+      })
+      .catch(() => {
+        setError("Something went wrong while fetching pending users.");
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [refreshToken]);
+
+  return { loading, error, users };
+};

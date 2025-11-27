@@ -111,13 +111,15 @@ export default function AdminLayout({ children }: Props) {
                   isActive: pathname.includes("/admin/git"),
                 }}
               />
-              {/* <MenuLink
-                item={{
-                  path: "/admin/auth",
-                  text: "Authentication",
-                  isActive: pathname.includes("/admin/auth"),
-                }}
-              /> */}
+              {
+                <MenuLink
+                  item={{
+                    path: "/admin/auth",
+                    text: "Authentication",
+                    isActive: pathname.includes("/admin/auth"),
+                  }}
+                />
+              }
               {isCloud && (
                 <MenuLink
                   item={{
