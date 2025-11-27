@@ -245,6 +245,18 @@ func ResetCache(ctx context.Context, payload ...string) {
 	ResetLicense()
 }
 
+// SetConfig sets the cached admin configuration.
+// This is used by tests.
+func SetConfig(cnf *InstanceConfig) {
+	if !config.IsTest() {
+		panic("admin.SetConfig can only be used in tests")
+	}
+
+	cachedConfigMux.Lock()
+	cachedConfig = cnf
+	cachedConfigMux.Unlock()
+}
+
 func GetParsedURL(candidates ...string) *url.URL {
 	for _, candidate := range candidates {
 		if candidate == "" {
