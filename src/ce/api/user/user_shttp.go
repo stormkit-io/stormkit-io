@@ -136,7 +136,7 @@ func WithAuth(handler func(*RequestContext) *shttp.Response) shttp.RequestFunc {
 			return shttp.NotAllowed()
 		}
 
-		if config.IsSelfHosted() && admin.MustConfig().SignUpMode() != admin.SIGNUP_MODE_ON {
+		if !usr.IsAdmin && admin.MustConfig().SignUpMode() == admin.SIGNUP_MODE_WAITLIST {
 			if !usr.IsApproved.Valid {
 				return &shttp.Response{
 					Status: http.StatusForbidden,

@@ -138,6 +138,10 @@ func Login(ctx context.Context, authUser *oauth.User) *shttp.Response {
 				zap.Bool("isNew", usr.IsNew),
 			},
 		})
+
+		if !usr.IsAuthorizedToLogin() {
+			return errorResponse(errors.New("pending-approval-or-rejected"), http.StatusUnauthorized)
+		}
 	}
 
 	// Error while inserting
