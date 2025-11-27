@@ -11,6 +11,7 @@ import Option from "@mui/material/MenuItem";
 import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
 import CardFooter from "~/components/CardFooter";
+import PendingUsers from "./PendingUsers";
 import { useFetchAuthConfig, updateAuthConfig } from "./actions";
 
 interface ConfigProps {
@@ -164,24 +165,13 @@ function Config({ config, loading, error }: ConfigProps) {
   );
 }
 
-function PendingUsers({ config }: Omit<ConfigProps, "error" | "loading">) {
-  // TODO: Implement pending users management UI.
-
-  if (!config) {
-    return <></>;
-  }
-
-  // Intentionally left blank for future implementation.
-  return <></>;
-}
-
 export default function AuthConfig() {
   const { error, loading, config } = useFetchAuthConfig();
 
   return (
     <Box>
       <Config error={error} loading={loading} config={config} />
-      <PendingUsers config={config} />
+      <PendingUsers />
     </Box>
   );
 }

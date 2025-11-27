@@ -146,6 +146,10 @@ export const loginOauth = ({ setUser }: LoginOauthProps) => {
             reject(
               "Your provider account is newly created. We do not accept new accounts. Please wait a few days."
             );
+          } else if (data.error === "pending-approval-or-rejected") {
+            reject(
+              "Your account is pending approval or has been rejected by the administrator."
+            );
           } else {
             reject("An error occurred while authenticating. Please retry.");
           }
