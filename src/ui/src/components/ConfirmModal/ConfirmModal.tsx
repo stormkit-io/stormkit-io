@@ -16,6 +16,7 @@ type ConfirmModalCallback = ({
 }) => void;
 
 interface Props {
+  title?: string;
   children?: React.ReactNode;
   confirmText?: string;
   onCancel: () => void;
@@ -29,6 +30,7 @@ const ConfirmModal: React.FC<Props> = ({
   typeConfirmationText,
   onConfirm,
   onCancel,
+  title = "Confirm action",
 }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +53,7 @@ const ConfirmModal: React.FC<Props> = ({
   return (
     <Modal open onClose={onCancel} maxWidth="md">
       <Card error={error}>
-        <CardHeader title="Confirm action" />
+        <CardHeader title={title} />
         <Typography component="div" fontSize="medium" sx={{ mb: 0 }}>
           {children}
         </Typography>
