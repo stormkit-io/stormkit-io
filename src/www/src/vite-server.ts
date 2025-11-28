@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import express from 'express'
 import dotenv from 'dotenv'
 import { createServer as createViteServer } from 'vite'
+// @ts-ignore: todo: add types to stormkit/serverless
 import apiHandler from '@stormkit/serverless/middlewares/express'
 
 dotenv.config()
@@ -83,8 +84,14 @@ async function createServer() {
     }
   })
 
-  app.listen(5173, () => {
-    console.log(`Server listening on http://localhost:5173`)
+  const portIndex = process.argv.indexOf('--port')
+  const port =
+    portIndex !== -1 && process.argv[portIndex + 1]
+      ? parseInt(process.argv[portIndex + 1], 10)
+      : 5173
+
+  app.listen(port, () => {
+    console.log(`Server listening on http://localhost:${port}`)
   })
 }
 
