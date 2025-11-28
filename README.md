@@ -60,6 +60,7 @@ make dev
 
 After starting the services:
 
+- The landing page will be available at `https://localhost:5500`
 - The application will be available at `https://localhost:5400`
 - The API will be available at `http://api.localhost:8888`
 
@@ -80,7 +81,8 @@ stormkit-io/
 │   ├── lib/                  # Shared libraries and utilities
 │   ├── migrations/           # Database migrations
 │   ├── mocks/                # Test mocks and fixtures
-│   └── ui/                   # Frontend React application
+│   └── ui/                   # Frontend React
+│   └── www/                  # Landing page React
 ├── scripts/                  # Build and deployment scripts
 ```
 
