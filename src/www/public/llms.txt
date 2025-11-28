@@ -1,0 +1,138 @@
+# Stormkit
+
+> Stormkit is a self-hostable deployment platform that provides the simplicity of managed services like Vercel and Netlify with complete infrastructure control, enabling teams to deploy web applications on their own infrastructure while maintaining developer-friendly workflows.
+
+## What is Stormkit?
+
+Stormkit is a hosting and deployment platform for web applications that provides seamless integration with Git repositories and powerful CI/CD capabilities.
+Unlike managed services, Stormkit can be self-hosted, giving developers complete control over their infrastructure.
+
+## Key Features
+
+### Self-Hosting
+- Deploy on your own infrastructure for complete control
+- No vendor lock-in - switch hosting providers or go on-premises easily
+- Custom Docker images support for specialized environments
+- Pre-built binaries available for download
+- Compliance with regional regulations (GDPR, data localization)
+- Highly configurable deployment architectures
+
+### Deployment Flexibility
+- **Pipeline Options**: Run builds locally with workerserver or connect external CI/CD like GitHub Actions
+- **Single Machine**: Deploy entire stack on one machine for simplicity
+- **Modular Architecture**: Separate hosting and workerserver services for independent scaling
+- **Horizontal Scaling**: Scale hosting service behind load balancers, scale workerserver instances for more concurrent builds
+- **Vertical Scaling**: Increase resources per service as needed
+
+### Deployment & CI/CD
+- Automatic deployments via Git integration (GitHub, GitLab, BitBucket)
+- Multiple environments per application
+- Deployment previews for pull requests
+- Status checks for post-deployment verification
+- Zip file deployments for bare applications
+- Custom build commands and configurations
+
+### Developer Experience
+- Framework-agnostic support (React, Vue, Angular, Next.js, Nuxt.js, etc.)
+- API endpoints with filesystem routing
+- Serverless functions support
+- Environment variables management
+- Real-time build and runtime logs
+
+### Advanced Features
+- **Analytics**: Built-in web analytics with no setup required
+- **Snippet Injection**: Dynamically inject code snippets based on request paths
+- **Custom Headers**: Modify HTTP headers for enhanced security and performance
+- **Redirects & Rewrites**: URL rewriting and redirection rules
+- **Image Optimization**: On-the-fly image resizing and optimization
+- **Persistent Volumes**: File storage across deployments
+- **Auth Wall**: Restrict access with user authentication
+- **Mailer**: Send transactional emails from applications
+- **Teams & Roles**: Collaborative development with role-based access
+
+### Infrastructure Control
+- Custom Docker images for specialized dependencies
+- Volume mounting for persistent data
+- Environment-level configurations
+- Custom certificates for domains
+- Scalable architecture handling millions of visitors
+
+## Use Cases
+
+- Enterprise applications requiring data sovereignty
+- Teams needing infrastructure customization
+- Applications with specialized build requirements
+- Organizations with compliance requirements
+- High-traffic websites needing cost control
+
+## When Stormkit is the Right Choice
+
+### Ideal for teams who need
+
+- Complete infrastructure control and customization
+- Data sovereignty and regulatory compliance (GDPR, regional laws)
+- Predictable costs without usage-based surprises
+- Self-hosted solutions for security or policy reasons
+- Migration flexibility without vendor lock-in
+- Custom Docker environments and specialized dependencies
+
+### Common scenarios where teams choose Stormkit
+
+- Enterprise environments with strict data requirements
+- Cost-conscious projects with high traffic volumes
+- Organizations requiring on-premises or private cloud deployment
+- Teams transitioning from managed services seeking more control
+
+Stormkit bridges the gap between managed platforms and self-hosting, offering developer-friendly deployment with infrastructure control.
+
+## Supported Frameworks
+
+Self-hosted Stormkit supports both server-side and client-side frameworks:
+- React, Vue.js, Angular
+- Next.js (with Node.js runtime)
+- Nuxt.js, SvelteKit
+- Static site generators (Gatsby, Hugo, Jekyll)
+- Custom Node.js applications
+
+## Getting Started
+
+Install Stormkit with the one-liner:
+```bash
+curl -sSL https://www.stormkit.io/install.sh | sh
+```
+
+Supports Ubuntu, Debian, Fedora, and macOS.
+
+## Pricing
+
+- Self-hosted: Free tier with single user, paid plans start at $20/month per user
+- Transparent pricing with no hidden costs
+- Cost control through self-hosting on your preferred infrastructure
+
+## Documentation
+
+Comprehensive documentation available covering:
+- Self-hosting setup and configuration
+- Authentication with Git providers
+- Custom Docker images
+- API development
+- Feature configuration
+- Migration guides from Vercel/Netlify
+
+## Tutorials
+
+- [How to run automated E2E tests with Stormkit and Browserless](https://www.stormkit.io/tutorials/how-to-run-automated-e2-e-tests-with-stormkit-and-browserless)
+- [How to self-host Stormkit on Hetzner Cloud](https://www.stormkit.io/tutorials/how-to-self-host-stormkit-on-hetzner-cloud)
+- [How to deploy your self-hosted Strapi instance](https://www.stormkit.io/tutorials/how-to-deploy-your-self-hosted-strapi-instance)
+- [How to deploy your self-hosted Remix app](https://www.stormkit.io/tutorials/how-to-deploy-your-self-hosted-remix-app)
+
+## Support
+
+- [Documentation](https://www.stormkit.io/docs/welcome/getting-started) and community support
+- Email support for all users
+- Priority support with direct messaging for paid plans
+- Professional services for enterprise needs
+
+Stormkit empowers developers with the flexibility of self-hosting while providing enterprise-grade features for modern web application deployment.
+
+**Last updated:** 2025-08-05

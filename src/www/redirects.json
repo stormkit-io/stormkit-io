@@ -1,0 +1,23 @@
+[
+  {
+    "from": "stormkit.io",
+    "to": "www.stormkit.io",
+    "assets": true,
+    "status": 302
+  },
+  {
+    "from": "/docs/welcome/self-hosting",
+    "to": "/docs/self-hosting/getting-started",
+    "status": 301
+  },
+  {
+    "from": "/docs$",
+    "to": "/docs/welcome/getting-started",
+    "status": 302
+  },
+  {
+    "from": "/docs/features/trigger-functions",
+    "to": "/docs/features/periodic-triggers",
+    "status": 302
+  }
+]
