@@ -53,6 +53,8 @@ const useFetchRuntimes = () => {
         setStatus(s);
         setInstalled(installed);
 
+        console.log("Runtimes status:", runtimes);
+
         if (s !== "ok" && s !== "error") {
           clearTimeout(timeout);
           timeout = setTimeout(() => {
