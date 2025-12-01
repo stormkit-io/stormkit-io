@@ -43,6 +43,10 @@ const routes: Prerender[] = [
     description: 'Read our privacy policy',
   },
 
+  { route: '/docs' },
+  { route: '/blog' },
+  { route: '/tutorials' },
+
   ...docs.map(toSlug),
   ...blog.map(toSlug),
   ...tuts.map(toSlug),
