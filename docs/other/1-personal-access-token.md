@@ -6,7 +6,7 @@ description: Manage personal access tokens for shared accounts.
 # Personal Access Token
 
 <div>
-The personal access token is intended to work only for GitLab. If you need to use it with other providers, please <a href="https://github.com/stormkit-io/app-stormkit-io/issues/new/choose" rel="noopener noreferrer" target="_blank"> open an issue</a>.
+The personal access token is intended to work only for GitLab. If you need to use it with other providers, please <a href="https://github.com/stormkit-io/stormkit-io/issues/new/choose" rel="noopener noreferrer" target="_blank"> open an issue</a>.
 </div>
 
 <section>

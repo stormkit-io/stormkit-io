@@ -1,7 +1,7 @@
 import type { NavigationItem } from '~/components/DocsNav/DocsNav'
-import { parseAttributes, toTitleCase } from '~/helpers/markdown'
+import { Attributes, parseAttributes, toTitleCase } from '~/helpers/markdown'
 
-const files = import.meta.glob('/content/blog/*.md', {
+const files = import.meta.glob('@content/blog/*.md', {
   query: '?raw',
   import: 'default',
 })
@@ -11,20 +11,18 @@ interface Params {
 }
 
 export const fetchData: FetchDataFunc = async ({ title }: Params) => {
-  let foundFile: string | undefined
-  const titleLowercase = title?.toLowerCase()
+  let foundFile:
+    | (Attributes & { fileName: string; content: string })
+    | undefined
+  const slug = title?.toLowerCase()
   const navigation: NavigationItem[] = []
   const keys = Object.keys(files)
 
   for (let file of keys) {
-    const fileName = file
-      .replace('/content/blog/', '')
-      .replace('.md', '')
-      .replace(/--[\d]+/, '')
-
-    if (fileName === titleLowercase) {
-      foundFile = file
-    }
+    const fileName = file.replace('../../content/blog/', '').replace('.md', '')
+    const content = (await files[file]()) as string
+    const attrs = parseAttributes(content)
+    let active = false
 
     const {
       description,
@@ -35,11 +33,20 @@ export const fetchData: FetchDataFunc = async ({ title }: Params) => {
       authorName,
       authorTw,
       search,
-    } = parseAttributes((await files[file]()) as string)
+    } = attrs
 
     const titleNormalized = (
       title || toTitleCase(fileName.split('--')[0].replace(/-/g, ' '))
     ).replaceAll("'", '')
+
+    if (fileName === slug) {
+      active = true
+      foundFile = {
+        ...attrs,
+        content,
+        fileName: file,
+      }
+    }
 
     navigation.push({
       path: fileName,
@@ -48,7 +55,7 @@ export const fetchData: FetchDataFunc = async ({ title }: Params) => {
       description,
       search: search === 'true',
       date,
-      active: foundFile === file,
+      active,
       author:
         authorName && authorImg && authorTw
           ? { name: authorName, img: authorImg, twitter: authorTw }
@@ -62,20 +69,18 @@ export const fetchData: FetchDataFunc = async ({ title }: Params) => {
     return date1 < date2 ? 1 : date1 > date2 ? -1 : 0
   })
 
-  if (!foundFile || !files[foundFile]) {
+  if (!foundFile || !files[foundFile.fileName]) {
     return { head: {}, context: { navigation } }
   }
 
-  const content = (await files[foundFile]()) as string
-  const attrs = parseAttributes(content)
-
-  const index = content.indexOf('---', 2)
-  const article = index > -1 ? content.slice(index + 4) : content
+  const index = foundFile.content.indexOf('---', 2)
+  const article =
+    index > -1 ? foundFile.content.slice(index + 4) : foundFile.content
 
   return {
     head: {
-      title: attrs.title?.replaceAll("'", ''),
-      description: attrs.description,
+      title: foundFile.title,
+      description: foundFile.description,
       type: 'article',
     },
     context: {

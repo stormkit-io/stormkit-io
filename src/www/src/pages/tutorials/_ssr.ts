@@ -1,7 +1,7 @@
 import type { NavigationItem } from '~/components/DocsNav/DocsNav'
 import { parseAttributes, Attributes } from '~/helpers/markdown'
 
-const files = import.meta.glob('/content/tutorials/**/*.md', {
+const files = import.meta.glob('@content/tutorials/**/*.md', {
   query: '?raw',
   import: 'default',
 })
@@ -18,7 +18,9 @@ export const fetchData: FetchDataFunc = async ({ slug }: Params) => {
   for (const file of Object.keys(files)) {
     const content = (await files[file]()) as string
     const tutorial = parseAttributes(content)
-    const fileName = file.replace('/content/tutorials/', '').replace('.md', '')
+    const fileName = file
+      .replace('../../content/tutorials/', '')
+      .replace('.md', '')
 
     if (slug === fileName) {
       foundFile = tutorial

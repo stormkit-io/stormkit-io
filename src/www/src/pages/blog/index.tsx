@@ -12,7 +12,7 @@ import { dateFormat } from '~/helpers/date'
 export { fetchData } from './_ssr'
 
 export default function BlogContent() {
-  const { content, navigation } = withContent(fetchData)
+  const { navigation } = withContent(fetchData)
 
   return (
     <Box

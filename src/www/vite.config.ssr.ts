@@ -1,25 +1,15 @@
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import { viteStaticCopy } from 'vite-plugin-static-copy'
 import react from '@vitejs/plugin-react'
 import dotenv from 'dotenv'
+import sharedConfig from './vite.shared'
 
 dotenv.config()
 process.env.NODE_ENV = 'production'
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  resolve: {
-    alias: [
-      {
-        find: /^~/,
-        replacement: path.resolve(__dirname, 'src'),
-      },
-    ],
-    extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json'],
-  },
+  ...sharedConfig,
   build: {
     ssr: true,
     minify: false,

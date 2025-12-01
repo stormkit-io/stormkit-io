@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import dotenv from 'dotenv'
 import { glob } from 'glob'
 import { build } from 'vite'
+import sharedConfig from './vite.shared'
 
 dotenv.config()
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -33,15 +34,7 @@ const files = glob
           .map((dirent) => new RegExp(dirent.name)),
       },
       configFile: false,
-      resolve: {
-        alias: [
-          {
-            find: /^~/,
-            replacement: path.resolve(__dirname, 'src'),
-          },
-        ],
-        extensions: ['.ts', '.tsx'],
-      },
+      ...sharedConfig,
       define: {
         ...Object.keys(process.env).reduce(
           (obj: Record<string, string>, key: string) => {
