@@ -1,21 +1,12 @@
 import { defineConfig } from 'vite'
-import path from 'node:path'
-import react from '@vitejs/plugin-react'
 import dotenv from 'dotenv'
+import sharedConfig from './vite.shared'
 
 dotenv.config()
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  resolve: {
-    alias: [
-      {
-        find: /^~/,
-        replacement: path.resolve(__dirname, 'src'),
-      },
-    ],
-    extensions: ['.mjs', '.cjs', '.js', '.ts', '.jsx', '.tsx', '.json'],
-  },
+  ...sharedConfig,
   build: {
     manifest: true,
     assetsInlineLimit: 0,
@@ -38,5 +29,4 @@ export default defineConfig({
     },
     outDir: '.stormkit/public',
   },
-  plugins: [react({ jsxImportSource: '@emotion/react' })],
 })

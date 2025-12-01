@@ -1,7 +1,7 @@
 import type { NavigationItem } from '~/components/DocsNav/DocsNav'
 import { parseAttributes, toTitleCase } from '~/helpers/markdown'
 
-const files = import.meta.glob('/content/docs/**/*.md', {
+const files = import.meta.glob('@docs/**/*.md', {
   query: '?raw',
   import: 'default',
 })
@@ -19,28 +19,32 @@ export const fetchData: FetchDataFunc = async ({
   const titleLowercase = title?.toLowerCase()
   const navigation: NavigationItem[] = []
 
-  Object.keys(files).forEach((file) => {
-    const fileNameWithoutPrefix = file
-      .replace('/content/docs/', '')
-      .replace('.md', '')
+  // Example structure:
+  // ../../docs/api/1-authentication.md
+  Object.keys(files).forEach((fileNameRelPath) => {
+    const relPath = fileNameRelPath.split('/docs/')[1] // api/1-authentication.md
+    const fileCtgr = relPath.split('/')[0] // api
+    const fileName = relPath
+      .split('/')[1]
+      .replace(/.md$/, '') // Remove the extension
+      .replace(/^\d+-/, '') // Replace the sort prefix
 
-    let [fileCategory, fileTitle] = fileNameWithoutPrefix.split('--')
+    let isActive = false
 
-    fileTitle = fileTitle?.replace(/(^\d-)+/, '')
-
-    if (category === fileCategory && fileTitle === titleLowercase) {
-      foundFile = file
+    if (category === fileCtgr && fileName === titleLowercase) {
+      foundFile = fileNameRelPath
+      isActive = true
     }
 
     navigation.push({
-      path: [fileCategory, fileTitle].join('/'),
-      title: toTitleCase(fileTitle.replace(/-/g, ' ')),
-      category: toTitleCase(fileCategory.replace(/^_/, '')),
-      active: foundFile === file,
+      path: [fileCtgr, fileName].join('/'),
+      title: toTitleCase(fileName.replace(/-/g, ' ')),
+      category: toTitleCase(fileCtgr),
+      active: isActive,
     })
   })
 
-  if (!foundFile || !files[foundFile]) {
+  if (!foundFile) {
     return { head: {}, context: { navigation } }
   }
 

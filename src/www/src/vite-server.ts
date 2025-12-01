@@ -30,7 +30,7 @@ async function createServer() {
   })
 
   // Generate docs
-  const { default: docs } = await vite.ssrLoadModule('./src/generate-docs')
+  const { default: docs } = await vite.ssrLoadModule('./scripts/generate-docs')
 
   docs()
 
@@ -103,7 +103,7 @@ async function generateDocs() {
   })
 
   // Generate docs
-  const { default: docs } = await vite.ssrLoadModule('./src/generate-docs')
+  const { default: docs } = await vite.ssrLoadModule('./scripts/generate-docs')
 
   docs()
 
