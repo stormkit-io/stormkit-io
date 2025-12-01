@@ -124,7 +124,7 @@ async function generateStaticPages() {
   })
 
   const { default: routesToPrerender } = (await vite.ssrLoadModule(
-    './src/prerender'
+    '/scripts/prerender'
   )) as { default: Prerender[] }
 
   let render: RenderFunction
