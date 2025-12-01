@@ -99,8 +99,13 @@ export function withContent(
       category: params.category || options?.defaultCategory || '',
     })
       .then((res) => {
-        setNav(res.context.navigation)
-        setContent(res.context.content)
+        if (res.context.navigation) {
+          setNav(res.context.navigation)
+        }
+
+        if (res.context.content) {
+          setContent(res.context.content)
+        }
       })
       .finally(() => {
         setLoading(false)
