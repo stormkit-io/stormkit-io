@@ -20,7 +20,7 @@ function toSlug(filePath: string) {
       .replace(root, '')
       .replace(/^\/content/, '')
       .replace('.md', '')
-      .replace(/\/[\d]+/, ''),
+      .replace(/\/[\d]+-/, '/'),
   }
 }
 
