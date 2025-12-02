@@ -1,6 +1,6 @@
 ---
-title: 'Self-Hosting with Stormkit: Authentication Setup'
-description: Learn how to configure authentication for your self-hosted Stormkit instance. Set up admin accounts and integrate with GitHub, GitLab, or BitBucket for seamless repository management.
+title: "Self-Hosting with Stormkit: Authentication Setup"
+description: Learn how to configure authentication for your self-hosted Stormkit instance. Set up admin accounts and integrate with GitHub, GitLab, or Bitbucket for seamless repository management.
 ---
 
 # Authentication
@@ -19,117 +19,85 @@ However, to import **private repositories**, you must configure at least one of 
 
 - **GitHub**
 - **GitLab**
-- **BitBucket**
+- **Bitbucket**
 
-## Create an oAuth Application
+## Configuring Git Providers
 
-Visit the developer portal of your chosen provider and create an oAuth application:
+Git provider authentication is configured directly from the **Admin Interface** in Stormkit. To access this page:
 
-- [GitHub Developer Settings](https://github.com/settings/apps)
-- [GitLab Applications](https://gitlab.com/-/user_settings/applications)
-- [BitBucket App Management](https://bitbucket.org/account/settings/app-passwords/)
+1. Click on your **profile** in the top right corner
+2. Select **Admin** from the dropdown menu
+3. Navigate to **Git** (or go directly to `/admin/git`)
 
 ### GitHub Authentication
 
-To enable GitHub authentication, you need to create a **GitHub App** (not an oAuth App) and configure the following environment variables:
+GitHub authentication is the simplest to set up. Stormkit automatically creates a GitHub App for you with all the necessary permissions and configurations.
 
-#### Step 1: Create a GitHub App
+#### Setup Steps
 
-1. Go to [GitHub Developer Settings](https://github.com/settings/apps)
-2. Click **New GitHub App**
-3. Fill in the required fields:
-   - **GitHub App name**: Choose a unique name for your app
-   - **Homepage URL**: Your Stormkit instance URL (e.g., `https://api.your-stormkit-domain.com`)
-   - **Callback URL**: `https://api.your-stormkit-domain.com/auth/github/callback`
-   - **Webhook URL**: `https://api.your-stormkit-domain.com/app/webhooks/github/deploy`
-   - **Post Installation Setup URL**: `https://api.your-stormkit-domain.com/auth/github/installation`
-4. Under **Events**, select following items:
-   - **Pull request**
-   - **Push**
-5. Under **Permissions**, grant the following permissions:
-   - **Repository:Administration**: Read and Write
-   - **Repository:Checks**: Read and Write
-   - **Repository:Commit statuses**: Read and Write
-   - **Repository:Contents**: Read
-   - **Repository:Pull requests**: Read and Write
-   - **Repository:Webhooks**: Read
-   - **Account:Email addresses**: Read
-6. Click **Create GitHub App**
+1. Navigate to `/admin/git` in your Stormkit instance
+2. Click **GitHub** button
+3. Enter a unique **App Name** for your GitHub App
+4. Click **Create**
 
-#### Step 2: Generate Private Key
-
-1. After creating the app, scroll down to **Private keys** section
-2. Click **Generate a private key**
-3. Download the `.pem` file
-
-#### Step 3: Configure Environment Variables
-
-Add the following variables to your environment configuration. If you used the `install.sh` script, your environment variables are stored in `~/.profile` file.
-
-```bash
-# The GitHub App name you chose during creation
-GITHUB_APP_NAME=your-app-name
-
-# Found under the General tab of your GitHub App page
-GITHUB_APP_ID=123456
-
-# The client secret (generate one if not created automatically)
-GITHUB_SECRET=your_client_secret
-
-# Found under the General tab of your GitHub App page
-GITHUB_CLIENT_ID=Iv1.abc123def456
-
-# Base64 encoded private key from the .pem file
-# Encode using: cat your-private-key.pem | openssl base64 -A
-GITHUB_PRIV_KEY="LS0tLS1CRUdJTi..."
-```
-
-**Important**: Make sure to enclose the `GITHUB_PRIV_KEY` value with quotes since it contains special characters.
+Stormkit will automatically create the GitHub App with the correct permissions, webhook configurations, and callback URLs. Once created, GitHub authentication will be immediately enabled for your instance.
 
 ### GitLab Authentication
 
-To enable GitLab authentication, you need to create a **GitLab App** and configure the following environment variables:
+To enable GitLab authentication, you need to create a GitLab Application first.
 
-#### Step 1: Create a GitLab App
+#### Step 1: Create a GitLab Application
 
 1. Go to [GitLab Developer Settings](https://gitlab.com/-/user_settings/applications)
 2. Click **Add new application**
 3. Fill in the required fields:
    - **Name**: Choose a unique name for your app
-   - **Redirect URI**: `https://api.your-stormkit-domain.com/auth/gitlab/callback`
+   - **Redirect URI**: This will be provided in the Stormkit configuration modal (pre-configured)
 4. Select following scopes:
    - **read_user**
    - **read_repository**
    - **write_repository**
+5. Click **Save application**
+6. Copy the **Application ID** and **Secret** that are displayed
 
-#### Step 2: Configure Environment Variables
+#### Step 2: Configure in Stormkit
 
-Add the following variables to your environment configuration. If you used the `install.sh` script, your environment variables are stored in `~/.profile` file.
+1. Navigate to `/admin/git` in your Stormkit instance
+2. Click **GitLab** button
+3. The **Redirect URI** will be displayed and pre-configured for you
+4. Enter the following information from your GitLab Application:
+   - **Client ID**: Your Application ID
+   - **Client Secret**: The Secret key
+5. Click **Save** to complete the configuration
 
-```bash
-# The Secret key
-GITLAB_SECRET=gloas-abc123...
+GitLab authentication will be immediately enabled for your instance.
 
-# Your Application ID
-GITLAB_CLIENT_ID=af845...
-```
+### Bitbucket Authentication
 
-### Restart your Stormkit Instance
+To enable Bitbucket authentication, you need to create a Bitbucket OAuth Consumer first.
 
-For the environment variables to take effect, make sure to restart Stormkit. For an environment using docker compose, the command to restart the services is:
+#### Step 1: Create a Bitbucket OAuth Consumer
 
-```bash
-docker compose down workerserver hosting && docker compose up workerserver hosting -d
-```
+1. Go to your Bitbucket workspace settings
+2. Navigate to **OAuth consumers**
+3. Click **Add consumer**
+4. Fill in the required fields:
+   - **Name**: Choose a unique name for your OAuth consumer
+   - **Callback URL**: This will be provided in the Stormkit configuration modal (pre-configured)
+5. Grant the necessary permissions for repository access
+6. Click **Save**
+7. Copy the **Key** (Client ID) and **Secret** that are displayed
 
-<div class="blog-alert">
+#### Step 2: Configure in Stormkit
 
-Note: If you are providing environment variables using the `~/.profile` method, make sure to source that file before restarting the server.
+1. Navigate to `/admin/git` in your Stormkit instance
+2. Click **Bitbucket** button
+3. Enter the following information from your Bitbucket OAuth Consumer:
+   - **Client ID**: Your OAuth consumer Key
+   - **Client Secret**: The Secret key
+   - **Deploy Key** (optional): If you want to use a specific deploy key for repository access
+4. Click **Save** to complete the configuration
 
-```bash
-source ~/.profile
-```
-
-</div>
+Bitbucket authentication will be immediately enabled for your instance.
 
 </section>
