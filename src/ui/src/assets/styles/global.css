@@ -14,11 +14,6 @@ body {
   font-size: 14px;
 }
 
-#root {
-  @apply flex;
-  @apply min-h-screen;
-}
-
 a {
   @apply text-secondary;
 }
@@ -57,7 +52,8 @@ code {
   @apply rounded-sm;
 }
 
-.cm-line, .cm-gutterElement {
+.cm-line,
+.cm-gutterElement {
   font-size: 0.75rem;
 }
 

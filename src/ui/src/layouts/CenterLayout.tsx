@@ -36,15 +36,7 @@ export default function CenterLayout({ children }: Props) {
           <TopMenu team={selectedTeam} />
         </Box>
       )}
-      <Box
-        sx={{
-          mt: 2,
-          flex: 1,
-          px: { xs: 2, md: 0 },
-        }}
-      >
-        {children}
-      </Box>
+      <Box sx={{ flex: 1, px: { xs: 2, md: 0 } }}>{children}</Box>
     </Box>
   );
 }

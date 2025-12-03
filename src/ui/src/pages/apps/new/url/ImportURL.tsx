@@ -66,7 +66,7 @@ export default function ImportURL() {
   };
 
   return (
-    <Card maxWidth="md" error={error}>
+    <Card maxWidth="md" error={error} sx={{ mt: 2 }}>
       <CardHeader>
         <Typography variant="h2">
           <Link href="/" sx={{ display: "inline-flex", alignItems: "center" }}>

@@ -37,6 +37,13 @@ export default (mode: "dark" | "light") => {
       fontWeightLight: 400,
     },
     components: {
+      MuiCssBaseline: {
+        styleOverrides: {
+          body: {
+            backgroundColor: mode === "dark" ? "#0e0b21" : "#f1f3f4",
+          },
+        },
+      },
       MuiFormHelperText: {
         styleOverrides: {
           root: {

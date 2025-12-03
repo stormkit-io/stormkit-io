@@ -2,29 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-.page-section {
-  @apply bg-white;
-  @apply rounded;
-  @apply p-6;
-  @apply flex-auto;
-  max-width: calc(100vw - 1.5rem);
-}
-
-.content-placeholder {
-  @apply inline-block;
-  @apply bg-blue-20;
-  @apply rounded;
-}
-
-.icon-bg {
-  @apply inline-flex;
-  @apply w-10;
-  @apply h-10;
-  @apply items-center;
-  @apply justify-center;
-  @apply rounded-full;
-}
-
 .min-h-12 {
   min-height: 3rem;
 }
