@@ -148,7 +148,7 @@ export const loginOauth = ({ setUser }: LoginOauthProps) => {
             );
           } else if (data.error === "pending-approval-or-rejected") {
             reject(
-              "Your account is pending approval or has been rejected by the administrator."
+              "Your account is pending approval or has been rejected by an administrator."
             );
           } else {
             reject("An error occurred while authenticating. Please retry.");

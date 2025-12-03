@@ -512,8 +512,6 @@ func (s *Store) MustUser(authUser *oauth.User) (*User, error) {
 
 	// Otherwise let's create one
 	if user == nil || user.ID == 0 {
-		signUpStatus := null.BoolFrom(true)
-
 		if isSelfHosted {
 			count, err := s.SelectTotalUsers(ctx)
 
@@ -527,20 +525,21 @@ func (s *Store) MustUser(authUser *oauth.User) (*User, error) {
 			if license.IsEnterprise() && int64(license.Seats) <= count {
 				return nil, errors.New("seats-full")
 			}
+		}
 
-			cnf := admin.MustConfig()
+		cnf := admin.MustConfig()
+		signUpStatus := null.BoolFrom(true)
 
-			switch cnf.SignUpMode() {
-			case admin.SIGNUP_MODE_OFF:
-				return nil, errors.New("new-users-not-allowed")
-			case admin.SIGNUP_MODE_WAITLIST:
-				signUpStatus = null.Bool{}
+		switch cnf.SignUpMode() {
+		case admin.SIGNUP_MODE_OFF:
+			return nil, errors.New("pending-approval-or-rejected")
+		case admin.SIGNUP_MODE_WAITLIST:
+			signUpStatus = null.Bool{}
 
-				for _, email := range authUser.Emails {
-					if cnf.IsUserWhitelisted(email.Address) {
-						signUpStatus = null.BoolFrom(true)
-						break
-					}
+			for _, email := range authUser.Emails {
+				if cnf.IsUserWhitelisted(email.Address) {
+					signUpStatus = null.BoolFrom(true)
+					break
 				}
 			}
 		}
