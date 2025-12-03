@@ -175,14 +175,14 @@ func uiHandler() http.Handler {
 			relFileName = "index.html"
 		}
 
-		absFileName := path.Join("/shared/ui", relFileName)
+		absFileName := path.Join("/home/stormkit/ui", relFileName)
 		headers := make(http.Header)
 
 		file, err := os.Open(absFileName)
 
 		// Fallback to index.html
 		if err != nil && errors.Is(err, os.ErrNotExist) {
-			absFileName = "/shared/ui/index.html"
+			absFileName = "/home/stormkit/ui/index.html"
 			file, err = os.Open(absFileName)
 
 			if err != nil && errors.Is(err, os.ErrNotExist) {
@@ -190,7 +190,7 @@ func uiHandler() http.Handler {
 			}
 		}
 
-		if absFileName == "/shared/ui/index.html" {
+		if absFileName == "/home/stormkit/ui/index.html" {
 			headers.Set("X-SK-API", admin.MustConfig().ApiURL(""))
 		}
 
