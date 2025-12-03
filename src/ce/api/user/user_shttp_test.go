@@ -38,12 +38,15 @@ func (s *UserSHTTPSuite) BeforeTest(suiteName, _ string) {
 	}
 
 	s.NoError(admin.Store().UpsertConfig(context.Background(), cfg))
-	config.SetIsSelfHosted(true)
+
+	// Enable self-hosted mode for testing enterprise features
+	admin.SetMockLicense()
 }
 
 func (s *UserSHTTPSuite) AfterTest(_, _ string) {
 	s.conn.CloseTx()
 	config.SetIsSelfHosted(false)
+	admin.ResetMockLicense()
 }
 
 func (s *UserSHTTPSuite) Test_WithAPIKey_Success() {
@@ -117,7 +120,7 @@ func (s *UserSHTTPSuite) Test_WithAuth_NotApproved() {
 		},
 	})
 
-	s.Equal(res.Status, http.StatusForbidden)
+	s.Equal(http.StatusForbidden, res.Status)
 	s.JSONEq(`{ "error": "Your account is not approved by an administrator. You cannot access this resource." }`, res.String())
 }
 

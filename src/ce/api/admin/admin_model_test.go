@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/mise"
@@ -37,6 +38,7 @@ func (s *AdminModelSuite) AfterTest(_, _ string) {
 	mise.DefaultMise = nil
 	sys.DefaultCommand = nil
 	rediscache.DefaultService = nil
+	admin.ResetMockLicense()
 }
 
 func (s *AdminModelSuite) Test_InstanceConfig_Scan() {
@@ -175,6 +177,24 @@ func (s *AdminModelSuite) Test_SignUpMode() {
 	}
 
 	s.Equal(admin.SIGNUP_MODE_WAITLIST, vc.SignUpMode())
+}
+
+func (s *AdminModelSuite) Test_SignUpMode_CE() {
+	config.SetIsSelfHosted(true)
+	defer config.SetIsSelfHosted(false)
+
+	vc := admin.InstanceConfig{
+		AuthConfig: &admin.AuthConfig{
+			UserManagement: admin.UserManagement{
+				SignUpMode: admin.SIGNUP_MODE_WAITLIST,
+			},
+		},
+	}
+
+	// We fallback to OFF because waitlist is an enterprise feature.
+	// If the license expires, we want to ensure the instance does not allow new sign ups
+	// unless explicitly set to ON.
+	s.Equal(admin.SIGNUP_MODE_OFF, vc.SignUpMode())
 }
 
 func (s *AdminModelSuite) Test_IsUserWhitelisted() {

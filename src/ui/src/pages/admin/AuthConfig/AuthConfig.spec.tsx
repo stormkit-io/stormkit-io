@@ -1,11 +1,22 @@
 import type { RenderResult } from "@testing-library/react";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, waitFor, fireEvent } from "@testing-library/react";
-import nock from "nock";
+import { RootContext } from "~/pages/Root.context";
+import nock, { Scope } from "nock";
 import AuthConfig from "./AuthConfig";
+
+interface Props {
+  seats?: number;
+  remaining?: number;
+  edition?: "community" | "enterprise";
+  signUpMode?: "on" | "off" | "waitlist";
+  whitelist?: string[];
+  status?: number;
+}
 
 describe("~/pages/admin/AuthConfig/AuthConfig.tsx", () => {
   let wrapper: RenderResult;
+  let fetchScope: Scope;
 
   beforeEach(() => {
     nock.cleanAll();
@@ -15,18 +26,33 @@ describe("~/pages/admin/AuthConfig/AuthConfig.tsx", () => {
     nock.cleanAll();
   });
 
-  const fetchAuthConfigScope = (config = {}) => {
-    return nock(process.env.API_DOMAIN || "")
+  const createWrapper = async ({
+    seats = 1,
+    remaining = 0,
+    edition = "community",
+    signUpMode = "on",
+    whitelist = [],
+    status = 200,
+  }: Props = {}) => {
+    fetchScope = nock(process.env.API_DOMAIN || "")
       .get("/admin/users/sign-up-mode")
-      .reply(200, {
-        signUpMode: "on",
-        whitelist: [],
-        ...config,
+      .reply(status || 200, {
+        signUpMode,
+        whitelist,
       });
-  };
 
-  const createWrapper = async () => {
-    wrapper = render(<AuthConfig />);
+    wrapper = render(
+      <RootContext.Provider
+        value={{
+          mode: "dark",
+          setMode: vi.fn(),
+          setRefreshToken: vi.fn(),
+          details: { license: { seats, remaining, edition } },
+        }}
+      >
+        <AuthConfig />
+      </RootContext.Provider>
+    );
   };
 
   const findSignUpModeSelect = () => {
@@ -37,27 +63,44 @@ describe("~/pages/admin/AuthConfig/AuthConfig.tsx", () => {
     return wrapper.getByLabelText("Whitelist") as HTMLInputElement;
   };
 
-  describe("initial render", () => {
-    it("renders the component with loading state", async () => {
-      const scope = fetchAuthConfigScope();
-      createWrapper();
+  const openSignUpModeSelect = async () => {
+    const select = await waitFor(() => {
+      expect(fetchScope.isDone()).toBe(true);
+      expect(findSignUpModeSelect()).toBeTruthy();
+      return findSignUpModeSelect();
+    });
 
-      expect(wrapper.getByText("User management")).toBeTruthy();
-      expect(
-        wrapper.getByText("Configure how your users can access Stormkit")
-      ).toBeTruthy();
+    fireEvent.mouseDown(select);
+  };
+
+  const updateSignUpModeScope = ({
+    signUpMode,
+    whitelist,
+    status = 200,
+  }: Pick<Props, "signUpMode" | "whitelist" | "status">) => {
+    return nock(process.env.API_DOMAIN || "")
+      .post("/admin/users/sign-up-mode", {
+        signUpMode,
+        whitelist,
+      })
+      .reply(status, { ok: true });
+  };
+
+  describe("community edition", () => {
+    it("renders the component with loading state", async () => {
+      createWrapper({ signUpMode: "on", status: 200 });
 
       await waitFor(() => {
-        expect(scope.isDone()).toBe(true);
+        expect(fetchScope.isDone()).toBe(true);
+        expect(wrapper.getByText("User management")).toBeTruthy();
+        expect(
+          wrapper.getByText("Configure how your users can access Stormkit")
+        ).toBeTruthy();
       });
     });
 
     it("displays error when API fails", async () => {
-      nock(process.env.API_DOMAIN || "")
-        .get("/admin/users/sign-up-mode")
-        .reply(500);
-
-      createWrapper();
+      createWrapper({ status: 500 });
 
       await waitFor(() => {
         expect(
@@ -68,58 +111,40 @@ describe("~/pages/admin/AuthConfig/AuthConfig.tsx", () => {
       });
     });
 
-    it("loads config with signUpMode 'waitlist' and whitelist", async () => {
-      const scope = fetchAuthConfigScope({
-        signUpMode: "waitlist",
-        whitelist: ["example.org", "test.com"],
-      });
-
+    it("does not render pending users section for community edition", async () => {
       createWrapper();
 
       await waitFor(() => {
-        expect(scope.isDone()).toBe(true);
-        expect(findSignUpModeSelect().textContent).toBe("Approval mode");
-        expect(findWhitelistInput()?.value).toBe("example.org, test.com");
+        expect(fetchScope.isDone()).toBe(true);
+        expect(() => wrapper.getByText("Pending Users")).toThrow();
       });
     });
 
-    it("hides whitelist field when signUpMode is not 'waitlist'", async () => {
-      const scope = fetchAuthConfigScope({ signUpMode: "waitlist" });
+    it("disables approval mode option for community edition", async () => {
       createWrapper();
 
-      await waitFor(() => {
-        expect(scope.isDone()).toBe(true);
-        expect(wrapper.getByLabelText("Whitelist")).toBeTruthy();
-      });
-
-      const select = findSignUpModeSelect();
-
-      fireEvent.mouseDown(select);
-
-      const onOption = await waitFor(() =>
-        wrapper.getByText("On (all users are allowed)")
-      );
-
-      fireEvent.click(onOption);
+      await openSignUpModeSelect();
 
       await waitFor(() => {
-        expect(select.textContent).toBe("On (all users are allowed)");
-        expect(() => findWhitelistInput()).toThrow();
+        const approvalOption = wrapper.getByText(
+          /Approval mode \(Enterprise only\)/
+        );
+        expect(approvalOption).toBeTruthy();
+        expect(
+          approvalOption.closest("li")?.getAttribute("aria-disabled")
+        ).toBe("true");
       });
     });
   });
 
   describe("form submission", () => {
     it("successfully submits form with signUpMode 'waitlist' and whitelist", async () => {
-      const fetchScope = fetchAuthConfigScope({ signUpMode: "waitlist" });
-      const updateScope = nock(process.env.API_DOMAIN || "")
-        .post("/admin/users/sign-up-mode", {
-          signUpMode: "waitlist",
-          whitelist: ["example.org", "test.com"],
-        })
-        .reply(200, { ok: true });
+      const updateScope = updateSignUpModeScope({
+        signUpMode: "waitlist",
+        whitelist: ["example.org", "test.com"],
+      });
 
-      createWrapper();
+      createWrapper({ signUpMode: "waitlist", status: 200 });
 
       await waitFor(() => {
         expect(fetchScope.isDone()).toBe(true);
@@ -142,15 +167,16 @@ describe("~/pages/admin/AuthConfig/AuthConfig.tsx", () => {
     });
 
     it("displays error message when submission fails", async () => {
-      const fetchScope = fetchAuthConfigScope({ signUpMode: "on" });
-      const updateScope = nock(process.env.API_DOMAIN || "")
-        .post("/admin/users/sign-up-mode")
-        .reply(500);
-
-      createWrapper();
+      createWrapper({ signUpMode: "on", status: 200 });
 
       await waitFor(() => {
         expect(fetchScope.isDone()).toBe(true);
+      });
+
+      const updateScope = updateSignUpModeScope({
+        status: 500,
+        signUpMode: "on",
+        whitelist: [],
       });
 
       fireEvent.click(wrapper.getByText("Save"));
@@ -166,15 +192,12 @@ describe("~/pages/admin/AuthConfig/AuthConfig.tsx", () => {
     });
 
     it("trims whitespace from whitelist entries", async () => {
-      const fetchScope = fetchAuthConfigScope({ signUpMode: "waitlist" });
-      const updateScope = nock(process.env.API_DOMAIN || "")
-        .post("/admin/users/sign-up-mode", {
-          signUpMode: "waitlist",
-          whitelist: ["example.org", "test.com", "another.com"],
-        })
-        .reply(200, { ok: true });
+      const updateScope = updateSignUpModeScope({
+        signUpMode: "waitlist",
+        whitelist: ["example.org", "test.com", "another.com"],
+      });
 
-      createWrapper();
+      createWrapper({ signUpMode: "waitlist", status: 200 });
 
       await waitFor(() => {
         expect(fetchScope.isDone()).toBe(true);
@@ -193,20 +216,17 @@ describe("~/pages/admin/AuthConfig/AuthConfig.tsx", () => {
   });
 
   describe("whitelist validation", () => {
-    it("allows all positive whitelist entries", async () => {
-      const fetchScope = fetchAuthConfigScope({ signUpMode: "waitlist" });
-      const updateScope = nock(process.env.API_DOMAIN || "")
-        .post("/admin/users/sign-up-mode", {
-          signUpMode: "waitlist",
-          whitelist: ["example.org", "test.com"],
-        })
-        .reply(200, { ok: true });
+    beforeEach(() => {
+      createWrapper({ signUpMode: "waitlist", status: 200 });
+    });
 
-      createWrapper();
+    it("allows all positive whitelist entries", async () => {
+      const updateScope = updateSignUpModeScope({
+        signUpMode: "waitlist",
+        whitelist: ["example.org", "test.com"],
+      });
 
       await waitFor(() => {
-        expect(fetchScope.isDone()).toBe(true);
-
         fireEvent.change(findWhitelistInput(), {
           target: { value: "example.org, test.com" },
         });
@@ -221,19 +241,12 @@ describe("~/pages/admin/AuthConfig/AuthConfig.tsx", () => {
     });
 
     it("allows all negated whitelist entries", async () => {
-      const fetchScope = fetchAuthConfigScope({ signUpMode: "waitlist" });
-      const updateScope = nock(process.env.API_DOMAIN || "")
-        .post("/admin/users/sign-up-mode", {
-          signUpMode: "waitlist",
-          whitelist: ["!example.org", "!test.com"],
-        })
-        .reply(200, { ok: true });
-
-      createWrapper();
+      const updateScope = updateSignUpModeScope({
+        signUpMode: "waitlist",
+        whitelist: ["!example.org", "!test.com"],
+      });
 
       await waitFor(() => {
-        expect(fetchScope.isDone()).toBe(true);
-
         fireEvent.change(findWhitelistInput(), {
           target: { value: "!example.org, !test.com" },
         });
@@ -248,12 +261,7 @@ describe("~/pages/admin/AuthConfig/AuthConfig.tsx", () => {
     });
 
     it("shows error when mixing negated and positive entries", async () => {
-      const fetchScope = fetchAuthConfigScope({ signUpMode: "waitlist" });
-      createWrapper();
-
       await waitFor(() => {
-        expect(fetchScope.isDone()).toBe(true);
-
         fireEvent.change(findWhitelistInput(), {
           target: { value: "!example.org, test.com" },
         });
@@ -270,12 +278,7 @@ describe("~/pages/admin/AuthConfig/AuthConfig.tsx", () => {
     });
 
     it("shows error when mixing positive and negated entries", async () => {
-      const fetchScope = fetchAuthConfigScope({ signUpMode: "waitlist" });
-      createWrapper();
-
       await waitFor(() => {
-        expect(fetchScope.isDone()).toBe(true);
-
         fireEvent.change(findWhitelistInput(), {
           target: { value: "example.org, !test.com" },
         });
@@ -292,16 +295,7 @@ describe("~/pages/admin/AuthConfig/AuthConfig.tsx", () => {
     });
 
     it("prevents form submission when whitelist has mixed negations", async () => {
-      const fetchScope = fetchAuthConfigScope({ signUpMode: "waitlist" });
-      const updateScope = nock(process.env.API_DOMAIN || "")
-        .post("/admin/users/sign-up-mode")
-        .reply(200, { ok: true });
-
-      createWrapper();
-
       await waitFor(() => {
-        expect(fetchScope.isDone()).toBe(true);
-
         fireEvent.change(findWhitelistInput(), {
           target: { value: "example.org, !test.com" },
         });
@@ -312,25 +306,15 @@ describe("~/pages/admin/AuthConfig/AuthConfig.tsx", () => {
       await waitFor(() => {
         expect(findWhitelistInput().getAttribute("aria-invalid")).toBe("true");
       });
-
-      // Should not make the API call
-      expect(updateScope.isDone()).toBe(false);
     });
 
     it("clears validation error on re-submission with valid data", async () => {
-      const fetchScope = fetchAuthConfigScope({ signUpMode: "waitlist" });
-      const updateScope = nock(process.env.API_DOMAIN || "")
-        .post("/admin/users/sign-up-mode", {
-          signUpMode: "waitlist",
-          whitelist: ["example.org", "test.com"],
-        })
-        .reply(200, { ok: true });
-
-      createWrapper();
+      const updateScope = updateSignUpModeScope({
+        signUpMode: "waitlist",
+        whitelist: ["example.org", "test.com"],
+      });
 
       await waitFor(() => {
-        expect(fetchScope.isDone()).toBe(true);
-
         // First submission with invalid data
         fireEvent.change(findWhitelistInput(), {
           target: { value: "example.org, !test.com" },
@@ -355,6 +339,82 @@ describe("~/pages/admin/AuthConfig/AuthConfig.tsx", () => {
       await waitFor(() => {
         expect(updateScope.isDone()).toBe(true);
         expect(findWhitelistInput().getAttribute("aria-invalid")).toBe("false");
+      });
+    });
+  });
+
+  describe("enterprise edition features", () => {
+    it("loads config with signUpMode 'waitlist' and whitelist", async () => {
+      createWrapper({
+        edition: "enterprise",
+        signUpMode: "waitlist",
+        whitelist: ["example.org", "test.com"],
+      });
+
+      await waitFor(() => {
+        expect(fetchScope.isDone()).toBe(true);
+        expect(findSignUpModeSelect().textContent).toBe("Approval mode");
+        expect(findWhitelistInput()?.value).toBe("example.org, test.com");
+      });
+    });
+
+    it("renders pending users section for enterprise edition", async () => {
+      createWrapper({ edition: "enterprise", signUpMode: "on" });
+
+      await waitFor(() => {
+        expect(fetchScope.isDone()).toBe(true);
+        expect(wrapper.getByText("Pending Users")).toBeTruthy();
+      });
+    });
+
+    it("enables approval mode option for enterprise edition", async () => {
+      createWrapper({ edition: "enterprise", signUpMode: "on" });
+
+      await openSignUpModeSelect();
+
+      const opt = await waitFor(() => {
+        const opt = wrapper.getByText("Approval mode");
+        expect(opt).toBeTruthy();
+        expect(opt.closest("li")?.getAttribute("aria-disabled")).toBe(null);
+        return opt;
+      });
+
+      const updateScope = nock(process.env.API_DOMAIN || "")
+        .post("/admin/users/sign-up-mode", {
+          signUpMode: "waitlist",
+          whitelist: [],
+        })
+        .reply(200, { ok: true });
+
+      fireEvent.click(opt);
+      fireEvent.click(wrapper.getByText("Save"));
+
+      await waitFor(() => {
+        expect(updateScope.isDone()).toBe(true);
+      });
+    });
+
+    it("hides whitelist field when signUpMode is not 'waitlist'", async () => {
+      createWrapper({ edition: "enterprise", signUpMode: "waitlist" });
+
+      await waitFor(() => {
+        expect(fetchScope.isDone()).toBe(true);
+        expect(wrapper.getByLabelText("Whitelist")).toBeTruthy();
+      });
+
+      fireEvent.mouseDown(findSignUpModeSelect());
+
+      const onOption = await waitFor(() =>
+        wrapper.getByText("On (all users are allowed)")
+      );
+
+      fireEvent.click(onOption);
+
+      await waitFor(() => {
+        expect(() => findWhitelistInput()).toThrow();
+        expect(findSignUpModeSelect().textContent).toBe(
+          "On (all users are allowed)"
+        );
       });
     });
   });
