@@ -7,7 +7,6 @@ import Skeleton from "@mui/material/Skeleton";
 import qs from "query-string";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
-import Card from "~/components/Card";
 import Logo from "~/components/Logo";
 import { AuthContext } from "./Auth.context";
 import BasicAuthRegister from "./BasicAuthRegister";
@@ -46,120 +45,110 @@ export default function Auth() {
   const loading = false;
 
   return (
-    <Box
-      sx={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
+    <Box>
       <Box
         maxWidth="lg"
         sx={{
-          display: "flex",
-          flexDirection: "column",
-          position: "relative",
+          left: { md: "50%" },
+          transform: { md: "translateX(-50%)" },
+          position: { md: "fixed" },
+          pl: { xs: 3, md: 0 },
+          pt: { xs: 2, md: 4 },
+          mb: { xs: 4, md: 0 },
+          width: "100%",
         }}
       >
-        <Box sx={{ mb: 8, display: "flex", justifyContent: "center" }}>
-          <Logo iconSize={150} />
+        <Logo iconSize={150} />
+      </Box>
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+          minHeight: { md: "100vh" },
+        }}
+      >
+        <Box
+          sx={{
+            maxWidth: "600px",
+            justifySelf: { md: "flex-end" },
+            alignSelf: "center",
+            p: 4,
+            pt: 5.5, // to offset logo
+            mb: { xs: 8, md: 0 },
+          }}
+        >
+          <Typography sx={{ lineHeight: 2, fontSize: 14 }}>
+            /def/{" "}
+            <Typography component="span" color="secondary.dark">
+              Noun.
+            </Typography>
+            <br />
+            1. Serverless app development platform.
+            <br />
+            2. A set of tools built to save dev-ops time for your Javascript
+            application.
+          </Typography>
+          <Box component="ul" sx={{ mt: 4 }}>
+            <Typography
+              component="li"
+              sx={{ mb: 2, fontSize: 14 }}
+              color="text.secondary"
+            >
+              <RollbackIcon sx={{ mr: 1 }} /> Environments with instant
+              rollbacks
+            </Typography>
+            <Typography
+              component="li"
+              sx={{ mb: 2, fontSize: 14 }}
+              color="text.secondary"
+            >
+              <ShieldIcon sx={{ mr: 1 }} /> Custom domains &amp; automated TLS
+            </Typography>
+            <Typography
+              component="li"
+              sx={{ fontSize: 14 }}
+              color="text.secondary"
+            >
+              <CloudIcon sx={{ mr: 1 }} /> Serverless functions
+            </Typography>
+          </Box>
+
+          <Typography
+            sx={{
+              mt: 4,
+              pt: 2,
+              textAlign: "center",
+              borderTop: "1px solid",
+              borderColor: "rgba(255, 255, 255, 0.1)",
+            }}
+            color="text.secondary"
+          >
+            By using Stormkit, you're agreeing to our{" "}
+            <Link
+              href="https://www.stormkit.io/policies/terms"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              terms and services
+            </Link>
+            .
+          </Typography>
         </Box>
         <Box
           sx={{
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-            gap: 2,
-            px: { xs: 1, lg: 3 },
+            minHeight: { md: "100vh" },
+            display: "flex",
+            alignSelf: "center",
+            bgcolor: "background.paper",
           }}
         >
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: "column",
-              mr: { lg: 8 },
-              mb: { xs: 3, md: 0 },
-              mt: { xs: 4, lg: 0 },
-              px: 3,
-              py: { xs: 0, md: 6 },
-              order: { xs: 2, md: 1 },
-              justifyContent: "center",
-              maxWidth: { sm: "28rem" },
-              minHeight: { xs: "auto", md: "27.5rem" },
-            }}
-          >
-            <Typography sx={{ lineHeight: 2, fontSize: 14 }}>
-              /def/{" "}
-              <Typography component="span" color="secondary.dark">
-                Noun.
-              </Typography>
-              <br />
-              1. Serverless app development platform.
-              <br />
-              2. A set of tools built to save dev-ops time for your Javascript
-              application.
-            </Typography>
-            <Box component="ul" sx={{ mt: 4 }}>
-              <Typography
-                component="li"
-                sx={{ mb: 2, fontSize: 14 }}
-                color="text.secondary"
-              >
-                <RollbackIcon sx={{ mr: 1 }} /> Environments with instant
-                rollbacks
-              </Typography>
-              <Typography
-                component="li"
-                sx={{ mb: 2, fontSize: 14 }}
-                color="text.secondary"
-              >
-                <ShieldIcon sx={{ mr: 1 }} /> Custom domains &amp; automated TLS
-              </Typography>
-              <Typography
-                component="li"
-                sx={{ fontSize: 14 }}
-                color="text.secondary"
-              >
-                <CloudIcon sx={{ mr: 1 }} /> Serverless functions
-              </Typography>
-            </Box>
-
-            <Typography
-              sx={{
-                mt: 4,
-                pt: 2,
-                textAlign: "center",
-                borderTop: "1px solid",
-                borderColor: "rgba(255, 255, 255, 0.1)",
-              }}
-              color="text.secondary"
-            >
-              By using Stormkit, you're agreeing to our{" "}
-              <Link
-                href="https://www.stormkit.io/policies/terms"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                terms and services
-              </Link>
-              .
-            </Typography>
-          </Box>
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              height: "100%",
-              order: { xs: 1, md: 2 },
-            }}
-          >
+          <Box sx={{ maxWidth: "600px", width: "100%", alignSelf: "center" }}>
             {loading ? (
-              <Card sx={{ width: "100%", height: "100%" }}>
-                <Skeleton variant="rectangular" height={30} sx={{ mb: 2 }} />
-                <Skeleton variant="rectangular" height={30} sx={{ mb: 2 }} />
+              <Box sx={{ px: 4 }}>
+                <Skeleton variant="rectangular" height={30} sx={{ mb: 4 }} />
+                <Skeleton variant="rectangular" height={30} sx={{ mb: 4 }} />
                 <Skeleton variant="rectangular" height={30} />
-              </Card>
+              </Box>
             ) : !isBasicAuth ? (
               <ProviderAuth providers={providers} />
             ) : providers?.basicAuth === "enabled" ? (

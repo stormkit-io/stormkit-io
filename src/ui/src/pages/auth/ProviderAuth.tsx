@@ -17,7 +17,7 @@ export default function ProviderAuth({ providers }: Props) {
   const [error, setError] = useState<string>();
 
   return (
-    <Card sx={{ width: "100%" }} error={error}>
+    <Card sx={{ border: "none" }} error={error}>
       <CardHeader
         title="Authentication"
         subtitle="Login with your provider"

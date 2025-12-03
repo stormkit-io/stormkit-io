@@ -13,7 +13,7 @@ export default function BasicAuthRegister() {
     <Card
       component="form"
       error={error}
-      sx={{ width: "100%" }}
+      sx={{ width: "100%", border: "none" }}
       onSubmit={e => {
         e.preventDefault();
 

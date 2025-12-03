@@ -12,7 +12,7 @@ export default function BasicAuthLogin() {
   return (
     <Card
       component="form"
-      sx={{ width: "100%" }}
+      sx={{ width: "100%", border: "none" }}
       error={error}
       onSubmit={e => {
         e.preventDefault();
