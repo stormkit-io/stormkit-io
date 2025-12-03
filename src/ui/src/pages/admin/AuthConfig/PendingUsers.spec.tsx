@@ -4,13 +4,6 @@ import { render, waitFor, fireEvent } from "@testing-library/react";
 import nock from "nock";
 import PendingUsers from "./PendingUsers";
 
-interface User {
-  id: string;
-  email: string;
-  displayName: string;
-  memberSince: number;
-}
-
 describe("~/pages/admin/AuthConfig/PendingUsers.tsx", () => {
   let wrapper: RenderResult;
 
@@ -20,18 +13,36 @@ describe("~/pages/admin/AuthConfig/PendingUsers.tsx", () => {
       email: "user1@example.com",
       displayName: "User One",
       memberSince: Date.now() - 86400000, // 1 day ago
+      avatar: "my-avatar.png",
+      fullName: "Joe Doe",
+      package: {
+        id: "free",
+        name: "Free",
+      },
     },
     {
       id: "user-2",
       email: "user2@example.com",
       displayName: "User Two",
       memberSince: Date.now() - 172800000, // 2 days ago
+      avatar: "my-avatar2.png",
+      fullName: "Jane Smith",
+      package: {
+        id: "free",
+        name: "Free",
+      },
     },
     {
       id: "user-3",
       email: "user3@example.com",
       displayName: "User Three",
       memberSince: Date.now() - 259200000, // 3 days ago
+      avatar: "my-avatar3.png",
+      fullName: "Alice Johnson",
+      package: {
+        id: "free",
+        name: "Free",
+      },
     },
   ];
 
@@ -177,11 +188,11 @@ describe("~/pages/admin/AuthConfig/PendingUsers.tsx", () => {
       const scope = fetchPendingUsersScope();
       createWrapper();
 
-      await waitFor(() => {
+      const checkboxes = await waitFor(() => {
         expect(scope.isDone()).toBe(true);
+        return wrapper.getAllByRole("checkbox");
       });
 
-      const checkboxes = wrapper.getAllByRole("checkbox");
       const selectAllCheckbox = checkboxes[0];
 
       // Click select all

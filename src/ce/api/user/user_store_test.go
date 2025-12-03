@@ -56,9 +56,6 @@ func (s *UserStoreSuite) Test_MustUser() {
 }
 
 func (s *UserStoreSuite) Test_MustUser_Approval() {
-	config.SetIsSelfHosted(true)
-	defer config.SetIsSelfHosted(false)
-
 	cfg := admin.InstanceConfig{
 		AuthConfig: &admin.AuthConfig{
 			UserManagement: admin.UserManagement{
@@ -69,6 +66,9 @@ func (s *UserStoreSuite) Test_MustUser_Approval() {
 
 	s.NoError(admin.Store().UpsertConfig(context.Background(), cfg))
 
+	admin.SetMockLicense()
+	defer admin.ResetMockLicense()
+
 	user, err := user.NewStore().MustUser(&oauth.User{
 		Emails: []oauth.Email{{Address: "test@stormkit.io", IsPrimary: true, IsVerified: true}},
 	})
@@ -78,9 +78,6 @@ func (s *UserStoreSuite) Test_MustUser_Approval() {
 }
 
 func (s *UserStoreSuite) Test_MustUser_Approval_Whitelisted() {
-	config.SetIsSelfHosted(true)
-	defer config.SetIsSelfHosted(false)
-
 	cfg := admin.InstanceConfig{
 		AuthConfig: &admin.AuthConfig{
 			UserManagement: admin.UserManagement{
@@ -92,6 +89,9 @@ func (s *UserStoreSuite) Test_MustUser_Approval_Whitelisted() {
 
 	s.NoError(admin.Store().UpsertConfig(context.Background(), cfg))
 
+	admin.SetMockLicense()
+	defer admin.ResetMockLicense()
+
 	user, err := user.NewStore().MustUser(&oauth.User{
 		Emails: []oauth.Email{{Address: "test@STORMKIT.io", IsPrimary: true, IsVerified: true}},
 	})
@@ -102,6 +102,16 @@ func (s *UserStoreSuite) Test_MustUser_Approval_Whitelisted() {
 }
 
 func (s *UserStoreSuite) Test_MustUser_IsAdmin() {
+	cfg := admin.InstanceConfig{
+		AuthConfig: &admin.AuthConfig{
+			UserManagement: admin.UserManagement{
+				SignUpMode: admin.SIGNUP_MODE_ON,
+			},
+		},
+	}
+
+	s.NoError(admin.Store().UpsertConfig(context.Background(), cfg))
+
 	store := user.NewStore()
 	ctx := context.Background()
 	user, err := store.MustUser(&oauth.User{

@@ -1,5 +1,5 @@
 import type { SignUpMode, AuthConfig } from "./actions";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useContext } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
@@ -11,6 +11,7 @@ import Option from "@mui/material/MenuItem";
 import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
 import CardFooter from "~/components/CardFooter";
+import { RootContext } from "~/pages/Root.context";
 import PendingUsers from "./PendingUsers";
 import { useFetchAuthConfig, updateAuthConfig } from "./actions";
 
@@ -18,9 +19,10 @@ interface ConfigProps {
   config?: AuthConfig;
   error?: string;
   loading?: boolean;
+  isEnterprise?: boolean;
 }
 
-function Config({ config, loading, error }: ConfigProps) {
+function Config({ config, loading, error, isEnterprise }: ConfigProps) {
   const [signUpMode, setSignUpMode] = useState<SignUpMode>("on");
   const [whitelist, setWhitelist] = useState<string>();
   const [whitelistError, setWhitelistError] = useState(false);
@@ -103,7 +105,7 @@ function Config({ config, loading, error }: ConfigProps) {
         title="User management"
         subtitle="Configure how your users can access Stormkit"
       />
-      <Box sx={{ px: 4 }}>
+      <Box sx={{ px: 4, mb: 4 }}>
         <FormControl variant="standard" fullWidth>
           <InputLabel id="auth-config-label" sx={{ pl: 2, pt: 1.25 }}>
             Sign up mode
@@ -120,7 +122,9 @@ function Config({ config, loading, error }: ConfigProps) {
           >
             <Option value="off">Off (no new users allowed)</Option>
             <Option value="on">On (all users are allowed)</Option>
-            <Option value="waitlist">Approval mode</Option>
+            <Option value="waitlist" disabled={!isEnterprise}>
+              Approval mode{!isEnterprise && " (Enterprise only)"}
+            </Option>
           </Select>
         </FormControl>
       </Box>
@@ -167,11 +171,19 @@ function Config({ config, loading, error }: ConfigProps) {
 
 export default function AuthConfig() {
   const { error, loading, config } = useFetchAuthConfig();
+  const { details } = useContext(RootContext);
+  const license = details?.license;
+  const isEnterprise = license?.edition === "enterprise";
 
   return (
     <Box>
-      <Config error={error} loading={loading} config={config} />
-      <PendingUsers />
+      <Config
+        error={error}
+        loading={loading}
+        config={config}
+        isEnterprise={isEnterprise}
+      />
+      {isEnterprise && <PendingUsers />}
     </Box>
   );
 }

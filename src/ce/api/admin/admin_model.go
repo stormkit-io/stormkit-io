@@ -262,6 +262,10 @@ func (vc InstanceConfig) SignUpMode() string {
 	case SIGNUP_MODE_OFF:
 		return SIGNUP_MODE_OFF
 	case SIGNUP_MODE_WAITLIST:
+		if config.IsSelfHosted() && !CurrentLicense().IsEnterprise() {
+			return SIGNUP_MODE_OFF
+		}
+
 		return SIGNUP_MODE_WAITLIST
 	default:
 		return SIGNUP_MODE_ON
