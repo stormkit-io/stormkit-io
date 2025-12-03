@@ -13,7 +13,7 @@ export default function Account() {
   }
 
   return (
-    <Box sx={{ margin: "0 auto" }} maxWidth="lg">
+    <Box sx={{ mx: "auto", mt: 2 }} maxWidth="lg">
       <UserProfile user={user} metrics={metrics} />
       <ConnectedAccounts accounts={accounts!} />
     </Box>

@@ -93,7 +93,7 @@ export default function NewGithubApp() {
   const showNoRepo = frLoading === false && !repos?.length;
 
   return (
-    <Box maxWidth="md" sx={{ width: "100%", margin: "0 auto" }}>
+    <Box maxWidth="md" sx={{ width: "100%", mx: "auto", mt: 2 }}>
       <Card
         sx={{ width: "100%", mb: 4 }}
         loading={faLoading}
