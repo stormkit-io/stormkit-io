@@ -35,16 +35,20 @@ Stormkit offers three different sign-up modes to control how users can register 
 - New users are automatically approved upon registration
 - Best for open or development environments
 
-### 3. Approval Mode (Waitlist) `Enterprise Edition`
+### 3. Approval Mode (Waitlist)
+
+**Enterprise Edition only**
 
 - Requires admin approval for new user registrations
 - Users can sign up, but their accounts remain pending until approved
 - Supports domain-based whitelisting for automatic approval
-- This option is available for enterprise customers
+- The Approval Mode feature is exclusively available for Enterprise Edition users
 
 ## Domain Whitelisting
 
-When using **Approval Mode**, you can configure a whitelist to automatically approve or deny users based on their email domain.
+**Enterprise Edition only**
+
+When using **Approval Mode**, you can configure domain whitelisting to automatically approve or deny users based on their email domain. This feature requires an Enterprise Edition license.
 
 ### Allow Specific Domains
 
@@ -73,6 +77,8 @@ Users with email addresses from these domains will be automatically rejected, wh
 </div>
 
 ## Managing Pending Users
+
+**Enterprise Edition only**
 
 When Approval Mode is enabled, users who sign up will appear in the **Pending Users** section below the user management configuration.
 
