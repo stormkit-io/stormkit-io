@@ -154,6 +154,8 @@ func healthHandler() http.Handler {
 	return cachedHandlers["health"]
 }
 
+const uiBasePath = "/stormkit/ui"
+
 func uiHandler() http.Handler {
 	cacheMux.Lock()
 	defer cacheMux.Unlock()
@@ -175,14 +177,14 @@ func uiHandler() http.Handler {
 			relFileName = "index.html"
 		}
 
-		absFileName := path.Join("/home/stormkit/ui", relFileName)
+		absFileName := path.Join(uiBasePath, relFileName)
 		headers := make(http.Header)
 
 		file, err := os.Open(absFileName)
 
 		// Fallback to index.html
 		if err != nil && errors.Is(err, os.ErrNotExist) {
-			absFileName = "/home/stormkit/ui/index.html"
+			absFileName = path.Join(uiBasePath, "index.html")
 			file, err = os.Open(absFileName)
 
 			if err != nil && errors.Is(err, os.ErrNotExist) {
@@ -190,7 +192,7 @@ func uiHandler() http.Handler {
 			}
 		}
 
-		if absFileName == "/home/stormkit/ui/index.html" {
+		if absFileName == path.Join(uiBasePath, "index.html") {
 			headers.Set("X-SK-API", admin.MustConfig().ApiURL(""))
 		}
 
