@@ -1,5 +1,69 @@
 # Changelog
 
+## v1.25.0
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v1.24.0...main)
+
+### 🚀 Enhancements
+
+- Allow managing auth config ([57faf80](https://github.com/stormkit-io/stormkit-io/commit/57faf80))
+- Add whitelist logic ([bf4eba2](https://github.com/stormkit-io/stormkit-io/commit/bf4eba2))
+- Endpoint to retrieve pending users ([1044573](https://github.com/stormkit-io/stormkit-io/commit/1044573))
+- Allow managing pending users ([8c2c253](https://github.com/stormkit-io/stormkit-io/commit/8c2c253))
+- Allow modifying pending users ([1865ada](https://github.com/stormkit-io/stormkit-io/commit/1865ada))
+- Run www service ([70371e4](https://github.com/stormkit-io/stormkit-io/commit/70371e4))
+- Approval mode for ee users ([baebfd2](https://github.com/stormkit-io/stormkit-io/commit/baebfd2))
+
+### 🩹 Fixes
+
+- Make sure not to return 0 ([dbbd99f](https://github.com/stormkit-io/stormkit-io/commit/dbbd99f))
+- Grammar ([50e7bec](https://github.com/stormkit-io/stormkit-io/commit/50e7bec))
+- Typescript warnings ([2ba67f2](https://github.com/stormkit-io/stormkit-io/commit/2ba67f2))
+- Generating doc routes ([135a2bb](https://github.com/stormkit-io/stormkit-io/commit/135a2bb))
+
+### 💅 Refactors
+
+- Reorganize docs ([95ba421](https://github.com/stormkit-io/stormkit-io/commit/95ba421))
+
+### 📖 Documentation
+
+- V1.24.0 ([88ca93c](https://github.com/stormkit-io/stormkit-io/commit/88ca93c))
+- Update pull request template ([8775362](https://github.com/stormkit-io/stormkit-io/commit/8775362))
+- Update docs for www ([8a6d476](https://github.com/stormkit-io/stormkit-io/commit/8a6d476))
+- Update authentication documentation ([ac14aa1](https://github.com/stormkit-io/stormkit-io/commit/ac14aa1))
+- New sign up mode feature ([3348a0c](https://github.com/stormkit-io/stormkit-io/commit/3348a0c))
+- Styling ([3bb0560](https://github.com/stormkit-io/stormkit-io/commit/3bb0560))
+
+### 🏡 Chore
+
+- Remove unused import ([5c2e2fb](https://github.com/stormkit-io/stormkit-io/commit/5c2e2fb))
+- Add watch mode for fe tests ([e2877ed](https://github.com/stormkit-io/stormkit-io/commit/e2877ed))
+- Minor style adjustments ([4a47b3f](https://github.com/stormkit-io/stormkit-io/commit/4a47b3f))
+- Use any instead of interface ([21334ed](https://github.com/stormkit-io/stormkit-io/commit/21334ed))
+- Allow modifying modal title ([ac282de](https://github.com/stormkit-io/stormkit-io/commit/ac282de))
+- Improve approval logic ([030ebed](https://github.com/stormkit-io/stormkit-io/commit/030ebed))
+- Add specs for new method ([72f9f3a](https://github.com/stormkit-io/stormkit-io/commit/72f9f3a))
+- Allow setting config in test envs ([3712e12](https://github.com/stormkit-io/stormkit-io/commit/3712e12))
+- Remove wrapping brackets ([8f7291c](https://github.com/stormkit-io/stormkit-io/commit/8f7291c))
+- Move landing page to this repository ([3bad0f1](https://github.com/stormkit-io/stormkit-io/commit/3bad0f1))
+- Remove license ([863602e](https://github.com/stormkit-io/stormkit-io/commit/863602e))
+- Parse port flag ([9bc251f](https://github.com/stormkit-io/stormkit-io/commit/9bc251f))
+- Move file to scripts ([54f96f3](https://github.com/stormkit-io/stormkit-io/commit/54f96f3))
+- Add support for new docs location ([32ad078](https://github.com/stormkit-io/stormkit-io/commit/32ad078))
+- Ignore dist folder ([818aee5](https://github.com/stormkit-io/stormkit-io/commit/818aee5))
+- Update path ([f7dbb9c](https://github.com/stormkit-io/stormkit-io/commit/f7dbb9c))
+- Add more routes to prerender ([8d65542](https://github.com/stormkit-io/stormkit-io/commit/8d65542))
+- Check content ([722eea6](https://github.com/stormkit-io/stormkit-io/commit/722eea6))
+- Update sort order ([1e4eaaa](https://github.com/stormkit-io/stormkit-io/commit/1e4eaaa))
+- Mv ui to home folder ([0f44788](https://github.com/stormkit-io/stormkit-io/commit/0f44788))
+- Use different location ([43f356e](https://github.com/stormkit-io/stormkit-io/commit/43f356e))
+- Apply sign up check for all platforms ([8107faa](https://github.com/stormkit-io/stormkit-io/commit/8107faa))
+- Improve design ([d6180d7](https://github.com/stormkit-io/stormkit-io/commit/d6180d7))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v1.24.0
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v1.23.0...main)
