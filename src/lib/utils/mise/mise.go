@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -133,9 +135,65 @@ func (m *Mise) InstallMise(ctx context.Context) error {
 	return nil
 }
 
+// PHPInstaller installs PHP using herd-lite. We cannot use mise
+// for PHP installations at the moment because it is very cumbersome
+// to manage PHP extensions using mise.
+func (m *Mise) PHPInstaller(ctx context.Context, rt string) error {
+	pieces := strings.SplitN(rt, "@", 2)
+	version := "8.4"
+
+	if len(pieces) == 2 && pieces[1] != "latest" {
+		version = pieces[1]
+	}
+
+	var osys string
+
+	switch runtime.GOOS {
+	case "linux":
+		osys = "linux"
+	case "darwin":
+		osys = "macos"
+	default:
+		return fmt.Errorf("unsupported OS for PHP installation: %s", runtime.GOOS)
+	}
+
+	// PHP installation using mise is not yet supported
+	// We're using https://laravel.com/docs/12.x/installation as an alternative installation method
+	cmd := sys.Command(ctx, sys.CommandOpts{
+		Name: "sh",
+		Args: []string{
+			"-c",
+			fmt.Sprintf(`/bin/bash -c "$(curl -fsSL https://php.new/install/%s/%s)"`, osys, version),
+		},
+		Env: []string{
+			"PATH=" + os.Getenv("PATH"),
+			"HOME=" + os.Getenv("HOME"),
+		},
+	})
+
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+
+	if err := m.updatePath(ctx, ""); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// phpDir returns the path to the PHP binary installed via herd-lite.
+func (m *Mise) phpDir() string {
+	return path.Join(os.Getenv("HOME"), ".config", "herd-lite", "bin")
+}
+
 // Install installs the specified runtime using mise.
 // It returns information on the installed runtime or an error if the installation fails.
 func (m *Mise) InstallGlobal(ctx context.Context, runtime string) (string, error) {
+	if strings.HasPrefix(runtime, "php") {
+		return "", m.PHPInstaller(ctx, runtime)
+	}
+
 	// Install the runtime using mise
 	cmd := sys.Command(ctx, sys.CommandOpts{
 		Name: "mise",
@@ -251,6 +309,25 @@ func (m *Mise) ListGlobal(ctx context.Context) (map[string][]ListOutput, error) 
 		return nil, err
 	}
 
+	// Check if PHP is installed
+	phpCmd := sys.Command(ctx, sys.CommandOpts{
+		Name: "php",
+		Args: []string{"-r", "echo phpversion();"},
+	})
+
+	version, _ := phpCmd.Output()
+
+	if version != nil {
+		data["php"] = []ListOutput{{
+			// We don't have the requested version info here
+			// so we set it to the same as Version
+			RequestedVersion: strings.TrimSpace(string(version)),
+			Version:          strings.TrimSpace(string(version)),
+			Installed:        true,
+			Active:           true,
+		}}
+	}
+
 	return data, nil
 }
 
@@ -283,7 +360,13 @@ func (m *Mise) updatePath(ctx context.Context, dir string) error {
 		return nil
 	}
 
-	os.Setenv("PATH", fmt.Sprintf("%s:%s", strings.Join(newPaths, ":"), os.Getenv("PATH")))
+	newPath := strings.Join(newPaths, ":")
+	oldPath := os.Getenv("PATH")
+	phpPath := m.phpDir()
+
+	// We are setting php path here even if it's not installed to make sure
+	// that if it gets installed later, it's already in the PATH.
+	os.Setenv("PATH", fmt.Sprintf("%s:%s:%s", newPath, oldPath, phpPath))
 
 	return nil
 }
