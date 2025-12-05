@@ -235,3 +235,44 @@ func RemoteAddr(r *http.Request) string {
 
 	return fmt.Sprintf("%s:%s", addr, port)
 }
+
+// ClientIP returns the client IP address without port, checking proxy headers.
+// It checks X-Forwarded-For and X-Real-IP headers first (used by proxies like
+// Cloudflare, nginx, load balancers), then falls back to RemoteAddr.
+// This should be used for analytics, rate limiting, and other IP-based features.
+func ClientIP(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+
+	// Check the X-Forwarded-For header first (commonly used by proxies)
+	// X-Forwarded-For can contain multiple IPs, take the first one (original client)
+	if forwardedFor := r.Header.Get("X-Forwarded-For"); forwardedFor != "" {
+		// X-Forwarded-For format: "client, proxy1, proxy2"
+		// We want the first IP (the original client)
+		if idx := strings.Index(forwardedFor, ","); idx > 0 {
+			return strings.TrimSpace(forwardedFor[:idx])
+		}
+		return strings.TrimSpace(forwardedFor)
+	}
+
+	// If X-Forwarded-For is empty, check the X-Real-IP header
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		return strings.TrimSpace(realIP)
+	}
+
+	// Fall back to RemoteAddr and strip the port
+	addr := r.RemoteAddr
+	if idx := strings.LastIndex(addr, ":"); idx > 0 {
+		// Check if it's IPv6 format [::1]:port
+		if strings.HasPrefix(addr, "[") {
+			if closeBracket := strings.Index(addr, "]"); closeBracket > 0 {
+				return addr[1:closeBracket]
+			}
+		}
+		// IPv4 format ip:port
+		return addr[:idx]
+	}
+
+	return addr
+}
