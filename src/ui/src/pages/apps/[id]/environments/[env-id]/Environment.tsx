@@ -1,21 +1,20 @@
 import { Routes, Route } from "react-router";
+import Box from "@mui/material/Box";
 import EnvironmentHeader from "./_components/EnvironmentHeader";
 import routes from "./routes";
 import EnvironmentContextProvider from "../Environment.context";
 
-const EnvironmentsEntry = () => {
+export default function Environment() {
   return (
     <EnvironmentContextProvider>
-      <div className="flex flex-col w-full">
+      <Box sx={{ display: "flex", flexDirection: "column", width: "100%" }}>
         <EnvironmentHeader />
         <Routes>
           {routes.map(route => (
             <Route {...route} path={route.path} key={route.path} />
           ))}
         </Routes>
-      </div>
+      </Box>
     </EnvironmentContextProvider>
   );
-};
-
-export default EnvironmentsEntry;
+}
