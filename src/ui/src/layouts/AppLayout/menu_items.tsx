@@ -74,6 +74,11 @@ export const envMenuItems = ({
       path: `${envPath}/volumes`,
       isActive: pathname.includes("/volumes"),
     },
+    // {
+    //   text: "Database",
+    //   path: `${envPath}/database`,
+    //   isActive: pathname.includes("/database"),
+    // },
   ];
 
   if (env.published?.length) {
