@@ -212,7 +212,7 @@ const user = await fetch(
 
 ### Supported OAuth Providers
 - ✅ Google (Phase 1)
-- ✅ X (Twitter) (Phase 2)
+- ✅ X (formerly Twitter) (Phase 2)
 - ✅ Facebook (Phase 2)
 - ✅ GitHub (existing integration)
 - ⏳ Custom OAuth providers (Future)

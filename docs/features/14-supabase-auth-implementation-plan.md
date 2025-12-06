@@ -40,7 +40,7 @@ Add new tables to support app-level authentication:
 CREATE TABLE IF NOT EXISTS skitapi.app_auth_providers (
     provider_id SERIAL PRIMARY KEY,
     app_id BIGINT NOT NULL REFERENCES skitapi.apps(app_id) ON DELETE CASCADE,
-    provider_type TEXT NOT NULL, -- 'google', 'twitter', 'github', 'facebook', etc.
+    provider_type TEXT NOT NULL, -- 'google', 'x', 'github', 'facebook', etc.
     provider_name TEXT, -- Optional custom name (e.g., "Google Login", "Sign in with X")
     client_id TEXT NOT NULL,
     client_secret BYTEA NOT NULL, -- Encrypted
@@ -282,7 +282,7 @@ type AuthUser struct {
 
 Initial providers to support:
 - Google OAuth 2.0
-- X (Twitter) OAuth 2.0
+- X (formerly Twitter) OAuth 2.0
 - GitHub OAuth (reuse existing implementation)
 - Facebook OAuth 2.0
 
@@ -404,7 +404,7 @@ Create documentation pages:
 - Write frontend tests
 
 ### Phase 4: Additional Providers
-- Implement X/Twitter OAuth
+- Implement X (formerly Twitter) OAuth
 - Implement Facebook OAuth
 - Add support for custom OAuth providers
 
