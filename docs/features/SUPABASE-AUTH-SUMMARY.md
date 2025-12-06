@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This document provides a high-level overview of the proposed Supabase-like authentication feature for Stormkit. The feature enables developers to integrate OAuth-based authentication (Google, X/Twitter, Facebook, etc.) into their applications without managing the OAuth flow complexity themselves.
+This document provides a high-level overview of the proposed Supabase-like authentication feature for Stormkit. The feature enables developers to integrate OAuth-based authentication (Google, X (formerly Twitter), Facebook, etc.) into their applications without managing the OAuth flow complexity themselves.
 
 ## What Users Will See
 

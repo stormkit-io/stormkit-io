@@ -7,7 +7,7 @@ description: High-level implementation plan for building a Supabase-like authent
 
 ## Overview
 
-This document outlines the implementation plan for adding Supabase-like authentication capabilities to Stormkit. The feature will allow users to configure various OAuth providers (Google, X/Twitter, GitHub, etc.) through the Stormkit dashboard and provide authentication APIs for their applications.
+This document outlines the implementation plan for adding Supabase-like authentication capabilities to Stormkit. The feature will allow users to configure various OAuth providers (Google, X (formerly Twitter), GitHub, etc.) through the Stormkit dashboard and provide authentication APIs for their applications.
 
 ## Problem Statement
 
@@ -430,7 +430,7 @@ Create documentation pages:
 3. Should we provide a hosted user profile management UI or leave that to developers?
 4. What's the token refresh strategy - automatic or manual?
 5. Should we support SSO (Single Sign-On) across multiple Stormkit apps for the same user?
-6. How do we handle provider deprecation (e.g., Twitter API changes)?
+6. How do we handle provider deprecation (e.g., X (formerly Twitter) API changes)?
 
 ## Future Enhancements
 
