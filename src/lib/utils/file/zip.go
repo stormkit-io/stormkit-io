@@ -7,8 +7,10 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path"
+	"path/filepath"
+	"strings"
 
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/sys"
 )
@@ -31,8 +33,16 @@ type ZipArgs struct {
 // If the zip file already exists, this function will open and
 // re-use that.
 func ZipV2(args ZipArgs) error {
+	if config.IsWindows {
+		return zipWindows(args)
+	}
+	return zipUnix(args)
+}
+
+// zipUnix handles zipping on Unix-like systems (Linux, macOS)
+func zipUnix(args ZipArgs) error {
 	for _, dirOrFile := range args.Source {
-		absolutePath := path.Join(args.WorkingDir, dirOrFile)
+		absolutePath := filepath.Join(args.WorkingDir, dirOrFile)
 		info, err := os.Stat(absolutePath)
 
 		if os.IsNotExist(err) {
@@ -50,7 +60,7 @@ func ZipV2(args ZipArgs) error {
 		isDir := info.IsDir()
 
 		if !isDir {
-			command = fmt.Sprintf("zip -9 %s %s", args.ZipName, path.Base(dirOrFile))
+			command = fmt.Sprintf("zip -9 %s %s", args.ZipName, filepath.Base(dirOrFile))
 		} else if args.IncludeParent {
 			command = fmt.Sprintf("zip -r -y -9 %s %s", args.ZipName, dirOrFile)
 		} else {
@@ -77,6 +87,80 @@ func ZipV2(args ZipArgs) error {
 	}
 
 	return nil
+}
+
+// zipWindows handles zipping on Windows systems using PowerShell
+func zipWindows(args ZipArgs) error {
+	for _, dirOrFile := range args.Source {
+		absolutePath := filepath.Join(args.WorkingDir, dirOrFile)
+		info, err := os.Stat(absolutePath)
+
+		if os.IsNotExist(err) {
+			continue
+		}
+
+		if err != nil {
+			slog.Errorf("error while zipping %s: %v", dirOrFile, err)
+			continue
+		}
+
+		// Convert paths to absolute for PowerShell
+		zipPath := args.ZipName
+		if !filepath.IsAbs(zipPath) {
+			zipPath = filepath.Join(args.WorkingDir, zipPath)
+		}
+
+		isDir := info.IsDir()
+
+		// PowerShell path escaping: single quotes need to be doubled
+		escapedAbsPath := escapePowerShellPath(absolutePath)
+		escapedZipPath := escapePowerShellPath(zipPath)
+
+		var psScript string
+		if !isDir {
+			// For single files
+			psScript = fmt.Sprintf(
+				`Compress-Archive -LiteralPath '%s' -DestinationPath '%s' -Update -CompressionLevel Optimal`,
+				escapedAbsPath,
+				escapedZipPath,
+			)
+		} else if args.IncludeParent {
+			// Include parent directory in zip
+			psScript = fmt.Sprintf(
+				`Compress-Archive -LiteralPath '%s' -DestinationPath '%s' -Update -CompressionLevel Optimal`,
+				escapedAbsPath,
+				escapedZipPath,
+			)
+		} else {
+			// Don't include parent directory - zip contents only
+			// Use Get-ChildItem to enumerate files then compress
+			psScript = fmt.Sprintf(
+				`$items = Get-ChildItem -LiteralPath '%s' -Recurse; if ($items) { Compress-Archive -LiteralPath $items.FullName -DestinationPath '%s' -Update -CompressionLevel Optimal }`,
+				escapedAbsPath,
+				escapedZipPath,
+			)
+		}
+
+		cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", psScript)
+		cmd.Stdout = io.Discard
+		cmd.Stderr = os.Stderr
+		cmd.Env = envVars()
+
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to zip %s: %w", dirOrFile, err)
+		}
+	}
+
+	return nil
+}
+
+// escapePowerShellPath escapes single quotes in paths for PowerShell
+// In PowerShell single-quoted strings, single quotes are escaped by doubling them
+func escapePowerShellPath(path string) string {
+	// Clean and normalize the path
+	cleanPath := filepath.Clean(path)
+	// Replace single quotes with two single quotes for PowerShell escaping
+	return strings.ReplaceAll(cleanPath, "'", "''")
 }
 
 func IsZipEmpty(src string) bool {

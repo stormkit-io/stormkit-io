@@ -89,6 +89,77 @@ func (s *ZipSuite) TestUnzip_ZipSlipVulnerability() {
 	s.Error(err)
 }
 
+func (s *ZipSuite) TestZipV2_SingleFile() {
+	// Create a test file
+	testFile := filepath.Join(s.tmpDir, "test.txt")
+	s.NoError(os.WriteFile(testFile, []byte("test content"), 0644))
+
+	// Zip the file
+	zipFile := filepath.Join(s.tmpDir, "output.zip")
+	err := file.ZipV2(file.ZipArgs{
+		Source:     []string{"test.txt"},
+		ZipName:    zipFile,
+		WorkingDir: s.tmpDir,
+	})
+	s.NoError(err)
+
+	// Verify the zip file was created and is not empty
+	s.False(file.IsZipEmpty(zipFile))
+}
+
+func (s *ZipSuite) TestZipV2_Directory_WithParent() {
+	// Create a test directory with files
+	testDir := filepath.Join(s.tmpDir, "testdir")
+	s.NoError(os.MkdirAll(testDir, 0755))
+	s.NoError(os.WriteFile(filepath.Join(testDir, "file1.txt"), []byte("content1"), 0644))
+	s.NoError(os.WriteFile(filepath.Join(testDir, "file2.txt"), []byte("content2"), 0644))
+
+	// Zip the directory with parent
+	zipFile := filepath.Join(s.tmpDir, "output.zip")
+	err := file.ZipV2(file.ZipArgs{
+		Source:        []string{"testdir"},
+		ZipName:       zipFile,
+		WorkingDir:    s.tmpDir,
+		IncludeParent: true,
+	})
+	s.NoError(err)
+
+	// Verify the zip file was created and is not empty
+	s.False(file.IsZipEmpty(zipFile))
+}
+
+func (s *ZipSuite) TestZipV2_Directory_WithoutParent() {
+	// Create a test directory with files
+	testDir := filepath.Join(s.tmpDir, "testdir")
+	s.NoError(os.MkdirAll(testDir, 0755))
+	s.NoError(os.WriteFile(filepath.Join(testDir, "file1.txt"), []byte("content1"), 0644))
+	s.NoError(os.WriteFile(filepath.Join(testDir, "file2.txt"), []byte("content2"), 0644))
+
+	// Zip the directory without parent
+	zipFile := filepath.Join(s.tmpDir, "output.zip")
+	err := file.ZipV2(file.ZipArgs{
+		Source:        []string{testDir},
+		ZipName:       zipFile,
+		WorkingDir:    "",
+		IncludeParent: false,
+	})
+	s.NoError(err)
+
+	// Verify the zip file was created and is not empty
+	s.False(file.IsZipEmpty(zipFile))
+}
+
+func (s *ZipSuite) TestZipV2_NonExistentFile() {
+	// Try to zip a non-existent file - should not error, just skip
+	zipFile := filepath.Join(s.tmpDir, "output.zip")
+	err := file.ZipV2(file.ZipArgs{
+		Source:     []string{"nonexistent.txt"},
+		ZipName:    zipFile,
+		WorkingDir: s.tmpDir,
+	})
+	s.NoError(err)
+}
+
 func TestZipSuite(t *testing.T) {
 	suite.Run(t, &ZipSuite{})
 }
