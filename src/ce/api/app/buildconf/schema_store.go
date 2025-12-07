@@ -2,6 +2,7 @@ package buildconf
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"regexp"
 
@@ -9,10 +10,15 @@ import (
 )
 
 var schemaStmt = struct {
+	selectSchema string
 	selectTables string
 }{
+	selectSchema: `
+		SELECT EXISTS (
+			SELECT 1 FROM information_schema.schemata where schema_name = $1
+		);
+	`,
 	selectTables: `SELECT
-		t.table_schema,
 		t.table_name,
 		pg_relation_size(quote_ident(t.table_schema)||'.'||quote_ident(t.table_name)) AS size_bytes,
 		coalesce(s.n_live_tup, 0) AS estimated_rows
@@ -39,6 +45,22 @@ func SchemaStore() *schemaStore {
 
 // GetSchema retrieves schema information from the database.
 func (s *schemaStore) GetSchema(ctx context.Context, schemaName string) (*Schema, error) {
+	var exists bool
+
+	row, err := s.QueryRow(ctx, schemaStmt.selectSchema, schemaName)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := row.Scan(&exists); err != sql.ErrNoRows && err != nil {
+		return nil, err
+	}
+
+	if !exists {
+		return nil, nil
+	}
+
 	rows, err := s.Query(ctx, schemaStmt.selectTables, schemaName)
 
 	if err != nil {
@@ -51,19 +73,15 @@ func (s *schemaStore) GetSchema(ctx context.Context, schemaName string) (*Schema
 
 	defer rows.Close()
 
-	var schema *Schema
+	schema := &Schema{
+		Name:   schemaName,
+		Tables: []SchemaTable{},
+	}
 
 	for rows.Next() {
-		if schema == nil {
-			schema = &Schema{
-				Name:   schemaName,
-				Tables: []SchemaTable{},
-			}
-		}
-
 		table := SchemaTable{}
 
-		if err := rows.Scan(&schemaName, &table.Name, &table.Size, &table.Rows); err != nil {
+		if err := rows.Scan(&table.Name, &table.Size, &table.Rows); err != nil {
 			return nil, err
 		}
 

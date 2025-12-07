@@ -92,6 +92,48 @@ func (s *HandlerSchemaGetSuite) Test_Success_WithTables() {
 	s.Equal(http.StatusOK, response.Code)
 }
 
+func (s *HandlerSchemaGetSuite) Test_Success_EmptySchema() {
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(schemahandlers.Services).Router().Handler(),
+		shttp.MethodGet,
+		fmt.Sprintf("/schema?envId=%d", s.env.ID),
+		nil,
+		map[string]string{
+			"Authorization": usertest.Authorization(s.usr.ID),
+		},
+	)
+
+	expected := fmt.Sprintf(`{
+		"schema": {
+			"name": "%s",
+			"tables": []
+		}
+	}`, s.schemaName)
+
+	s.JSONEq(expected, response.String())
+	s.Equal(http.StatusOK, response.Code)
+}
+
+func (s *HandlerSchemaGetSuite) Test_MissingSchema() {
+	// Create a new environment without creating its schema
+	newEnv := s.MockEnv(s.app, map[string]any{
+		"Name": "test-dev",
+	})
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(schemahandlers.Services).Router().Handler(),
+		shttp.MethodGet,
+		fmt.Sprintf("/schema?envId=%d", newEnv.ID),
+		nil,
+		map[string]string{
+			"Authorization": usertest.Authorization(s.usr.ID),
+		},
+	)
+
+	s.JSONEq(`{ "schema": null }`, response.String())
+	s.Equal(http.StatusOK, response.Code)
+}
+
 func (s *HandlerSchemaGetSuite) Test_MissingEnvId() {
 	usr := s.MockUser(nil)
 	app := s.MockApp(usr, nil)
