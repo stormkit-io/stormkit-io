@@ -41,3 +41,15 @@ export const useFetchSchema = ({
 
   return { schema, loading, error };
 };
+
+interface CreateSchemaProps {
+  appId: string;
+  envId: string;
+}
+
+export const createSchema = ({ appId, envId }: CreateSchemaProps) => {
+  return api.post<{ schema: string }>(`/schema`, {
+    appId,
+    envId,
+  });
+};

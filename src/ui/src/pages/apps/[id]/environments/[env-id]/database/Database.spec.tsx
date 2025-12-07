@@ -1,7 +1,12 @@
 import type { Schema } from "./actions";
 import nock from "nock";
 import { describe, expect, beforeEach, it } from "vitest";
-import { render, waitFor, type RenderResult } from "@testing-library/react";
+import {
+  render,
+  waitFor,
+  fireEvent,
+  type RenderResult,
+} from "@testing-library/react";
 import { EnvironmentContext } from "~/pages/apps/[id]/environments/Environment.context";
 import mockApp from "~/testing/data/mock_app";
 import mockEnv from "~/testing/data/mock_environment";
@@ -27,6 +32,11 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
     nock(endpoint)
       .get(`/schema?envId=${currentEnv.id}`)
       .reply(status, response);
+
+  const mockCreateSchema = (status = 200) =>
+    nock(endpoint)
+      .post("/schema", { appId: currentApp.id, envId: currentEnv.id })
+      .reply(status, { schema: `a${currentApp.id}e${currentEnv.id}` });
 
   const createWrapper = async ({ schema }: Props = {}) => {
     currentApp = mockApp();
@@ -97,6 +107,36 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
 
     it("should not display the attach button in empty state", async () => {
       expect(() => wrapper.getByText("Attach Database")).toThrow();
+    });
+  });
+
+  describe("attaching a schema", () => {
+    beforeEach(async () => {
+      await createWrapper({ schema: null });
+    });
+
+    it("should make POST request and refresh when attach button is clicked", async () => {
+      const createScope = mockCreateSchema(200);
+      const refetchScope = mockFetchSchema({
+        response: {
+          schema: {
+            name: `a${currentApp.id}e${currentEnv.id}`,
+            tables: [],
+          },
+        },
+        status: 200,
+      });
+
+      fireEvent.click(wrapper.getByText("Attach Database"));
+
+      await waitFor(() => {
+        expect(createScope.isDone()).toBe(true);
+        expect(refetchScope.isDone()).toBe(true);
+      });
+
+      await waitFor(() => {
+        expect(wrapper.getByText("Schema attached successfully")).toBeTruthy();
+      });
     });
   });
 

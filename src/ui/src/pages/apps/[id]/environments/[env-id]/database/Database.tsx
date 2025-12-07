@@ -9,13 +9,14 @@ import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
 import EmptyPage from "~/components/EmptyPage";
 import CardFooter from "~/components/CardFooter";
-import { useFetchSchema } from "./actions";
+import { useFetchSchema, createSchema } from "./actions";
 
 interface EmptyViewProps {
   onAttachClick: () => void;
+  isAttachLoading?: boolean;
 }
 
-function EmptyView({ onAttachClick }: EmptyViewProps) {
+function EmptyView({ onAttachClick, isAttachLoading }: EmptyViewProps) {
   return (
     <EmptyPage>
       <Typography
@@ -42,6 +43,7 @@ function EmptyView({ onAttachClick }: EmptyViewProps) {
           sx={{ ml: 2 }}
           onClick={onAttachClick}
           startIcon={<AddIcon />}
+          loading={isAttachLoading}
         >
           Attach Database
         </Button>
@@ -52,19 +54,40 @@ function EmptyView({ onAttachClick }: EmptyViewProps) {
 
 export default function Database() {
   const { environment } = useContext(EnvironmentContext);
-  const [refreshToken, _] = useState<number>();
+  const [refreshToken, setRefreshToken] = useState<number>();
   const result = useFetchSchema({ envId: environment.id!, refreshToken });
   const [success, setSuccess] = useState<string>();
-  const [isAttachModalOpen, setIsAttachModalOpen] = useState(false);
+  const [attachError, setAttachError] = useState<string>();
+  const [isAttaching, setIsAttaching] = useState(false);
   const { schema, loading, error } = result;
   const hasSchema = !loading && !error && Boolean(schema);
+
+  const handleAttachSchema = async () => {
+    setIsAttaching(true);
+
+    try {
+      await createSchema({
+        appId: environment.appId!,
+        envId: environment.id!,
+      });
+
+      setAttachError(undefined);
+      setSuccess("Schema attached successfully");
+      setRefreshToken(Date.now());
+    } catch (e) {
+      setSuccess(undefined);
+      setAttachError("Unknown error while attaching schema. Please try again.");
+    } finally {
+      setIsAttaching(false);
+    }
+  };
 
   return (
     <Card
       success={success}
       successTitle={false}
       onSuccessClose={() => setSuccess(undefined)}
-      error={error}
+      error={error || attachError}
       loading={loading}
       contentPadding={false}
       sx={{ width: "100%" }}
@@ -76,10 +99,12 @@ export default function Database() {
       {hasSchema ? (
         <Box sx={{ p: 2 }}>{/* Database schema details will go here */}</Box>
       ) : (
-        <EmptyView onAttachClick={() => setIsAttachModalOpen(true)} />
+        <EmptyView
+          onAttachClick={handleAttachSchema}
+          isAttachLoading={isAttaching}
+        />
       )}
       {hasSchema && <CardFooter>&nbsp;</CardFooter>}
-      {isAttachModalOpen && <>{/* Modal will go here */}</>}
     </Card>
   );
 }
