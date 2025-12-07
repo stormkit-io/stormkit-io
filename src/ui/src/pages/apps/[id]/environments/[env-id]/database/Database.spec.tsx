@@ -1,4 +1,4 @@
-import type { Database as DB } from "./actions";
+import type { Schema } from "./actions";
 import nock from "nock";
 import { describe, expect, beforeEach, it } from "vitest";
 import { render, waitFor, type RenderResult } from "@testing-library/react";
@@ -8,7 +8,7 @@ import mockEnv from "~/testing/data/mock_environment";
 import Database from "./Database";
 
 interface Props {
-  database?: DB;
+  schema?: Schema | null;
 }
 
 describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => {
@@ -16,27 +16,24 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
   let currentApp: App;
   let currentEnv: Environment;
 
-  interface MockFetchDatabaseProps {
-    response: { database?: DB };
+  interface MockFetchSchemaProps {
+    response: { schema?: Schema | null };
     status?: number;
   }
 
   const endpoint = process.env.API_DOMAIN || "";
 
-  const mockFetchDatabase = ({
-    status = 200,
-    response,
-  }: MockFetchDatabaseProps) =>
+  const mockFetchSchema = ({ status = 200, response }: MockFetchSchemaProps) =>
     nock(endpoint)
-      .get(`/database?envId=${currentEnv.id}`)
+      .get(`/schema?envId=${currentEnv.id}`)
       .reply(status, response);
 
-  const createWrapper = async ({ database }: Props = {}) => {
+  const createWrapper = async ({ schema }: Props = {}) => {
     currentApp = mockApp();
     currentEnv = mockEnv({ app: currentApp });
 
-    const scope = mockFetchDatabase({
-      response: { database },
+    const scope = mockFetchSchema({
+      response: { schema },
       status: 200,
     });
 
@@ -51,9 +48,9 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
     });
   };
 
-  describe("when no database is attached", () => {
+  describe("when no schema exists", () => {
     beforeEach(async () => {
-      await createWrapper();
+      await createWrapper({ schema: null });
     });
 
     it("should display an empty page with an attach button", async () => {
@@ -74,15 +71,18 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
     });
   });
 
-  describe("when a database is attached", () => {
+  describe("when a schema exists", () => {
     beforeEach(async () => {
       await createWrapper({
-        database: {
-          id: "db-123",
-          name: "production-db",
-          type: "external" as const,
-          connectionString: "postgresql://user:pass@host:5432/dbname",
-          createdAt: Date.now(),
+        schema: {
+          name: "a1e1",
+          tables: [
+            {
+              name: "users",
+              rows: 100,
+              size: 8192,
+            },
+          ],
         },
       });
     });
@@ -95,12 +95,6 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
       });
     });
 
-    it("should display database details placeholder", async () => {
-      await waitFor(() => {
-        expect(wrapper.getByText("Database details will go here")).toBeTruthy();
-      });
-    });
-
     it("should not display the attach button in empty state", async () => {
       expect(() => wrapper.getByText("Attach Database")).toThrow();
     });
@@ -108,7 +102,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
 
   describe("error handling", () => {
     it("should display generic error for unknown errors", async () => {
-      const scope = mockFetchDatabase({
+      const scope = mockFetchSchema({
         response: {},
         status: 500,
       });

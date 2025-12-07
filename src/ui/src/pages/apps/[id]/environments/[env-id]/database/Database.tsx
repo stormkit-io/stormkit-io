@@ -9,7 +9,7 @@ import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
 import EmptyPage from "~/components/EmptyPage";
 import CardFooter from "~/components/CardFooter";
-import { useFetchDatabase } from "./actions";
+import { useFetchSchema } from "./actions";
 
 interface EmptyViewProps {
   onAttachClick: () => void;
@@ -53,16 +53,11 @@ function EmptyView({ onAttachClick }: EmptyViewProps) {
 export default function Database() {
   const { environment } = useContext(EnvironmentContext);
   const [refreshToken, _] = useState<number>();
-  const { database, loading, error } = useFetchDatabase({
-    envId: environment.id!,
-    refreshToken,
-  });
+  const result = useFetchSchema({ envId: environment.id!, refreshToken });
   const [success, setSuccess] = useState<string>();
   const [isAttachModalOpen, setIsAttachModalOpen] = useState(false);
-
-  // If the request is not loading and there is no error,
-  // and the database exists, then a database is attached.
-  const hasDatabase = !loading && !error && Boolean(database);
+  const { schema, loading, error } = result;
+  const hasSchema = !loading && !error && Boolean(schema);
 
   return (
     <Card
@@ -78,14 +73,12 @@ export default function Database() {
         title="Database"
         subtitle="Attach a PostgreSQL database to your application"
       />
-      {hasDatabase ? (
-        <Box sx={{ p: 2 }}>
-          <Typography>Database details will go here</Typography>
-        </Box>
+      {hasSchema ? (
+        <Box sx={{ p: 2 }}>{/* Database schema details will go here */}</Box>
       ) : (
         <EmptyView onAttachClick={() => setIsAttachModalOpen(true)} />
       )}
-      {hasDatabase && <CardFooter>&nbsp;</CardFooter>}
+      {hasSchema && <CardFooter>&nbsp;</CardFooter>}
       {isAttachModalOpen && <>{/* Modal will go here */}</>}
     </Card>
   );

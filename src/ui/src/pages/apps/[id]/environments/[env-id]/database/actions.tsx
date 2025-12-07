@@ -1,32 +1,35 @@
 import { useEffect, useState } from "react";
 import api from "~/utils/api/Api";
 
-export interface Database {
-  id: string;
+interface Table {
   name: string;
-  type: "provisioned" | "external";
-  connectionString?: string;
-  createdAt: number;
+  rows: number; // estimated number of rows
+  size: number; // estimated size in bytes
 }
 
-interface UseFetchDatabaseProps {
+export interface Schema {
+  name: string;
+  tables: Table[];
+}
+
+interface UseFetchSchemaProps {
   envId: string;
   refreshToken?: number;
 }
 
-export const useFetchDatabase = ({
+export const useFetchSchema = ({
   envId,
   refreshToken,
-}: UseFetchDatabaseProps) => {
-  const [database, setDatabase] = useState<Database | null>(null);
+}: UseFetchSchemaProps) => {
+  const [schema, setSchema] = useState<Schema | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
 
   useEffect(() => {
     api
-      .fetch<{ database: Database | null }>(`/database?envId=${envId}`)
-      .then(({ database }) => {
-        setDatabase(database);
+      .fetch<{ schema: Schema | null }>(`/schema?envId=${envId}`)
+      .then(({ schema }) => {
+        setSchema(schema);
       })
       .catch(() => {
         setError("Unknown error while fetching database.");
@@ -36,5 +39,5 @@ export const useFetchDatabase = ({
       });
   }, [envId, refreshToken]);
 
-  return { database, loading, error };
+  return { schema, loading, error };
 };
