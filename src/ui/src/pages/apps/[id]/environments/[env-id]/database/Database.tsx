@@ -71,7 +71,7 @@ export default function Database() {
     >
       <CardHeader
         title="Database"
-        subtitle="Attach a PostgreSQL database to your application"
+        subtitle="Attach a PostgreSQL schema to manage your application data"
       />
       {hasSchema ? (
         <Box sx={{ p: 2 }}>{/* Database schema details will go here */}</Box>
