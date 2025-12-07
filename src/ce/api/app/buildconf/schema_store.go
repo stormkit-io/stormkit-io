@@ -51,12 +51,16 @@ func (s *schemaStore) GetSchema(ctx context.Context, schemaName string) (*Schema
 
 	defer rows.Close()
 
-	schema := Schema{
-		Name:   schemaName,
-		Tables: []SchemaTable{},
-	}
+	var schema *Schema
 
 	for rows.Next() {
+		if schema == nil {
+			schema = &Schema{
+				Name:   schemaName,
+				Tables: []SchemaTable{},
+			}
+		}
+
 		table := SchemaTable{}
 
 		if err := rows.Scan(&schemaName, &table.Name, &table.Size, &table.Rows); err != nil {
@@ -66,7 +70,7 @@ func (s *schemaStore) GetSchema(ctx context.Context, schemaName string) (*Schema
 		schema.Tables = append(schema.Tables, table)
 	}
 
-	return &schema, nil
+	return schema, nil
 }
 
 // CreateSchema creates a new schema in the database if it doesn't exist.

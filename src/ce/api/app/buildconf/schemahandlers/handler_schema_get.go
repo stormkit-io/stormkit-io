@@ -17,10 +17,16 @@ func handlerSchemaGet(req *app.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
+	data := map[string]any{
+		"schema": nil,
+	}
+
+	if schema != nil {
+		data["schema"] = schema.Map()
+	}
+
 	return &shttp.Response{
 		Status: http.StatusOK,
-		Data: map[string]any{
-			"schema": schema.Map(),
-		},
+		Data:   data,
 	}
 }
