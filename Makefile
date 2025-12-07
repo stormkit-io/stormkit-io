@@ -236,8 +236,8 @@ start:
 restart:
 	@echo "Restarting services..."
 	go build -o ./bin/$(RUNNER_BIN) ./src/ee/runner
-	goreman run stop hosting workerserver
-	goreman run start hosting workerserver
+	goreman run restart hosting
+	goreman run restart workerserver
 
 # Run all tests
 test: test-fe test-be
