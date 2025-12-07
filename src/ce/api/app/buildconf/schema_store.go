@@ -2,6 +2,8 @@ package buildconf
 
 import (
 	"context"
+	"fmt"
+	"regexp"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/database"
 )
@@ -65,4 +67,23 @@ func (s *schemaStore) GetSchema(ctx context.Context, schemaName string) (*Schema
 	}
 
 	return &schema, nil
+}
+
+// CreateSchema creates a new schema in the database if it doesn't exist.
+func (s *schemaStore) CreateSchema(ctx context.Context, schemaName string) error {
+	// Validate schema name to prevent SQL injection
+	if !isValidSchemaName(schemaName) {
+		return fmt.Errorf("invalid schema name: %s", schemaName)
+	}
+
+	_, err := s.Exec(ctx, fmt.Sprintf(`CREATE SCHEMA IF NOT EXISTS %s`, schemaName))
+	return err
+}
+
+// isValidSchemaName validates that the schema name contains only safe characters
+func isValidSchemaName(name string) bool {
+	// Schema names should only contain letters, numbers, and underscores
+	// and should start with a letter or underscore
+	matched, _ := regexp.MatchString(`^[a-zA-Z_][a-zA-Z0-9_]*$`, name)
+	return matched && len(name) <= 63 // PostgreSQL identifier length limit
 }

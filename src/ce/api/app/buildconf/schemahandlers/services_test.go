@@ -18,6 +18,7 @@ func (s *ServicesSuite) Test_Services() {
 
 	handlers := []string{
 		"GET:/schema",
+		"POST:/schema",
 	}
 
 	s.Equal(handlers, services.HandlerKeys())
