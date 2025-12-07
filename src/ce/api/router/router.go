@@ -8,6 +8,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/authwall/authwallhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/buildconfhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/domainhandlers"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/schemahandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/snippetshandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy/deployhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/functiontrigger/functiontriggerhandlers"
@@ -69,6 +70,11 @@ func Get() *shttp.Router {
 
 	if config.IsStormkitCloud() || config.IsDevelopment() {
 		r.RegisterService(subscriptionhandlers.Services)
+	}
+
+	// This is currently only available in development mode
+	if config.IsDevelopment() {
+		r.RegisterService(schemahandlers.Services)
 	}
 
 	return r
