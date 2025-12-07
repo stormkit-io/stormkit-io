@@ -36,7 +36,7 @@ type schemaStore struct {
 	*database.Store
 }
 
-// NewStore returns a store instance.
+// SchemaStore returns a store instance.
 func SchemaStore() *schemaStore {
 	return &schemaStore{
 		Store: database.NewStore(),
