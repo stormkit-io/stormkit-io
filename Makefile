@@ -177,23 +177,28 @@ ifeq ($(UNIX_LIKE),TRUE)
 
 endif
 
-# ==============================================================================
+# ====================================================================================
 # Phony Targets
-# ==============================================================================
+# ====================================================================================
 
-.PHONY: help check-deps start dev print-env test test-fe test-be test-fe-watch
+.PHONY: help check-deps start restart dev print-env test test-fe test-be test-fe-watch
 
-# ==============================================================================
+# ====================================================================================
 # Tasks
-# ==============================================================================
+# ====================================================================================
 
 # Default target - show help
 help:
 	@echo "Available targets:"
-	@echo "  check-deps  - Verify all dependencies are installed and running"
-	@echo "  start       - Start Docker services (db, redis)"
-	@echo "  dev         - Run check-deps and start services"
-	@echo "  print-env   - Display environment variables for debugging"
+	@echo "  check-deps    - Verify all dependencies are installed and running"
+	@echo "  start         - Start Docker services (db, redis)"
+	@echo "  dev           - Run check-deps and start services"
+	@echo "  print-env     - Display environment variables for debugging"
+	@echo "  test          - Run all tests (frontend and backend)"
+	@echo "  test-fe       - Run frontend tests"
+	@echo "  test-fe-watch - Run frontend tests in watch mode"
+	@echo "  test-be       - Run backend tests"
+	@echo "  restart       - Restart hosting and workerserver services"
 
 # Display environment information
 print-env:
@@ -226,6 +231,13 @@ start:
 	go install github.com/mattn/goreman@latest
 	go build -o ./bin/$(RUNNER_BIN) ./src/ee/runner
 	goreman start
+
+# Restart hosting and workerserver services
+restart:
+	@echo "Restarting services..."
+	go build -o ./bin/$(RUNNER_BIN) ./src/ee/runner
+	goreman run stop hosting workerserver
+	goreman run start hosting workerserver
 
 # Run all tests
 test: test-fe test-be
