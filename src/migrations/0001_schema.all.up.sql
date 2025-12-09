@@ -220,7 +220,8 @@ CREATE TABLE IF NOT EXISTS skitapi.apps_build_conf (
     auto_deploy_branches text,
     auto_deploy boolean DEFAULT false,
     mailer_conf jsonb,
-    auth_wall_conf jsonb
+    auth_wall_conf jsonb,
+    schema_conf bytea
 );
 
 CREATE TABLE IF NOT EXISTS skitapi.audit_logs (

@@ -1,6 +1,7 @@
 package schemahandlers_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"testing"
@@ -72,6 +73,13 @@ func (s *HandlerSchemaSetSuite) Test_Success_CreateSchema() {
 	)
 
 	s.True(exists, "Schema should exist in database")
+
+	env, err := buildconf.NewStore().EnvironmentByID(context.Background(), s.env.ID)
+	s.NoError(err)
+	s.NotNil(env.SchemaConf, "SchemaConf should be set in environment")
+	s.Equal(schemaName, env.SchemaConf.SchemaName, "SchemaName should match")
+	s.Equal(fmt.Sprintf("a%de%d_migration_user", s.app.ID, s.env.ID), env.SchemaConf.MigrationUserName, "MigrationUserName should match")
+	s.Equal(fmt.Sprintf("a%de%d_user", s.app.ID, s.env.ID), env.SchemaConf.AppUserName, "AppUserName should match")
 }
 
 func (s *HandlerSchemaSetSuite) Test_Success_SchemaAlreadyExists() {

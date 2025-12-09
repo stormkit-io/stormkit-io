@@ -169,7 +169,7 @@ func (s *Store) selectEnvironment(ctx context.Context, query string, appID types
 		&cnf.ID, &cnf.Name, &cnf.AppID, &buildConf,
 		&cnf.AutoPublish, &cnf.Branch, &cnf.AutoDeploy,
 		&cnf.AutoDeployBranches, &cnf.AutoDeployCommits,
-		&cnf.UpdatedAt,
+		&cnf.UpdatedAt, &cnf.SchemaConf,
 	)
 
 	if err != nil {
@@ -254,4 +254,10 @@ func (s *Store) IsMember(ctx context.Context, envID, userID types.ID) bool {
 	}
 
 	return count > 0
+}
+
+// SaveSchemaConf saves the schema configuration for the given environment.
+func (s *Store) SaveSchemaConf(ctx context.Context, envID types.ID, conf *SchemaConf) error {
+	_, err := s.Exec(ctx, stmt.saveSchemaConf, conf, envID)
+	return err
 }

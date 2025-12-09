@@ -11,8 +11,17 @@ import (
 func handlerSchemaSet(req *app.RequestContext) *shttp.Response {
 	name := buildconf.SchemaName(req.App.ID, req.EnvID)
 
-	if err := buildconf.SchemaStore().CreateSchema(req.Context(), name); err != nil {
+	creds, err := buildconf.SchemaStore().CreateSchema(req.Context(), name)
+
+	if err != nil {
 		return shttp.Error(err)
+	}
+
+	// Store creds in build config
+	if creds != nil {
+		if err := buildconf.NewStore().SaveSchemaConf(req.Context(), req.EnvID, creds); err != nil {
+			return shttp.Error(err)
+		}
 	}
 
 	return &shttp.Response{

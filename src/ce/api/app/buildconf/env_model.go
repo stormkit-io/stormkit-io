@@ -43,6 +43,9 @@ type Env struct {
 	// Data is the build configuration data.
 	Data *BuildConf `json:"build" db:"build_conf"`
 
+	// SchemaConf holds the database schema configuration.
+	SchemaConf *SchemaConf `json:"-"`
+
 	// AutoPublish specifies whether successful deployment should be
 	// publish to 100% immediately.
 	AutoPublish bool `json:"autoPublish" db:"auto_publish"`

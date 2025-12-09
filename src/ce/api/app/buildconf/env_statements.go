@@ -1,15 +1,5 @@
 package buildconf
 
-import (
-	"fmt"
-)
-
-var (
-	tableApps        = "apps"
-	tableBuildConf   = "apps_build_conf"
-	tableTeamMembers = "team_members"
-)
-
 type statement struct {
 	selectByEnvID       string
 	selectByAppID       string
@@ -18,6 +8,7 @@ type statement struct {
 	insertConfig        string
 	updateConfig        string
 	isMember            string
+	saveSchemaConf      string
 }
 
 var stmt = &statement{
@@ -25,7 +16,7 @@ var stmt = &statement{
 		SELECT
 			e.env_id, e.env_name, e.app_id, e.build_conf, e.auto_publish,
 			e.branch, e.auto_deploy, e.auto_deploy_branches, 
-			e.auto_deploy_commits, e.updated_at
+			e.auto_deploy_commits, e.updated_at, e.schema_conf
 		FROM
 			apps_build_conf e
 		WHERE
@@ -74,7 +65,7 @@ var stmt = &statement{
 		SELECT
 			e.env_id, e.env_name, e.app_id, e.build_conf, e.auto_publish,
 			e.branch, e.auto_deploy, e.auto_deploy_branches, e.auto_deploy_commits,
-			e.updated_at
+			e.updated_at, e.schema_conf
 		FROM apps_build_conf e
 		WHERE
 			app_id = $1 AND deleted_at IS NULL AND LOWER(env_name) = LOWER($2);
@@ -116,14 +107,23 @@ var stmt = &statement{
 			env_id = $8;
 	`,
 
-	isMember: fmt.Sprintf(`
-		SELECT COUNT(*) FROM %s e
-		LEFT JOIN %s a ON a.app_id = e.app_id
-		LEFT JOIN %s tm ON tm.team_id = a.team_id
+	isMember: `
+		SELECT COUNT(*) FROM apps_build_conf e
+		LEFT JOIN apps a ON a.app_id = e.app_id
+		LEFT JOIN team_members tm ON tm.team_id = a.team_id
 		WHERE
 			e.env_id = $1 AND
 			tm.user_id = $2 AND
 			tm.membership_status IS TRUE
 		LIMIT 1;
-	`, tableBuildConf, tableApps, tableTeamMembers),
+	`,
+
+	saveSchemaConf: `
+		UPDATE
+			apps_build_conf
+		SET
+			schema_conf = $1
+		WHERE
+			env_id = $2;
+	`,
 }

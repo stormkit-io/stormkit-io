@@ -68,7 +68,7 @@ func NewConnection() *sql.DB {
 	var dbconnerr error
 
 	for retry := 0; retry < maxRetry; retry++ {
-		if db, err := newConnectionWithConfig(Config); err != nil {
+		if db, err := NewConnectionWithConfig(Config); err != nil {
 			slog.Info("retrying in 5 seconds:", retry)
 			time.Sleep(5 * time.Second)
 			dbconnerr = err
@@ -91,8 +91,8 @@ func ConnectionString(cfg DBConf) string {
 	)
 }
 
-// newConnectionWithConfig returns a new connection with the given config.
-func newConnectionWithConfig(cfg DBConf) (*sql.DB, error) {
+// NewConnectionWithConfig returns a new connection with the given config.
+func NewConnectionWithConfig(cfg DBConf) (*sql.DB, error) {
 	db, err := sql.Open("postgres", ConnectionString(cfg))
 
 	if err != nil {
