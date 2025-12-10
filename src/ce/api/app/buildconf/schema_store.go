@@ -49,22 +49,22 @@ var sqlTemplates = struct {
 		DO $$
 		BEGIN
 			IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{{.MigrationUserName}}') THEN
-				CREATE ROLE {{.MigrationUserName}} WITH LOGIN PASSWORD '{{.MigrationUserPassword}}';
+				CREATE ROLE "{{.MigrationUserName}}" WITH LOGIN PASSWORD '{{.MigrationUserPassword}}';
 
 				-- Set resource limits for safety
-				ALTER ROLE {{.MigrationUserName}} SET statement_timeout = '30s';
-				ALTER ROLE {{.MigrationUserName}} SET lock_timeout = '10s';
-				ALTER ROLE {{.MigrationUserName}} SET idle_in_transaction_session_timeout = '60s';
-				ALTER ROLE {{.MigrationUserName}} SET temp_file_limit = '100MB';
-				ALTER ROLE {{.MigrationUserName}} SET work_mem = '4MB';
-				ALTER ROLE {{.MigrationUserName}} CONNECTION LIMIT 10;
+				ALTER ROLE "{{.MigrationUserName}}" SET statement_timeout = '30s';
+				ALTER ROLE "{{.MigrationUserName}}" SET lock_timeout = '10s';
+				ALTER ROLE "{{.MigrationUserName}}" SET idle_in_transaction_session_timeout = '60s';
+				ALTER ROLE "{{.MigrationUserName}}" SET temp_file_limit = '100MB';
+				ALTER ROLE "{{.MigrationUserName}}" SET work_mem = '4MB';
+				ALTER ROLE "{{.MigrationUserName}}" CONNECTION LIMIT 10;
 
 				-- Prevent superuser privileges
-				ALTER ROLE {{.MigrationUserName}} WITH NOSUPERUSER NOCREATEDB NOCREATEROLE;
+				ALTER ROLE "{{.MigrationUserName}}" WITH NOSUPERUSER NOCREATEDB NOCREATEROLE;
 
 				-- Revoke public schema access
-				REVOKE ALL ON SCHEMA public FROM {{.MigrationUserName}};
-				REVOKE ALL ON DATABASE postgres FROM {{.MigrationUserName}};
+				REVOKE ALL ON SCHEMA public FROM "{{.MigrationUserName}}";
+				REVOKE ALL ON DATABASE postgres FROM "{{.MigrationUserName}}";
 
 				-- Grant DDL permissions (schema changes only)
 				GRANT USAGE ON SCHEMA "{{.SchemaName}}" TO "{{.MigrationUserName}}";
@@ -80,14 +80,14 @@ var sqlTemplates = struct {
 		DO $$
 		BEGIN
 			IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{{.AppUserName}}') THEN
-				CREATE ROLE {{.AppUserName}} WITH LOGIN PASSWORD '{{.AppUserPassword}}';
+				CREATE ROLE "{{.AppUserName}}" WITH LOGIN PASSWORD '{{.AppUserPassword}}';
 
 				-- Prevent superuser privileges
-				ALTER ROLE {{.AppUserName}} WITH NOSUPERUSER NOCREATEDB NOCREATEROLE;
+				ALTER ROLE "{{.AppUserName}}" WITH NOSUPERUSER NOCREATEDB NOCREATEROLE;
 
 				-- Revoke public schema access
-				REVOKE ALL ON SCHEMA public FROM {{.AppUserName}};
-				REVOKE ALL ON DATABASE postgres FROM {{.AppUserName}};
+				REVOKE ALL ON SCHEMA public FROM "{{.AppUserName}}";
+				REVOKE ALL ON DATABASE postgres FROM "{{.AppUserName}}";
 
 				-- Grant DML permissions (data operations only)
 				GRANT USAGE ON SCHEMA "{{.SchemaName}}" TO "{{.AppUserName}}";
