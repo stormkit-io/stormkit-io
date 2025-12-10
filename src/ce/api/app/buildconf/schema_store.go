@@ -315,10 +315,10 @@ func (s *schemaStore) DropSchema(ctx context.Context, schemaName string) error {
 }
 
 // See https://github.com/stormkit-io/stormkit-io/pull/56#discussion_r2603452242
-const MAX_SCHEMA_NAME_LENGTH = 47
+const MaxSchemaNameLength = 47
 
 // isSQLSafe validates that the name argument contains only safe characters
 func isSQLSafe(name string) bool {
 	matched, _ := regexp.MatchString(`^[a-zA-Z_][a-zA-Z0-9_]*$`, name)
-	return matched && len(name) <= MAX_SCHEMA_NAME_LENGTH
+	return matched && len(name) <= MaxSchemaNameLength
 }
