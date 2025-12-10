@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"regexp"
 	"text/template"
@@ -43,7 +44,7 @@ var sqlTemplates = struct {
 	createAppUser       *template.Template
 	dropSchema          *template.Template
 }{
-	createSchema: template.Must(template.New("createSchema").Parse(`CREATE SCHEMA {{.SchemaName}}`)),
+	createSchema: template.Must(template.New("createSchema").Parse(`CREATE SCHEMA IF NOT EXISTS {{.SchemaName}}`)),
 
 	createMigrationUser: template.Must(template.New("createMigrationUser").Parse(`
 		DO $$
@@ -197,6 +198,16 @@ func (s *schemaStore) GetSchema(ctx context.Context, schemaName string) (*Schema
 // CreateSchema creates a new schema in the database if it doesn't exist.
 // It also creates schema-specific users and grants permissions.
 func (s *schemaStore) CreateSchema(ctx context.Context, schemaName string) (*SchemaConf, error) {
+	schema, err := s.GetSchema(ctx, schemaName)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if schema != nil {
+		return nil, errors.New("schema already exists")
+	}
+
 	// Validate schema name to prevent SQL injection
 	if !isSQLSafe(schemaName) {
 		return nil, fmt.Errorf("invalid schema name: %s", schemaName)
@@ -205,7 +216,7 @@ func (s *schemaStore) CreateSchema(ctx context.Context, schemaName string) (*Sch
 	// Create schema
 	buf := bytes.Buffer{}
 
-	err := sqlTemplates.createSchema.Execute(&buf, map[string]string{
+	err = sqlTemplates.createSchema.Execute(&buf, map[string]string{
 		"SchemaName": schemaName,
 	})
 

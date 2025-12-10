@@ -102,8 +102,8 @@ func (s *HandlerSchemaSetSuite) Test_Success_SchemaAlreadyExists() {
 		},
 	)
 
-	s.Equal(http.StatusOK, response.Code)
-	s.JSONEq(fmt.Sprintf(`{"schema": "%s"}`, schemaName), response.String())
+	s.Equal(http.StatusConflict, response.Code)
+	s.JSONEq(`{"error": "Schema already exists for this environment."}`, response.String())
 }
 
 func (s *HandlerSchemaSetSuite) Test_MissingEnvId() {

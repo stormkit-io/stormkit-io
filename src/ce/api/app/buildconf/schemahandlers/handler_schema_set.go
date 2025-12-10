@@ -14,6 +14,15 @@ func handlerSchemaSet(req *app.RequestContext) *shttp.Response {
 	creds, err := buildconf.SchemaStore().CreateSchema(req.Context(), name)
 
 	if err != nil {
+		if err.Error() == "schema already exists" {
+			return &shttp.Response{
+				Status: http.StatusConflict,
+				Data: map[string]any{
+					"error": "Schema already exists for this environment.",
+				},
+			}
+		}
+
 		return shttp.Error(err)
 	}
 
