@@ -149,7 +149,7 @@ func (s *AppHooksSuite) Test_OverwritingParams_MethodGET() {
 		}))
 }
 
-func (s *AppHooksSuite) TestOverwritingParams_MethodGET_V2() {
+func (s *AppHooksSuite) Test_OverwritingParams_MethodGET_V2() {
 	tken := utils.RandomToken(48)
 	appl := s.MockApp(nil, map[string]any{
 		"DeployTrigger": tken,
