@@ -41,9 +41,9 @@ func (s *AppHooksSuite) AfterTest(_, _ string) {
 	deployservice.MockDeployer = nil
 }
 
-func (s *AppHooksSuite) TestSucces() {
+func (s *AppHooksSuite) Test_Success() {
 	tken := utils.RandomToken(48)
-	appl := s.MockApp(nil, map[string]interface{}{
+	appl := s.MockApp(nil, map[string]any{
 		"DeployTrigger": tken,
 	})
 
@@ -71,7 +71,7 @@ func (s *AppHooksSuite) TestSucces() {
 		}))
 }
 
-func (s *AppHooksSuite) TestInvalidToken() {
+func (s *AppHooksSuite) Test_InvalidToken() {
 	tkn := utils.RandomToken(48)
 	app := s.MockApp(nil)
 
@@ -86,13 +86,13 @@ func (s *AppHooksSuite) TestInvalidToken() {
 	assert.Equal(s.T(), http.StatusUnauthorized, response.Code)
 }
 
-func (s *AppHooksSuite) TestOverwritingParams_MethodPOST() {
+func (s *AppHooksSuite) Test_OverwritingParams_MethodPOST() {
 	tken := utils.RandomToken(48)
-	appl := s.MockApp(nil, map[string]interface{}{
+	appl := s.MockApp(nil, map[string]any{
 		"DeployTrigger": tken,
 	})
 
-	s.MockEnv(nil, map[string]interface{}{
+	s.MockEnv(nil, map[string]any{
 		"Branch":      "main",
 		"AutoPublish": true,
 	})
@@ -101,33 +101,31 @@ func (s *AppHooksSuite) TestOverwritingParams_MethodPOST() {
 		shttp.NewRouter().RegisterService(apphandlers.Services).Router().Handler(),
 		shttp.MethodPost,
 		fmt.Sprintf("/hooks/app/%d/deploy/%s/production", appl.ID, tken),
-		map[string]interface{}{
+		map[string]any{
 			"branch":  "my-test-branch",
 			"publish": false,
 		},
 		nil,
 	)
 
-	a := assert.New(s.T())
-
-	a.Equal(http.StatusOK, response.Code)
+	s.Equal(http.StatusOK, response.Code)
 	s.mockDeployer.AssertCalled(s.T(), "Deploy",
 		mock.Anything, mock.MatchedBy(func(_appl *app.App) bool {
-			return a.Equal(appl.ID, _appl.ID)
+			return s.Equal(appl.ID, _appl.ID)
 		}),
 		mock.MatchedBy(func(_depl *deploy.Deployment) bool {
-			return a.Equal(_depl.Branch, "my-test-branch") &&
-				a.Equal(false, _depl.ShouldPublish)
+			return s.Equal(_depl.Branch, "my-test-branch") &&
+				s.Equal(false, _depl.ShouldPublish)
 		}))
 }
 
-func (s *AppHooksSuite) TestOverwritingParams_MethodGET() {
+func (s *AppHooksSuite) Test_OverwritingParams_MethodGET() {
 	tken := utils.RandomToken(48)
-	appl := s.MockApp(nil, map[string]interface{}{
+	appl := s.MockApp(nil, map[string]any{
 		"DeployTrigger": tken,
 	})
 
-	s.MockEnv(nil, map[string]interface{}{
+	s.MockEnv(nil, map[string]any{
 		"Branch":      "main",
 		"AutoPublish": true,
 	})
@@ -140,26 +138,24 @@ func (s *AppHooksSuite) TestOverwritingParams_MethodGET() {
 		nil,
 	)
 
-	a := assert.New(s.T())
-
-	a.Equal(http.StatusOK, response.Code)
+	s.Equal(http.StatusOK, response.Code)
 	s.mockDeployer.AssertCalled(s.T(), "Deploy",
 		mock.Anything, mock.MatchedBy(func(_appl *app.App) bool {
-			return a.Equal(appl.ID, _appl.ID)
+			return s.Equal(appl.ID, _appl.ID)
 		}),
 		mock.MatchedBy(func(_depl *deploy.Deployment) bool {
-			return a.Equal(_depl.Branch, "my-test-branch") &&
-				a.Equal(false, _depl.ShouldPublish)
+			return s.Equal(_depl.Branch, "my-test-branch") &&
+				s.Equal(false, _depl.ShouldPublish)
 		}))
 }
 
 func (s *AppHooksSuite) TestOverwritingParams_MethodGET_V2() {
 	tken := utils.RandomToken(48)
-	appl := s.MockApp(nil, map[string]interface{}{
+	appl := s.MockApp(nil, map[string]any{
 		"DeployTrigger": tken,
 	})
 
-	s.MockEnv(nil, map[string]interface{}{
+	s.MockEnv(nil, map[string]any{
 		"Branch":      "main",
 		"AutoPublish": false,
 	})
@@ -172,16 +168,14 @@ func (s *AppHooksSuite) TestOverwritingParams_MethodGET_V2() {
 		nil,
 	)
 
-	a := assert.New(s.T())
-
-	a.Equal(http.StatusOK, response.Code)
+	s.Equal(http.StatusOK, response.Code)
 	s.mockDeployer.AssertCalled(s.T(), "Deploy",
 		mock.Anything, mock.MatchedBy(func(_appl *app.App) bool {
-			return a.Equal(appl.ID, _appl.ID)
+			return s.Equal(appl.ID, _appl.ID)
 		}),
 		mock.MatchedBy(func(_depl *deploy.Deployment) bool {
-			return a.Equal(_depl.Branch, "my-test-branch") &&
-				a.Equal(true, _depl.ShouldPublish)
+			return s.Equal(_depl.Branch, "my-test-branch") &&
+				s.Equal(true, _depl.ShouldPublish)
 		}))
 }
 
