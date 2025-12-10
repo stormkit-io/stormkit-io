@@ -1,6 +1,7 @@
 package buildconf
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp/shttperr"
@@ -8,6 +9,10 @@ import (
 
 // Errors list
 var (
+	ErrSchemaExists      = errors.New("schema already exists")
+	ErrInvalidSchemaName = errors.New("invalid schema name")
+
+	// Legacy errors
 	ErrMissingEnv             = shttperr.New(http.StatusBadRequest, "Environment is missing", "env-missing")
 	ErrInvalidEnv             = shttperr.New(http.StatusBadRequest, "Environment can only contain alphanumeric characters and hypens.", "env-invalid")
 	ErrInvalidEnvDoubleHypens = shttperr.New(http.StatusBadRequest, "Double hypens (--) are not allowed as they are reserved for Stormkit.", "env-invalid")

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"regexp"
 	"text/template"
@@ -205,12 +204,12 @@ func (s *schemaStore) CreateSchema(ctx context.Context, schemaName string) (*Sch
 	}
 
 	if schema != nil {
-		return nil, errors.New("schema already exists")
+		return nil, ErrSchemaExists
 	}
 
 	// Validate schema name to prevent SQL injection
 	if !isSQLSafe(schemaName) {
-		return nil, fmt.Errorf("invalid schema name: %s", schemaName)
+		return nil, ErrInvalidSchemaName
 	}
 
 	// Create schema
