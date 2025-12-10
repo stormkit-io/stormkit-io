@@ -52,6 +52,7 @@ type SchemaConf struct {
 	SchemaName        string `json:"schemaName"`
 	Port              string `json:"port"`
 	Host              string `json:"host"`
+	SSLMode           string `json:"sslMode"`
 }
 
 // Scan implements the Scanner interface.
@@ -92,12 +93,13 @@ func (sc *SchemaConf) Value() (driver.Value, error) {
 
 // String returns the psql connection string.
 func (sc *SchemaConf) String() string {
-	return fmt.Sprintf("host=%s port=%s dbname=%s user=%s password=%s search_path=%s sslmode=disable",
+	return fmt.Sprintf("host=%s port=%s dbname=%s user=%s password=%s search_path=%s sslmode=%s",
 		sc.Host,
 		sc.Port,
 		sc.DBName,
 		sc.AppUserName,
 		sc.AppPassword,
 		sc.SchemaName,
+		utils.GetString(sc.SSLMode, "disable"),
 	)
 }
