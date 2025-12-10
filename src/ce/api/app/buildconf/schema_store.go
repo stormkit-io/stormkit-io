@@ -43,7 +43,7 @@ var sqlTemplates = struct {
 	createAppUser       *template.Template
 	dropSchema          *template.Template
 }{
-	createSchema: template.Must(template.New("createSchema").Parse(`CREATE SCHEMA IF NOT EXISTS {{.SchemaName}}`)),
+	createSchema: template.Must(template.New("createSchema").Parse(`CREATE SCHEMA {{.SchemaName}}`)),
 
 	createMigrationUser: template.Must(template.New("createMigrationUser").Parse(`
 		DO $$
