@@ -57,7 +57,7 @@ var sqlTemplates = struct {
 				ALTER ROLE "{{.MigrationUserName}}" SET idle_in_transaction_session_timeout = '60s';
 				ALTER ROLE "{{.MigrationUserName}}" SET temp_file_limit = '100MB';
 				ALTER ROLE "{{.MigrationUserName}}" SET work_mem = '4MB';
-				ALTER ROLE "{{.MigrationUserName}}" CONNECTION LIMIT 10;
+				ALTER ROLE "{{.MigrationUserName}}" CONNECTION LIMIT 1;
 
 				-- Prevent superuser privileges
 				ALTER ROLE "{{.MigrationUserName}}" WITH NOSUPERUSER NOCREATEDB NOCREATEROLE;
@@ -84,6 +84,12 @@ var sqlTemplates = struct {
 
 				-- Prevent superuser privileges
 				ALTER ROLE "{{.AppUserName}}" WITH NOSUPERUSER NOCREATEDB NOCREATEROLE;
+				ALTER ROLE "{{.AppUserName}}" SET statement_timeout = '15s';
+				ALTER ROLE "{{.AppUserName}}" SET lock_timeout = '5s';
+				ALTER ROLE "{{.AppUserName}}" SET idle_in_transaction_session_timeout = '60s';
+				ALTER ROLE "{{.AppUserName}}" SET temp_file_limit = '100MB';
+				ALTER ROLE "{{.AppUserName}}" SET work_mem = '8MB';
+				ALTER ROLE "{{.AppUserName}}" CONNECTION LIMIT 10;
 
 				-- Revoke public schema access
 				REVOKE ALL ON SCHEMA public FROM "{{.AppUserName}}";
