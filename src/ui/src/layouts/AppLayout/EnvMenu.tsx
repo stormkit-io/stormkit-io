@@ -32,66 +32,89 @@ export default function EnvMenu() {
 
   return (
     <Box
+      bgcolor="background.paper"
       sx={{
+        maxWidth: { md: "260px" },
         width: "100%",
-        display: "flex",
-        pb: 2,
-        mt: 2,
       }}
     >
       <Box
         sx={{
-          flex: 1,
+          width: "100%",
           display: "flex",
-          alignItems: "center",
-          pl: 2,
+          flexDirection: "column",
+          pb: 2,
+          mt: 2,
         }}
       >
-        <Select
-          variant="standard"
-          disableUnderline
-          aria-label="Environment selector"
-          onChange={e => {
-            if (pathname.includes(`/environments/${selectedEnvId}`)) {
-              navigate(
-                pathname.replace(
-                  `/environments/${selectedEnvId}`,
-                  `/environments/${e.target.value}`
-                )
-              );
-            } else {
-              navigate(`/apps/${app.id}/environments/${e.target.value}`);
-            }
+        <Box
+          sx={{
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            mb: 2,
           }}
-          sx={{ pr: 1 }}
-          value={selectedEnvId || "_"}
         >
-          <MenuItem value="_" disabled>
-            Select an environment
-          </MenuItem>
-          {environments.map(e => (
-            <MenuItem
-              key={e.id}
-              value={e.id}
-              aria-label={`${e.name} environment`}
-            >
-              {e.env}
+          <Select
+            variant="outlined"
+            disableUnderline
+            aria-label="Environment selector"
+            onChange={e => {
+              if (pathname.includes(`/environments/${selectedEnvId}`)) {
+                navigate(
+                  pathname.replace(
+                    `/environments/${selectedEnvId}`,
+                    `/environments/${e.target.value}`
+                  )
+                );
+              } else {
+                navigate(`/apps/${app.id}/environments/${e.target.value}`);
+              }
+            }}
+            sx={{ border: "1px solid", borderColor: "container.border", mx: 2 }}
+            fullWidth
+            value={selectedEnvId || "_"}
+          >
+            <MenuItem value="_" disabled>
+              Select an environment
             </MenuItem>
+            {environments.map(e => (
+              <MenuItem
+                key={e.id}
+                value={e.id}
+                aria-label={`${e.name} environment`}
+              >
+                {e.env}
+              </MenuItem>
+            ))}
+          </Select>
+        </Box>
+        <Box
+          role="navigation"
+          sx={{
+            display: { xs: "none", md: "flex" },
+            flexDirection: "column",
+          }}
+        >
+          {envMenu.map(item => (
+            <MenuLink
+              key={item.path}
+              item={item}
+              sx={{
+                borderBottom: "1px solid",
+                borderColor: "container.border",
+                mx: 2,
+                px: 2,
+                py: 1,
+                display: "flex",
+                alignItems: "center",
+              }}
+            />
           ))}
-        </Select>
-      </Box>
-      <Box
-        sx={{
-          display: { xs: "none", md: "flex" },
-          flexDirection: "row",
-        }}
-      >
-        {envMenu.map(item => (
-          <MenuLink key={item.path} item={item} />
-        ))}
-      </Box>
-      <Box sx={{ display: { xs: "block", md: "none" }, mr: 2 }}>
-        <DotDotDot items={envMenu} />
+        </Box>
+        <Box sx={{ display: { xs: "block", md: "none" }, mr: 2 }}>
+          <DotDotDot items={envMenu} />
+        </Box>
       </Box>
     </Box>
   );

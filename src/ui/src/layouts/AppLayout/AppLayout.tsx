@@ -35,29 +35,33 @@ export function AppLayout() {
       <Box
         sx={{
           display: "flex",
+          flexDirection: "row",
           width: "100%",
+          flex: 1,
         }}
       >
-        <Box
-          component="section"
-          sx={{
-            flex: 1,
-            mx: "auto",
-            width: "100%",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "flex-start",
-            maxWidth: "1024px",
-            my: 2,
-          }}
-        >
-          <EnvMenu />
-          <Box sx={{ width: "100%" }}>
-            <Routes>
-              {routes.map(r => (
-                <Route {...r} key={r.path} />
-              ))}
-            </Routes>
+        <EnvMenu />
+        <Box sx={{ px: 2, width: "100%" }}>
+          <Box
+            component="section"
+            sx={{
+              flex: 1,
+              my: 2,
+              mx: "auto",
+              width: "100%",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-start",
+              maxWidth: "1024px",
+            }}
+          >
+            <Box sx={{ width: "100%" }}>
+              <Routes>
+                {routes.map(r => (
+                  <Route {...r} key={r.path} />
+                ))}
+              </Routes>
+            </Box>
           </Box>
         </Box>
       </Box>

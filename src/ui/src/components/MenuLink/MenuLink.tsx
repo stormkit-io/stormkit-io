@@ -16,7 +16,7 @@ interface Props {
 
 export default function MenuLink({ item, sx }: Props) {
   return (
-    <Typography component="span">
+    <Typography sx={{ display: "inline-block" }}>
       <Link
         key={item.path}
         href={item.path}
@@ -28,10 +28,12 @@ export default function MenuLink({ item, sx }: Props) {
           position: "relative",
           alignItems: "center",
           borderRadius: 1,
-          bgcolor: item.isActive ? "container.transparent" : undefined,
+          transition: "background-color 0.2s ease, color 0.2s ease",
+          bgcolor: item.isActive ? "rgba(81, 81, 81, 0.24)" : undefined,
           ":hover": {
             opacity: 1,
-            bgcolor: "container.transparent",
+            bgcolor: "rgba(81, 81, 81, 0.50)",
+            color: "text.primary",
           },
           ...sx,
         }}

@@ -298,7 +298,7 @@ export default (mode: "dark" | "light") => {
             container: {
               default: "#0b061e",
               paper: "#090518",
-              border: "#111111",
+              border: "#161616",
               borderContrast: "#e2e2e2",
               transparent: "rgba(255,255,255,0.01)",
             },
