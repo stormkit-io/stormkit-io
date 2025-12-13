@@ -10,6 +10,8 @@ interface Table {
 export interface Schema {
   name: string;
   tables: Table[];
+  migrationsEnabled?: boolean;
+  migrationsPath?: string;
 }
 
 interface UseFetchSchemaProps {
@@ -51,5 +53,26 @@ export const createSchema = ({ appId, envId }: CreateSchemaProps) => {
   return api.post<{ schema: string }>(`/schema`, {
     appId,
     envId,
+  });
+};
+
+interface UpdateSchemaConfigProps {
+  appId: string;
+  envId: string;
+  migrationsPath: string;
+  migrationsEnabled: boolean;
+}
+
+export const updateSchemaConfig = ({
+  appId,
+  envId,
+  migrationsPath,
+  migrationsEnabled,
+}: UpdateSchemaConfigProps) => {
+  return api.post(`/schema/configure`, {
+    appId,
+    envId,
+    migrationsPath,
+    migrationsEnabled,
   });
 };

@@ -17,12 +17,25 @@ func handlerSchemaGet(req *app.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
+	env, err := buildconf.NewStore().EnvironmentByID(req.Context(), req.EnvID)
+
+	if err != nil {
+		return shttp.Error(err)
+	}
+
 	data := map[string]any{
 		"schema": nil,
 	}
 
 	if schema != nil {
-		data["schema"] = schema.Map()
+		mappedData := schema.Map()
+
+		if env.SchemaConf != nil {
+			mappedData["migrationsEnabled"] = env.SchemaConf.MigrationsEnabled
+			mappedData["migrationsPath"] = env.SchemaConf.MigrationsPath
+		}
+
+		data["schema"] = mappedData
 	}
 
 	return &shttp.Response{

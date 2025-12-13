@@ -1,6 +1,7 @@
 package schemahandlers_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"testing"
@@ -63,6 +64,14 @@ func (s *HandlerSchemaGetSuite) Test_Success_WithTables() {
 
 	s.NoError(err)
 
+	// Update schema configuration
+	s.env.SchemaConf = &buildconf.SchemaConf{
+		MigrationsEnabled: true,
+		MigrationsPath:    "/migrations",
+	}
+
+	s.NoError(buildconf.NewStore().SaveSchemaConf(context.Background(), s.env.ID, s.env.SchemaConf))
+
 	response := shttptest.RequestWithHeaders(
 		shttp.NewRouter().RegisterService(schemahandlers.Services).Router().Handler(),
 		shttp.MethodGet,
@@ -78,6 +87,8 @@ func (s *HandlerSchemaGetSuite) Test_Success_WithTables() {
 	expected := fmt.Sprintf(`{
 		"schema": {
 			"name": "%s",
+			"migrationsEnabled": true,
+			"migrationsPath": "/migrations",
 			"tables": [
 				{
 					"name": "test_table",

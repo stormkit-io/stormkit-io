@@ -9,8 +9,8 @@ import (
 )
 
 type SchemaConfigureRequest struct {
-	MigrationsEnabled bool `json:"migrationsEnabled"`
-	MigrationsPath    string
+	MigrationsEnabled bool   `json:"migrationsEnabled"`
+	MigrationsPath    string `json:"migrationsPath"`
 }
 
 func handlerSchemaConfigure(req *app.RequestContext) *shttp.Response {

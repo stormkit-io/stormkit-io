@@ -1,5 +1,4 @@
 import type { Schema } from "./actions";
-import nock from "nock";
 import { describe, expect, beforeEach, it } from "vitest";
 import {
   render,
@@ -10,6 +9,11 @@ import {
 import { EnvironmentContext } from "~/pages/apps/[id]/environments/Environment.context";
 import mockApp from "~/testing/data/mock_app";
 import mockEnv from "~/testing/data/mock_environment";
+import {
+  mockFetchSchema,
+  mockCreateSchema,
+  mockUpdateSchemaConfig,
+} from "~/testing/nocks/nock_schema";
 import Database from "./Database";
 
 interface Props {
@@ -21,28 +25,12 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
   let currentApp: App;
   let currentEnv: Environment;
 
-  interface MockFetchSchemaProps {
-    response: { schema?: Schema | null };
-    status?: number;
-  }
-
-  const endpoint = process.env.API_DOMAIN || "";
-
-  const mockFetchSchema = ({ status = 200, response }: MockFetchSchemaProps) =>
-    nock(endpoint)
-      .get(`/schema?envId=${currentEnv.id}`)
-      .reply(status, response);
-
-  const mockCreateSchema = (status = 200) =>
-    nock(endpoint)
-      .post("/schema", { appId: currentApp.id, envId: currentEnv.id })
-      .reply(status, { schema: `a${currentApp.id}e${currentEnv.id}` });
-
-  const createWrapper = async ({ schema }: Props = {}) => {
+  const createWrapper = async ({ schema = null }: Props = {}) => {
     currentApp = mockApp();
     currentEnv = mockEnv({ app: currentApp });
 
     const scope = mockFetchSchema({
+      envId: currentEnv.id!,
       response: { schema },
       status: 200,
     });
@@ -116,8 +104,16 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
     });
 
     it("should make POST request and refresh when attach button is clicked", async () => {
-      const createScope = mockCreateSchema(200);
+      const createScope = mockCreateSchema({
+        payload: {
+          appId: currentApp.id,
+          envId: currentEnv.id!,
+        },
+        status: 200,
+      });
+
       const refetchScope = mockFetchSchema({
+        envId: currentEnv.id!,
         response: {
           schema: {
             name: `a${currentApp.id}e${currentEnv.id}`,
@@ -142,18 +138,167 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
 
   describe("error handling", () => {
     it("should display generic error for unknown errors", async () => {
+      currentApp = mockApp();
+      currentEnv = mockEnv({ app: currentApp });
+
       const scope = mockFetchSchema({
-        response: {},
+        envId: currentEnv.id!,
+        response: { schema: null },
         status: 500,
       });
 
-      createWrapper();
+      wrapper = render(
+        <EnvironmentContext.Provider value={{ environment: currentEnv }}>
+          <Database />
+        </EnvironmentContext.Provider>
+      );
 
       await waitFor(() => {
         expect(scope.isDone()).toBe(true);
         expect(
           wrapper.getByText("Unknown error while fetching database.")
         ).toBeTruthy();
+      });
+    });
+  });
+
+  describe("schema migrations configuration", () => {
+    describe.each`
+      migrationsEnabled
+      ${true}
+      ${false}
+    `(
+      "when migrations are enabled: $migrationsEnabled",
+      ({ migrationsEnabled }) => {
+        beforeEach(async () => {
+          await createWrapper({
+            schema: {
+              name: "a1e1",
+              tables: [],
+              migrationsEnabled,
+              migrationsPath: "/db/migrations",
+            },
+          });
+        });
+
+        it("should display form elements appropriately", async () => {
+          await waitFor(() => {
+            const pathInput = wrapper.getByLabelText(
+              "Migrations path"
+            ) as HTMLInputElement;
+
+            const switchInput = wrapper.getByRole("switch", {
+              name: /enable schema migrations/i,
+            }) as HTMLInputElement;
+
+            expect(switchInput.checked).toBe(migrationsEnabled);
+            expect(pathInput.value).toBe("/db/migrations");
+            expect(wrapper.getByText("Save")).toBeTruthy();
+          });
+        });
+
+        it("should update configuration when form is submitted", async () => {
+          await waitFor(() => {
+            expect(wrapper.getByLabelText("Migrations path")).toBeTruthy();
+          });
+
+          const pathInput = wrapper.getByLabelText(
+            "Migrations path"
+          ) as HTMLInputElement;
+
+          fireEvent.change(pathInput, { target: { value: "/app/migrations" } });
+
+          const scope = mockUpdateSchemaConfig({
+            payload: {
+              appId: currentApp.id,
+              envId: currentEnv.id!,
+              migrationsEnabled,
+              migrationsPath: "/app/migrations",
+            },
+          });
+
+          fireEvent.click(wrapper.getByText("Save"));
+
+          await waitFor(() => {
+            expect(scope.isDone()).toBe(true);
+            expect(
+              wrapper.getByText("Schema updated successfully")
+            ).toBeTruthy();
+          });
+        });
+
+        it("should toggle migrations when switch is clicked", async () => {
+          await waitFor(() => {
+            expect(
+              wrapper.getByRole("switch", { name: /enable schema migrations/i })
+            ).toBeTruthy();
+          });
+
+          const switchInput = wrapper.getByRole("switch", {
+            name: /enable schema migrations/i,
+          }) as HTMLInputElement;
+
+          fireEvent.click(switchInput);
+
+          const scope = mockUpdateSchemaConfig({
+            payload: {
+              appId: currentApp.id,
+              envId: currentEnv.id!,
+              migrationsEnabled: !migrationsEnabled,
+              migrationsPath: "/db/migrations",
+            },
+          });
+
+          fireEvent.click(wrapper.getByText("Save"));
+
+          await waitFor(() => {
+            expect(scope.isDone()).toBe(true);
+            expect(
+              wrapper.getByText("Schema updated successfully")
+            ).toBeTruthy();
+          });
+        });
+      }
+    );
+
+    describe("error handling for migrations configuration", () => {
+      beforeEach(async () => {
+        await createWrapper({
+          schema: {
+            name: "a1e1",
+            tables: [],
+            migrationsEnabled: true,
+            migrationsPath: "/db/migrations",
+          },
+        });
+      });
+
+      it("should display error when update fails", async () => {
+        await waitFor(() => {
+          expect(wrapper.getByText("Save")).toBeTruthy();
+        });
+
+        const scope = mockUpdateSchemaConfig({
+          payload: {
+            appId: currentApp.id,
+            envId: currentEnv.id!,
+            migrationsEnabled: true,
+            migrationsPath: "/db/migrations",
+          },
+          status: 500,
+        });
+
+        const saveButton = wrapper.getByText("Save");
+        fireEvent.click(saveButton);
+
+        await waitFor(() => {
+          expect(scope.isDone()).toBe(true);
+          expect(
+            wrapper.getByText(
+              "Unknown error while updating schema. Please try again."
+            )
+          ).toBeTruthy();
+        });
       });
     });
   });
