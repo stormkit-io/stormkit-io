@@ -62,6 +62,7 @@ export default function EnvironmentHeader() {
             href={domainName}
             target="_blank"
             rel="noreferrer noopener"
+            sx={{ display: { xs: "none", md: "inline" } }}
           >
             {domainName.replace(/^https?:\/\//, "")}
           </Typography>
@@ -162,20 +163,12 @@ export default function EnvironmentHeader() {
             </Box>
           )}
         </Box>
-        <Box>
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "flex-start",
-              justifyContent: "flex-end",
-            }}
-          >
-            <DeployButton
-              app={app}
-              environments={environments}
-              selectedEnvId={environment.id!}
-            />
-          </Box>
+        <Box sx={{ textAlign: "right", flex: 1 }}>
+          <DeployButton
+            app={app}
+            environments={environments}
+            selectedEnvId={environment.id!}
+          />
         </Box>
       </Box>
     </Card>

@@ -35,7 +35,7 @@ export function AppLayout() {
       <Box
         sx={{
           display: "flex",
-          flexDirection: "row",
+          flexDirection: { xs: "column", md: "row" },
           width: "100%",
           flex: 1,
         }}

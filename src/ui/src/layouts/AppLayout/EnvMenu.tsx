@@ -32,18 +32,18 @@ export default function EnvMenu() {
 
   return (
     <Box
-      bgcolor="background.paper"
       sx={{
         maxWidth: { md: "260px" },
         width: "100%",
+        backgroundColor: { xs: "transparent", md: "background.paper" },
       }}
     >
       <Box
         sx={{
           width: "100%",
           display: "flex",
-          flexDirection: "column",
-          pb: 2,
+          flexDirection: { xs: "row", md: "column" },
+          pb: { xs: 0, md: 2 },
           mt: 2,
         }}
       >
@@ -52,7 +52,7 @@ export default function EnvMenu() {
             flex: 1,
             display: "flex",
             alignItems: "center",
-            mb: 2,
+            mb: { xs: 0, md: 2 },
           }}
         >
           <Select
@@ -104,8 +104,7 @@ export default function EnvMenu() {
                 borderBottom: "1px solid",
                 borderColor: "container.border",
                 mx: 2,
-                px: 2,
-                py: 1,
+                p: 2,
                 display: "flex",
                 alignItems: "center",
               }}
