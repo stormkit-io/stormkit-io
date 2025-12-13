@@ -159,12 +159,6 @@ func (a *AWSClient) bucketName(args UploadArgs) string {
 		bucketName = config.Get().AWS.StorageBucket
 	}
 
-	pckg := args.AppPackage
-
-	if config.IsStormkitCloud() && pckg != config.PackageFree && pckg != "" {
-		bucketName = fmt.Sprintf("%s-versioned", bucketName)
-	}
-
 	return bucketName
 }
 

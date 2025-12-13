@@ -171,7 +171,7 @@ func (a *AWSClient) uploadToLambda(args UploadArgs) (UploadOverview, error) {
 	}
 
 	// Upload also en example of env vars to make sure everything is recoverable.
-	if config.IsStormkitCloud() && args.AppPackage != config.PackageFree {
+	if config.IsStormkitCloud() {
 		content := []string{}
 
 		for k, v := range args.EnvVars {

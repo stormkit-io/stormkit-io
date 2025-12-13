@@ -103,7 +103,6 @@ type Deployment struct {
 	BuildConfig   *buildconf.BuildConf `json:"-"` // ConfigCopy is the snapshot of the environment used during the deployment.
 	EnvBranchName string               `json:"-"` // EnvBranchName represents the branch name that is associated with the given environment.
 	DisplayName   string               `json:"-"` // DisplayName is the name of the app. It is injected to the deployment object.
-	AppPackage    string               `json:"-"` // The application package (free, starter, medium, enterprise)
 	IsRestart     bool                 `json:"-"`
 }
 

@@ -62,9 +62,6 @@ type UploadArgs struct {
 	// The environment variables that are going to used in this deployment.
 	EnvVars map[string]string
 
-	// The package of the user: free | starter | medium | enterprise
-	AppPackage string
-
 	// The build runtime such as: nodejs12.x
 	Runtime string
 
