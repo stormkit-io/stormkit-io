@@ -20,9 +20,6 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodPost, "/callback", handlerDeployCallback).
 		Handler(shttp.MethodPost, "/stop", shttp.WithRateLimit(app.WithApp(handlerDeployStop), nil))
 
-	s.NewEndpoint("/app/{did:[0-9]+}/deploy").
-		Handler(shttp.MethodGet, "/{deploymentId:[0-9]+}", app.WithApp(handlerDeployGet))
-
 	s.NewEndpoint("/app/{did:[0-9]+}/manifest").
 		Handler(shttp.MethodGet, "/{deploymentId:[0-9]+}", shttp.WithRateLimit(
 			app.WithApp(handlerDeployManifestGet),

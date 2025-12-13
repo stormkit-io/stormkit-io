@@ -48,38 +48,11 @@ func handlerDeployStart(req *app.RequestContext) *shttp.Response {
 		return shttp.NotFound()
 	}
 
-	conf := env.Data
+	depl := deploy.New(req.App)
+	depl.PopulateFromEnv(env)
 
-	if data.BuildCmd != "" {
-		conf.BuildCmd = data.BuildCmd
-	}
-
-	if data.DistFolder != "" {
-		conf.DistFolder = data.DistFolder
-	}
-
-	depl := deploy.New(req.App.ID)
-	depl.Branch = data.Branch
-	depl.Env = env.Name
-	depl.EnvBranchName = env.Branch
-	depl.EnvID = env.ID
-	depl.User = req.User
-	depl.IsFork = false
+	depl.Branch = utils.GetString(data.Branch, req.App.DefaultBranch())
 	depl.ShouldPublish = data.Publish
-	depl.CheckoutRepo = req.App.Repo
-	depl.BuildConfig = conf
-
-	if depl.BuildConfig.BuildCmd == "" {
-		depl.BuildConfig.BuildCmd = env.Data.BuildCmd
-	}
-
-	if depl.BuildConfig.DistFolder == "" {
-		depl.BuildConfig.DistFolder = env.Data.DistFolder
-	}
-
-	if depl.Branch == "" {
-		depl.Branch = req.App.DefaultBranch()
-	}
 
 	if err = deployservice.New().Deploy(req.Context(), req.App, depl); err != nil {
 		if err == oauth.ErrRepoNotFound || err == oauth.ErrCredsInvalidPermissions {

@@ -278,6 +278,7 @@ type DeployCandidate struct {
 	AutoDeployCommits  null.String
 	ShouldPublish      bool
 	BuildConfig        *buildconf.BuildConf
+	SchemaConf         *buildconf.SchemaConf
 }
 
 // DeployCandidates returns a list of deploy candidates that belongs to apps matching the repo name.
@@ -318,6 +319,7 @@ func (s *Store) DeployCandidates(ctx context.Context, repo string) ([]*DeployCan
 			&ma.UserID, &ma.TeamID, &ma.EnvName, &ma.EnvID,
 			&ma.ShouldPublish, &buildConf, &ma.EnvDefaultBranch,
 			&ma.AutoDeployBranches, &ma.AutoDeployCommits, &ma.EnvAutoDeploy,
+			&ma.SchemaConf,
 		)
 
 		if defaultEnv.ValueOrZero() == "" {

@@ -6,6 +6,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
 type SchemaConfigureRequest struct {
@@ -31,7 +32,12 @@ func handlerSchemaConfigure(req *app.RequestContext) *shttp.Response {
 	}
 
 	env.SchemaConf.MigrationsEnabled = data.MigrationsEnabled
-	env.SchemaConf.MigrationsPath = data.MigrationsPath
+
+	if data.MigrationsPath == "" {
+		env.SchemaConf.MigrationsPath = ""
+	} else {
+		env.SchemaConf.MigrationsPath = utils.TrimPath(data.MigrationsPath)
+	}
 
 	err = buildconf.NewStore().SaveSchemaConf(req.Context(), req.EnvID, env.SchemaConf)
 

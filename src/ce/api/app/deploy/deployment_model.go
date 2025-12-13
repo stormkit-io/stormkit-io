@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
@@ -56,50 +56,50 @@ type APIDeployResponse struct {
 
 // Deployment represents a deployment.
 type Deployment struct {
-	ID                 types.ID       `json:"id,string,omitempty" db:"deployment_id"`
-	AppID              types.ID       `json:"appId,string,omitempty" db:"app_id"`
-	EnvID              types.ID       `json:"envId,string,omitempty" db:"env_id"`
-	Env                string         `json:"env,omitempty" db:"env_name"` // @deprecated: Env is the environment name used for this deployment. Will be replaced with EnvID
-	Branch             string         `json:"branch" db:"branch"`          // Branch is name of the branch that was deployed.
-	ConfigCopy         []byte         `json:"-" db:"config_snapshot"`
+	ID                 types.ID       `json:"id,string,omitempty"`
+	AppID              types.ID       `json:"appId,string,omitempty"`
+	EnvID              types.ID       `json:"envId,string,omitempty"`
+	Env                string         `json:"env,omitempty"` // @deprecated: Env is the environment name used for this deployment. Will be replaced with EnvID
+	Branch             string         `json:"branch"`        // Branch is name of the branch that was deployed.
+	ConfigCopy         []byte         `json:"-"`
 	configCopyCached   map[string]any `json:"-"`
-	S3NumberOfFiles    null.Int       `json:"numberOfFiles" db:"s3_number_of_files"`
+	S3NumberOfFiles    null.Int       `json:"numberOfFiles"`
 	S3TotalSizeInBytes null.Int       `json:"totalSizeInBytes"`
-	ServerPackageSize  null.Int       `json:"serverPackageSize,omitempty" db:"server_package_size"`
-	ExitCode           null.Int       `json:"exit" db:"exit_code"`
-	Logs               null.String    `json:"-" db:"logs"`
-	PullRequestNumber  null.Int       `json:"pullRequestNumber" db:"pull_request_number"`
-	IsFork             bool           `json:"isFork" db:"is_fork"`
-	CheckoutRepo       string         `json:"checkoutRepo" db:"checkout_repo"` // CheckoutRepo is the repository used to check out while deploying the application.
-	BuildManifest      *BuildManifest `json:"buildManifest,omitempty" db:"build_manifest"`
-	ShouldPublish      bool           `json:"shouldPublish" db:"auto_publish"` // ShouldPublish is boolean value which stores an overwrite for the AutoPublish field of an environment.
-	IsAutoDeploy       bool           `json:"isAutoDeploy" db:"auto_deploy"`
+	ServerPackageSize  null.Int       `json:"serverPackageSize,omitempty"`
+	ExitCode           null.Int       `json:"exit"`
+	Logs               null.String    `json:"-"`
+	PullRequestNumber  null.Int       `json:"pullRequestNumber"`
+	IsFork             bool           `json:"isFork"`
+	CheckoutRepo       string         `json:"checkoutRepo"` // CheckoutRepo is the repository used to check out while deploying the application.
+	BuildManifest      *BuildManifest `json:"buildManifest,omitempty"`
+	ShouldPublish      bool           `json:"shouldPublish"` // ShouldPublish is boolean value which stores an overwrite for the AutoPublish field of an environment.
+	IsAutoDeploy       bool           `json:"isAutoDeploy"`
 	IsImmutable        null.Bool      `json:"-"`
 	StatusChecks       null.String    `json:"-"`
 	StatusChecksPassed null.Bool      `json:"statusChecksPassed,omitempty"`
-	CreatedAt          utils.Unix     `json:"createdAt,omitempty" db:"created_at"`
-	StoppedAt          utils.Unix     `json:"stoppedAt,omitempty" db:"stopped_at"`
-	DeletedAt          utils.Unix     `json:"deletedAt,omitempty" db:"deleted_at"`
-	Commit             CommitInfo     `json:"commit" db:"commit_id, commit_author, commit_message"`
-	Error              null.String    `json:"-" db:"error"` // Error represents the deployment error. It's for internal use only.
-	StorageLocation    null.String    `json:"storageLocation,omitempty" db:"storage_location"`
-	FunctionLocation   null.String    `json:"functionLocation,omitempty" db:"function_location"` // aws:<function-arn>/<version>
-	APILocation        null.String    `json:"apiLocation,omitempty" db:"api_location"`           // aws:<function-arn>/<version>
+	CreatedAt          utils.Unix     `json:"createdAt,omitempty"`
+	StoppedAt          utils.Unix     `json:"stoppedAt,omitempty"`
+	DeletedAt          utils.Unix     `json:"deletedAt,omitempty"`
+	Commit             CommitInfo     `json:"commit"`
+	Error              null.String    `json:"-"` // Error represents the deployment error. It's for internal use only.
+	StorageLocation    null.String    `json:"storageLocation,omitempty"`
+	FunctionLocation   null.String    `json:"functionLocation,omitempty"` // aws:<function-arn>/<version>
+	APILocation        null.String    `json:"apiLocation,omitempty"`      // aws:<function-arn>/<version>
 	APIPathPrefix      null.String    `json:"apiPathPrefix,omitempty"`
-	APIPackageSize     null.Int       `json:"apiPackageSize,omitempty" db:"api_package_size"`
+	APIPackageSize     null.Int       `json:"apiPackageSize,omitempty"`
 	WebhookEvent       any            `json:"-"` // The webhook event that triggers the deployment
+	MigrationsPath     null.String    `json:"migrationsPath,omitempty"`
 
 	// GithubRunID is the associated run id with the deployment.
 	// It is obtained by printing $GITHUB_RUN_ID in GitHub actions.
 	// This value is used to retrieve the jobs and then the logs.
-	GithubRunID null.Int `json:"-" db:"github_run_id"`
+	GithubRunID null.Int `json:"-"`
 
 	// Published represents the publish information.
 	// It's a json string fetched from the database that contains
 	// the environment id and the released percentage.
 	PublishedV2 PublishedInfoV2 `json:"-"`
 
-	User          *user.User           `json:"-"`
 	BuildConfig   *buildconf.BuildConf `json:"-"` // ConfigCopy is the snapshot of the environment used during the deployment.
 	EnvBranchName string               `json:"-"` // EnvBranchName represents the branch name that is associated with the given environment.
 	DisplayName   string               `json:"-"` // DisplayName is the name of the app. It is injected to the deployment object.
@@ -160,21 +160,30 @@ type RequestData struct {
 
 	// Branch is the branch to deploy.
 	Branch string `json:"branch"`
-
-	// The distribution folder.
-	DistFolder string `json:"distFolder"`
-
-	// Cmd is the command to run
-	BuildCmd string `json:"buildCmd"`
 }
 
 // New returns a new deployment instance.
-func New(appID types.ID) *Deployment {
+func New(a *app.App) *Deployment {
 	d := &Deployment{
-		AppID: appID,
+		AppID:        a.ID,
+		CheckoutRepo: a.Repo,
+		Branch:       a.DefaultBranch(),
 	}
 
 	return d
+}
+
+// PopulateFromEnv populates the deployment from the given environment.
+func (d *Deployment) PopulateFromEnv(env *buildconf.Env) {
+	d.Env = env.Name
+	d.EnvBranchName = env.Branch
+	d.EnvID = env.ID
+	d.BuildConfig = env.Data
+	d.ShouldPublish = env.AutoPublish
+
+	if env.SchemaConf != nil && env.SchemaConf.MigrationsEnabled {
+		d.MigrationsPath = null.StringFrom(env.SchemaConf.MigrationsPath)
+	}
 }
 
 // MarshalJSON implements the json marshaler interface.

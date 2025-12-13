@@ -72,24 +72,16 @@ func handlerAppHooksDeploy(req *app.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	depl := deploy.New(req.App.ID)
-	depl.Env = env.Env
-	depl.EnvBranchName = env.Branch
-	depl.EnvID = env.ID
-	depl.CheckoutRepo = req.App.Repo
+	depl := deploy.New(req.App)
+	depl.PopulateFromEnv(env)
 	depl.IsAutoDeploy = true
-	depl.BuildConfig = env.Data
 
 	if params.Publish.Valid {
 		depl.ShouldPublish = params.Publish.ValueOrZero()
-	} else {
-		depl.ShouldPublish = env.AutoPublish
 	}
 
 	if params.Branch.Valid {
 		depl.Branch = params.Branch.ValueOrZero()
-	} else {
-		depl.Branch = env.Branch
 	}
 
 	if err := deployservice.New().Deploy(req.Context(), req.App, depl); err != nil {

@@ -93,11 +93,10 @@ func (s *DeployStartTestSuite) Test_Success_Github() {
 		shttp.MethodPost,
 		"/app/deploy",
 		map[string]any{
-			"appId":      appl.ID.String(),
-			"envId":      env.ID.String(),
-			"branch":     "master",
-			"distFolder": "publish",
-			"publish":    false,
+			"appId":   appl.ID.String(),
+			"envId":   env.ID.String(),
+			"branch":  "master",
+			"publish": false,
 		},
 		map[string]string{
 			"Authorization": usertest.Authorization(usr.ID),
@@ -136,11 +135,10 @@ func (s *DeployStartTestSuite) Test_Success_Bitbucket() {
 		shttp.MethodPost,
 		"/app/deploy",
 		map[string]any{
-			"appId":      appl.ID.String(),
-			"envId":      env.ID.String(),
-			"branch":     "main",
-			"distFolder": "publish",
-			"publish":    true,
+			"appId":   appl.ID.String(),
+			"envId":   env.ID.String(),
+			"branch":  "main",
+			"publish": true,
 		},
 		map[string]string{
 			"Authorization": usertest.Authorization(usr.ID),
@@ -162,7 +160,7 @@ func (s *DeployStartTestSuite) Test_Success_Bitbucket() {
 				s.True(_depl.ShouldPublish) &&
 				s.Equal("main", _depl.Branch) &&
 				s.Equal("npm run build", _depl.BuildConfig.BuildCmd) &&
-				s.Equal("publish", _depl.BuildConfig.DistFolder) &&
+				s.Equal("build", _depl.BuildConfig.DistFolder) &&
 				s.Equal(map[string]string{
 					"NODE_ENV": "production",
 				}, _depl.BuildConfig.Vars)

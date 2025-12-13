@@ -23,8 +23,6 @@ type Deployer interface {
 }
 
 type DefaultDeployer struct {
-	app        *app.App
-	deployment *deploy.Deployment
 }
 
 var MockDeployer Deployer
@@ -38,9 +36,6 @@ func New() Deployer {
 }
 
 func (dd *DefaultDeployer) Deploy(ctx context.Context, a *app.App, d *deploy.Deployment) error {
-	dd.deployment = d
-	dd.app = a
-
 	if config.IsStormkitCloud() {
 		usr, err := user.NewStore().UserMetrics(ctx, user.UserMetricsArgs{AppID: a.ID})
 
@@ -89,21 +84,22 @@ func (dd *DefaultDeployer) Deploy(ctx context.Context, a *app.App, d *deploy.Dep
 		},
 
 		Build: BuildConfig{
-			Env:           d.Env,
-			Branch:        d.Branch,
-			ShouldPublish: d.ShouldPublish,
-			BuildCmd:      d.BuildConfig.BuildCmd,
-			ServerCmd:     d.BuildConfig.ServerCmd,
-			InstallCmd:    d.BuildConfig.InstallCmd,
-			ServerFolder:  d.BuildConfig.ServerFolder,
-			DistFolder:    d.BuildConfig.DistFolder,
-			DeploymentID:  d.ID.String(),
-			EnvID:         d.EnvID.String(),
-			AppID:         d.AppID.String(),
-			HeadersFile:   d.BuildConfig.HeadersFile,
-			RedirectsFile: d.BuildConfig.RedirectsFile,
-			APIFolder:     utils.GetString(d.BuildConfig.APIFolder, "/api"),
-			StatusChecks:  d.BuildConfig.StatusChecks,
+			Env:            d.Env,
+			Branch:         d.Branch,
+			ShouldPublish:  d.ShouldPublish,
+			BuildCmd:       d.BuildConfig.BuildCmd,
+			ServerCmd:      d.BuildConfig.ServerCmd,
+			InstallCmd:     d.BuildConfig.InstallCmd,
+			ServerFolder:   d.BuildConfig.ServerFolder,
+			DistFolder:     d.BuildConfig.DistFolder,
+			DeploymentID:   d.ID.String(),
+			EnvID:          d.EnvID.String(),
+			AppID:          d.AppID.String(),
+			HeadersFile:    d.BuildConfig.HeadersFile,
+			RedirectsFile:  d.BuildConfig.RedirectsFile,
+			APIFolder:      utils.GetString(d.BuildConfig.APIFolder, "/api"),
+			StatusChecks:   d.BuildConfig.StatusChecks,
+			MigrationsPath: d.MigrationsPath.ValueOrZero(),
 			Vars: d.BuildConfig.InterpolatedVars(
 				buildconf.InterpolatedVarsOpts{
 					DeploymentID: d.ID.String(),

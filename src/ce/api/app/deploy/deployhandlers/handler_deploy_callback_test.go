@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appcache"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy/deployhandlers"
@@ -104,7 +103,7 @@ func (s *HandlerDeployCallbackSuite) Test_GithubRunID_Success() {
 		},
 	)
 
-	d, err := deploy.NewStore().DeploymentByIDWithLogs(context.Background(), depl.ID, depl.AppID)
+	d, err := deploy.NewStore().DeploymentByID(context.Background(), depl.ID)
 	s.NoError(err)
 	s.Equal(http.StatusOK, response.Code)
 	s.Equal(runID, utils.Int64ToString(d.GithubRunID.ValueOrZero()))
@@ -129,7 +128,13 @@ func (s *HandlerDeployCallbackSuite) Test_Logs_Success() {
 		},
 	)
 
-	d, err := deploy.NewStore().DeploymentByIDWithLogs(context.Background(), depl.ID, depl.AppID)
+	d, err := deploy.
+		NewStore().
+		MyDeployment(context.Background(), &deploy.DeploymentsQueryFilters{
+			DeploymentID: depl.ID,
+			IncludeLogs:  utils.Ptr(true),
+		})
+
 	s.NoError(err)
 	s.Equal(http.StatusOK, response.Code)
 	s.Equal("Hello world", d.Logs.ValueOrZero())
@@ -158,7 +163,7 @@ func (s *HandlerDeployCallbackSuite) Test_StatusChecksLogs_Success() {
 
 	ds, err := deploy.NewStore().MyDeployments(context.Background(), &deploy.DeploymentsQueryFilters{
 		DeploymentID: depl.ID,
-		IncludeLogs:  aws.Bool(true),
+		IncludeLogs:  utils.Ptr(true),
 	})
 
 	s.Len(ds, 1)
@@ -227,7 +232,7 @@ func (s *HandlerDeployCallbackSuite) Test_ExitCode_Success() {
 
 	depls, err := deploy.NewStore().MyDeployments(context.Background(), &deploy.DeploymentsQueryFilters{
 		DeploymentID: d.ID,
-		Published:    aws.Bool(true),
+		Published:    utils.Ptr(true),
 	})
 
 	s.NoError(err)

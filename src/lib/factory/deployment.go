@@ -30,18 +30,19 @@ func (d MockDeployment) Insert(conn databasetest.TestDB) error {
 			commit_id, commit_author, commit_message, is_fork, auto_publish,
 			checkout_repo, exit_code, github_run_id,
 			created_at, deleted_at, build_manifest,
-			function_location, storage_location, api_location, logs, is_immutable)
+			function_location, storage_location, api_location, logs, is_immutable,
+			migrations_path)
 		VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
 			$11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
-			$21, $22, $23
+			$21, $22, $23, $24
 		)
 		RETURNING deployment_id, created_at`,
 	).QueryRow(
 		d.AppID, d.ConfigCopy, d.Branch, d.Env, d.EnvID, d.IsAutoDeploy, d.PullRequestNumber,
 		d.Commit.ID, d.Commit.Author, d.Commit.Message, d.IsFork, d.ShouldPublish, d.CheckoutRepo, d.ExitCode,
 		d.GithubRunID, d.CreatedAt, d.DeletedAt, d.BuildManifest,
-		d.FunctionLocation, d.StorageLocation, d.APILocation, d.Logs, d.IsImmutable,
+		d.FunctionLocation, d.StorageLocation, d.APILocation, d.Logs, d.IsImmutable, d.MigrationsPath,
 	).Scan(&d.ID, &d.CreatedAt)
 
 	if err != nil {

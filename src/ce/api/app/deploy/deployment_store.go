@@ -49,94 +49,11 @@ type ConfigSnapshot struct {
 	EnvID       string               `json:"envId"`
 }
 
-// DeploymentByID returns a deployment.
+// DeploymentByID returns a deployment (alias for MyDeployment with DeploymentID filter).
 func (s *Store) DeploymentByID(ctx context.Context, id types.ID) (*Deployment, error) {
-	d := &Deployment{}
-	var displayName null.String
-	var runtime null.String
-
-	row, err := s.QueryRow(ctx, stmt.selectDeployment, id)
-
-	if err != nil {
-		return nil, err
-	}
-
-	err = row.Scan(
-		&d.ID, &d.AppID, &d.CreatedAt, &d.ExitCode,
-		&d.ServerPackageSize, &d.ConfigCopy,
-		&d.S3NumberOfFiles, &d.S3TotalSizeInBytes,
-		&d.StoppedAt, &d.Commit.ID,
-		&d.Commit.Author, &d.Commit.Message, &d.GithubRunID,
-		&d.EnvID, &d.Env, &d.Error, &d.IsAutoDeploy, &d.Branch,
-		&d.ShouldPublish, &d.PullRequestNumber,
-		&d.BuildManifest, &d.FunctionLocation, &d.StorageLocation,
-		&d.APILocation, &d.APIPackageSize,
-		&displayName, &runtime,
-	)
-
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		}
-
-		return nil, err
-	}
-
-	if len(d.ConfigCopy) > 0 {
-		copy := ConfigSnapshot{}
-
-		if err := json.Unmarshal(d.ConfigCopy, &copy); err != nil {
-			slog.Errorf("error while unmarshaling config copy: %s", err.Error())
-			return nil, err
-		}
-
-		d.BuildConfig = copy.BuildConfig
-	}
-
-	d.DisplayName = displayName.ValueOrZero()
-
-	return d, nil
-}
-
-// DeploymentByIDWithLogs returns the deployment and its logs.
-func (s *Store) DeploymentByIDWithLogs(ctx context.Context, id, appID types.ID) (*Deployment, error) {
-	var d *Deployment
-
-	rows, err := s.Query(ctx, stmt.selectDeploymentWithLogs, id, appID)
-
-	if rows == nil {
-		return nil, nil
-	}
-
-	defer rows.Close()
-
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		}
-
-		return nil, err
-	}
-
-	for rows.Next() {
-		if d == nil {
-			d = &Deployment{}
-		}
-
-		err = rows.Scan(
-			&d.ID, &d.AppID, &d.Branch, &d.CreatedAt, &d.ExitCode,
-			&d.ServerPackageSize, &d.ConfigCopy, &d.S3NumberOfFiles,
-			&d.S3TotalSizeInBytes, &d.StoppedAt, &d.Logs,
-			&d.Commit.ID, &d.Commit.Author, &d.Commit.Message,
-			&d.IsFork, &d.GithubRunID, &d.Error, &d.APIPackageSize,
-		)
-
-		if err != nil {
-			break
-		}
-	}
-
-	return d, err
+	return s.MyDeployment(ctx, &DeploymentsQueryFilters{
+		DeploymentID: id,
+	})
 }
 
 // DeploymentsQueryFilters defines the filters that are
@@ -222,6 +139,7 @@ func (s *Store) scanRows(rows *sql.Rows, err error) ([]*Deployment, error) {
 			&d.FunctionLocation, &d.StorageLocation, &d.APILocation,
 			&d.APIPackageSize, &d.ServerPackageSize, &d.S3NumberOfFiles,
 			&d.S3TotalSizeInBytes, &d.APIPathPrefix, &d.IsImmutable,
+			&d.MigrationsPath,
 			&d.StatusChecksPassed, &d.StatusChecks, &d.Logs,
 			&d.DisplayName, &d.CheckoutRepo,
 			&d.PublishedV2,
@@ -324,6 +242,7 @@ func (s *Store) InsertDeployment(ctx context.Context, d *Deployment) error {
 		d.IsAutoDeploy, d.PullRequestNumber,
 		d.Commit.ID, d.IsFork, d.ShouldPublish, repo,
 		d.APIPathPrefix, webhookEvent, d.Commit.Author,
+		d.MigrationsPath,
 	}
 
 	row, err := s.QueryRow(ctx, stmt.insertDeployment, params...)

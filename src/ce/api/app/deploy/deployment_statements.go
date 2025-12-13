@@ -5,16 +5,11 @@ import (
 )
 
 var (
-	tableDeploys          = "deployments"
-	tableDeploysPublished = "deployments_published"
-	tableApps             = "apps"
+	tableDeploys = "deployments"
 )
 
 type statement struct {
-	selectDeployment         string
-	selectDeployments        string
 	selectDeploymentsV2      string
-	selectDeploymentWithLogs string
 	selectBuildManifest      string
 	insertDeployment         string
 	restartDeployment        string
@@ -36,24 +31,6 @@ type statement struct {
 }
 
 var stmt = &statement{
-	selectDeployment: fmt.Sprintf(`
-		SELECT
-			d.deployment_id, d.app_id, d.created_at deploymentDate,
-			d.exit_code, d.server_package_size, d.config_snapshot,
-			d.s3_number_of_files, d.client_package_size, d.stopped_at,
-			d.commit_id, d.commit_author, d.commit_message, d.github_run_id,
-			d.env_id, d.env_name, d.error, d.is_auto_deploy, COALESCE(d.branch, ''),
-			d.auto_publish, d.pull_request_number,
-			d.build_manifest, d.function_location, d.storage_location,
-			d.api_location, d.api_package_size,
-			a.display_name, a.runtime
-		FROM %s d
-		LEFT JOIN %s a ON a.app_id = d.app_id
-		WHERE
-			d.deployment_id = $1 AND
-			d.deleted_at IS NULL;
-	`, tableDeploys, tableApps),
-
 	selectDeploymentsV2: `
 		SELECT
 			d.deployment_id, d.app_id,
@@ -67,7 +44,7 @@ var stmt = &statement{
 			d.api_location, d.api_package_size, d.server_package_size,
 			d.s3_number_of_files, d.client_package_size,
 			d.api_path_prefix, d.is_immutable,
-			d.status_checks_passed,
+			d.migrations_path, d.status_checks_passed,
 			{{ if .logs }} d.status_checks, d.logs {{ else }} '', '' {{ end }},
 			a.display_name, COALESCE(a.repo, ''),
 			(SELECT json_agg(
@@ -88,36 +65,6 @@ var stmt = &statement{
 		LIMIT {{ or .limit 25 }} OFFSET {{ or .offset 0 }};
 	`,
 
-	selectDeployments: fmt.Sprintf(`
-		SELECT
-			d.deployment_id, COALESCE(d.branch, ''), d.app_id, d.config_snapshot,
-			d.exit_code, d.created_at, d.s3_number_of_files,
-			d.client_package_size, d.stopped_at, d.logs,
-			d.commit_id, d.commit_author, d.commit_message,
-			COALESCE(d.is_fork, FALSE), publish_info.published
-		FROM %s d
-		LEFT JOIN LATERAL (
-			SELECT json_agg(
-				json_build_object('envId', dp.env_id, 'percentage', dp.percentage_released)
-			) AS published
-			FROM %s dp
-			WHERE dp.deployment_id = d.deployment_id
-		) publish_info ON true
-		:statement
-	`, tableDeploys, tableDeploysPublished),
-
-	selectDeploymentWithLogs: fmt.Sprintf(`
-		SELECT
-			d.deployment_id, d.app_id, COALESCE(d.branch, ''), d.created_at deploymentDate,
-			d.exit_code, d.server_package_size, d.config_snapshot,
-			d.s3_number_of_files, d.client_package_size, d.stopped_at, d.logs,
-			d.commit_id, d.commit_author, d.commit_message, COALESCE(d.is_fork, FALSE),
-			d.github_run_id, d.error, d.api_package_size
-		FROM %s d
-		WHERE
-			d.deployment_id = $1 AND
-			d.app_id = $2
-	`, tableDeploys),
 	selectBuildManifest: fmt.Sprintf(`
 		SELECT
 		    d.build_manifest
@@ -132,13 +79,13 @@ var stmt = &statement{
 			app_id, config_snapshot, branch, env_name, env_id,
 			is_auto_deploy, pull_request_number,
 			commit_id, is_fork, auto_publish, checkout_repo,
-			api_path_prefix, webhook_event, commit_author
+			api_path_prefix, webhook_event, commit_author, migrations_path
 		)
 		VALUES (
 			$1, $2, $3, $4, $5,
 			$6, $7,
 			$8, $9, $10, $11,
-			$12, $13, $14
+			$12, $13, $14, $15
 		)
 		RETURNING
 			deployment_id,

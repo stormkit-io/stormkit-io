@@ -17,7 +17,6 @@ func (s *ServicesSuite) TestServices() {
 
 	handlers := []string{
 		"DELETE:/app/deploy",
-		"GET:/app/{did:[0-9]+}/deploy/{deploymentId:[0-9]+}",
 		"GET:/app/{did:[0-9]+}/manifest/{deploymentId:[0-9]+}",
 		"GET:/my/deployments",
 		"POST:/app/deploy",

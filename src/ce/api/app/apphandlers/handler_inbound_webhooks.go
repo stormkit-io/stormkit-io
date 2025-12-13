@@ -124,7 +124,7 @@ func TriggerDeploy(ctx context.Context, input TriggerDeployInput) *shttp.Respons
 			a.ShouldPublish = false
 		}
 
-		depl := deploy.New(a.ID)
+		depl := deploy.New(a.App)
 		depl.WebhookEvent = input.payload
 		depl.Branch = input.Branch
 		depl.Env = a.EnvName
@@ -135,6 +135,10 @@ func TriggerDeploy(ctx context.Context, input TriggerDeployInput) *shttp.Respons
 		depl.IsFork = input.IsFork
 		depl.BuildConfig = a.BuildConfig
 		depl.ShouldPublish = a.ShouldPublish
+
+		if a.SchemaConf != nil && a.SchemaConf.MigrationsEnabled {
+			depl.MigrationsPath = null.StringFrom(a.SchemaConf.MigrationsPath)
+		}
 
 		if input.PullRequestNumber != 0 {
 			depl.PullRequestNumber = null.NewInt(input.PullRequestNumber, true)
