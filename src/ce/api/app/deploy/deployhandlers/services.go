@@ -30,10 +30,6 @@ func Services(r *shttp.Router) *shttp.Service {
 		))
 
 	s.NewEndpoint("/app/deployments").
-		Handler(shttp.MethodPost, "", shttp.WithRateLimit(
-			app.WithApp(handlerDeployments),
-			nil,
-		)).
 		Handler(shttp.MethodPost, "/publish", shttp.WithRateLimit(
 			app.WithApp(handlerPublish),
 			nil,

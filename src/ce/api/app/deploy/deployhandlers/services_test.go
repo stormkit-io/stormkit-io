@@ -24,7 +24,6 @@ func (s *ServicesSuite) TestServices() {
 		"POST:/app/deploy/callback",
 		"POST:/app/deploy/restart",
 		"POST:/app/deploy/stop",
-		"POST:/app/deployments",
 		"POST:/app/deployments/publish",
 	}
 

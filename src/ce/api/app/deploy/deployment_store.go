@@ -94,11 +94,6 @@ func (s *Store) DeploymentByID(ctx context.Context, id types.ID) (*Deployment, e
 	}
 
 	d.DisplayName = displayName.ValueOrZero()
-	d.LambdaRuntime = runtime.ValueOrZero()
-
-	if d.LambdaRuntime == "" {
-		d.LambdaRuntime = config.DefaultNodeRuntime
-	}
 
 	return d, nil
 }
@@ -309,90 +304,6 @@ func (s *Store) MyDeployments(ctx context.Context, filters *DeploymentsQueryFilt
 	}
 
 	return s.scanRows(s.Query(ctx, query, params...))
-}
-
-// Deployments returns deployments based on the filters.
-func (s *Store) Deployments(ctx context.Context, filters *DeploymentsQueryFilters) ([]*Deployment, error) {
-	where := []string{"WHERE d.app_id = $1", "d.deleted_at IS NULL"}
-	params := []interface{}{filters.AppID}
-
-	if filters.EnvID != 0 {
-		params = append(params, filters.EnvID)
-		where = append(where, fmt.Sprintf("d.env_id = $%d", len(params)))
-	}
-
-	if filters.Branch != "" {
-		params = append(params, filters.Branch)
-		where = append(where, fmt.Sprintf("d.branch = $%d", len(params)))
-	}
-
-	if filters.Published != nil {
-		if *filters.Published {
-			where = append(where, "published IS NOT NULL")
-		} else {
-			where = append(where, "published IS NULL")
-		}
-	}
-
-	if filters.Status != nil {
-		if *filters.Status {
-			where = append(where, "d.exit_code = 0 AND d.exit_code IS NOT NULL")
-		} else {
-			where = append(where, "d.exit_code != 0 AND d.exit_code IS NOT NULL")
-		}
-	}
-
-	// limit + 1 is for the pagination
-	params = append(params, filters.Limit+1, filters.From)
-	whereStmt := strings.Join(where, " AND ")
-	limitStmt := fmt.Sprintf("LIMIT $%d OFFSET $%d", len(params)-1, len(params))
-	orderStmt := "ORDER BY d.created_at DESC"
-	query := strings.Replace(stmt.selectDeployments, ":statement", fmt.Sprintf("%s %s %s", whereStmt, orderStmt, limitStmt), 1)
-	rows, err := s.Query(context.TODO(), query, params...)
-
-	if rows == nil || err != nil {
-		return nil, err
-	}
-
-	defer rows.Close()
-
-	var deploys []*Deployment
-
-	for rows.Next() {
-		if deploys == nil {
-			deploys = []*Deployment{}
-		}
-
-		var publishedInfo []byte
-		depl := &Deployment{
-			DisplayName: filters.AppDisplayName,
-		}
-
-		err = rows.Scan(
-			&depl.ID, &depl.Branch, &depl.AppID, &depl.ConfigCopy,
-			&depl.ExitCode, &depl.CreatedAt, &depl.S3NumberOfFiles,
-			&depl.S3TotalSizeInBytes, &depl.StoppedAt, &depl.Logs,
-			&depl.Commit.ID, &depl.Commit.Author,
-			&depl.Commit.Message, &depl.IsFork, &publishedInfo,
-		)
-
-		if err != nil {
-			slog.Errorf("error while scanning deployment: %s", err.Error())
-			continue
-		}
-
-		if publishedInfo != nil {
-			_ = json.Unmarshal(publishedInfo, &depl.Published)
-		}
-
-		deploys = append(deploys, depl)
-	}
-
-	if len(deploys) == 0 {
-		return nil, err
-	}
-
-	return deploys, err
 }
 
 // InsertDeployment inserts a new deployment.

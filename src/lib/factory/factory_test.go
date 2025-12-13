@@ -114,7 +114,7 @@ func (s *FactorySuite) Test_GettingAppAndEnv() {
 	s.Equal(env.AppID, app.ID)
 }
 
-func (s *FactorySuite) TestMockDeployment() {
+func (s *FactorySuite) Test_MockDeployment() {
 	a := assert.New(s.T())
 
 	s.MockDeployment(nil)
@@ -125,21 +125,6 @@ func (s *FactorySuite) TestMockDeployment() {
 	a.NotNil(depl)
 	a.Equal(types.ID(1), depl.ID)
 	a.Equal(types.ID(1), depl.AppID)
-}
-
-func (s *FactorySuite) TestMockDeployments() {
-	a := assert.New(s.T())
-
-	app := s.MockDeployments(3, nil)[0]
-	a.NotNil(app)
-
-	deployments, err := deploy.NewStore().Deployments(context.Background(), &deploy.DeploymentsQueryFilters{
-		AppID: app.ID,
-		Limit: 10,
-	})
-
-	a.NoError(err)
-	a.Len(deployments, 3)
 }
 
 func TestFactory(t *testing.T) {

@@ -101,7 +101,7 @@ func (s *HandlerEnvsGetSuite) Test_ShowsPublished() {
 	d := s.MockDeployment(env, map[string]any{
 		"StorageLocation":  null.NewString("aws:s3-bucket-name/s3-key-prefix", true),
 		"FunctionLocation": null.NewString("aws:arn:aws:lambda:eu-central-1::function:my-lambda-name/35", true),
-		"Published": []deploy.PublishedInfo{
+		"PublishedV2": deploy.PublishedInfoV2{
 			{Percentage: 100, EnvID: env.ID},
 		},
 	})

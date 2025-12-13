@@ -1,7 +1,6 @@
 package deploy
 
 import (
-	"database/sql/driver"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -98,29 +97,14 @@ type Deployment struct {
 	// Published represents the publish information.
 	// It's a json string fetched from the database that contains
 	// the environment id and the released percentage.
-	Published   []PublishedInfo `json:"published,omitempty"`
 	PublishedV2 PublishedInfoV2 `json:"-"`
 
 	User          *user.User           `json:"-"`
 	BuildConfig   *buildconf.BuildConf `json:"-"` // ConfigCopy is the snapshot of the environment used during the deployment.
 	EnvBranchName string               `json:"-"` // EnvBranchName represents the branch name that is associated with the given environment.
 	DisplayName   string               `json:"-"` // DisplayName is the name of the app. It is injected to the deployment object.
-	PublicPath    string               `json:"-"` // PublicPath is the public path of the cdn.
-	LambdaRuntime string               `json:"-"` // LambdaRuntime specifies the default runtime for the application.
 	AppPackage    string               `json:"-"` // The application package (free, starter, medium, enterprise)
 	IsRestart     bool                 `json:"-"`
-}
-
-// PublishedInfo represents information on the publish details
-// for the given deployment.
-type PublishedInfo struct {
-	EnvID      types.ID `json:"envId"`
-	Percentage float64  `json:"percentage"`
-}
-
-// Value implements the scanner interface.
-func (pi PublishedInfo) Value() (driver.Value, error) {
-	return json.Marshal(pi)
 }
 
 // PublishedInfo represents information on the publish details
@@ -218,19 +202,6 @@ func (d *Deployment) MarshalJSON() ([]byte, error) {
 		if exitCode == 0 {
 			apiDeployModel.Preview = admin.MustConfig().PreviewURL(d.DisplayName, d.ID.String())
 		}
-	}
-
-	if d.Published != nil {
-		published := []map[string]any{}
-
-		for _, info := range d.Published {
-			published = append(published, map[string]any{
-				"envId":      info.EnvID,
-				"percentage": info.Percentage,
-			})
-		}
-
-		apiDeployModel.Published = published
 	}
 
 	_ = json.Unmarshal(d.ConfigCopy, &apiDeployModel.Config)

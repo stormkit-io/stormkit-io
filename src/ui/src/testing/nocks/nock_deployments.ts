@@ -18,28 +18,6 @@ export const mockFetchDeploymentCall = ({
     .get(`/app/${deploy?.appId}/deploy/${deploy?.id}`)
     .reply(status, response);
 
-interface MockFetchDeploymentsCallProps {
-  appId: string;
-  from?: number;
-  filters: Record<string, unknown>;
-  response: { hasNextPage: boolean; deploys: Deployment[] };
-  status?: number;
-}
-
-export const mockFetchDeploymentsCall = ({
-  appId,
-  from = 0,
-  filters = {},
-  status: responseStatus = 200,
-  response,
-}: MockFetchDeploymentsCallProps) => {
-  const cleanFilters = JSON.parse(JSON.stringify(filters));
-
-  return nock(endpoint)
-    .post(`/app/deployments`, { appId, from, ...cleanFilters })
-    .reply(responseStatus, response);
-};
-
 interface MockStopDeploymentCallProps {
   appId: string;
   deploymentId: string;
