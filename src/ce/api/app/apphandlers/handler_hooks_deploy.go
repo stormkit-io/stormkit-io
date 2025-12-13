@@ -47,9 +47,10 @@ func handlerAppHooksDeploy(req *app.RequestContext) *shttp.Response {
 
 		params.Branch = null.NewString(branch, branch != "")
 
-		if shouldPublish == "true" {
+		switch shouldPublish {
+		case "true":
 			params.Publish = null.NewBool(true, true)
-		} else if shouldPublish == "false" {
+		case "false":
 			params.Publish = null.NewBool(false, true)
 		}
 	}
