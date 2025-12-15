@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
@@ -32,26 +31,6 @@ type CommitInfo struct {
 	Author  null.String `json:"author"`
 	Message null.String `json:"message"`
 	ID      null.String `json:"sha"`
-}
-
-// APIDeployResponse represents the data that we send to the frontend client.
-type APIDeployResponse struct {
-	ID                string           `json:"id,omitempty"`
-	AppID             string           `json:"appId,omitempty"`
-	EnvID             string           `json:"envId,omitempty"`
-	ExitCode          *int             `json:"exit"`
-	NumberOfFiles     int              `json:"numberOfFiles"`
-	IsRunning         bool             `json:"isRunning"`
-	Preview           string           `json:"preview,omitempty"`
-	TotalSizeInBytes  int              `json:"totalSizeInBytes"`
-	ServerPackageSize int              `json:"serverPackageSize"`
-	CreatedAt         utils.Unix       `json:"createdAt"`
-	StoppedAt         utils.Unix       `json:"stoppedAt"`
-	Commit            CommitInfo       `json:"commit"`
-	Config            map[string]any   `json:"config,omitempty"`
-	Published         []map[string]any `json:"published,omitempty"`
-	Branch            string           `json:"branch"`
-	Logs              []*Log           `json:"logs"`
 }
 
 // Deployment represents a deployment.
@@ -134,24 +113,6 @@ func (pi PublishedInfoV2) MarshalJSON() ([]byte, error) {
 	return json.Marshal(hash)
 }
 
-// Env represents an environment with deployments.
-type Env struct {
-	buildconf.Env
-
-	Deployments []*Deployment `json:"deployments"`
-}
-
-// MarshalJSON implements the json marshaler interface.
-func (e *Env) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Environment buildconf.Env `json:"env"`
-		Deployments []*Deployment `json:"deployments"`
-	}{
-		Environment: e.Env,
-		Deployments: e.Deployments,
-	})
-}
-
 // RequestData represents the data which can be overwritten by a request.
 type RequestData struct {
 	// Publish indicates whether this deployment should be
@@ -184,36 +145,6 @@ func (d *Deployment) PopulateFromEnv(env *buildconf.Env) {
 	if env.SchemaConf != nil && env.SchemaConf.MigrationsEnabled {
 		d.MigrationsPath = null.StringFrom(env.SchemaConf.MigrationsPath)
 	}
-}
-
-// MarshalJSON implements the json marshaler interface.
-func (d *Deployment) MarshalJSON() ([]byte, error) {
-	exitCode := int(d.ExitCode.ValueOrZero())
-
-	apiDeployModel := &APIDeployResponse{
-		ID:                d.ID.String(),
-		EnvID:             d.EnvID.String(),
-		AppID:             d.AppID.String(),
-		Branch:            d.Branch,
-		Logs:              d.PrepareLogs(d.Logs.ValueOrZero(), false),
-		Commit:            d.Commit,
-		CreatedAt:         d.CreatedAt,
-		StoppedAt:         d.StoppedAt,
-		TotalSizeInBytes:  int(d.S3TotalSizeInBytes.ValueOrZero()),
-		ServerPackageSize: int(d.ServerPackageSize.ValueOrZero()),
-		IsRunning:         exitCode == 0 && !d.ExitCode.Valid,
-	}
-
-	if d.ExitCode.Valid {
-		apiDeployModel.ExitCode = &exitCode
-
-		if exitCode == 0 {
-			apiDeployModel.Preview = admin.MustConfig().PreviewURL(d.DisplayName, d.ID.String())
-		}
-	}
-
-	_ = json.Unmarshal(d.ConfigCopy, &apiDeployModel.Config)
-	return json.Marshal(apiDeployModel)
 }
 
 // IsLocked returns true when a deployment is locked.
