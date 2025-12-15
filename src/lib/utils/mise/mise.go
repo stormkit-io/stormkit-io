@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
@@ -71,15 +70,6 @@ func Client() MiseInterface {
 
 // InstallMise installs mise if necessary.
 func (m *Mise) InstallMise(ctx context.Context) error {
-	if config.IsDevelopment() {
-		slog.Debug(slog.LogOpts{
-			Msg:   "skipping mise installation in development mode, please ensure mise is installed manually",
-			Level: slog.DL1,
-		})
-
-		return nil
-	}
-
 	// Check if mise is already installed
 	cmd := sys.Command(ctx, sys.CommandOpts{
 		Name: "mise",
