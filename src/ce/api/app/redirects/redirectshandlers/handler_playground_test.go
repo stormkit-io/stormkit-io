@@ -40,7 +40,7 @@ func (s *HandlerPlaygroundSuite) Test_Success() {
 
 	// This is required to fetch the app conf
 	s.MockDeployment(env, map[string]any{
-		"PublishedV2": deploy.PublishedInfoV2{
+		"Published": deploy.PublishedInfo{
 			{EnvID: env.ID, Percentage: 100},
 		},
 	})

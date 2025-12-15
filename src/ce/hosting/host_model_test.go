@@ -52,7 +52,7 @@ func (s *HostSuite) Test_RequestConfig_CaseInsensitivy() {
 	app := s.MockApp(usr, map[string]any{"DisplayName": "my-APP"})
 	env := s.MockEnv(app)
 	dep := s.MockDeployment(env, map[string]any{
-		"PublishedV2": deploy.PublishedInfoV2{
+		"Published": deploy.PublishedInfo{
 			{EnvID: env.ID, Percentage: 100},
 		},
 	})

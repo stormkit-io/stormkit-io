@@ -60,11 +60,9 @@ func (d MockDeployment) Insert(conn databasetest.TestDB) error {
 		return err
 	}
 
-	if len(d.PublishedV2) > 0 {
-		for _, p := range d.PublishedV2 {
-			if err := updatePublishedInfo(p.EnvID, p.Percentage); err != nil {
-				return err
-			}
+	for _, p := range d.Published {
+		if err := updatePublishedInfo(p.EnvID, p.Percentage); err != nil {
+			return err
 		}
 	}
 

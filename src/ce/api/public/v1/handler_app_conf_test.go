@@ -38,7 +38,7 @@ func (s *HandlerAppConfSuite) Test_Success() {
 	env := s.MockEnv(app)
 	key := s.MockAPIKey(app, nil)
 	dep := s.MockDeployment(env, map[string]any{
-		"PublishedV2": deploy.PublishedInfoV2{
+		"Published": deploy.PublishedInfo{
 			{EnvID: env.ID, Percentage: 100},
 		},
 	})

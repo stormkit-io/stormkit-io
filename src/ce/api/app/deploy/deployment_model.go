@@ -8,6 +8,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
+	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"gopkg.in/guregu/null.v3"
@@ -77,7 +78,7 @@ type Deployment struct {
 	// Published represents the publish information.
 	// It's a json string fetched from the database that contains
 	// the environment id and the released percentage.
-	PublishedV2 PublishedInfoV2 `json:"-"`
+	Published PublishedInfo `json:"-"`
 
 	BuildConfig   *buildconf.BuildConf `json:"-"` // ConfigCopy is the snapshot of the environment used during the deployment.
 	EnvBranchName string               `json:"-"` // EnvBranchName represents the branch name that is associated with the given environment.
@@ -87,12 +88,12 @@ type Deployment struct {
 
 // PublishedInfo represents information on the publish details
 // for the given deployment.
-type PublishedInfoV2 []struct {
+type PublishedInfo []struct {
 	EnvID      types.ID `json:"envId"`
 	Percentage float64  `json:"percentage"`
 }
 
-func (pi *PublishedInfoV2) Scan(value any) error {
+func (pi *PublishedInfo) Scan(value any) error {
 	if value != nil {
 		return json.Unmarshal(value.([]byte), &pi)
 	}
@@ -100,7 +101,7 @@ func (pi *PublishedInfoV2) Scan(value any) error {
 	return nil
 }
 
-func (pi PublishedInfoV2) MarshalJSON() ([]byte, error) {
+func (pi PublishedInfo) MarshalJSON() ([]byte, error) {
 	hash := []map[string]any{}
 
 	for _, element := range pi {
@@ -231,14 +232,15 @@ func (d *Deployment) RepoCloneURL() string {
 	if len(pieces) >= 3 {
 		provider, owner, slug := pieces[0], pieces[1], strings.TrimSuffix(strings.Join(pieces[2:], "/"), ".git")
 
-		if provider == "github" {
+		switch provider {
+		case "github":
 			return fmt.Sprintf("https://github.com/%s/%s.git", owner, slug)
-		} else if provider == "bitbucket" {
+		case "bitbucket":
 			return fmt.Sprintf("git@bitbucket.org:%s/%s.git", owner, slug)
-		} else if provider == "gitlab" {
+		case "gitlab":
 			return fmt.Sprintf("https://gitlab.com/%s/%s.git", owner, slug)
-		} else {
-			panic("Unknown provider")
+		default:
+			slog.Errorf("repo provider is unknown: %s", d.CheckoutRepo)
 		}
 	}
 

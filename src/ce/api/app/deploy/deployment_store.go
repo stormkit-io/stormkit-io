@@ -142,7 +142,7 @@ func (s *Store) scanRows(rows *sql.Rows, err error) ([]*Deployment, error) {
 			&d.MigrationsPath,
 			&d.StatusChecksPassed, &d.StatusChecks, &d.Logs,
 			&d.DisplayName, &d.CheckoutRepo,
-			&d.PublishedV2,
+			&d.Published,
 		)
 
 		if err != nil {

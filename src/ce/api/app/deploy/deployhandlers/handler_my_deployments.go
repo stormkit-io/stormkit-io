@@ -87,7 +87,7 @@ func jsonResponse(d *deploy.Deployment, withLogs bool) map[string]any {
 		"clientPackageSize":  d.S3TotalSizeInBytes.ValueOrZero(),
 		"serverPackageSize":  d.ServerPackageSize.ValueOrZero(),
 		"apiPackageSize":     d.APIPackageSize.ValueOrZero(),
-		"published":          d.PublishedV2,
+		"published":          d.Published,
 		"detailsUrl":         fmt.Sprintf("/apps/%s/environments/%s/deployments/%s", appID, envID, depID),
 		"apiPathPrefix":      d.APIPathPrefix.ValueOrZero(),
 		"statusChecks":       statusChecksLogs,

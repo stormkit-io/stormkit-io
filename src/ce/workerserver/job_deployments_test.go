@@ -61,7 +61,7 @@ func (s *JobDeploymentsSuite) Test_RemoveDeploymentsArtifacts() {
 		env,
 		map[string]any{"CreatedAt": T45daysAgo, "StorageLocation": null.StringFrom("local:/d-1")},
 		map[string]any{"CreatedAt": T15daysAgo, "DeletedAt": utils.NewUnix(), "StorageLocation": null.StringFrom("local:/d-2")},
-		map[string]any{"CreatedAt": T60daysAgo, "PublishedV2": deploy.PublishedInfoV2{{env.ID, 100}}},
+		map[string]any{"CreatedAt": T60daysAgo, "Published": deploy.PublishedInfo{{env.ID, 100}}},
 	)
 
 	s.mockClient.On("DeleteArtifacts", mock.Anything, integrations.DeleteArtifactsArgs{StorageLocation: "local:/d-2"}).Return(nil).Once()
