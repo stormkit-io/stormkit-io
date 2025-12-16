@@ -17,7 +17,6 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"github.com/stretchr/testify/suite"
-	"gopkg.in/guregu/null.v3"
 )
 
 type appconfSuite struct {
@@ -85,9 +84,11 @@ func (s *appconfSuite) SetupSuite() {
 	}
 
 	s.depl = s.MockDeployment(s.env, map[string]any{
-		"StorageLocation":  null.NewString("aws:s3-bucket-name/s3-key-prefix", true),
-		"FunctionLocation": null.NewString("aws:arn:aws:lambda:eu-central-1:account-id:function:lambda-name", true),
-		"BuildManifest":    s.manifest,
+		"UploadResult": &deploy.UploadResult{
+			ClientLocation: "aws:s3-bucket-name/s3-key-prefix",
+			ServerLocation: "aws:arn:aws:lambda:eu-central-1:account-id:function:lambda-name",
+		},
+		"BuildManifest": s.manifest,
 	})
 
 	// Create 3 additional deployments to increase test reliability

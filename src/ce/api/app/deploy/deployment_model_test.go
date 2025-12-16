@@ -89,9 +89,26 @@ func (s *DeploymentModelSuite) Test_DeploymentLogs_StillRunningButLogsFinished()
 			true),
 	}
 
+	expected := `[
+		{
+			"title": "Clone",
+			"duration": 0,
+			"message": "Success\n",
+			"status": true,
+			"payload": null
+		},
+		{
+			"title": "deploy",
+			"duration": 0,
+			"message": "Deploying your application... This may take a while...",
+			"status": true,
+			"payload": null
+		}
+	]`
+
 	b, err := json.Marshal(d.PrepareLogs(d.Logs.ValueOrZero(), false))
 	s.Nil(err)
-	s.JSONEq(`[{"title":"Clone","duration":0,"message":"Success\n","status":true,"payload":null},{"title":"deploy","duration":0,"message":"Deploying your application... This may take a while...","status":true,"payload":null}]`, string(b))
+	s.JSONEq(expected, string(b))
 }
 
 func (s *DeploymentModelSuite) Test_DeploymentLogs_FinishedWithError() {
@@ -109,10 +126,13 @@ func (s *DeploymentModelSuite) Test_DeploymentLogs_FinishedWithError() {
 	s.JSONEq(`[{"title":"Clone","duration":0,"message":"Success\n","status":true,"payload":null},{"title":"deploy","duration":0,"message":"We could not detect an index.html","status":false,"payload":null}]`, string(b))
 }
 
-func (s *DeploymentModelSuite) Test_DeploymentLogs_FinishedWithS3Data() {
+func (s *DeploymentModelSuite) Test_DeploymentLogs_Result() {
 	d := &deploy.Deployment{
-		S3NumberOfFiles:    null.NewInt(45, true),
-		S3TotalSizeInBytes: null.NewInt(5919, true),
+		UploadResult: &deploy.UploadResult{
+			ClientBytes:     5919,
+			ServerBytes:     591919,
+			ServerlessBytes: 8192,
+		},
 		Logs: null.NewString(
 			"[sk-step] Clone\n"+
 				"Success\n"+
@@ -120,55 +140,38 @@ func (s *DeploymentModelSuite) Test_DeploymentLogs_FinishedWithS3Data() {
 			true),
 	}
 
-	b, err := json.Marshal(d.PrepareLogs(d.Logs.ValueOrZero(), false))
-	s.Nil(err)
-	s.JSONEq(`[{"title":"Clone","duration":0,"message":"Success\n","status":true,"payload":null},{"title":"deploy","duration":0,"message":"\nSuccessfully deployed client side.\nTotal bytes uploaded: 5.9kB\n\n","status":true,"payload":null}]`, string(b))
-}
-
-func (s *DeploymentModelSuite) Test_DeploymentLogs_FinishedWithS3AndServerData() {
-	stoppedAt := utils.Unix{Time: time.Unix(1726054991, 0), Valid: true}
-
-	d := &deploy.Deployment{
-		S3NumberOfFiles:    null.NewInt(45, true),
-		S3TotalSizeInBytes: null.NewInt(5919, true),
-		ServerPackageSize:  null.NewInt(591919, true),
-		StoppedAt:          stoppedAt,
-		Logs: null.NewString(
-			"[sk-step] Clone [ts:1726051291]\n"+
-				"Success\n"+
-				"[sk-step] [system] building finished [ts:1726054291]",
-			true),
-	}
-
-	b, err := json.Marshal(d.PrepareLogs(d.Logs.ValueOrZero(), false))
-	s.Nil(err)
-	s.JSONEq(`[
+	expected := `[
 		{
 			"title": "Clone",
-			"duration": 3000,
+			"duration": 0,
 			"message": "Success\n",
 			"status": true,
 			"payload": null
 		},
 		{
 			"title": "deploy",
-			"duration": 700,
-			"message": "\nSuccessfully deployed client side.\nTotal bytes uploaded: 5.9kB\n\n\nSuccessfully deployed server side.\nPackage size: 591.9kB\n\n",
-			"status":true,
-			"payload":null
+			"duration": 0,
+			"message": "\nSuccessfully deployed client side.\nTotal bytes uploaded: 5.9kB\n\n\nSuccessfully deployed server side.\nPackage size: 591.9kB\n\n\nSuccessfully deployed api.\nPackage size: 8.2kB",
+			"status": true,
+			"payload": null
 		}
-	]`, string(b))
+	]`
+
+	b, err := json.Marshal(d.PrepareLogs(d.Logs.ValueOrZero(), false))
+	s.Nil(err)
+	s.JSONEq(expected, string(b))
 }
 
-func (s *DeploymentModelSuite) Test_DeploymentLogs() {
+func (s *DeploymentModelSuite) Test_DeploymentLogs_WithMultipleSteps() {
 	stoppedAt := utils.Unix{Time: time.Unix(1726054991, 0), Valid: true}
 
 	d := &deploy.Deployment{
-		S3NumberOfFiles:    null.IntFrom(45),
-		S3TotalSizeInBytes: null.IntFrom(5919),
-		ServerPackageSize:  null.IntFrom(591919),
-		ExitCode:           null.IntFrom(0),
-		StoppedAt:          stoppedAt,
+		UploadResult: &deploy.UploadResult{
+			ClientBytes: 5919,
+			ServerBytes: 591919,
+		},
+		ExitCode:  null.IntFrom(0),
+		StoppedAt: stoppedAt,
 		Logs: null.NewString(
 			"[sk-step] clone [ts:1726053541]\n"+
 				"Success\n"+
@@ -199,32 +202,6 @@ func (s *DeploymentModelSuite) Test_DeploymentLogs() {
 		{
 			"title": "deploy",
 			"duration": 1240,
-			"message": "\nSuccessfully deployed client side.\nTotal bytes uploaded: 5.9kB\n\n\nSuccessfully deployed server side.\nPackage size: 591.9kB\n\n",
-			"status":true,
-			"payload":null
-		}
-	]`, string(b))
-}
-
-func (s *DeploymentModelSuite) Test_DeploymentLogs_Zip() {
-	createdAt := utils.Unix{Time: time.Unix(1726054591, 0), Valid: true}
-	stoppedAt := utils.Unix{Time: time.Unix(1726054991, 0), Valid: true}
-
-	d := &deploy.Deployment{
-		S3NumberOfFiles:    null.IntFrom(45),
-		S3TotalSizeInBytes: null.IntFrom(5919),
-		ServerPackageSize:  null.IntFrom(591919),
-		ExitCode:           null.IntFrom(0),
-		CreatedAt:          createdAt,
-		StoppedAt:          stoppedAt,
-	}
-
-	b, err := json.Marshal(d.PrepareLogs(d.Logs.ValueOrZero(), false))
-	s.Nil(err)
-	s.JSONEq(`[
-		{
-			"title": "deploy",
-			"duration": 400,
 			"message": "\nSuccessfully deployed client side.\nTotal bytes uploaded: 5.9kB\n\n\nSuccessfully deployed server side.\nPackage size: 591.9kB\n\n",
 			"status":true,
 			"payload":null

@@ -218,9 +218,12 @@ func (s *DeployStartTestSuite) Test_Zip() {
 	  "envId": "{{ .envId}}",
 	  "envName": "production",
 	  "duration": {{ .duration }},
-	  "apiPackageSize": 0,
 	  "apiPathPrefix": "",
-	  "clientPackageSize": 2042,
+	  "uploadResult": {
+	  	"clientBytes": 2042,
+		"serverlessBytes": 0,
+		"serverBytes": 0
+	  },
 	  "displayName": "{{ .displayName }}",
 	  "error": "",
 	  "repo": "",
@@ -231,7 +234,6 @@ func (s *DeployStartTestSuite) Test_Zip() {
 	  "published": [],
 	  "previewUrl": "http://{{ .displayName }}--{{ .id }}.stormkit:8888",
 	  "detailsUrl": "/apps/{{ .appId }}/environments/{{ .envId }}/deployments/{{ .id }}",
-	  "serverPackageSize": 0,
 	  "statusChecksPassed": null,
 	  "statusChecks": [],
 	  "createdAt": "{{ .createdAt }}",

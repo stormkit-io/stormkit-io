@@ -1,9 +1,7 @@
 export default (): DeploymentV2[] => [
   {
-    apiPackageSize: 88928,
     appId: "1",
     branch: "main",
-    clientPackageSize: 3084966,
     commit: {
       author: "Joe Doe \u003cjoe@stormkit.io\u003e",
       message: "chore: update packages",
@@ -18,7 +16,11 @@ export default (): DeploymentV2[] => [
     isAutoPublish: false,
     previewUrl: "http://sample-project--36185651722.stormkit:8888",
     repo: "github/stormkit-io/sample-project",
-    serverPackageSize: 0,
+    uploadResult: {
+      serverlessBytes: 88928,
+      clientBytes: 3084966,
+      serverBytes: 0,
+    },
     snapshot: {
       build: {
         cmd: "npm run build",
@@ -34,13 +36,15 @@ export default (): DeploymentV2[] => [
     status: "success",
     stoppedAt: "",
     detailsUrl: "",
+    stoppedManually: false,
+    duration: 125,
+    statusChecksPassed: true,
+    statusChecks: [],
     published: [{ envId: "1", percentage: 100 }],
   },
   {
-    apiPackageSize: 88928,
     appId: "1",
     branch: "development",
-    clientPackageSize: 3086129,
     commit: {
       author: "Sally Doe \u003csally@stormkit.io\u003e",
       message: "fix: image size",
@@ -55,7 +59,11 @@ export default (): DeploymentV2[] => [
     isAutoPublish: false,
     previewUrl: "http://sample-project--34540849371.stormkit:8888",
     repo: "github/stormkit-io/sample-project",
-    serverPackageSize: 0,
+    uploadResult: {
+      clientBytes: 3086129,
+      serverlessBytes: 88928,
+      serverBytes: 0,
+    },
     snapshot: {
       build: {
         cmd: "npm run build",
@@ -71,6 +79,10 @@ export default (): DeploymentV2[] => [
     status: "success",
     stoppedAt: "",
     detailsUrl: "",
+    stoppedManually: false,
+    duration: 125,
+    statusChecksPassed: true,
+    statusChecks: [],
     published: [],
   },
 ];

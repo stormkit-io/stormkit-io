@@ -62,9 +62,6 @@ func (s *HandlerMyDeploymentsSuite) responseTemplate() (*template.Template, erro
 					"isAutoDeploy": false,
 					"isAutoPublish": false,
 					"repo": "github/svedova/react-minimal",
-					"apiPackageSize": 0,
-					"clientPackageSize": 0,
-					"serverPackageSize": 0,
 					"snapshot": {
 						"env": "",
 						"envId": "",

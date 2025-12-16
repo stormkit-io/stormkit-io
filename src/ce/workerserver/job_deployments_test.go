@@ -14,7 +14,6 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/mocks"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
-	"gopkg.in/guregu/null.v3"
 )
 
 type JobDeploymentsSuite struct {
@@ -59,8 +58,8 @@ func (s *JobDeploymentsSuite) Test_RemoveDeploymentsArtifacts() {
 	deployments := s.MockDeployments(
 		4,
 		env,
-		map[string]any{"CreatedAt": T45daysAgo, "StorageLocation": null.StringFrom("local:/d-1")},
-		map[string]any{"CreatedAt": T15daysAgo, "DeletedAt": utils.NewUnix(), "StorageLocation": null.StringFrom("local:/d-2")},
+		map[string]any{"CreatedAt": T45daysAgo, "UploadResult": &deploy.UploadResult{ClientLocation: "local:/d-1"}},
+		map[string]any{"CreatedAt": T15daysAgo, "DeletedAt": utils.NewUnix(), "UploadResult": &deploy.UploadResult{ClientLocation: "local:/d-2"}},
 		map[string]any{"CreatedAt": T60daysAgo, "Published": deploy.PublishedInfo{{env.ID, 100}}},
 	)
 

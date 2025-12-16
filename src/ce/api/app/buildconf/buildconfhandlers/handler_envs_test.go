@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/suite"
-	"gopkg.in/guregu/null.v3"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/buildconfhandlers"
@@ -99,8 +98,12 @@ func (s *HandlerEnvsGetSuite) Test_ShowsPublished() {
 	})
 
 	d := s.MockDeployment(env, map[string]any{
-		"StorageLocation":  null.NewString("aws:s3-bucket-name/s3-key-prefix", true),
-		"FunctionLocation": null.NewString("aws:arn:aws:lambda:eu-central-1::function:my-lambda-name/35", true),
+		"UploadResult": &deploy.UploadResult{
+			ClientBytes:    123456,
+			ClientLocation: "aws:s3-bucket-name/s3-key-prefix",
+			ServerBytes:    234567,
+			ServerLocation: "aws:arn:aws:lambda:eu-central-1::function:my-lambda-name/35",
+		},
 		"Published": deploy.PublishedInfo{
 			{Percentage: 100, EnvID: env.ID},
 		},

@@ -42,15 +42,17 @@ func RemoveDeploymentArtifactsManually(ctx context.Context, numberOfDays int) ([
 	idsToBeMarkedStr := []string{}
 
 	for _, d := range deployments {
-		args := integrations.DeleteArtifactsArgs{
-			FunctionLocation: d.FunctionLocation.ValueOrZero(),
-			APILocation:      d.APILocation.ValueOrZero(),
-			StorageLocation:  d.StorageLocation.ValueOrZero(),
-		}
+		if d.UploadResult != nil {
+			args := integrations.DeleteArtifactsArgs{
+				FunctionLocation: d.UploadResult.ServerLocation,
+				APILocation:      d.UploadResult.ServerlessLocation,
+				StorageLocation:  d.UploadResult.ClientLocation,
+			}
 
-		if err := client.DeleteArtifacts(ctx, args); err != nil {
-			slog.Errorf("error while deleting artifact: %s", err.Error())
-			continue
+			if err := client.DeleteArtifacts(ctx, args); err != nil {
+				slog.Errorf("error while deleting artifact: %s", err.Error())
+				continue
+			}
 		}
 
 		idsToBeMarked = append(idsToBeMarked, d.ID)

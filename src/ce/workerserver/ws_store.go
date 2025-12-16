@@ -59,11 +59,7 @@ func (s *Store) DeploymentsOlderThan30Days(ctx context.Context, numberOfDays, li
 
 		d := &deploy.Deployment{}
 
-		err := rows.Scan(
-			&d.ID, &d.AppID, &d.StorageLocation, &d.FunctionLocation, &d.APILocation,
-		)
-
-		if err != nil {
+		if err := rows.Scan(&d.ID, &d.AppID, &d.UploadResult); err != nil {
 			return nil, err
 		}
 

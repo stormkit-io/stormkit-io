@@ -1,23 +1,6 @@
 import nock from "nock";
-import mockDeployment from "../data/mock_deployment";
 
 const endpoint = process.env.API_DOMAIN || "localhost";
-
-interface MockFetchDeploymentCallProps {
-  deploy?: Deployment;
-  status?: number;
-  response?: { deploy: Deployment };
-}
-
-export const mockFetchDeploymentCall = ({
-  deploy,
-  status = 200,
-  response = { deploy: mockDeployment({}) },
-}: MockFetchDeploymentCallProps) =>
-  nock(endpoint)
-    .get(`/app/${deploy?.appId}/deploy/${deploy?.id}`)
-    .reply(status, response);
-
 interface MockStopDeploymentCallProps {
   appId: string;
   deploymentId: string;

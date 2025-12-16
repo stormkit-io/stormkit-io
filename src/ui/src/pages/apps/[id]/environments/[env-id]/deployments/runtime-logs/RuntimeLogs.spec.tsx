@@ -11,7 +11,7 @@ import { renderWithRouter } from "~/testing/helpers";
 
 interface Props {
   app?: App;
-  deployment?: Deployment;
+  deployment?: DeploymentV2;
   environment?: Environment;
   hasNextPage?: boolean;
 }
@@ -20,7 +20,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/deployments/runtime-logs/Runti
   let wrapper: RenderResult;
   let currentApp: App;
   let currentEnv: Environment;
-  let currentDeploy: Deployment;
+  let currentDeploy: DeploymentV2;
   let scope: Scope;
   let id = 1050101;
 

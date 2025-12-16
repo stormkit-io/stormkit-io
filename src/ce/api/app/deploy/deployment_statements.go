@@ -40,10 +40,7 @@ var stmt = &statement{
 			d.commit_id, d.commit_author, d.commit_message, d.github_run_id,
 			d.error, d.is_auto_deploy,
 			d.auto_publish, d.pull_request_number,
-			d.build_manifest, d.function_location, d.storage_location,
-			d.api_location, d.api_package_size, d.server_package_size,
-			d.s3_number_of_files, d.client_package_size,
-			d.api_path_prefix, d.is_immutable,
+			d.build_manifest, d.api_path_prefix, d.is_immutable, d.upload_result,
 			d.migrations_path, d.status_checks_passed,
 			{{ if .logs }} d.status_checks, d.logs {{ else }} '', '' {{ end }},
 			a.display_name, COALESCE(a.repo, ''),
@@ -189,19 +186,13 @@ var stmt = &statement{
 	updateDeploymentResult: fmt.Sprintf(`
 		UPDATE %s
 		SET
-			s3_number_of_files = $1,
-			client_package_size = $2,
-			server_package_size = $3,
-			error = $4,
-			exit_code = $5,
-			build_manifest = $6,
-			function_location = $7,
-			storage_location = $8,
-			api_location = $9,
-			api_package_size = $10,
+			upload_result = $1,
+			error = $2,
+			exit_code = $3,
+			build_manifest = $4,
 			stopped_at = NOW() AT TIME ZONE 'UTC'
 		WHERE
-			deployment_id = $11
+			deployment_id = $5
 		RETURNING
 			stopped_at;
 	`, tableDeploys),
@@ -240,7 +231,7 @@ var stmt = &statement{
 				extract(YEAR FROM CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::INTEGER AS year,
 				extract(MONTH FROM CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::INTEGER AS month,
 				ceil(ABS(extract(epoch FROM (d.stopped_at - d.created_at)) / 60))::INTEGER AS build_minutes,
-				coalesce(api_package_size, 0) + coalesce(server_package_size, 0) + coalesce(client_package_size::bigint, 0) as storage_used
+				coalesce(upload_result->>'serverlessBytes', '0')::bigint + coalesce(upload_result->>'serverBytes', '0')::bigint + coalesce(upload_result->>'clientBytes', '0')::bigint as storage_used
 			FROM deployments d
 			JOIN apps a ON a.app_id = d.app_id
 			JOIN teams t ON t.team_id = a.team_id

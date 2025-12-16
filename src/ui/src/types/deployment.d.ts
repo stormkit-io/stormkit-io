@@ -19,10 +19,11 @@ type Commit = {
 
 type Config = {
   build: {
-    cmd: string;
-    distFolder: string;
+    cmd?: string;
+    distFolder?: string;
     vars: Record<string, string>;
     statusChecks?: StatusCheck[];
+    previewLinks?: string[] | null;
   };
   env: string;
   envId: string;
@@ -42,8 +43,6 @@ declare type Deployment = {
   logs: Array<Log>;
   numberOfFiles: number;
   published: Array<PublishInfo>;
-  totalSizeInBytes: number;
-  serverPackageSize: number;
   preview: string; // The preview endpoint
 };
 
@@ -69,11 +68,13 @@ declare type DeploymentV2 = {
   detailsUrl: string;
   statusChecksPassed: boolean | null;
   statusChecks: Log[] | null;
-  clientPackageSize?: number;
-  serverPackageSize?: number;
-  apiPackageSize?: number;
   apiPathPrefix?: string;
   duration: number;
+  uploadResult?: {
+    clientBytes: number;
+    serverBytes?: number;
+    serverlessBytes?: number;
+  };
   published: {
     envId: string;
     percentage: number;

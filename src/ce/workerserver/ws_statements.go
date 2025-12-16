@@ -56,8 +56,7 @@ var stmt = &statement{
 
 	selectOldOrDeletedDeployments: `
 		SELECT
-			d.deployment_id, d.app_id, d.storage_location,
-			d.function_location, d.api_location
+			d.deployment_id, d.app_id, d.upload_result
 		FROM
 			deployments d
 		LEFT JOIN

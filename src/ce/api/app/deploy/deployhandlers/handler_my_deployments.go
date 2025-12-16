@@ -84,20 +84,34 @@ func jsonResponse(d *deploy.Deployment, withLogs bool) map[string]any {
 		"isAutoDeploy":       d.IsAutoDeploy,
 		"isAutoPublish":      d.ShouldPublish,
 		"previewUrl":         admin.MustConfig().PreviewURL(d.DisplayName, d.ID.String()),
-		"clientPackageSize":  d.S3TotalSizeInBytes.ValueOrZero(),
-		"serverPackageSize":  d.ServerPackageSize.ValueOrZero(),
-		"apiPackageSize":     d.APIPackageSize.ValueOrZero(),
-		"published":          d.Published,
 		"detailsUrl":         fmt.Sprintf("/apps/%s/environments/%s/deployments/%s", appID, envID, depID),
 		"apiPathPrefix":      d.APIPathPrefix.ValueOrZero(),
 		"statusChecks":       statusChecksLogs,
 		"statusChecksPassed": d.StatusChecksPassed,
 		"duration":           calculateDuration(d.CreatedAt, d.StoppedAt),
+		"published":          []map[string]any{},
 		"commit": map[string]any{
 			"sha":     d.Commit.ID.ValueOrZero(),
 			"author":  d.Commit.Author.ValueOrZero(),
 			"message": d.Commit.Message.ValueOrZero(),
 		},
+	}
+
+	if d.Published != nil {
+		for _, p := range d.Published {
+			jsonMap["published"] = append(jsonMap["published"].([]map[string]any), map[string]any{
+				"envId":      p.EnvID.String(),
+				"percentage": p.Percentage,
+			})
+		}
+	}
+
+	if d.UploadResult != nil {
+		jsonMap["uploadResult"] = map[string]any{
+			"clientBytes":     d.UploadResult.ClientBytes,
+			"serverBytes":     d.UploadResult.ServerBytes,
+			"serverlessBytes": d.UploadResult.ServerlessBytes,
+		}
 	}
 
 	if !withLogs {

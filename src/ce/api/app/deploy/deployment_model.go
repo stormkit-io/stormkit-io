@@ -1,6 +1,7 @@
 package deploy
 
 import (
+	"database/sql/driver"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -34,6 +35,35 @@ type CommitInfo struct {
 	ID      null.String `json:"sha"`
 }
 
+type UploadResult struct {
+	ClientBytes        int64  `json:"clientBytes"`
+	ServerBytes        int64  `json:"serverBytes"`
+	MigrationsBytes    int64  `json:"migrationsBytes"`
+	ServerlessBytes    int64  `json:"serverlessBytes"`    // this is used to be called apiPackage
+	ServerlessLocation string `json:"serverlessLocation"` // e.g., aws:<function-arn>/<version>
+	ServerLocation     string `json:"serverLocation"`     // e.g., aws:<function-arn>/<version> or path to server zip
+	ClientLocation     string `json:"clientLocation"`     // e.g., s3://bucket/path/to/client/files
+	MigrationsLocation string `json:"migrationsLocation"` // e.g., s3://bucket/path/to/migrations/files
+}
+
+// Scan implements the sql.Scanner interface
+func (ur *UploadResult) Scan(value any) error {
+	if value != nil {
+		return json.Unmarshal(value.([]byte), &ur)
+	}
+
+	return nil
+}
+
+// Value implements the driver.Valuer interface
+func (ur *UploadResult) Value() (driver.Value, error) {
+	if ur == nil {
+		return nil, nil
+	}
+
+	return json.Marshal(ur)
+}
+
 // Deployment represents a deployment.
 type Deployment struct {
 	ID                 types.ID       `json:"id,string,omitempty"`
@@ -43,9 +73,6 @@ type Deployment struct {
 	Branch             string         `json:"branch"`        // Branch is name of the branch that was deployed.
 	ConfigCopy         []byte         `json:"-"`
 	configCopyCached   map[string]any `json:"-"`
-	S3NumberOfFiles    null.Int       `json:"numberOfFiles"`
-	S3TotalSizeInBytes null.Int       `json:"totalSizeInBytes"`
-	ServerPackageSize  null.Int       `json:"serverPackageSize,omitempty"`
 	ExitCode           null.Int       `json:"exit"`
 	Logs               null.String    `json:"-"`
 	PullRequestNumber  null.Int       `json:"pullRequestNumber"`
@@ -62,13 +89,10 @@ type Deployment struct {
 	DeletedAt          utils.Unix     `json:"deletedAt,omitempty"`
 	Commit             CommitInfo     `json:"commit"`
 	Error              null.String    `json:"-"` // Error represents the deployment error. It's for internal use only.
-	StorageLocation    null.String    `json:"storageLocation,omitempty"`
-	FunctionLocation   null.String    `json:"functionLocation,omitempty"` // aws:<function-arn>/<version>
-	APILocation        null.String    `json:"apiLocation,omitempty"`      // aws:<function-arn>/<version>
 	APIPathPrefix      null.String    `json:"apiPathPrefix,omitempty"`
-	APIPackageSize     null.Int       `json:"apiPackageSize,omitempty"`
 	WebhookEvent       any            `json:"-"` // The webhook event that triggers the deployment
 	MigrationsPath     null.String    `json:"migrationsPath,omitempty"`
+	UploadResult       *UploadResult  `json:"uploadResult,omitempty"`
 
 	// GithubRunID is the associated run id with the deployment.
 	// It is obtained by printing $GITHUB_RUN_ID in GitHub actions.
@@ -99,19 +123,6 @@ func (pi *PublishedInfo) Scan(value any) error {
 	}
 
 	return nil
-}
-
-func (pi PublishedInfo) MarshalJSON() ([]byte, error) {
-	hash := []map[string]any{}
-
-	for _, element := range pi {
-		hash = append(hash, map[string]any{
-			"envId":      types.ID(element.EnvID).String(),
-			"percentage": element.Percentage,
-		})
-	}
-
-	return json.Marshal(hash)
 }
 
 // RequestData represents the data which can be overwritten by a request.
@@ -262,10 +273,7 @@ func (d *Deployment) RepoSlug() string {
 
 // PrepareLogs prepares the deployment logs and returns an array of log objects.
 func (d *Deployment) PrepareLogs(rawLogs string, isStatusChecks bool) []*Log {
-	if rawLogs == "" &&
-		d.S3NumberOfFiles.ValueOrZero() == 0 &&
-		d.ServerPackageSize.ValueOrZero() == 0 &&
-		d.APIPackageSize.ValueOrZero() == 0 {
+	if rawLogs == "" && d.UploadResult == nil {
 		return nil
 
 	}
@@ -418,9 +426,7 @@ func (d *Deployment) deploymentsResult(startTimestamp int64) *Log {
 	}
 
 	// We're still uploading artifacts
-	if d.S3NumberOfFiles.ValueOrZero() == 0 &&
-		d.APIPackageSize.ValueOrZero() == 0 &&
-		d.ServerPackageSize.ValueOrZero() == 0 {
+	if d.UploadResult == nil {
 		if d.ExitCode.Valid {
 			switch d.ExitCode.ValueOrZero() {
 			case 0:
@@ -440,30 +446,30 @@ func (d *Deployment) deploymentsResult(startTimestamp int64) *Log {
 
 	log.Status = true
 
-	if d.S3NumberOfFiles.ValueOrZero() != 0 {
+	if d.UploadResult.ClientBytes != 0 {
 		log.Message = strings.Join([]string{
 			log.Message,
 			fmt.Sprintf(
 				"Successfully deployed client side.\n"+
 					"Total bytes uploaded: %s\n\n",
-				byteCountDecimal(d.S3TotalSizeInBytes.ValueOrZero()),
+				byteCountDecimal(d.UploadResult.ClientBytes),
 			),
 		}, "\n")
 	}
 
-	if d.ServerPackageSize.ValueOrZero() != 0 {
+	if d.UploadResult.ServerBytes != 0 {
 		log.Message = strings.Join([]string{
 			log.Message,
 			"Successfully deployed server side.",
-			fmt.Sprintf("Package size: %s\n\n", byteCountDecimal(d.ServerPackageSize.ValueOrZero())),
+			fmt.Sprintf("Package size: %s\n\n", byteCountDecimal(d.UploadResult.ServerBytes)),
 		}, "\n")
 	}
 
-	if d.APIPackageSize.ValueOrZero() != 0 {
+	if d.UploadResult.ServerlessBytes != 0 {
 		log.Message = strings.Join([]string{
 			log.Message,
 			"Successfully deployed api.",
-			fmt.Sprintf("Package size: %s", byteCountDecimal(d.APIPackageSize.ValueOrZero())),
+			fmt.Sprintf("Package size: %s", byteCountDecimal(d.UploadResult.ServerlessBytes)),
 		}, "\n")
 	}
 

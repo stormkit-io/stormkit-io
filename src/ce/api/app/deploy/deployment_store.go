@@ -136,13 +136,9 @@ func (s *Store) scanRows(rows *sql.Rows, err error) ([]*Deployment, error) {
 			&d.Commit.ID, &d.Commit.Author, &d.Commit.Message,
 			&d.GithubRunID, &d.Error, &d.IsAutoDeploy,
 			&d.ShouldPublish, &d.PullRequestNumber, &d.BuildManifest,
-			&d.FunctionLocation, &d.StorageLocation, &d.APILocation,
-			&d.APIPackageSize, &d.ServerPackageSize, &d.S3NumberOfFiles,
-			&d.S3TotalSizeInBytes, &d.APIPathPrefix, &d.IsImmutable,
-			&d.MigrationsPath,
+			&d.APIPathPrefix, &d.IsImmutable, &d.UploadResult, &d.MigrationsPath,
 			&d.StatusChecksPassed, &d.StatusChecks, &d.Logs,
-			&d.DisplayName, &d.CheckoutRepo,
-			&d.Published,
+			&d.DisplayName, &d.CheckoutRepo, &d.Published,
 		)
 
 		if err != nil {
@@ -365,8 +361,8 @@ func (s *Store) UpdateGithubRunID(ctx context.Context, deploymentID types.ID, ru
 }
 
 func (s *Store) UpdateDeploymentResult(ctx context.Context, d *Deployment, result integrations.UploadResult) error {
-	// these values are int4 in db but int64 in code
-	// sometimes these value is more than int4 and
+	// these values are int32 in db but int64 in code
+	// sometimes these value is more than int32 and
 	// it causes error, this is workaround for that
 	if result.Server.BytesUploaded > math.MaxInt32 {
 		result.Server.BytesUploaded = math.MaxInt32
@@ -376,13 +372,16 @@ func (s *Store) UpdateDeploymentResult(ctx context.Context, d *Deployment, resul
 		result.Client.BytesUploaded = math.MaxInt32
 	}
 
-	d.APILocation = null.NewString(result.API.Location, result.API.Location != "")
-	d.APIPackageSize = null.NewInt(result.API.BytesUploaded, result.API.BytesUploaded != 0)
-	d.FunctionLocation = null.NewString(result.Server.Location, result.Server.Location != "")
-	d.ServerPackageSize = null.NewInt(result.Server.BytesUploaded, result.Server.BytesUploaded != 0)
-	d.S3TotalSizeInBytes = null.NewInt(result.Client.BytesUploaded, result.Client.BytesUploaded != 0)
-	d.S3NumberOfFiles = null.NewInt(result.Client.FilesUploaded, result.Client.FilesUploaded != 0)
-	d.StorageLocation = null.NewString(result.Client.Location, result.Client.Location != "")
+	d.UploadResult = &UploadResult{
+		ClientBytes:        result.Client.BytesUploaded,
+		ClientLocation:     result.Client.Location,
+		ServerBytes:        result.Server.BytesUploaded,
+		ServerLocation:     result.Server.Location,
+		ServerlessBytes:    result.API.BytesUploaded,
+		ServerlessLocation: result.API.Location,
+		// MigrationsBytes:    result.Migrations.BytesUploaded,
+		// MigrationsLocation: result.Migrations.Location,
+	}
 
 	if d.Error.ValueOrZero() != "" {
 		d.ExitCode = null.NewInt(1, true)
@@ -391,16 +390,10 @@ func (s *Store) UpdateDeploymentResult(ctx context.Context, d *Deployment, resul
 	row, err := s.QueryRow(
 		ctx,
 		stmt.updateDeploymentResult,
-		d.S3NumberOfFiles,
-		d.S3TotalSizeInBytes,
-		d.ServerPackageSize,
+		d.UploadResult,
 		d.Error,
 		d.ExitCode,
 		d.BuildManifest,
-		d.FunctionLocation,
-		d.StorageLocation,
-		d.APILocation,
-		d.APIPackageSize,
 		d.ID,
 	)
 

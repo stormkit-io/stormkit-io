@@ -34,8 +34,7 @@ export default function Deployment() {
     deployment &&
     !isRunningLogs &&
     !deployment.stoppedAt &&
-    !deployment.clientPackageSize &&
-    !deployment.serverPackageSize;
+    !deployment.uploadResult;
 
   if (!deployment && !loading && !error) {
     return <Error404>Deployment is not found.</Error404>;
