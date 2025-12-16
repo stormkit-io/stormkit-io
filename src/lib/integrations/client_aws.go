@@ -23,13 +23,14 @@ type AWSOptions struct {
 }
 
 type AWSClient struct {
-	route53Client *route53.Client
-	lambdaClient  *lambda.Client
-	S3Client      *s3.Client
-	uploader      *manager.Uploader
-	downloader    *manager.Downloader
-	zipManager    *ZipManager
-	mux           sync.Mutex
+	route53Client  *route53.Client
+	lambdaClient   *lambda.Client
+	S3Client       *s3.Client
+	uploader       *manager.Uploader
+	downloader     *manager.Downloader
+	zipManager     *ZipManager
+	mux            sync.Mutex
+	providerPrefix string
 }
 
 var CachedAWSClient *AWSClient
@@ -92,7 +93,8 @@ func AWS(args ClientArgs, opts *AWSOptions) (*AWSClient, error) {
 	}
 
 	CachedAWSClient = &AWSClient{
-		S3Client: s3.NewFromConfig(awsConfig),
+		S3Client:       s3.NewFromConfig(awsConfig),
+		providerPrefix: "aws",
 	}
 
 	if !opts.s3Only {
@@ -117,13 +119,19 @@ func (c *AWSClient) Route53() *route53.Client {
 
 // Upload the deployment artifacts to the configured destinations.
 func (c *AWSClient) Upload(args UploadArgs) (*UploadResult, error) {
+	if args.ClientZip == "" && args.ServerZip == "" && args.APIZip == "" && args.MigrationsZip == "" {
+		return nil, nil
+	}
+
 	var err error
 	result := &UploadResult{}
 
-	if args.ClientZip != "" {
-		if result.Client, err = c.uploadZipToS3(args.ClientZip, args); err != nil {
-			return nil, err
-		}
+	if result.Client, err = c.uploadZipToS3(args.ClientZip, args); err != nil {
+		return nil, err
+	}
+
+	if result.Migrations, err = c.uploadZipToS3(args.MigrationsZip, args); err != nil {
+		return nil, err
 	}
 
 	if c.lambdaClient == nil {

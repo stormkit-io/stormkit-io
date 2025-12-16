@@ -39,7 +39,7 @@ interface MockUpdateSchemaConfigProps {
     appId: string;
     envId: string;
     migrationsEnabled: boolean;
-    migrationsPath: string;
+    migrationsFolder: string;
   };
   status?: number;
 }

@@ -94,8 +94,8 @@ type BuildConfig struct {
 	// List of status check commands to execute after the deployment is complete.
 	StatusChecks []buildconf.StatusCheck `json:"statusChecks"`
 
-	// MigrationsPath is the path to the migrations folder, if any.
-	MigrationsPath string `json:"migrationsPath"`
+	// MigrationsFolder is the path to the migrations folder, if any.
+	MigrationsFolder string `json:"migrationsFolder"`
 }
 
 // DeploymentMessage represents a deployment payload.

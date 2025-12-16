@@ -260,7 +260,7 @@ CREATE TABLE IF NOT EXISTS skitapi.deployments (
     env_name text,
     error text,
     logs text,
-    migrations_path text,
+    migrations_folder text,
     status_checks text,
     upload_result jsonb,
     build_manifest jsonb,

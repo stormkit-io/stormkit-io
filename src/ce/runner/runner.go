@@ -129,20 +129,21 @@ func parsePackageJson(packageJsonPath string) *PackageJson {
 }
 
 type BuildOpts struct {
-	BuildCmd      string
-	InstallCmd    string
-	ServerCmd     string
-	ServerFolder  string
-	HeadersFile   string
-	RedirectsFile string
-	APIFolder     string            // Relative path to the API folder (trimmed)
-	DistFolder    string            // Relative path to the distribution folder (trimmed)
-	EnvVars       map[string]string // Normalized environment variables
-	EnvVarsRaw    []string          // Raw environment variables in KEY=VALUE format
-	DeploymentID  string
-	AppID         string
-	EnvID         string
-	StatusChecks  []buildconf.StatusCheck
+	BuildCmd         string
+	InstallCmd       string
+	ServerCmd        string
+	ServerFolder     string
+	HeadersFile      string
+	RedirectsFile    string
+	APIFolder        string            // Relative path to the API folder (trimmed)
+	DistFolder       string            // Relative path to the distribution folder (trimmed)
+	EnvVars          map[string]string // Normalized environment variables
+	EnvVarsRaw       []string          // Raw environment variables in KEY=VALUE format
+	DeploymentID     string
+	AppID            string
+	EnvID            string
+	MigrationsFolder string
+	StatusChecks     []buildconf.StatusCheck
 }
 
 type RunnerOpts struct {
@@ -216,19 +217,20 @@ func Start(payload, rootDir string) error {
 			PackageJson: nil, // will be determined later
 		},
 		Build: BuildOpts{
-			DeploymentID:  p.DeploymentID,
-			AppID:         msg.Build.AppID,
-			EnvID:         msg.Build.EnvID,
-			BuildCmd:      msg.Build.BuildCmd,
-			InstallCmd:    msg.Build.InstallCmd,
-			ServerCmd:     msg.Build.ServerCmd,
-			ServerFolder:  trim(msg.Build.ServerFolder), // Backwards compatibility
-			HeadersFile:   trim(msg.Build.HeadersFile),
-			RedirectsFile: trim(msg.Build.RedirectsFile),
-			APIFolder:     trim(msg.Build.APIFolder),
-			DistFolder:    trim(msg.Build.DistFolder),
-			StatusChecks:  msg.Build.StatusChecks,
-			EnvVars:       msg.Build.Vars,
+			DeploymentID:     p.DeploymentID,
+			AppID:            msg.Build.AppID,
+			EnvID:            msg.Build.EnvID,
+			BuildCmd:         msg.Build.BuildCmd,
+			InstallCmd:       msg.Build.InstallCmd,
+			ServerCmd:        msg.Build.ServerCmd,
+			ServerFolder:     trim(msg.Build.ServerFolder), // Backwards compatibility
+			HeadersFile:      trim(msg.Build.HeadersFile),
+			RedirectsFile:    trim(msg.Build.RedirectsFile),
+			APIFolder:        trim(msg.Build.APIFolder),
+			DistFolder:       trim(msg.Build.DistFolder),
+			MigrationsFolder: trim(msg.Build.MigrationsFolder),
+			StatusChecks:     msg.Build.StatusChecks,
+			EnvVars:          msg.Build.Vars,
 			EnvVarsRaw: []string{
 				"CI=true",
 				fmt.Sprintf("PATH=%s", os.Getenv("PATH")),
@@ -400,6 +402,7 @@ func Run(opts RunnerOpts) *RunResult {
 		manifest.APIFiles = artifacts.APIFiles()
 
 		result, err = NewUploader(opts.Uploader).Upload(UploadArgs{
+			MigrationsZip: artifacts.migrationsZip,
 			ClientZip:     artifacts.clientZip,
 			ServerZip:     artifacts.serverZip,
 			ApiZip:        artifacts.apiZip,

@@ -11,7 +11,7 @@ import (
 
 type SchemaConfigureRequest struct {
 	MigrationsEnabled bool   `json:"migrationsEnabled"`
-	MigrationsPath    string `json:"migrationsPath"`
+	MigrationsFolder  string `json:"migrationsFolder"`
 }
 
 func handlerSchemaConfigure(req *app.RequestContext) *shttp.Response {
@@ -33,10 +33,10 @@ func handlerSchemaConfigure(req *app.RequestContext) *shttp.Response {
 
 	env.SchemaConf.MigrationsEnabled = data.MigrationsEnabled
 
-	if data.MigrationsPath == "" {
-		env.SchemaConf.MigrationsPath = ""
+	if data.MigrationsFolder == "" {
+		env.SchemaConf.MigrationsFolder = ""
 	} else {
-		env.SchemaConf.MigrationsPath = utils.TrimPath(data.MigrationsPath)
+		env.SchemaConf.MigrationsFolder = utils.TrimPath(data.MigrationsFolder)
 	}
 
 	err = buildconf.NewStore().SaveSchemaConf(req.Context(), req.EnvID, env.SchemaConf)

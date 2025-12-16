@@ -195,7 +195,7 @@ func (a *AWSClient) uploadToLambda(args UploadArgs) (UploadOverview, error) {
 
 	if version != nil {
 		result.BytesUploaded = fstat.Size()
-		result.Location = fmt.Sprintf("aws:%s/%s", arn, *version)
+		result.Location = fmt.Sprintf("%s:%s/%s", a.providerPrefix, arn, *version)
 	}
 
 	return result, nil
@@ -374,7 +374,7 @@ func (a *AWSClient) normalizedAWSFunctionHandler(handler string) string {
 }
 
 func (a *AWSClient) parseFunctionLocation(location string) (string, string) {
-	pieces := strings.Split(location[4:], "/")
+	pieces := strings.Split(location[len(a.providerPrefix)+1:], "/")
 
 	if len(pieces) < 2 {
 		slog.Errorf("invalid function location format: %s", location)

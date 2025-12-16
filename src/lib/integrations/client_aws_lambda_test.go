@@ -13,11 +13,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/smithy-go/middleware"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/integrations"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/file"
 	"github.com/stretchr/testify/suite"
 )
@@ -117,7 +117,7 @@ func (s *AwsLambdaSuite) Test_Upload() {
 						if opName == "GetFunctionConfiguration" {
 							return middleware.FinalizeOutput{
 								Result: &lambda.GetFunctionConfigurationOutput{
-									Handler: aws.String("old-handler-name"),
+									Handler: utils.Ptr("old-handler-name"),
 								},
 							}, middleware.Metadata{}, nil
 						}
@@ -139,7 +139,7 @@ func (s *AwsLambdaSuite) Test_Upload() {
 						if opName == "CreateFunction" {
 							return middleware.FinalizeOutput{
 								Result: &lambda.CreateFunctionOutput{
-									Version: aws.String("15"),
+									Version: utils.Ptr("15"),
 								},
 							}, middleware.Metadata{}, nil
 						}

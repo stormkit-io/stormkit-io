@@ -35,6 +35,7 @@ func (s *BundlerSuite) BeforeTest(_, _ string) {
 			Dir: repoDir,
 		},
 		Build: runner.BuildOpts{
+			MigrationsFolder: "/migrations",
 			EnvVarsRaw: []string{
 				"CI=true",
 				fmt.Sprintf("PATH=%s", os.Getenv("PATH")),
@@ -404,6 +405,8 @@ func (s *BundlerSuite) Test_Zip() {
 	s.NoError(os.MkdirAll(path.Join(s.config.Repo.Dir, ".stormkit", "server"), 0774))
 	s.NoError(os.MkdirAll(path.Join(s.config.Repo.Dir, ".stormkit", "api"), 0774))
 	s.NoError(os.WriteFile(path.Join(s.config.Repo.Dir, ".stormkit", "server", "index.js"), []byte("Hello world"), 0664))
+	s.NoError(os.MkdirAll(path.Join(s.config.Repo.Dir, "migrations"), 0774))
+	s.NoError(os.WriteFile(path.Join(s.config.Repo.Dir, "migrations", "01.up.sql"), []byte("create table test ()"), 0664))
 
 	text := "Some data that will be injected into stormkit-api.mjs"
 	runner.APIWrapper = text
@@ -416,7 +419,7 @@ func (s *BundlerSuite) Test_Zip() {
 	s.NoError(bundler.Zip(artifacts))
 
 	// We should have these files
-	for _, zip := range []string{"sk-client.zip", "sk-api.zip", "sk-server.zip"} {
+	for _, zip := range []string{"sk-client.zip", "sk-api.zip", "sk-server.zip", "sk-migrations.zip"} {
 		_, err := os.ReadFile(path.Join(s.config.RootDir, "dist", zip))
 		s.NoError(err)
 	}

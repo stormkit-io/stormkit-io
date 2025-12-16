@@ -33,6 +33,12 @@ type AlibabaOSSSuite struct {
 	tmpdir string
 }
 
+func setAlibabaEnvVars() {
+	config.Get().Alibaba = &config.AlibabaConfig{
+		Region: "me-central-1",
+	}
+}
+
 func (s *AlibabaOSSSuite) SetupSuite() {
 	setAlibabaEnvVars()
 }

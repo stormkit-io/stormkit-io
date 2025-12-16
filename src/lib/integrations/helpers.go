@@ -24,52 +24,27 @@ type UploadOverview struct {
 }
 
 type UploadResult struct {
-	Client UploadOverview
-	Server UploadOverview
-	API    UploadOverview
+	Client     UploadOverview
+	Server     UploadOverview
+	API        UploadOverview
+	Migrations UploadOverview
 }
 
 type UploadArgs struct {
-	// The destination dir, in case we're using filesys
-	DistDir string
-
-	// The path to the client zip.
-	ClientZip string
-
-	// When provided, this file will be uploaded to the bucket.
-	FilePath string
-
-	// The path to the server zip. If provided, this will be uploaded
-	// to the bucket as well.
-	ServerZip string
-
-	// The handler name in the following format: index.js:handler
-	ServerHandler string
-
-	// The path to the api zip. If provided, this will be uploaded
-	// to the bucket as well.
-	APIZip string
-
-	// The handler name in the following format: index.js:handler
-	APIHandler string
-
-	// The Environment ID which this deployment belongs to.
-	EnvID types.ID
-
-	// The Application ID which this deployment belongs to.
-	AppID types.ID
-
-	// The environment variables that are going to used in this deployment.
-	EnvVars map[string]string
-
-	// The build runtime such as: nodejs12.x
-	Runtime string
-
-	// The ID of the deployment.
-	DeploymentID types.ID
-
-	// When provided, it will overwrite the default bucket name.
-	BucketName string
+	DistDir       string            // The destination dir, in case we're using filesys
+	ClientZip     string            // The path to the client zip.
+	ServerZip     string            // The path to the server zip.
+	APIZip        string            // The path to the api zip.
+	MigrationsZip string            // The path to the migrations zip.
+	ServerHandler string            // The handler name in the following format: index.js:handler
+	APIHandler    string            // The handler name in the following format: index.js:handler
+	EnvID         types.ID          // The Environment ID which this deployment belongs to.
+	AppID         types.ID          // The Application ID which this deployment belongs to.
+	EnvVars       map[string]string // The environment variables that are going to used in this deployment.
+	DeploymentID  types.ID          // The ID of the deployment.
+	Runtime       string            // The build runtime such as: nodejs12.x
+	BucketName    string            // When provided, it will overwrite the default bucket name.
+	FilePath      string            // When provided, this file will be uploaded to the bucket.
 
 	// These are used internally
 	funcType string

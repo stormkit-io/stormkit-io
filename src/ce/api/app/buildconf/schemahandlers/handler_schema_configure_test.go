@@ -47,7 +47,7 @@ func (s *HandlerSchemaConfigureSuite) Test_Success_EnableMigrations() {
 			"envId":             s.env.ID,
 			"appId":             s.app.ID,
 			"migrationsEnabled": true,
-			"migrationsPath":    "/migrations",
+			"migrationsFolder":  "/migrations",
 		},
 		map[string]string{
 			"Authorization": usertest.Authorization(s.usr.ID),
@@ -61,7 +61,7 @@ func (s *HandlerSchemaConfigureSuite) Test_Success_EnableMigrations() {
 	s.NoError(err)
 	s.NotNil(env.SchemaConf, "SchemaConf should be set")
 	s.True(env.SchemaConf.MigrationsEnabled, "MigrationsEnabled should be true")
-	s.Equal("/migrations", env.SchemaConf.MigrationsPath, "MigrationsPath should match")
+	s.Equal("/migrations", env.SchemaConf.MigrationsFolder, "MigrationsFolder should match")
 }
 
 func (s *HandlerSchemaConfigureSuite) Test_Success_DisableMigrations() {
@@ -73,7 +73,7 @@ func (s *HandlerSchemaConfigureSuite) Test_Success_DisableMigrations() {
 			"envId":             s.env.ID,
 			"appId":             s.app.ID,
 			"migrationsEnabled": false,
-			"migrationsPath":    "",
+			"migrationsFolder":  "",
 		},
 		map[string]string{
 			"Authorization": usertest.Authorization(s.usr.ID),
@@ -87,16 +87,16 @@ func (s *HandlerSchemaConfigureSuite) Test_Success_DisableMigrations() {
 	s.NoError(err)
 	s.NotNil(env.SchemaConf, "SchemaConf should be set")
 	s.False(env.SchemaConf.MigrationsEnabled, "MigrationsEnabled should be false")
-	s.Equal("", env.SchemaConf.MigrationsPath, "MigrationsPath should be empty")
+	s.Equal("", env.SchemaConf.MigrationsFolder, "MigrationsFolder should be empty")
 }
 
-func (s *HandlerSchemaConfigureSuite) Test_Success_UpdateMigrationsPath() {
+func (s *HandlerSchemaConfigureSuite) Test_Success_UpdateMigrationsFolder() {
 	// First, set initial configuration
 	schema := buildconf.SchemaConf{
 		MigrationUserName: "user",
 		MigrationPassword: "pass",
 		MigrationsEnabled: false,
-		MigrationsPath:    "/migrations",
+		MigrationsFolder:  "/migrations",
 	}
 
 	s.NoError(buildconf.NewStore().SaveSchemaConf(context.Background(), s.env.ID, &schema))
@@ -110,7 +110,7 @@ func (s *HandlerSchemaConfigureSuite) Test_Success_UpdateMigrationsPath() {
 			"envId":             s.env.ID,
 			"appId":             s.app.ID,
 			"migrationsEnabled": true,
-			"migrationsPath":    "/app/db/migrations",
+			"migrationsFolder":  "/app/db/migrations",
 		},
 		map[string]string{
 			"Authorization": usertest.Authorization(s.usr.ID),
@@ -124,7 +124,7 @@ func (s *HandlerSchemaConfigureSuite) Test_Success_UpdateMigrationsPath() {
 	s.NoError(err)
 	s.NotNil(env.SchemaConf, "SchemaConf should be set")
 	s.True(env.SchemaConf.MigrationsEnabled, "MigrationsEnabled should be true")
-	s.Equal("/app/db/migrations", env.SchemaConf.MigrationsPath, "MigrationsPath should be updated")
+	s.Equal("/app/db/migrations", env.SchemaConf.MigrationsFolder, "MigrationsFolder should be updated")
 	s.Equal("user", env.SchemaConf.MigrationUserName, "MigrationUserName should remain unchanged")
 	s.Equal("pass", env.SchemaConf.MigrationPassword, "MigrationPassword should remain unchanged")
 }
@@ -137,7 +137,7 @@ func (s *HandlerSchemaConfigureSuite) Test_MissingEnvId() {
 		map[string]any{
 			"appId":             s.app.ID,
 			"migrationsEnabled": true,
-			"migrationsPath":    "/migrations",
+			"migrationsFolder":  "/migrations",
 		},
 		map[string]string{
 			"Authorization": usertest.Authorization(s.usr.ID),

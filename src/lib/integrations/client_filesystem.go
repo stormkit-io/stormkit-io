@@ -144,54 +144,6 @@ func (c *FilesysClient) DeleteArtifacts(ctx context.Context, args DeleteArtifact
 	return os.RemoveAll(c.getDeploymentPath(location))
 }
 
-// Upload a file to the file system. Use the DistDir argument to specify
-// the destination folder.
-func (c *FilesysClient) Upload(args UploadArgs) (*UploadResult, error) {
-	var err error
-	result := &UploadResult{}
-
-	dir := args.DistDir
-
-	if dir == "" {
-		dir = config.Get().Deployer.StorageDir
-	}
-
-	depl := fmt.Sprintf("deployment-%d", args.DeploymentID)
-	root := path.Join(dir, depl)
-
-	if args.ClientZip != "" {
-		copy := args
-		copy.zip = args.ClientZip
-		copy.handler = ""
-
-		if result.Client, err = c.uploadZip(copy, path.Join(root, "client")); err != nil {
-			return nil, err
-		}
-	}
-
-	if args.ServerZip != "" {
-		copy := args
-		copy.zip = args.ServerZip
-		copy.handler = args.ServerHandler
-
-		if result.Server, err = c.uploadZip(copy, path.Join(root, "server")); err != nil {
-			return nil, err
-		}
-	}
-
-	if args.APIZip != "" {
-		copy := args
-		copy.zip = args.APIZip
-		copy.handler = args.APIHandler
-
-		if result.API, err = c.uploadZip(copy, path.Join(root, "api")); err != nil {
-			return nil, err
-		}
-	}
-
-	return result, nil
-}
-
 // GetFile returns a file from the Filesystem.
 func (c *FilesysClient) GetFile(args GetFileArgs) (*GetFileResult, error) {
 	filePath := path.Join(strings.TrimPrefix(args.Location, "local:"), args.FileName)
@@ -218,12 +170,78 @@ func (c *FilesysClient) GetFile(args GetFileArgs) (*GetFileResult, error) {
 	}, nil
 }
 
-func (c *FilesysClient) uploadZip(args UploadArgs, to string) (UploadOverview, error) {
-	if err := os.MkdirAll(to, 0774); err != nil {
+// Upload a file to the file system. Use the DistDir argument to specify
+// the destination folder.
+func (c *FilesysClient) Upload(args UploadArgs) (result *UploadResult, err error) {
+	dir := utils.GetString(args.DistDir, config.Get().Deployer.StorageDir)
+	root := path.Join(dir, fmt.Sprintf("deployment-%d", args.DeploymentID))
+	result = &UploadResult{}
+
+	result.Client, err = c.uploadZip(uploadZipArgs{
+		pathToZip:   args.ClientZip,
+		targetDir:   path.Join(root, "client"),
+		shouldUnzip: true,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	result.Server, err = c.uploadZip(uploadZipArgs{
+		pathToZip:   args.ServerZip,
+		fileName:    args.ServerHandler,
+		targetDir:   path.Join(root, "server"),
+		shouldUnzip: true,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	result.API, err = c.uploadZip(uploadZipArgs{
+		pathToZip:   args.APIZip,
+		fileName:    args.APIHandler,
+		targetDir:   path.Join(root, "api"),
+		shouldUnzip: true,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	result.Migrations, err = c.uploadZip(uploadZipArgs{
+		pathToZip:   args.MigrationsZip,
+		targetDir:   path.Join(root, "migrations"),
+		fileName:    path.Base(args.MigrationsZip), // Not really the handler, but a workaround to store the zip file name
+		shouldUnzip: false,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+type uploadZipArgs struct {
+	pathToZip   string
+	fileName    string
+	targetDir   string
+	shouldUnzip bool
+}
+
+// uploadZip uploads a zip file to the filesystem by unzipping it
+// to the target directory.
+func (c *FilesysClient) uploadZip(args uploadZipArgs) (UploadOverview, error) {
+	if args.pathToZip == "" {
+		return UploadOverview{}, nil
+	}
+
+	if err := os.MkdirAll(args.targetDir, 0774); err != nil {
 		return UploadOverview{}, err
 	}
 
-	fstat, err := os.Stat(args.zip)
+	fstat, err := os.Stat(args.pathToZip)
 
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -234,19 +252,28 @@ func (c *FilesysClient) uploadZip(args UploadArgs, to string) (UploadOverview, e
 	}
 
 	unzipOpts := file.UnzipOpts{
-		ZipFile:    args.zip,
-		ExtractDir: to,
+		ZipFile:    args.pathToZip,
+		ExtractDir: args.targetDir,
 		LowerCase:  false,
 	}
 
-	if err := file.Unzip(unzipOpts); err != nil {
-		return UploadOverview{}, err
+	if args.shouldUnzip {
+		if err := file.Unzip(unzipOpts); err != nil {
+			return UploadOverview{}, err
+		}
+	} else {
+		zipFileName := path.Base(args.pathToZip)
+		destPath := path.Join(args.targetDir, zipFileName)
+
+		if err := file.Copy(args.pathToZip, destPath, 0664); err != nil {
+			return UploadOverview{}, err
+		}
 	}
 
 	return UploadOverview{
-		BytesUploaded: fstat.Size(),
 		FilesUploaded: 1,
-		Location:      fmt.Sprintf("local:%s", path.Join(to, args.handler)),
+		BytesUploaded: fstat.Size(),
+		Location:      fmt.Sprintf("local:%s", path.Join(args.targetDir, args.fileName)),
 	}, nil
 }
 

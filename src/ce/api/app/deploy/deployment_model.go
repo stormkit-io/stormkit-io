@@ -91,7 +91,7 @@ type Deployment struct {
 	Error              null.String    `json:"-"` // Error represents the deployment error. It's for internal use only.
 	APIPathPrefix      null.String    `json:"apiPathPrefix,omitempty"`
 	WebhookEvent       any            `json:"-"` // The webhook event that triggers the deployment
-	MigrationsPath     null.String    `json:"migrationsPath,omitempty"`
+	MigrationsFolder   null.String    `json:"migrationsFolder,omitempty"`
 	UploadResult       *UploadResult  `json:"uploadResult,omitempty"`
 
 	// GithubRunID is the associated run id with the deployment.
@@ -155,7 +155,7 @@ func (d *Deployment) PopulateFromEnv(env *buildconf.Env) {
 	d.ShouldPublish = env.AutoPublish
 
 	if env.SchemaConf != nil && env.SchemaConf.MigrationsEnabled {
-		d.MigrationsPath = null.StringFrom(env.SchemaConf.MigrationsPath)
+		d.MigrationsFolder = null.StringFrom(env.SchemaConf.MigrationsFolder)
 	}
 }
 

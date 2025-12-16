@@ -99,7 +99,7 @@ export default function Database() {
     e.preventDefault();
 
     const formData = new FormData(e.currentTarget);
-    const migrationsPath = formData.get("migrationsPath") as string;
+    const migrationsFolder = formData.get("migrationsFolder") as string;
 
     setUpdating(true);
     setFormError(undefined);
@@ -109,7 +109,7 @@ export default function Database() {
       await updateSchemaConfig({
         appId: environment.appId!,
         envId: environment.id!,
-        migrationsPath,
+        migrationsFolder,
         migrationsEnabled,
       });
 
@@ -162,10 +162,10 @@ export default function Database() {
           <Box sx={{ mb: 4 }}>
             <TextField
               label="Migrations path"
-              name="migrationsPath"
+              name="migrationsFolder"
               placeholder="/migrations"
               fullWidth
-              defaultValue={schema?.migrationsPath || ""}
+              defaultValue={schema?.migrationsFolder || ""}
               variant="filled"
               autoComplete="off"
               helperText="Path to the folder containing your database migration files."

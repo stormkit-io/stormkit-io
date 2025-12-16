@@ -136,7 +136,7 @@ func (s *Store) scanRows(rows *sql.Rows, err error) ([]*Deployment, error) {
 			&d.Commit.ID, &d.Commit.Author, &d.Commit.Message,
 			&d.GithubRunID, &d.Error, &d.IsAutoDeploy,
 			&d.ShouldPublish, &d.PullRequestNumber, &d.BuildManifest,
-			&d.APIPathPrefix, &d.IsImmutable, &d.UploadResult, &d.MigrationsPath,
+			&d.APIPathPrefix, &d.IsImmutable, &d.UploadResult, &d.MigrationsFolder,
 			&d.StatusChecksPassed, &d.StatusChecks, &d.Logs,
 			&d.DisplayName, &d.CheckoutRepo, &d.Published,
 		)
@@ -238,7 +238,7 @@ func (s *Store) InsertDeployment(ctx context.Context, d *Deployment) error {
 		d.IsAutoDeploy, d.PullRequestNumber,
 		d.Commit.ID, d.IsFork, d.ShouldPublish, repo,
 		d.APIPathPrefix, webhookEvent, d.Commit.Author,
-		d.MigrationsPath,
+		d.MigrationsFolder,
 	}
 
 	row, err := s.QueryRow(ctx, stmt.insertDeployment, params...)
@@ -379,8 +379,8 @@ func (s *Store) UpdateDeploymentResult(ctx context.Context, d *Deployment, resul
 		ServerLocation:     result.Server.Location,
 		ServerlessBytes:    result.API.BytesUploaded,
 		ServerlessLocation: result.API.Location,
-		// MigrationsBytes:    result.Migrations.BytesUploaded,
-		// MigrationsLocation: result.Migrations.Location,
+		MigrationsBytes:    result.Migrations.BytesUploaded,
+		MigrationsLocation: result.Migrations.Location,
 	}
 
 	if d.Error.ValueOrZero() != "" {

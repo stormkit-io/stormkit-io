@@ -72,11 +72,16 @@ func (s *UploaderSuite) AfterTest(_, _ string) {
 // It uses bun as it's significantly faster.
 func (s *UploaderSuite) Test_Upload() {
 	s.mockIntegrations.On("Upload", integrations.UploadArgs{
-		ClientZip:    path.Join(s.config.RootDir, "dist", "sk-client.zip"),
-		AppID:        2501,
-		EnvID:        51191,
-		DeploymentID: 202521,
+		MigrationsZip: path.Join(s.config.RootDir, "dist", "sk-migrations.zip"),
+		ClientZip:     path.Join(s.config.RootDir, "dist", "sk-client.zip"),
+		AppID:         2501,
+		EnvID:         51191,
+		DeploymentID:  202521,
 	}).Return(&integrations.UploadResult{
+		Migrations: integrations.UploadOverview{
+			FilesUploaded: 1,
+			BytesUploaded: 512,
+		},
 		Client: integrations.UploadOverview{
 			FilesUploaded: 15,
 			BytesUploaded: 4102,
@@ -84,16 +89,19 @@ func (s *UploaderSuite) Test_Upload() {
 	}, nil)
 
 	result, err := runner.NewUploader(s.config.Uploader).Upload(runner.UploadArgs{
-		ClientZip:    path.Join(s.config.RootDir, "dist", "sk-client.zip"),
-		AppID:        2501,
-		EnvID:        51191,
-		DeploymentID: 202521,
+		MigrationsZip: path.Join(s.config.RootDir, "dist", "sk-migrations.zip"),
+		ClientZip:     path.Join(s.config.RootDir, "dist", "sk-client.zip"),
+		AppID:         2501,
+		EnvID:         51191,
+		DeploymentID:  202521,
 	})
 
 	s.NoError(err)
 	s.Equal(int64(4102), result.Client.BytesUploaded)
 	s.Equal(int64(15), result.Client.FilesUploaded)
 	s.Equal(int64(0), result.Server.BytesUploaded)
+	s.Equal(int64(1), result.Migrations.FilesUploaded)
+	s.Equal(int64(512), result.Migrations.BytesUploaded)
 }
 
 func (s *UploaderSuite) Test_UploadLimits_StormkitCloud() {

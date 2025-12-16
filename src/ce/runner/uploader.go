@@ -24,6 +24,7 @@ type Uploader struct {
 }
 
 type UploadArgs struct {
+	MigrationsZip string
 	ClientZip     string
 	ServerZip     string
 	ServerHandler string
@@ -130,6 +131,7 @@ func (u *Uploader) Upload(args UploadArgs) (*integrations.UploadResult, error) {
 			Region:    utils.GetString(args.Region, u.conf.Region),
 		}).
 		Upload(integrations.UploadArgs{
+			MigrationsZip: args.MigrationsZip,
 			ClientZip:     args.ClientZip,
 			ServerZip:     args.ServerZip,
 			ServerHandler: args.ServerHandler,

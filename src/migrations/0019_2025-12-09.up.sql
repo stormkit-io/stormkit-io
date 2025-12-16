@@ -1,5 +1,5 @@
 ALTER TABLE skitapi.apps_build_conf ADD COLUMN IF NOT EXISTS schema_conf BYTEA;
-ALTER TABLE skitapi.deployments ADD COLUMN IF NOT EXISTS migrations_path TEXT;
+ALTER TABLE skitapi.deployments ADD COLUMN IF NOT EXISTS migrations_folder TEXT;
 ALTER TABLE skitapi.deployments ADD COLUMN IF NOT EXISTS upload_result jsonb;
 ALTER TABLE skitapi.deployments DROP COLUMN IF EXISTS s3_number_of_files;
 

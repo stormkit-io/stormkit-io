@@ -9,7 +9,6 @@ import (
 
 	openapi "github.com/alibabacloud-go/darabonba-openapi/v2/client"
 	alibaba "github.com/alibabacloud-go/fc-20230330/v4/client"
-	"github.com/alibabacloud-go/tea/tea"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	awsconf "github.com/aws/aws-sdk-go-v2/config"
@@ -50,12 +49,24 @@ func Alibaba(args ClientArgs) (*AlibabaClient, error) {
 
 	conf := config.Get()
 
+	if conf.Alibaba == nil {
+		return nil, fmt.Errorf("alibaba integration is not configured")
+	}
+
 	if args.AccessKey == "" {
-		args.AccessKey = utils.GetString(conf.Runner.AccessKey, conf.Alibaba.AccessKey)
+		if conf.Runner != nil && conf.Runner.AccessKey != "" {
+			args.AccessKey = conf.Runner.AccessKey
+		} else {
+			args.AccessKey = conf.Alibaba.AccessKey
+		}
 	}
 
 	if args.SecretKey == "" {
-		args.SecretKey = utils.GetString(conf.Runner.SecretKey, conf.Alibaba.SecretKey)
+		if conf.Runner != nil && conf.Runner.SecretKey != "" {
+			args.SecretKey = conf.Runner.SecretKey
+		} else {
+			args.SecretKey = conf.Alibaba.SecretKey
+		}
 	}
 
 	customResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...any) (aws.Endpoint, error) {
@@ -100,7 +111,8 @@ func Alibaba(args ClientArgs) (*AlibabaClient, error) {
 		return nil, err
 	}
 
-	endpoint := tea.String(fmt.Sprintf("%s.%s.fc.aliyuncs.com", conf.Alibaba.AccountID, conf.Alibaba.Region))
+	awscli.providerPrefix = "alibaba"
+	endpoint := utils.Ptr(fmt.Sprintf("%s.%s.fc.aliyuncs.com", conf.Alibaba.AccountID, conf.Alibaba.Region))
 
 	slog.Infof("using alibaba endpoint: %s", *endpoint)
 
@@ -133,28 +145,27 @@ func (c AlibabaClient) Name() string {
 
 // Upload uses AWS SDK under the hood to upload a file to OSS.
 func (a AlibabaClient) Upload(args UploadArgs) (*UploadResult, error) {
+	if args.ClientZip == "" && args.ServerZip == "" && args.APIZip == "" && args.MigrationsZip == "" {
+		return nil, nil
+	}
+
+	var err error
+
 	if args.BucketName == "" {
 		args.BucketName = config.Get().Alibaba.StorageBucket
 	}
 
-	var result *UploadResult
-	var err error
+	result := &UploadResult{}
 
-	if args.ClientZip != "" {
-		result, err = a.awsClient.Upload(args)
+	if result.Client, err = a.awsClient.uploadZipToS3(args.ClientZip, args); err != nil {
+		return nil, err
+	}
 
-		if err != nil || result == nil {
-			return nil, err
-		}
-
-		result.Client.Location = strings.Replace(result.Client.Location, "aws:", "alibaba:", 1)
+	if result.Migrations, err = a.awsClient.uploadZipToS3(args.MigrationsZip, args); err != nil {
+		return nil, err
 	}
 
 	if args.ServerZip != "" {
-		if result == nil {
-			result = &UploadResult{}
-		}
-
 		copy := args
 		copy.funcType = FuncTypeRenderer
 		copy.handler = args.ServerHandler
@@ -166,10 +177,6 @@ func (a AlibabaClient) Upload(args UploadArgs) (*UploadResult, error) {
 	}
 
 	if args.APIZip != "" {
-		if result == nil {
-			result = &UploadResult{}
-		}
-
 		copy := args
 		copy.funcType = FuncTypeAPI
 		copy.handler = args.APIHandler

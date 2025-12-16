@@ -58,6 +58,7 @@ type Bundler struct {
 	workDir       string   // Absolute path
 	repoDir       string   // Absolute path
 	distDir       string   // Absolute path where the zip files will be uploaded (not the same with Build.DistDir)
+	migrationsDir string   // The directory to look for migration files
 	clientDirs    []string // The directories to look for client-side files
 	serverDirs    []string // The directories to look for server-side files
 	apiDirs       []string // The directories to look for api files
@@ -82,6 +83,7 @@ type Artifacts struct {
 	clientZip      string // absolute path to client zip
 	serverZip      string // absolute path to server zip
 	apiZip         string // absolute path to api zip
+	migrationsZip  string // absolute path to migrations zip
 	isAPIAutoBuilt bool
 
 	// List of redirects.
@@ -325,6 +327,7 @@ func NewBundler(opts RunnerOpts) BundlerInterface {
 		clientDirs:    clientDirs,
 		serverDirs:    serverDirs,
 		apiDirs:       apiDirs,
+		migrationsDir: opts.Build.MigrationsFolder,
 		headersFile:   opts.Build.HeadersFile,
 		redirectsFile: opts.Build.RedirectsFile,
 		serverCmd:     opts.Build.ServerCmd,
@@ -761,6 +764,15 @@ func (b Bundler) Zip(artifacts *Artifacts) error {
 	clientZip := filepath.Join(b.distDir, "sk-client.zip")
 	serverZip := filepath.Join(b.distDir, "sk-server.zip")
 	apiZip := filepath.Join(b.distDir, "sk-api.zip")
+	migrationsZip := filepath.Join(b.distDir, "sk-migrations.zip")
+
+	if b.migrationsDir != "" && file.Exists(filepath.Join(b.workDir, b.migrationsDir)) {
+		if err := zip(migrationsZip, []string{b.migrationsDir}, false); err != nil {
+			return err
+		}
+
+		artifacts.migrationsZip = migrationsZip
+	}
 
 	if err := zip(clientZip, artifacts.ClientDirs, false); err != nil {
 		return err

@@ -49,7 +49,7 @@ type SchemaConf struct {
 	MigrationUserName string `json:"migrationUserName"`
 	MigrationPassword string `json:"migrationPassword"`
 	MigrationsEnabled bool   `json:"migrationsEnabled"`
-	MigrationsPath    string `json:"migrationsPath"` // path in the application for migrations
+	MigrationsFolder  string `json:"migrationsFolder"` // path in the application for migrations
 	DBName            string `json:"dbName"`
 	SchemaName        string `json:"schemaName"`
 	Port              string `json:"port"`

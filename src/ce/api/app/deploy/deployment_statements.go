@@ -41,7 +41,7 @@ var stmt = &statement{
 			d.error, d.is_auto_deploy,
 			d.auto_publish, d.pull_request_number,
 			d.build_manifest, d.api_path_prefix, d.is_immutable, d.upload_result,
-			d.migrations_path, d.status_checks_passed,
+			d.migrations_folder, d.status_checks_passed,
 			{{ if .logs }} d.status_checks, d.logs {{ else }} '', '' {{ end }},
 			a.display_name, COALESCE(a.repo, ''),
 			(SELECT json_agg(
@@ -76,7 +76,7 @@ var stmt = &statement{
 			app_id, config_snapshot, branch, env_name, env_id,
 			is_auto_deploy, pull_request_number,
 			commit_id, is_fork, auto_publish, checkout_repo,
-			api_path_prefix, webhook_event, commit_author, migrations_path
+			api_path_prefix, webhook_event, commit_author, migrations_folder
 		)
 		VALUES (
 			$1, $2, $3, $4, $5,

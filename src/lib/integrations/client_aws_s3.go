@@ -13,8 +13,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/file"
 )
 
@@ -104,8 +104,8 @@ func (a *AWSClient) ZipDownloader(deploymentID, bucket, keyprefix string) (strin
 	defer f.Close()
 
 	n, err := a.downloader.Download(context.TODO(), f, &s3.GetObjectInput{
-		Bucket: aws.String(bucket),
-		Key:    aws.String(keyprefix),
+		Bucket: utils.Ptr(bucket),
+		Key:    utils.Ptr(keyprefix),
 	})
 
 	if n == 0 {
@@ -142,7 +142,7 @@ func (a *AWSClient) serveFromZip(args GetFileArgs) (*GetFileResult, error) {
 
 // GetFile returns a file from the bucket.
 func (a *AWSClient) GetFile(args GetFileArgs) (*GetFileResult, error) {
-	if strings.HasSuffix(args.Location, "sk-client.zip") {
+	if strings.HasSuffix(args.Location, ".zip") {
 		return a.serveFromZip(args)
 	}
 
@@ -163,6 +163,10 @@ func (a *AWSClient) bucketName(args UploadArgs) string {
 }
 
 func (a *AWSClient) uploadZipToS3(pathToZip string, args UploadArgs) (UploadOverview, error) {
+	if pathToZip == "" {
+		return UploadOverview{}, nil
+	}
+
 	keyPrefix := fmt.Sprintf("%d/%d", args.AppID, args.DeploymentID)
 	bucketName := a.bucketName(args)
 	result := UploadOverview{}
@@ -200,7 +204,7 @@ func (a *AWSClient) uploadZipToS3(pathToZip string, args UploadArgs) (UploadOver
 
 	result.BytesUploaded = size
 	result.FilesUploaded = 1
-	result.Location = fmt.Sprintf("aws:%s/%s/%s", bucketName, keyPrefix, zipName)
+	result.Location = fmt.Sprintf("%s:%s/%s/%s", a.providerPrefix, bucketName, keyPrefix, zipName)
 	return result, err
 }
 
@@ -238,8 +242,8 @@ func (a *AWSClient) UploadFile(file File, s3args any) error {
 func (a *AWSClient) deleteS3Folder(ctx context.Context, bucketName, keyPrefix string) error {
 	// List all objects in the folder
 	listObjectsResp, err := a.S3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
-		Bucket: aws.String(bucketName),
-		Prefix: aws.String(keyPrefix), // Folder prefix (e.g., "my-folder/")
+		Bucket: utils.Ptr(bucketName),
+		Prefix: utils.Ptr(keyPrefix), // Folder prefix (e.g., "my-folder/")
 	})
 
 	if err != nil {
@@ -262,10 +266,10 @@ func (a *AWSClient) deleteS3Folder(ctx context.Context, bucketName, keyPrefix st
 
 	// Delete the object
 	_, err = a.S3Client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
-		Bucket: aws.String(bucketName),
+		Bucket: utils.Ptr(bucketName),
 		Delete: &s3types.Delete{
 			Objects: objectsToDelete,
-			Quiet:   aws.Bool(true),
+			Quiet:   utils.Ptr(true),
 		},
 	})
 
@@ -275,6 +279,6 @@ func (a *AWSClient) deleteS3Folder(ctx context.Context, bucketName, keyPrefix st
 // parseS3Location parses a string in the following format:
 // aws:/bucket-name/path-to-file
 func (a *AWSClient) parseS3Location(location string) (string, string) {
-	pieces := strings.Split(strings.TrimPrefix(location, "aws:"), "/")
+	pieces := strings.Split(strings.TrimPrefix(location, a.providerPrefix+":"), "/")
 	return pieces[0], filepath.Join(pieces[1:]...)
 }

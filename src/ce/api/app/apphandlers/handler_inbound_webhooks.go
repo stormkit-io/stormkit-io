@@ -137,7 +137,7 @@ func TriggerDeploy(ctx context.Context, input TriggerDeployInput) *shttp.Respons
 		depl.ShouldPublish = a.ShouldPublish
 
 		if a.SchemaConf != nil && a.SchemaConf.MigrationsEnabled {
-			depl.MigrationsPath = null.StringFrom(a.SchemaConf.MigrationsPath)
+			depl.MigrationsFolder = null.StringFrom(a.SchemaConf.MigrationsFolder)
 		}
 
 		if input.PullRequestNumber != 0 {

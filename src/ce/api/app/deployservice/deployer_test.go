@@ -48,7 +48,7 @@ func (s *DeploySuite) Test_Deployment() {
 	env := s.MockEnv(app)
 
 	depl := s.MockDeployment(env, map[string]any{
-		"MigrationsPath": null.StringFrom("/migrations"),
+		"MigrationsFolder": null.StringFrom("/migrations"),
 		"BuildConfig": &buildconf.BuildConf{
 			BuildCmd: "npm run build",
 			StatusChecks: []buildconf.StatusCheck{
@@ -83,15 +83,15 @@ func (s *DeploySuite) Test_Deployment() {
 			AccessToken: "some-token",
 		},
 		Build: deployservice.BuildConfig{
-			Env:            "production",
-			Branch:         "main",
-			BuildCmd:       "npm run build",
-			APIFolder:      "/api",
-			ShouldPublish:  false,
-			EnvID:          env.ID.String(),
-			AppID:          app.ID.String(),
-			DeploymentID:   depl.ID.String(),
-			MigrationsPath: "/migrations",
+			Env:              "production",
+			Branch:           "main",
+			BuildCmd:         "npm run build",
+			APIFolder:        "/api",
+			ShouldPublish:    false,
+			EnvID:            env.ID.String(),
+			AppID:            app.ID.String(),
+			DeploymentID:     depl.ID.String(),
+			MigrationsFolder: "/migrations",
 			StatusChecks: []buildconf.StatusCheck{
 				{Name: "E2E", Cmd: "npm run test:e2e", Description: "Run e2e tests"},
 			},

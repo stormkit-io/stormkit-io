@@ -176,7 +176,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
               name: "a1e1",
               tables: [],
               migrationsEnabled,
-              migrationsPath: "/db/migrations",
+              migrationsFolder: "/db/migrations",
             },
           });
         });
@@ -213,7 +213,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
               appId: currentApp.id,
               envId: currentEnv.id!,
               migrationsEnabled,
-              migrationsPath: "/app/migrations",
+              migrationsFolder: "/app/migrations",
             },
           });
 
@@ -245,7 +245,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
               appId: currentApp.id,
               envId: currentEnv.id!,
               migrationsEnabled: !migrationsEnabled,
-              migrationsPath: "/db/migrations",
+              migrationsFolder: "/db/migrations",
             },
           });
 
@@ -268,7 +268,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
             name: "a1e1",
             tables: [],
             migrationsEnabled: true,
-            migrationsPath: "/db/migrations",
+            migrationsFolder: "/db/migrations",
           },
         });
       });
@@ -283,7 +283,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
             appId: currentApp.id,
             envId: currentEnv.id!,
             migrationsEnabled: true,
-            migrationsPath: "/db/migrations",
+            migrationsFolder: "/db/migrations",
           },
           status: 500,
         });

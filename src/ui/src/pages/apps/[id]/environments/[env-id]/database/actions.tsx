@@ -11,7 +11,7 @@ export interface Schema {
   name: string;
   tables: Table[];
   migrationsEnabled?: boolean;
-  migrationsPath?: string;
+  migrationsFolder?: string;
 }
 
 interface UseFetchSchemaProps {
@@ -59,20 +59,20 @@ export const createSchema = ({ appId, envId }: CreateSchemaProps) => {
 interface UpdateSchemaConfigProps {
   appId: string;
   envId: string;
-  migrationsPath: string;
+  migrationsFolder: string;
   migrationsEnabled: boolean;
 }
 
 export const updateSchemaConfig = ({
   appId,
   envId,
-  migrationsPath,
+  migrationsFolder,
   migrationsEnabled,
 }: UpdateSchemaConfigProps) => {
   return api.post(`/schema/configure`, {
     appId,
     envId,
-    migrationsPath,
+    migrationsFolder,
     migrationsEnabled,
   });
 };
