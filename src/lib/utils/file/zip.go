@@ -21,10 +21,11 @@ func envVars() []string {
 }
 
 type ZipArgs struct {
-	Source        []string
-	ZipName       string
-	WorkingDir    string
-	IncludeParent bool
+	Source        []string // List of folders/files to zip (relative to WorkingDir)
+	ZipName       string   // The target zip file name
+	WorkingDir    string   // The absolute path to the working directory
+	IncludeParent bool     // Whether to include the parent folder when zipping directories
+	GlobPattern   string   // Optional: only include files matching this pattern (e.g., "*.sql")
 }
 
 // ZipV2 the source folder/file to the target zip file.
@@ -44,29 +45,16 @@ func ZipV2(args ZipArgs) error {
 			continue
 		}
 
-		var command string
-
 		workingDir := args.WorkingDir
 		isDir := info.IsDir()
 
-		if !isDir {
-			command = fmt.Sprintf("zip -9 %s %s", args.ZipName, path.Base(dirOrFile))
-		} else if args.IncludeParent {
-			command = fmt.Sprintf("zip -r -y -9 %s %s", args.ZipName, dirOrFile)
-		} else {
-			// -r recursive, -y preserve symlinks
-			command = fmt.Sprintf(
-				`files=$(find . \( -type f -o -type l \) -print) && [ -n "$files" ]`+
-					`&& echo "$files" | zip -r -y -9 -@ %s || exit 0`,
-				args.ZipName,
-			)
-
+		// When not including parent, cd into the directory
+		if isDir && !args.IncludeParent {
 			workingDir = absolutePath
 		}
 
-		cmd := exec.Command("sh", "-c", command)
+		cmd := exec.Command("sh", "-c", buildZipCommand(isDir, args, dirOrFile))
 		cmd.Dir = workingDir
-
 		cmd.Stdout = io.Discard
 		cmd.Stderr = os.Stderr
 		cmd.Env = envVars()
@@ -77,6 +65,39 @@ func ZipV2(args ZipArgs) error {
 	}
 
 	return nil
+}
+
+func buildZipCommand(isDir bool, args ZipArgs, dirOrFile string) string {
+	// -r recursive
+	// -y preserve symlinks
+	// -9 max compression
+
+	// Single file - simple zip
+	if !isDir {
+		return fmt.Sprintf("zip -9 %s %s", args.ZipName, path.Base(dirOrFile))
+	}
+
+	// Directory with parent included
+	if args.IncludeParent {
+		baseCmd := fmt.Sprintf("zip -r -y -9 %s %s", args.ZipName, dirOrFile)
+		if args.GlobPattern != "" {
+			return fmt.Sprintf("%s -i '%s'", baseCmd, args.GlobPattern)
+		}
+		return baseCmd
+	}
+
+	// Directory without parent - use find
+	findFilter := `\( -type f -o -type l \)`
+
+	if args.GlobPattern != "" {
+		findFilter += fmt.Sprintf(` -name '%s'`, args.GlobPattern)
+	}
+
+	return fmt.Sprintf(
+		`files=$(find . %s -print) && [ -n "$files" ] && echo "$files" | zip -r -y -9 -@ %s || exit 0`,
+		findFilter,
+		args.ZipName,
+	)
 }
 
 func IsZipEmpty(src string) bool {

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/file"
@@ -26,7 +27,28 @@ func (s *ZipSuite) AfterTest(_, _ string) {
 	s.NoError(os.RemoveAll(s.tmpDir))
 }
 
-func (s *ZipSuite) createZipWithFiles(files map[string][]byte) []byte {
+func (s *ZipSuite) createFilesToBeZipped() {
+	dirName := "migrations"
+	// Create test directory with mixed files
+	testDir := filepath.Join(s.tmpDir, dirName)
+
+	// Create directories (including nested)
+	s.NoError(os.MkdirAll(filepath.Join(testDir, "nested", "2024"), 0755))
+
+	// Create SQL files
+	s.NoError(os.WriteFile(filepath.Join(testDir, "001_create_users.sql"), []byte("CREATE TABLE users"), 0644))
+	s.NoError(os.WriteFile(filepath.Join(testDir, "002_create_posts.sql"), []byte("CREATE TABLE posts"), 0644))
+
+	// Create SQL files in nested directories
+	s.NoError(os.WriteFile(filepath.Join(testDir, "nested", "init.sql"), []byte("INIT"), 0644))
+	s.NoError(os.WriteFile(filepath.Join(testDir, "nested", "2024", "001.sql"), []byte("2024"), 0644))
+
+	// Create non-SQL files (should be excluded)
+	s.NoError(os.WriteFile(filepath.Join(testDir, "README.md"), []byte("# Migrations"), 0644))
+	s.NoError(os.WriteFile(filepath.Join(testDir, "config.json"), []byte("{}"), 0644))
+}
+
+func (s *ZipSuite) createZipInMemoryWithFiles(files map[string][]byte) []byte {
 	// Create a buffer to hold the zip content
 	var buf bytes.Buffer
 
@@ -47,6 +69,20 @@ func (s *ZipSuite) createZipWithFiles(files map[string][]byte) []byte {
 	return buf.Bytes()
 }
 
+func (s *ZipSuite) listFilesInZip(zipFile string) map[string]bool {
+	r, err := zip.OpenReader(zipFile)
+	s.NoError(err)
+	defer r.Close()
+
+	fileNames := make(map[string]bool)
+
+	for _, f := range r.File {
+		fileNames[f.Name] = true
+	}
+
+	return fileNames
+}
+
 func (s *ZipSuite) TestUnzip_ValidZipFile() {
 	files := map[string][]byte{
 		"index.html":         []byte("Hello World"),
@@ -54,7 +90,7 @@ func (s *ZipSuite) TestUnzip_ValidZipFile() {
 	}
 
 	// Create a valid zip file
-	zipContent := s.createZipWithFiles(files)
+	zipContent := s.createZipInMemoryWithFiles(files)
 	zipFile := filepath.Join(s.tmpDir, "test.zip")
 
 	s.NoError(os.WriteFile(zipFile, zipContent, 0644))
@@ -77,7 +113,7 @@ func (s *ZipSuite) TestUnzip_ZipSlipVulnerability() {
 	}
 
 	// Create a valid zip file
-	zipContent := s.createZipWithFiles(files)
+	zipContent := s.createZipInMemoryWithFiles(files)
 	zipFile := filepath.Join(s.tmpDir, "test-invalid.zip")
 
 	s.NoError(os.WriteFile(zipFile, zipContent, 0644))
@@ -87,6 +123,71 @@ func (s *ZipSuite) TestUnzip_ZipSlipVulnerability() {
 	destDir := filepath.Join(s.tmpDir, "output")
 	err := file.Unzip(file.UnzipOpts{zipFile, destDir, false})
 	s.Error(err)
+}
+
+func (s *ZipSuite) TestZipV2_WithGlobPattern_SQLFiles() {
+	s.createFilesToBeZipped()
+
+	zipFile := filepath.Join(s.tmpDir, "migrations.zip")
+
+	err := file.ZipV2(file.ZipArgs{
+		Source:      []string{"migrations"},
+		ZipName:     zipFile,
+		WorkingDir:  s.tmpDir,
+		GlobPattern: "*.sql",
+	})
+
+	s.NoError(err)
+
+	fileNames := s.listFilesInZip(zipFile)
+
+	// Should include SQL files
+	s.True(fileNames["001_create_users.sql"], "Should include SQL file")
+	s.True(fileNames["002_create_posts.sql"], "Should include SQL file")
+	s.True(fileNames["nested/init.sql"], "Should include nested SQL file")
+	s.True(fileNames["nested/2024/001.sql"], "Should include nested SQL file")
+
+	// Should NOT include non-SQL files
+	s.False(fileNames["README.md"], "Should not include non-SQL file")
+	s.False(fileNames["config.json"], "Should not include non-SQL file")
+}
+
+func (s *ZipSuite) TestZipV2_WithoutGlobPattern_AllFiles() {
+	s.createFilesToBeZipped()
+
+	// Create zip WITHOUT glob pattern (should include all files)
+	zipFile := filepath.Join(s.tmpDir, "all.zip")
+
+	err := file.ZipV2(file.ZipArgs{
+		Source:     []string{"migrations"},
+		ZipName:    zipFile,
+		WorkingDir: s.tmpDir,
+	})
+
+	s.NoError(err)
+	s.Equal(6, len(s.listFilesInZip(zipFile)), "Should include all files when no glob pattern is specified")
+}
+
+func (s *ZipSuite) TestZipV2_WithGlobPattern_IncludeParent() {
+	s.createFilesToBeZipped()
+
+	// Create zip with IncludeParent and glob pattern
+	zipFile := filepath.Join(s.tmpDir, "parent.zip")
+
+	err := file.ZipV2(file.ZipArgs{
+		Source:        []string{"migrations"},
+		ZipName:       zipFile,
+		WorkingDir:    s.tmpDir,
+		IncludeParent: true,
+		GlobPattern:   "*.sql",
+	})
+	s.NoError(err)
+
+	fileNames := s.listFilesInZip(zipFile)
+
+	for name := range fileNames {
+		s.True(strings.HasPrefix(name, "migrations/"), "All files should be under parent directory 'migrations/'")
+	}
 }
 
 func TestZipSuite(t *testing.T) {
