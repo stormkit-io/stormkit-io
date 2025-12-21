@@ -750,7 +750,7 @@ func (b Bundler) BundleDependencies(ctx context.Context, destination string, inc
 
 // Zip all artifacts
 func (b Bundler) Zip(artifacts *Artifacts) error {
-	zip := func(zipName string, dirs []string, includeParent bool) error {
+	zip := func(zipName string, dirs []string, includeParent bool, globPattern string) error {
 		workingDir := b.workDir
 
 		return file.ZipV2(file.ZipArgs{
@@ -767,14 +767,14 @@ func (b Bundler) Zip(artifacts *Artifacts) error {
 	migrationsZip := filepath.Join(b.distDir, "sk-migrations.zip")
 
 	if b.migrationsDir != "" && file.Exists(filepath.Join(b.workDir, b.migrationsDir)) {
-		if err := zip(migrationsZip, []string{b.migrationsDir}, false); err != nil {
+		if err := zip(migrationsZip, []string{b.migrationsDir}, false, "*.sql"); err != nil {
 			return err
 		}
 
 		artifacts.migrationsZip = migrationsZip
 	}
 
-	if err := zip(clientZip, artifacts.ClientDirs, false); err != nil {
+	if err := zip(clientZip, artifacts.ClientDirs, false, ""); err != nil {
 		return err
 	}
 
@@ -784,11 +784,11 @@ func (b Bundler) Zip(artifacts *Artifacts) error {
 		includeParentFolder = false
 	}
 
-	if err := zip(serverZip, artifacts.ServerDirs, includeParentFolder); err != nil {
+	if err := zip(serverZip, artifacts.ServerDirs, includeParentFolder, ""); err != nil {
 		return err
 	}
 
-	if err := zip(apiZip, artifacts.ApiDirs, false); err != nil {
+	if err := zip(apiZip, artifacts.ApiDirs, false, ""); err != nil {
 		return err
 	}
 
