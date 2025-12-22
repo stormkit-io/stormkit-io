@@ -2,6 +2,7 @@ package file_test
 
 import (
 	"archive/zip"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -163,10 +164,10 @@ func (s *ZipSuite) Test_ZipIterator() {
 	var collectedFiles []string
 	var collectedContent []string
 
-	err = file.ZipIterator(zipContent, func(fileName string, content []byte) bool {
+	err = file.ZipIterator(zipContent, func(fileName string, content []byte) error {
 		collectedFiles = append(collectedFiles, fileName)
 		collectedContent = append(collectedContent, string(content))
-		return true
+		return nil
 	})
 
 	s.NoError(err)
@@ -199,12 +200,12 @@ func (s *ZipSuite) Test_ZipIterator_EarlyExit() {
 	// Test early exit by returning false after first file
 	var collectedFiles []string
 
-	err = file.ZipIterator(zipContent, func(fileName string, content []byte) bool {
+	err = file.ZipIterator(zipContent, func(fileName string, content []byte) error {
 		collectedFiles = append(collectedFiles, fileName)
-		return false // Stop after first file
+		return fmt.Errorf("stop after first file")
 	})
 
-	s.NoError(err)
+	s.Error(err, "Expected error to stop iteration")
 
 	// Verify only first file was processed
 	s.Equal(1, len(collectedFiles), "Should stop after first file when returning false")

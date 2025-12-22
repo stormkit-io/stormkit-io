@@ -64,7 +64,7 @@ func ZipInMemory(files map[string][]byte) ([]byte, error) {
 // ZipIterator allows iterating over the files in a zip content.
 // The iterator function should return true to continue iteration, or false to stop.
 // Files are processed in sorted order by name.
-func ZipIterator(zipContent []byte, iterator func(string, []byte) bool) error {
+func ZipIterator(zipContent []byte, iterator func(string, []byte) error) error {
 	r, err := zip.NewReader(bytes.NewReader(zipContent), int64(len(zipContent)))
 
 	if err != nil {
@@ -98,8 +98,8 @@ func ZipIterator(zipContent []byte, iterator func(string, []byte) bool) error {
 			return closeErr
 		}
 
-		if !iterator(f.Name, content) {
-			break
+		if err := iterator(f.Name, content); err != nil {
+			return err
 		}
 	}
 
