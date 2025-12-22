@@ -150,8 +150,9 @@ func (a *AWSClient) GetFile(args GetFileArgs) (*GetFileResult, error) {
 
 	// For other files, we append the file name to the location and use getFile.
 	// If FileName is empty, it means the location already points to the file.
+	// We have to use path.Join because S3 uses "/" as separator.
 	if args.FileName != "" {
-		args.Location = filepath.Join(args.Location, args.FileName)
+		args.Location = path.Join(args.Location, args.FileName)
 	}
 
 	return a.getFile(args)
