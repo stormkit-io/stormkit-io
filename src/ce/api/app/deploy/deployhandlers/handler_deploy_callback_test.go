@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appcache"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy/deployhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy/deployhooks"
@@ -19,6 +20,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp/shttptest"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils/file"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/mise"
 	"github.com/stormkit-io/stormkit-io/src/mocks"
 	"github.com/stretchr/testify/mock"
@@ -32,6 +34,7 @@ type HandlerDeployCallbackSuite struct {
 
 	conn             databasetest.TestDB
 	mockCacheService *mocks.CacheInterface
+	mockClient       *mocks.ClientInterface
 }
 
 func (s *HandlerDeployCallbackSuite) BeforeTest(suiteName, _ string) {
@@ -39,7 +42,9 @@ func (s *HandlerDeployCallbackSuite) BeforeTest(suiteName, _ string) {
 	s.Factory = factory.New(s.conn)
 	deployhooks.StatusChecksEnabled = false
 	s.mockCacheService = &mocks.CacheInterface{}
+	s.mockClient = &mocks.ClientInterface{}
 	appcache.DefaultCacheService = s.mockCacheService
+	integrations.CachedClient = s.mockClient
 	config.SetIsStormkitCloud(true)
 }
 
@@ -47,6 +52,7 @@ func (s *HandlerDeployCallbackSuite) AfterTest(_, _ string) {
 	deployhooks.StatusChecksEnabled = true
 	s.mockCacheService = nil
 	appcache.DefaultCacheService = nil
+	integrations.CachedClient = nil
 	s.conn.CloseTx()
 }
 
@@ -518,6 +524,50 @@ func (s *HandlerDeployCallbackSuite) Test_InvalidDeployID() {
 	)
 
 	s.Equal(http.StatusUnauthorized, response.Code)
+}
+
+func (s *HandlerDeployCallbackSuite) Test_RunMigrations() {
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app, map[string]any{
+		"SchemaConf": &buildconf.SchemaConf{
+			Host:              s.conn.Cfg.Host,
+			Port:              s.conn.Cfg.Port,
+			DBName:            s.conn.Cfg.DBName,
+			SchemaName:        s.conn.Cfg.Schema,
+			MigrationPassword: s.conn.Cfg.Password,
+			MigrationUserName: s.conn.Cfg.User,
+			MigrationsEnabled: true,
+		},
+	})
+
+	migrationsFile := "local:/path/to/migrations.zip"
+
+	files := map[string][]byte{
+		"002_create_users.sql": []byte("CREATE TABLE test_users (id INT);"),
+		"003_add_index.sql":    []byte("CREATE INDEX idx_test_users ON test_users(id);"),
+	}
+
+	zipContent, err := file.ZipInMemory(files)
+	s.NoError(err)
+
+	s.mockClient.On("GetFile", integrations.GetFileArgs{
+		Location: migrationsFile,
+	}).Return(&integrations.GetFileResult{
+		Content: zipContent,
+	}, nil).Once()
+
+	s.NoError(deployhandlers.RunMigrations(context.Background(), env.ID, migrationsFile))
+
+	store, err := env.SchemaConf.Store(buildconf.SchemaAccessTypeMigrations)
+	s.NoError(err)
+
+	migrations, err := store.Migrations(context.Background())
+	s.NoError(err)
+
+	s.Len(migrations, 2)
+	s.Equal("002_create_users.sql", migrations[0].Name)
+	s.Equal("003_add_index.sql", migrations[1].Name)
 }
 
 func TestCallbackHandler(t *testing.T) {

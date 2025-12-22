@@ -10,12 +10,31 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/lib/database"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
+	"gopkg.in/guregu/null.v3"
 )
 
 var schemaStmt = struct {
-	selectSchema string
-	selectTables string
+	selectSchema          string
+	selectTables          string
+	createMigrationsTable string
+	selectMigrations      string
 }{
+	createMigrationsTable: `
+		CREATE TABLE IF NOT EXISTS stormkit_schema_migrations (
+			migration_name TEXT NOT NULL,
+			content_hash TEXT NOT NULL UNIQUE,
+			error_message TEXT,
+			applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);
+	`,
+
+	selectMigrations: `
+		SELECT
+			migration_name, content_hash, error_message
+		FROM
+			stormkit_schema_migrations;
+	`,
+
 	selectSchema: `
 		SELECT EXISTS (
 			SELECT 1 FROM information_schema.schemata where schema_name = $1
@@ -143,6 +162,9 @@ var sqlTemplates = struct {
 
 type schemaStore struct {
 	*database.Store
+
+	conf       *SchemaConf
+	accessType string
 }
 
 // SchemaStore returns a store instance.
@@ -150,6 +172,48 @@ func SchemaStore() *schemaStore {
 	return &schemaStore{
 		Store: database.NewStore(),
 	}
+}
+
+// SchemaStoreFor returns a schema store for the given configuration and credentials.
+func SchemaStoreFor(conf *SchemaConf, accessType string) (*schemaStore, error) {
+	var username, password string
+
+	switch accessType {
+	case SchemaAccessTypeMigrations:
+		username = conf.MigrationUserName
+		password = conf.MigrationPassword
+	case SchemaAccessTypeAppUser:
+		username = conf.AppUserName
+		password = conf.AppPassword
+	default:
+		return nil, fmt.Errorf("unknown schema access type: %s", accessType)
+	}
+
+	conn, err := database.NewConnectionWithConfig(database.DBConf{
+		Host:         conf.Host,
+		Port:         conf.Port,
+		User:         username,
+		Password:     password,
+		DBName:       conf.DBName,
+		Schema:       conf.SchemaName,
+		SSLMode:      conf.SSLMode,
+		DriverName:   conf.DriverName,
+		MaxLifetime:  database.Config.MaxLifetime,
+		MaxOpenConns: database.Config.MaxOpenConns,
+		MaxIdleConns: database.Config.MaxIdleConns,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &schemaStore{
+		conf:       conf,
+		accessType: accessType,
+		Store: &database.Store{
+			Conn: conn,
+		},
+	}, nil
 }
 
 // GetSchema retrieves schema information from the database.
@@ -312,6 +376,91 @@ func (s *schemaStore) DropSchema(ctx context.Context, schemaName string) error {
 	}
 
 	return nil
+}
+
+// EnsureMigrationsTable ensures that the migrations table exists in the schema.
+// This table is used to track applied migrations.
+func (s *schemaStore) EnsureMigrationsTable() error {
+	if s.conf == nil {
+		return fmt.Errorf("schema configuration is required to ensure migrations table")
+	}
+
+	_, err := s.Exec(context.Background(), schemaStmt.createMigrationsTable)
+	return err
+}
+
+type Migration struct {
+	Name        string
+	ContentHash string
+	ErrorMsg    null.String
+}
+
+// Migrations retrieves the list of applied migrations from the schema.
+func (s *schemaStore) Migrations(ctx context.Context) ([]Migration, error) {
+	if s.conf == nil {
+		return nil, fmt.Errorf("schema configuration is required to retrieve migrations")
+	}
+
+	rows, err := s.Query(ctx, schemaStmt.selectMigrations)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	var migrations []Migration
+
+	for rows.Next() {
+		migration := Migration{}
+
+		if err := rows.Scan(&migration.Name, &migration.ContentHash, &migration.ErrorMsg); err != nil {
+			return nil, err
+		}
+
+		migrations = append(migrations, migration)
+	}
+
+	return migrations, nil
+}
+
+// ApplyMigration applies a migration to the schema if it hasn't been applied yet.
+func (s *schemaStore) ApplyMigration(ctx context.Context, migrationName string, content []byte, sha string) error {
+	if s.conf == nil {
+		return fmt.Errorf("schema configuration is required to apply migrations")
+	}
+
+	// Apply migration
+	_, err := s.Exec(ctx, string(content))
+
+	var msg null.String
+
+	if err != nil {
+		msg = null.StringFrom(err.Error())
+	}
+
+	// Record applied migration
+	_, err = s.Exec(ctx, `
+		INSERT INTO stormkit_schema_migrations (migration_name, content_hash, error_message)
+		VALUES ($1, $2, $3);
+	`, migrationName, sha, msg)
+
+	if err != nil {
+		return fmt.Errorf("failed to record applied migration %s: %w", migrationName, err)
+	}
+
+	return nil
+}
+
+// Close closes the schema store and its underlying database connection.
+func (s *schemaStore) Close() error {
+	if s.conf != nil {
+		s.conf.cachedStoresMux.Lock()
+		delete(s.conf.cachedStores, fmt.Sprintf("%s:%s", s.accessType, s.conf.DBName))
+		s.conf.cachedStoresMux.Unlock()
+	}
+
+	return s.Conn.Close()
 }
 
 // See https://github.com/stormkit-io/stormkit-io/pull/56#discussion_r2603452242

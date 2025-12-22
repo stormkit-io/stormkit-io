@@ -39,14 +39,16 @@ func (e MockEnv) Insert(conn databasetest.TestDB) error {
 	params := []any{
 		e.AppID, e.Name, e.Branch, data, e.AutoPublish,
 		e.AutoDeployBranches, e.AutoDeploy, e.DeletedAt, mailer,
+		e.SchemaConf,
 	}
 
 	return conn.PrepareOrPanic(`
 		INSERT INTO apps_build_conf (
 			app_id, env_name, branch, build_conf, auto_publish,
-			auto_deploy_branches, auto_deploy, deleted_at, mailer_conf
+			auto_deploy_branches, auto_deploy, deleted_at, mailer_conf,
+			schema_conf
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING env_id;`,
 	).QueryRow(params...).Scan(&e.ID)
 }

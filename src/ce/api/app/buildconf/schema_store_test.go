@@ -300,6 +300,62 @@ func (s *SchemaStoreSuite) Test_CreateSchema_ReturnsCredentials() {
 	s.NotEqual(result.AppUserName, result.MigrationUserName, "usernames should be different")
 }
 
+func (s *SchemaStoreSuite) Test_Migrations_Success() {
+	ctx := context.Background()
+
+	// Create schema first
+	result, err := buildconf.SchemaStore().CreateSchema(ctx, s.schemaName)
+	s.NoError(err)
+	s.NotNil(result)
+
+	result.MigrationPassword = database.Config.Password
+	result.MigrationUserName = database.Config.User
+	result.DriverName = "txdb"
+
+	// Create a store with schema configuration
+	store, err := buildconf.SchemaStoreFor(result, buildconf.SchemaAccessTypeMigrations)
+	s.NoError(err)
+	s.NotNil(store)
+	defer store.Close()
+
+	// Ensure migrations table
+	s.NoError(store.EnsureMigrationsTable())
+	s.NoError(store.EnsureMigrationsTable(), "should be idempotent")
+
+	// Initially should be empty
+	migrations, err := store.Migrations(ctx)
+	s.NoError(err)
+	s.Empty(migrations, "should have no migrations initially")
+
+	// Apply multiple migrations
+	migrations1 := []struct {
+		name    string
+		content string
+		hash    string
+	}{
+		{"001_init", "CREATE TABLE test1 (id INT);", "hash1"},
+		{"002_add_users", "CREATE TABLE test2 (id INT);", "hash2"},
+		{"003_add_posts", "CREATE TABLE test3 (id INT);", "hash3"},
+	}
+
+	for _, m := range migrations1 {
+		s.NoError(store.ApplyMigration(ctx, m.name, []byte(m.content), m.hash))
+	}
+
+	// Retrieve migrations
+	migrations, err = store.Migrations(ctx)
+	s.NoError(err)
+	s.Len(migrations, 3, "should have three recorded migrations")
+
+	// Verify migration data
+	s.Equal("001_init", migrations[0].Name)
+	s.Equal("hash1", migrations[0].ContentHash)
+	s.Equal("002_add_users", migrations[1].Name)
+	s.Equal("hash2", migrations[1].ContentHash)
+	s.Equal("003_add_posts", migrations[2].Name)
+	s.Equal("hash3", migrations[2].ContentHash)
+}
+
 func (s *SchemaStoreSuite) Test_SchemaConf_String() {
 	conf := &buildconf.SchemaConf{
 		AppUserName:       "app_user",

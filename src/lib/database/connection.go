@@ -25,6 +25,8 @@ type DBConf struct {
 	MaxLifetime  time.Duration
 	MaxOpenConns int
 	MaxIdleConns int
+
+	DriverName string
 }
 
 var _db *sql.DB
@@ -94,7 +96,7 @@ func ConnectionString(cfg DBConf) string {
 
 // NewConnectionWithConfig returns a new connection with the given config.
 func NewConnectionWithConfig(cfg DBConf) (*sql.DB, error) {
-	db, err := sql.Open("postgres", ConnectionString(cfg))
+	db, err := sql.Open(utils.GetString(cfg.DriverName, "postgres"), ConnectionString(cfg))
 
 	if err != nil {
 		return nil, err

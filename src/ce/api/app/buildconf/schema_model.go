@@ -4,6 +4,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
@@ -55,6 +56,10 @@ type SchemaConf struct {
 	Port              string `json:"port"`
 	Host              string `json:"host"`
 	SSLMode           string `json:"sslMode"`
+	DriverName        string `json:"-"` // Used in tests to specify the driver name
+
+	cachedStores    map[string]*schemaStore `json:"-"`
+	cachedStoresMux sync.Mutex              `json:"-"`
 }
 
 // Scan implements the Scanner interface.
@@ -91,6 +96,33 @@ func (sc *SchemaConf) Value() (driver.Value, error) {
 	}
 
 	return utils.Encrypt(js)
+}
+
+const SchemaAccessTypeMigrations = "migrations"
+const SchemaAccessTypeAppUser = "app"
+
+func (sc *SchemaConf) Store(accessType string) (*schemaStore, error) {
+	sc.cachedStoresMux.Lock()
+	defer sc.cachedStoresMux.Unlock()
+
+	if sc.cachedStores == nil {
+		sc.cachedStores = make(map[string]*schemaStore)
+	}
+
+	cacheKey := fmt.Sprintf("%s:%s", accessType, sc.DBName)
+
+	if db, exists := sc.cachedStores[cacheKey]; exists {
+		return db, nil
+	}
+
+	store, err := SchemaStoreFor(sc, accessType)
+
+	if err != nil {
+		return nil, err
+	}
+
+	sc.cachedStores[cacheKey] = store
+	return store, err
 }
 
 // String returns the psql connection string.
