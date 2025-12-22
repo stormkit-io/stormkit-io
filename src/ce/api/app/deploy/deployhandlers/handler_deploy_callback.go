@@ -49,6 +49,14 @@ type deployCallbackRequest struct {
 	deployment *deploy.Deployment
 }
 
+// NewDeployCallbackRequest creates a new DeployCallbackRequest instance.
+// Used mainly for testing purposes.
+func NewDeployCallbackRequest(deployment *deploy.Deployment) deployCallbackRequest {
+	return deployCallbackRequest{
+		deployment: deployment,
+	}
+}
+
 // handlerDeployCallback updates the deployment based on the request.
 func handlerDeployCallback(req *shttp.RequestContext) *shttp.Response {
 	data := deployCallbackRequest{}
@@ -172,15 +180,17 @@ func UpdateExit(req *shttp.RequestContext, data deployCallbackRequest) *shttp.Re
 	// If the deployment branch == environment branch, it means we need to migrate the environment
 	if data.Result.Migrations.Location != "" {
 		if err := RunMigrations(req.Context(), data.deployment.EnvID, data.deployment.Branch, data.Result.Migrations.Location); err != nil {
-			return shttp.Error(err, fmt.Sprintf("error while running migrations: %s", err.Error()))
+			data.deployment.Error = null.StringFrom(err.Error())
 		}
 	}
 
 	if err := deploy.NewStore().UpdateDeploymentResult(req.Context(), data.deployment, data.Result); err != nil {
-		return shttp.Error(err, fmt.Sprintf("error while updating deployment result: %s", err.Error()))
+		return shttp.BadRequest(map[string]any{
+			"error": fmt.Sprintf("error while updating deployment result: %s", err.Error()),
+		})
 	}
 
-	if config.IsSelfHosted() {
+	if config.IsSelfHosted() && data.deployment.BuildManifest != nil && len(data.deployment.BuildManifest.Runtimes) > 0 {
 		cnf := admin.MustConfig()
 
 		slog.Debug(slog.LogOpts{
@@ -256,30 +266,30 @@ func RunMigrations(ctx context.Context, envID types.ID, branch string, migration
 		return err
 	}
 
-	err = file.ZipIterator(migrationsZip.Content, func(fileName string, content []byte) bool {
+	err = file.ZipIterator(migrationsZip.Content, func(fileName string, content []byte) error {
 		hash := utils.Hash(content)
 
 		// Skip migrations that have already been applied
 		for _, migration := range migrations {
 			if migration.ContentHash == hash {
-				return true
+				return nil
 			}
 		}
 
 		// Skip down migrations
 		if strings.Contains(fileName, ".down.") {
-			return true
+			return nil
 		}
 
 		if err := store.ApplyMigration(ctx, fileName, content, hash); err != nil {
-			return false
+			return err
 		}
 
-		return true
+		return nil
 	})
 
 	if err != nil {
-		return fmt.Errorf("error while reading migrations zip file: %s", err.Error())
+		return err
 	}
 
 	return nil

@@ -570,6 +570,42 @@ func (s *HandlerDeployCallbackSuite) Test_RunMigrations() {
 	s.Equal("003_add_index.sql", migrations[1].Name)
 }
 
+func (s *HandlerDeployCallbackSuite) Test_RunMigrations_Failed() {
+	config.SetIsSelfHosted(true)
+
+	file := "local:/path/to/migrations.zip"
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app, map[string]any{
+		"SchemaConf": &buildconf.SchemaConf{
+			MigrationsEnabled: true,
+		},
+	})
+
+	depl := s.MockDeployment(env)
+
+	// Let's simulate missing migrations file
+	s.mockClient.On("GetFile", integrations.GetFileArgs{
+		Location: file,
+	}).Return(nil, nil).Once()
+
+	data := deployhandlers.NewDeployCallbackRequest(depl.Deployment)
+	data.Outcome = deployhandlers.OutcomeSuccess
+	data.Result = integrations.UploadResult{
+		Migrations: integrations.UploadOverview{
+			Location: file,
+		},
+	}
+
+	res := deployhandlers.UpdateExit(shttp.NewRequestContext(&http.Request{}), data)
+
+	s.Equal(http.StatusOK, res.Status)
+
+	d, err := deploy.NewStore().DeploymentByID(context.Background(), depl.ID)
+	s.NoError(err)
+	s.Equal("migrations file not found at location: local:/path/to/migrations.zip", d.Error.ValueOrZero())
+}
+
 func TestCallbackHandler(t *testing.T) {
 	suite.Run(t, &HandlerDeployCallbackSuite{})
 }
