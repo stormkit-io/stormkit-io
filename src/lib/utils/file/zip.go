@@ -4,12 +4,16 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
+	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/sys"
@@ -106,10 +110,75 @@ func ZipIterator(zipContent []byte, iterator func(string, []byte) error) error {
 	return nil
 }
 
+// sanitizeZipName ensures the zip file name is safe for shell commands
+func sanitizeZipName(zipName string) (string, error) {
+	// Get the base name to prevent directory traversal
+	base := filepath.Base(zipName)
+
+	// Only allow alphanumeric, dash, underscore, and dot
+	matched, err := regexp.MatchString(`^[a-zA-Z0-9_.-]+$`, base)
+	if err != nil {
+		return "", fmt.Errorf("failed to validate zip name: %w", err)
+	}
+
+	if !matched || base == "" || base == "." || base == ".." {
+		return "", fmt.Errorf("invalid zip file name: %s", zipName)
+	}
+
+	return base, nil
+}
+
+// sanitizeGlobPattern ensures the glob pattern is safe for shell commands
+func sanitizeGlobPattern(pattern string) (string, error) {
+	if pattern == "" {
+		return "", nil
+	}
+
+	// Trim whitespace
+	pattern = strings.TrimSpace(pattern)
+
+	// Only allow alphanumeric, *, ?, dash, underscore, and dot
+	// No path separators or shell metacharacters
+	matched, err := regexp.MatchString(`^[a-zA-Z0-9*?._-]+$`, pattern)
+
+	if err != nil {
+		return "", fmt.Errorf("failed to validate glob pattern: %w", err)
+	}
+
+	if !matched {
+		return "", fmt.Errorf("invalid characters in glob pattern: %s", pattern)
+	}
+
+	// Prevent patterns that could escape
+	if strings.Contains(pattern, "..") {
+		return "", errors.New("glob pattern cannot contain '..'")
+	}
+
+	return pattern, nil
+}
+
 // ZipV2 the source folder/file to the target zip file.
 // If the zip file already exists, this function will open and
 // re-use that.
 func ZipV2(args ZipArgs) error {
+	// Sanitize inputs to prevent command injection
+	sanitizedZipName, err := sanitizeZipName(args.ZipName)
+
+	if err != nil {
+		return fmt.Errorf("invalid zip name: %w", err)
+	}
+
+	sanitizedPattern, err := sanitizeGlobPattern(args.GlobPattern)
+
+	if err != nil {
+		return fmt.Errorf("invalid glob pattern: %w", err)
+	}
+
+	// Create sanitized args copy
+	sanitizedArgs := args
+	sanitizedArgs.ZipName = sanitizedZipName
+	sanitizedArgs.GlobPattern = sanitizedPattern
+
 	for _, dirOrFile := range args.Source {
 		absolutePath := path.Join(args.WorkingDir, dirOrFile)
 		info, err := os.Stat(absolutePath)
@@ -131,7 +200,7 @@ func ZipV2(args ZipArgs) error {
 			workingDir = absolutePath
 		}
 
-		cmd := exec.Command("sh", "-c", buildZipCommand(isDir, args, dirOrFile))
+		cmd := exec.Command("sh", "-c", buildZipCommand(isDir, sanitizedArgs, dirOrFile))
 		cmd.Dir = workingDir
 		cmd.Stdout = io.Discard
 		cmd.Stderr = os.Stderr
