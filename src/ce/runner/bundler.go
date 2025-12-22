@@ -758,6 +758,7 @@ func (b Bundler) Zip(artifacts *Artifacts) error {
 			ZipName:       zipName,
 			WorkingDir:    workingDir,
 			IncludeParent: includeParent,
+			GlobPattern:   globPattern,
 		})
 	}
 
