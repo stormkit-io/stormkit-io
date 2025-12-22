@@ -85,7 +85,7 @@ func handlerDeployCallback(req *shttp.RequestContext) *shttp.Response {
 	}
 
 	if data.deployment.IsLocked() {
-		return shttp.BadRequest()
+		return shttp.NoContent()
 	}
 
 	switch {
