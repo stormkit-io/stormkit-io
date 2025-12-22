@@ -2,7 +2,6 @@ package file_test
 
 import (
 	"archive/zip"
-	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -48,27 +47,6 @@ func (s *ZipSuite) createFilesToBeZipped() {
 	s.NoError(os.WriteFile(filepath.Join(testDir, "config.json"), []byte("{}"), 0644))
 }
 
-func (s *ZipSuite) createZipInMemoryWithFiles(files map[string][]byte) []byte {
-	// Create a buffer to hold the zip content
-	var buf bytes.Buffer
-
-	// Create a new zip writer
-	zipWriter := zip.NewWriter(&buf)
-
-	for fileName, fileContent := range files {
-		zf, err := zipWriter.Create(fileName)
-		s.NoError(err)
-		_, err = zf.Write(fileContent)
-		s.NoError(err)
-	}
-
-	// Close the zip writer to finalize the zip content
-	s.NoError(zipWriter.Close())
-
-	// Return the zip content as a byte slice
-	return buf.Bytes()
-}
-
 func (s *ZipSuite) listFilesInZip(zipFile string) map[string]bool {
 	r, err := zip.OpenReader(zipFile)
 	s.NoError(err)
@@ -90,7 +68,9 @@ func (s *ZipSuite) Test_Unzip_ValidZipFile() {
 	}
 
 	// Create a valid zip file
-	zipContent := s.createZipInMemoryWithFiles(files)
+	zipContent, err := file.ZipInMemory(files)
+	s.NoError(err)
+
 	zipFile := filepath.Join(s.tmpDir, "test.zip")
 
 	s.NoError(os.WriteFile(zipFile, zipContent, 0644))
@@ -113,16 +93,16 @@ func (s *ZipSuite) Test_Unzip_ZipSlipVulnerability() {
 	}
 
 	// Create a valid zip file
-	zipContent := s.createZipInMemoryWithFiles(files)
+	zipContent, err := file.ZipInMemory(files)
+	s.NoError(err)
+
 	zipFile := filepath.Join(s.tmpDir, "test-invalid.zip")
 
 	s.NoError(os.WriteFile(zipFile, zipContent, 0644))
 
 	// Unzip the file
 	s.NoError(os.MkdirAll(filepath.Join(s.tmpDir, "output"), 0755))
-	destDir := filepath.Join(s.tmpDir, "output")
-	err := file.Unzip(file.UnzipOpts{zipFile, destDir, false})
-	s.Error(err)
+	s.Error(file.Unzip(file.UnzipOpts{zipFile, filepath.Join(s.tmpDir, "output"), false}))
 }
 
 func (s *ZipSuite) Test_ZipV2_WithGlobPattern_SQLFiles() {
@@ -176,13 +156,14 @@ func (s *ZipSuite) Test_ZipIterator() {
 		"003_add_index.sql":    []byte("CREATE INDEX idx_users ON users(id);"),
 	}
 
-	zipContent := s.createZipInMemoryWithFiles(files)
+	zipContent, err := file.ZipInMemory(files)
+	s.NoError(err)
 
 	// Test iteration
 	var collectedFiles []string
 	var collectedContent []string
 
-	err := file.ZipIterator(zipContent, func(fileName string, content []byte) bool {
+	err = file.ZipIterator(zipContent, func(fileName string, content []byte) bool {
 		collectedFiles = append(collectedFiles, fileName)
 		collectedContent = append(collectedContent, string(content))
 		return true
@@ -212,12 +193,13 @@ func (s *ZipSuite) Test_ZipIterator_EarlyExit() {
 		"003_add_index.sql":    []byte("CREATE INDEX idx_users ON users(id);"),
 	}
 
-	zipContent := s.createZipInMemoryWithFiles(files)
+	zipContent, err := file.ZipInMemory(files)
+	s.NoError(err)
 
 	// Test early exit by returning false after first file
 	var collectedFiles []string
 
-	err := file.ZipIterator(zipContent, func(fileName string, content []byte) bool {
+	err = file.ZipIterator(zipContent, func(fileName string, content []byte) bool {
 		collectedFiles = append(collectedFiles, fileName)
 		return false // Stop after first file
 	})

@@ -30,6 +30,37 @@ type ZipArgs struct {
 	GlobPattern   string   // Optional: only include files matching this pattern (e.g., "*.sql")
 }
 
+// ZipInMemory creates a zip archive in memory from the given files.
+// The `files` map should have file names as keys and file contents as values.
+func ZipInMemory(files map[string][]byte) ([]byte, error) {
+	// Create a buffer to hold the zip content
+	var buf bytes.Buffer
+
+	// Create a new zip writer
+	zipWriter := zip.NewWriter(&buf)
+
+	for fileName, fileContent := range files {
+		zf, err := zipWriter.Create(fileName)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if _, err = zf.Write(fileContent); err != nil {
+			return nil, err
+		}
+	}
+
+	// Close the zip writer to finalize the zip content
+	if err := zipWriter.Close(); err != nil {
+		return nil, err
+	}
+
+	// Return the zip content as a byte slice
+	return buf.Bytes(), nil
+
+}
+
 // ZipIterator allows iterating over the files in a zip content.
 // The iterator function should return true to continue iteration, or false to stop.
 // Files are processed in sorted order by name.
