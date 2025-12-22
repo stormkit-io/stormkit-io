@@ -142,12 +142,17 @@ func (a *AWSClient) serveFromZip(args GetFileArgs) (*GetFileResult, error) {
 
 // GetFile returns a file from the bucket.
 func (a *AWSClient) GetFile(args GetFileArgs) (*GetFileResult, error) {
-	if strings.HasSuffix(args.Location, ".zip") {
+	// The serveFromZip method is used to serve files from the sk-client.zip file.
+	// For other files, we use the getFile method.
+	if strings.HasSuffix(args.Location, "sk-client.zip") {
 		return a.serveFromZip(args)
 	}
 
-	// This is required to make old-style locations work.
-	args.Location = path.Join(args.Location, args.FileName)
+	// For other files, we append the file name to the location and use getFile.
+	// If FileName is empty, it means the location already points to the file.
+	if args.FileName != "" {
+		args.Location = filepath.Join(args.Location, args.FileName)
+	}
 
 	return a.getFile(args)
 }
