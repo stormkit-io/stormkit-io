@@ -557,7 +557,7 @@ func (s *HandlerDeployCallbackSuite) Test_RunMigrations() {
 		Content: zipContent,
 	}, nil).Once()
 
-	s.NoError(deployhandlers.RunMigrations(context.Background(), env.ID, migrationsFile))
+	s.NoError(deployhandlers.RunMigrations(context.Background(), env.ID, env.Branch, migrationsFile))
 
 	store, err := env.SchemaConf.Store(buildconf.SchemaAccessTypeMigrations)
 	s.NoError(err)

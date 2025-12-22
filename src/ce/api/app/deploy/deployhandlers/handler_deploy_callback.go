@@ -171,7 +171,7 @@ func UpdateExit(req *shttp.RequestContext, data deployCallbackRequest) *shttp.Re
 
 	// If the deployment branch == environment branch, it means we need to migrate the environment
 	if data.Result.Migrations.Location != "" {
-		if err := RunMigrations(req.Context(), data.deployment.EnvID, data.Result.Migrations.Location); err != nil {
+		if err := RunMigrations(req.Context(), data.deployment.EnvID, data.deployment.Branch, data.Result.Migrations.Location); err != nil {
 			return shttp.Error(err, fmt.Sprintf("error while running migrations: %s", err.Error()))
 		}
 	}
@@ -205,7 +205,7 @@ func UpdateExit(req *shttp.RequestContext, data deployCallbackRequest) *shttp.Re
 }
 
 // RunMigrations runs database migrations for the given environment.
-func RunMigrations(ctx context.Context, envID types.ID, migrationsFile string) error {
+func RunMigrations(ctx context.Context, envID types.ID, branch string, migrationsFile string) error {
 	env, err := buildconf.NewStore().EnvironmentByID(ctx, envID)
 
 	if err != nil {
@@ -218,6 +218,11 @@ func RunMigrations(ctx context.Context, envID types.ID, migrationsFile string) e
 
 	// Migrations not enabled
 	if env.SchemaConf == nil || !env.SchemaConf.MigrationsEnabled {
+		return nil
+	}
+
+	// Skip migrations as we're not on the default branch
+	if env.Branch != branch {
 		return nil
 	}
 
