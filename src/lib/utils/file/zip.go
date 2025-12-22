@@ -2,12 +2,14 @@ package file
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path"
+	"sort"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/sys"
@@ -26,6 +28,48 @@ type ZipArgs struct {
 	WorkingDir    string   // The absolute path to the working directory
 	IncludeParent bool     // Whether to include the parent folder when zipping directories
 	GlobPattern   string   // Optional: only include files matching this pattern (e.g., "*.sql")
+}
+
+// ZipIterator allows iterating over the files in a zip content.
+// The iterator function should return true to continue iteration, or false to stop.
+// Files are processed in sorted order by name.
+func ZipIterator(zipContent []byte, iterator func(string, []byte) bool) error {
+	r, err := zip.NewReader(bytes.NewReader(zipContent), int64(len(zipContent)))
+
+	if err != nil {
+		return err
+	}
+
+	// Sort files by name
+	files := make([]*zip.File, len(r.File))
+
+	copy(files, r.File)
+
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].Name < files[j].Name
+	})
+
+	for _, f := range files {
+		rc, err := f.Open()
+
+		if err != nil {
+			return err
+		}
+
+		defer rc.Close()
+
+		content, err := io.ReadAll(rc)
+
+		if err != nil {
+			return err
+		}
+
+		if !iterator(f.Name, content) {
+			break
+		}
+	}
+
+	return nil
 }
 
 // ZipV2 the source folder/file to the target zip file.

@@ -83,7 +83,7 @@ func (s *ZipSuite) listFilesInZip(zipFile string) map[string]bool {
 	return fileNames
 }
 
-func (s *ZipSuite) TestUnzip_ValidZipFile() {
+func (s *ZipSuite) Test_Unzip_ValidZipFile() {
 	files := map[string][]byte{
 		"index.html":         []byte("Hello World"),
 		"my/folder/file.txt": []byte("This is a test file."),
@@ -107,7 +107,7 @@ func (s *ZipSuite) TestUnzip_ValidZipFile() {
 	s.Equal([]byte("Hello World"), content)
 }
 
-func (s *ZipSuite) TestUnzip_ZipSlipVulnerability() {
+func (s *ZipSuite) Test_Unzip_ZipSlipVulnerability() {
 	files := map[string][]byte{
 		"../index.html": []byte("Hello World"),
 	}
@@ -125,7 +125,7 @@ func (s *ZipSuite) TestUnzip_ZipSlipVulnerability() {
 	s.Error(err)
 }
 
-func (s *ZipSuite) TestZipV2_WithGlobPattern_SQLFiles() {
+func (s *ZipSuite) Test_ZipV2_WithGlobPattern_SQLFiles() {
 	s.createFilesToBeZipped()
 
 	zipFile := filepath.Join(s.tmpDir, "migrations.zip")
@@ -152,7 +152,7 @@ func (s *ZipSuite) TestZipV2_WithGlobPattern_SQLFiles() {
 	s.False(fileNames["config.json"], "Should not include non-SQL file")
 }
 
-func (s *ZipSuite) TestZipV2_WithoutGlobPattern_AllFiles() {
+func (s *ZipSuite) Test_ZipV2_WithoutGlobPattern_AllFiles() {
 	s.createFilesToBeZipped()
 
 	// Create zip WITHOUT glob pattern (should include all files)
@@ -168,7 +168,68 @@ func (s *ZipSuite) TestZipV2_WithoutGlobPattern_AllFiles() {
 	s.Equal(6, len(s.listFilesInZip(zipFile)), "Should include all files when no glob pattern is specified")
 }
 
-func (s *ZipSuite) TestZipV2_WithGlobPattern_IncludeParent() {
+func (s *ZipSuite) Test_ZipIterator() {
+	// Create a zip file with multiple files
+	files := map[string][]byte{
+		"001_init.sql":         []byte("CREATE DATABASE test;"),
+		"002_create_users.sql": []byte("CREATE TABLE users (id INT);"),
+		"003_add_index.sql":    []byte("CREATE INDEX idx_users ON users(id);"),
+	}
+
+	zipContent := s.createZipInMemoryWithFiles(files)
+
+	// Test iteration
+	var collectedFiles []string
+	var collectedContent []string
+
+	err := file.ZipIterator(zipContent, func(fileName string, content []byte) bool {
+		collectedFiles = append(collectedFiles, fileName)
+		collectedContent = append(collectedContent, string(content))
+		return true
+	})
+
+	s.NoError(err)
+
+	// Verify all files were iterated
+	s.Equal(3, len(collectedFiles), "Should iterate over all files")
+
+	// Verify files are in sorted order
+	s.Equal("001_init.sql", collectedFiles[0])
+	s.Equal("002_create_users.sql", collectedFiles[1])
+	s.Equal("003_add_index.sql", collectedFiles[2])
+
+	// Verify content
+	s.Equal("CREATE DATABASE test;", collectedContent[0])
+	s.Equal("CREATE TABLE users (id INT);", collectedContent[1])
+	s.Equal("CREATE INDEX idx_users ON users(id);", collectedContent[2])
+}
+
+func (s *ZipSuite) Test_ZipIterator_EarlyExit() {
+	// Create a zip file with multiple files
+	files := map[string][]byte{
+		"001_init.sql":         []byte("CREATE DATABASE test;"),
+		"002_create_users.sql": []byte("CREATE TABLE users (id INT);"),
+		"003_add_index.sql":    []byte("CREATE INDEX idx_users ON users(id);"),
+	}
+
+	zipContent := s.createZipInMemoryWithFiles(files)
+
+	// Test early exit by returning false after first file
+	var collectedFiles []string
+
+	err := file.ZipIterator(zipContent, func(fileName string, content []byte) bool {
+		collectedFiles = append(collectedFiles, fileName)
+		return false // Stop after first file
+	})
+
+	s.NoError(err)
+
+	// Verify only first file was processed
+	s.Equal(1, len(collectedFiles), "Should stop after first file when returning false")
+	s.Equal("001_init.sql", collectedFiles[0])
+}
+
+func (s *ZipSuite) Test_ZipV2_WithGlobPattern_IncludeParent() {
 	s.createFilesToBeZipped()
 
 	// Create zip with IncludeParent and glob pattern
