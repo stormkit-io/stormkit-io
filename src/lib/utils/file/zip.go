@@ -87,12 +87,15 @@ func ZipIterator(zipContent []byte, iterator func(string, []byte) bool) error {
 			return err
 		}
 
-		defer rc.Close()
-
 		content, err := io.ReadAll(rc)
+		closeErr := rc.Close()
 
 		if err != nil {
 			return err
+		}
+
+		if closeErr != nil {
+			return closeErr
 		}
 
 		if !iterator(f.Name, content) {
