@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -66,7 +65,7 @@ func ZipInMemory(files map[string][]byte) ([]byte, error) {
 }
 
 // ZipIterator allows iterating over the files in a zip content.
-// The iterator function should return true to continue iteration, or false to stop.
+// The iterator function should return nil to continue iteration, or error to stop.
 // Files are processed in sorted order by name.
 func ZipIterator(zipContent []byte, iterator func(string, []byte) error) error {
 	r, err := zip.NewReader(bytes.NewReader(zipContent), int64(len(zipContent)))
@@ -112,20 +111,22 @@ func ZipIterator(zipContent []byte, iterator func(string, []byte) error) error {
 
 // sanitizeZipName ensures the zip file name is safe for shell commands
 func sanitizeZipName(zipName string) (string, error) {
-	// Get the base name to prevent directory traversal
-	base := filepath.Base(zipName)
+	if zipName == "" {
+		return "", errors.New("zip name cannot be empty")
+	}
 
-	// Only allow alphanumeric, dash, underscore, and dot
-	matched, err := regexp.MatchString(`^[a-zA-Z0-9_.-]+$`, base)
+	// Only allow alphanumeric, dash, underscore, dot and slashes
+	matched, err := regexp.MatchString(`^[a-zA-Z0-9_\-/]+\.zip$`, zipName)
+
 	if err != nil {
 		return "", fmt.Errorf("failed to validate zip name: %w", err)
 	}
 
-	if !matched || base == "" || base == "." || base == ".." {
+	if !matched {
 		return "", fmt.Errorf("invalid zip file name: %s", zipName)
 	}
 
-	return base, nil
+	return zipName, nil
 }
 
 // sanitizeGlobPattern ensures the glob pattern is safe for shell commands
@@ -192,8 +193,8 @@ func ZipV2(args ZipArgs) error {
 			continue
 		}
 
-		workingDir := args.WorkingDir
 		isDir := info.IsDir()
+		workingDir := args.WorkingDir
 
 		// When not including parent, cd into the directory
 		if isDir && !args.IncludeParent {
