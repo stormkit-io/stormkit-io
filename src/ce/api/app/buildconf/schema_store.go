@@ -9,6 +9,7 @@ import (
 	"text/template"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/database"
+	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"gopkg.in/guregu/null.v3"
 )
@@ -21,6 +22,7 @@ var schemaStmt = struct {
 }{
 	createMigrationsTable: `
 		CREATE TABLE IF NOT EXISTS stormkit_schema_migrations (
+			migration_id SERIAL PRIMARY KEY,
 			migration_name TEXT NOT NULL,
 			content_hash TEXT NOT NULL UNIQUE,
 			error_message TEXT,
@@ -30,7 +32,7 @@ var schemaStmt = struct {
 
 	selectMigrations: `
 		SELECT
-			migration_name, content_hash, error_message
+			migration_id, migration_name, content_hash, error_message
 		FROM
 			stormkit_schema_migrations;
 	`,
@@ -390,6 +392,7 @@ func (s *schemaStore) EnsureMigrationsTable() error {
 }
 
 type Migration struct {
+	ID          types.ID
 	Name        string
 	ContentHash string
 	ErrorMsg    null.String
@@ -414,7 +417,7 @@ func (s *schemaStore) Migrations(ctx context.Context) ([]Migration, error) {
 	for rows.Next() {
 		migration := Migration{}
 
-		if err := rows.Scan(&migration.Name, &migration.ContentHash, &migration.ErrorMsg); err != nil {
+		if err := rows.Scan(&migration.ID, &migration.Name, &migration.ContentHash, &migration.ErrorMsg); err != nil {
 			return nil, err
 		}
 
