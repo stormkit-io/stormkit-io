@@ -94,7 +94,7 @@ type ClientInterface interface {
 	DeleteArtifacts(context.Context, DeleteArtifactsArgs) error
 }
 
-var cachedClient ClientInterface
+var CachedClient ClientInterface
 
 // SetDefaultClient sets the client that will be returned by Client
 // method. This method is mainly used for testing purposes. For environments
@@ -104,7 +104,7 @@ func SetDefaultClient(client ClientInterface) {
 		return
 	}
 
-	cachedClient = client
+	CachedClient = client
 }
 
 type ClientArgs struct {
@@ -122,8 +122,8 @@ type ClientArgs struct {
 // return the AWS client. After the first call, the client returns the
 // cached ClientInterface.
 func Client(args ...ClientArgs) ClientInterface {
-	if cachedClient != nil {
-		return cachedClient
+	if CachedClient != nil {
+		return CachedClient
 	}
 
 	cfg := config.Get()
@@ -136,18 +136,18 @@ func Client(args ...ClientArgs) ClientInterface {
 	var err error
 
 	if cfg.AWS != nil || opts.Provider == config.ProviderAWS {
-		cachedClient, err = AWS(opts, nil)
+		CachedClient, err = AWS(opts, nil)
 	} else if cfg.Alibaba != nil || opts.Provider == config.ProviderAlibaba {
-		cachedClient, err = Alibaba(opts)
+		CachedClient, err = Alibaba(opts)
 	} else if cfg.Deployer.IsLocal() || opts.Provider == config.ProviderFilesys {
-		cachedClient = Filesys()
+		CachedClient = Filesys()
 	}
 
-	slog.Infof("integrations client: %s", cachedClient.Name())
+	slog.Infof("integrations client: %s", CachedClient.Name())
 
 	if err != nil {
 		panic(err)
 	}
 
-	return cachedClient
+	return CachedClient
 }
