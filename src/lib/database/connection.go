@@ -9,6 +9,7 @@ import (
 
 	"github.com/lib/pq"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
 // DBConf represents a db configuration object.
@@ -86,7 +87,7 @@ func ConnectionString(cfg DBConf) string {
 			host=%s port=%s user=%s
 			password=%s dbname=%s sslmode=%s search_path=%s`,
 		cfg.Host, cfg.Port, cfg.User,
-		cfg.Password, cfg.DBName, cfg.SSLMode,
+		cfg.Password, cfg.DBName, utils.GetString(cfg.SSLMode, "disable"),
 		cfg.Schema,
 	)
 }
