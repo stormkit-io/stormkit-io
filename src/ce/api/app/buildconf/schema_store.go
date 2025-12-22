@@ -457,10 +457,11 @@ func (s *schemaStore) ApplyMigration(ctx context.Context, migrationName string, 
 
 // Close closes the schema store and its underlying database connection.
 func (s *schemaStore) Close() error {
+	s.conf.cachedStoresMux.Lock()
+	defer s.conf.cachedStoresMux.Unlock()
+
 	if s.conf != nil {
-		s.conf.cachedStoresMux.Lock()
 		delete(s.conf.cachedStores, fmt.Sprintf("%s:%s", s.accessType, s.conf.DBName))
-		s.conf.cachedStoresMux.Unlock()
 	}
 
 	return s.Conn.Close()
