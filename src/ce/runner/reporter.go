@@ -2,6 +2,7 @@ package runner
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"sync"
@@ -11,6 +12,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/integrations"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
+	"go.uber.org/zap"
 )
 
 type ReporterModel struct {
@@ -41,12 +43,31 @@ func (r *ReporterModel) request(payload map[string]any) error {
 		Headers(r.headers()).
 		Payload(payload).Do()
 
+	var body []byte
+
 	if res != nil && res.Body != nil {
+		body, err = io.ReadAll(res.Body)
+
+		if err != nil {
+			slog.Errorf("cannot read response body: %s", err.Error())
+		}
+
 		res.Body.Close()
 	}
 
 	if res.StatusCode == http.StatusConflict {
-		slog.Infof("received exit signal - quitting")
+		slog.Info("received exit signal - quitting")
+		os.Exit(128)
+	}
+
+	if res.StatusCode >= 400 {
+		slog.Debug(slog.LogOpts{
+			Msg: fmt.Sprintf("deployment callback returned status code %d - quitting", res.StatusCode),
+			Payload: []zap.Field{
+				zap.String("body", string(body)),
+			},
+		})
+
 		os.Exit(128)
 	}
 
