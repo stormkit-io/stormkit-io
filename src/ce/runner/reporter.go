@@ -55,6 +55,10 @@ func (r *ReporterModel) request(payload map[string]any) error {
 		res.Body.Close()
 	}
 
+	if res == nil {
+		return fmt.Errorf("no response received from deployment callback: %w", err)
+	}
+
 	if res.StatusCode == http.StatusConflict {
 		slog.Info("received exit signal - quitting")
 		os.Exit(128)
