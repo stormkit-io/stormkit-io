@@ -41,7 +41,9 @@ export default function TeamMembers({ user, team, reloadTeams }: Props) {
           {teamMembers?.map(member => (
             <CardRow
               key={member.userId}
-              chipLabel={member.role}
+              chipLabel={
+                <Typography component="span">{member.role}</Typography>
+              }
               menuLabel={`Member ${member.id} menu`}
               menuItems={
                 hasWriteAccess || user.id === member.userId

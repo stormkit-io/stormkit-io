@@ -1,10 +1,13 @@
 package team
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
+	"text/template"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/database"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
@@ -25,6 +28,22 @@ const (
 	MAX_TEAMS_PER_USER = 25
 )
 
+var sqlTemplates = struct {
+	selectTeamMembers *template.Template
+}{
+	selectTeamMembers: template.Must(template.New("selectTeamMembers").Parse(`
+		SELECT
+			u.user_id, u.first_name, u.last_name, u.display_name, 
+			(SELECT ue.email FROM user_emails ue WHERE ue.user_id = u.user_id AND ue.is_primary IS TRUE),
+			tm.member_id, tm.member_role, tm.membership_status
+		FROM team_members tm
+		LEFT JOIN users u ON u.user_id = tm.user_id
+		WHERE
+			{{ .where }}
+		LIMIT 100;
+	`)),
+}
+
 var stmt = struct {
 	createTeam            string
 	updateTeam            string
@@ -32,8 +51,6 @@ var stmt = struct {
 	selectTeam            string
 	selectTeams           string
 	selectDefaultTeam     string
-	selectTeamMember      string
-	selectTeamMembers     string
 	isTeamMember          string
 	markTeamAsSoftDeleted string
 	removeUserFromTeam    string
@@ -93,29 +110,6 @@ var stmt = struct {
 			tm.member_role = 'owner' AND
 			t.is_default IS TRUE
 	`, tableTeams, tableTeamMembers),
-
-	selectTeamMember: fmt.Sprintf(`
-		SELECT
-			u.user_id, u.first_name, u.last_name, u.display_name,
-			(SELECT ue.email FROM %s ue WHERE ue.user_id = u.user_id AND ue.is_primary IS TRUE),
-			tm.member_id, tm.member_role, tm.membership_status
-		FROM %s tm
-		LEFT JOIN %s u ON u.user_id = tm.user_id
-		WHERE
-			tm.member_id = $1
-	`, tableUserEmails, tableTeamMembers, tableUsers),
-
-	selectTeamMembers: fmt.Sprintf(`
-		SELECT
-			u.user_id, u.first_name, u.last_name, u.display_name, 
-			(SELECT ue.email FROM %s ue WHERE ue.user_id = u.user_id AND ue.is_primary IS TRUE),
-			tm.member_id, tm.member_role, tm.membership_status
-		FROM %s tm
-		LEFT JOIN %s u ON u.user_id = tm.user_id
-		WHERE
-			tm.team_id = $1
-		LIMIT 100;
-	`, tableUserEmails, tableTeamMembers, tableUsers),
 
 	addUserToTeam: fmt.Sprintf(`
 		INSERT INTO %s (team_id, user_id, member_role, membership_status)
@@ -296,38 +290,40 @@ func (s *Store) IsMember(ctx context.Context, userID types.ID, teamID types.ID) 
 	return count > 0
 }
 
-// TeamMember returns the team member with the given id.
-func (s *Store) TeamMember(ctx context.Context, memberID types.ID) (*Member, error) {
-	m := &Member{}
-
-	row, err := s.QueryRow(ctx, stmt.selectTeamMember, memberID)
-
-	if err != nil {
-		return nil, err
-	}
-
-	err = row.Scan(
-		&m.UserID, &m.FirstName, &m.LastName,
-		&m.DisplayName, &m.Email, &m.ID, &m.Role, &m.Status,
-	)
-
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		}
-
-		return nil, err
-	}
-
-	return m, nil
+type TeamMemberFilters struct {
+	TeamID   types.ID
+	MemberID types.ID
+	Role     string
 }
 
-// TeamMembers returns members of for the given team.
-func (s *Store) TeamMembers(ctx context.Context, teamID types.ID) ([]Member, error) {
+// TeamMembers returns members for the given team.
+func (s *Store) TeamMembers(ctx context.Context, filters TeamMemberFilters) ([]Member, error) {
 	members := []Member{}
-	rows, err := s.Query(ctx, stmt.selectTeamMembers, teamID)
+	where := []string{"tm.team_id = $1"}
+	params := []any{filters.TeamID}
+	buf := bytes.Buffer{}
 
-	if err == sql.ErrNoRows {
+	if filters.Role != "" {
+		where = append(where, "tm.member_role = $2")
+		params = append(params, filters.Role)
+	}
+
+	if filters.MemberID != 0 {
+		where = append(where, fmt.Sprintf("tm.member_id = $%d", len(params)+1))
+		params = append(params, filters.MemberID)
+	}
+
+	err := sqlTemplates.selectTeamMembers.Execute(&buf, map[string]string{
+		"where": strings.Join(where, " AND "),
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to render team members template: %w", err)
+	}
+
+	rows, err := s.Query(ctx, buf.String(), params...)
+
+	if rows == nil && err == nil {
 		return members, nil
 	}
 

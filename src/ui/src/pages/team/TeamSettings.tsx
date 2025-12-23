@@ -73,8 +73,10 @@ export default function TeamSettings({ team, reloadTeams }: Props) {
         name="name"
         autoFocus
         placeholder="My Awesome Team"
-        inputProps={{
-          readOnly: !hasWriteAccess,
+        slotProps={{
+          input: {
+            readOnly: !hasWriteAccess,
+          },
         }}
         sx={{ mb: 4 }}
       />

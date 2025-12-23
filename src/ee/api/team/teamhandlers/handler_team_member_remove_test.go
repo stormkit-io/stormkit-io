@@ -59,7 +59,10 @@ func (s *HandlerTeamMemberRemoveSuite) Test_Success() {
 
 	s.Equal(http.StatusOK, response.Code)
 
-	members, err := store.TeamMembers(context.Background(), newTeam.ID)
+	members, err := store.TeamMembers(context.Background(), team.TeamMemberFilters{
+		TeamID: newTeam.ID,
+	})
+
 	s.NoError(err)
 	s.Len(members, 1)
 }
@@ -83,7 +86,7 @@ func (s *HandlerTeamMemberRemoveSuite) Test_RemovingOwner() {
 	)
 
 	s.Equal(http.StatusBadRequest, response.Code)
-	s.JSONEq(`{ "error": "You are the only owner in this team. Delete the team instead." }`, response.String())
+	s.JSONEq(`{ "error": "Cannot remove the only owner of this team. Delete the team instead." }`, response.String())
 }
 
 func TestHandlerTeamMemberRemove(t *testing.T) {

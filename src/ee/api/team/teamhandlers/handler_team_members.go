@@ -18,7 +18,9 @@ func handlerTeamMembers(req *user.RequestContext) *shttp.Response {
 		return shttp.NotAllowed()
 	}
 
-	teamMembers, err := store.TeamMembers(req.Context(), teamID)
+	teamMembers, err := store.TeamMembers(req.Context(), team.TeamMemberFilters{
+		TeamID: teamID,
+	})
 
 	if err != nil {
 		return shttp.Error(err)
