@@ -28,6 +28,7 @@ const (
 	TypeDomain   string = "DOMAIN"
 	TypeSnippet  string = "SNIPPET"
 	TypeAuthWall string = "AUTHWALL"
+	TypeSchema   string = "SCHEMA"
 )
 
 type DiffFields struct {
@@ -55,6 +56,7 @@ type DiffFields struct {
 	AuthWallCreateLoginEmail string                 `json:"authWallCreateLoginEmail,omitempty"`
 	AuthWallCreateLoginID    string                 `json:"authWallCreateLoginId,omitempty"`
 	AuthWallDeleteLoginIDs   string                 `json:"authWallDeleteLoginIds,omitempty"`
+	SchemaName               string                 `json:"schemaName,omitempty"`
 }
 
 type Diff struct {

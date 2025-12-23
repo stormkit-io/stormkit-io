@@ -5,6 +5,7 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
+	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/team"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 )
@@ -35,7 +36,9 @@ func handlerSchemaDelete(req *app.RequestContext) *shttp.Response {
 		return shttp.Forbidden()
 	}
 
-	err = buildconf.SchemaStore().DropSchema(req.Context(), env.SchemaConf.SchemaName)
+	schemaName := env.SchemaConf.SchemaName
+
+	err = buildconf.SchemaStore().DropSchema(req.Context(), schemaName)
 
 	if err != nil {
 		return shttp.Error(err)
@@ -43,6 +46,24 @@ func handlerSchemaDelete(req *app.RequestContext) *shttp.Response {
 
 	if err := buildconf.NewStore().SaveSchemaConf(req.Context(), req.EnvID, nil); err != nil {
 		return shttp.Error(err)
+	}
+
+	if req.License().Enterprise {
+		diff := &audit.Diff{
+			Old: audit.DiffFields{
+				SchemaName: schemaName,
+			},
+		}
+
+		err = audit.FromRequestContext(req).
+			WithAction(audit.DeleteAction, audit.TypeSchema).
+			WithDiff(diff).
+			WithEnvID(req.EnvID).
+			Insert()
+
+		if err != nil {
+			return shttp.Error(err)
+		}
 	}
 
 	return &shttp.Response{

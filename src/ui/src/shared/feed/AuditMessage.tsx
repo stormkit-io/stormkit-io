@@ -237,6 +237,20 @@ export default function AuditMessage({ audit }: Props) {
           Deleted auth login from <EnvLink audit={audit} /> environment
         </AuditRow>
       );
+
+    case "CREATE:SCHEMA":
+      return (
+        <AuditRow audit={audit} forceDiff>
+          Created schema for <EnvLink audit={audit} /> environment
+        </AuditRow>
+      );
+
+    case "DELETE:SCHEMA":
+      return (
+        <AuditRow audit={audit} forceDiff>
+          Deleted schema from <EnvLink audit={audit} /> environment
+        </AuditRow>
+      );
   }
 
   return audit.action;

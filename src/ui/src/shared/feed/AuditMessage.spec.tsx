@@ -107,6 +107,8 @@ describe("~/shared/feed/AuditMessage.tsx", () => {
     ${"UPDATE:AUTHWALL"} | ${"Enabled auth wall in production environment"}
     ${"CREATE:AUTHWALL"} | ${"Created new auth login for production environment"}
     ${"DELETE:AUTHWALL"} | ${"Deleted auth login from production environment"}
+    ${"CREATE:SCHEMA"}   | ${"Created schema for production environment"}
+    ${"DELETE:SCHEMA"}   | ${"Deleted schema from production environment"}
   `("displays the correct message for $action", ({ action, expected }) => {
     const audit: Audit = {
       id: "1",

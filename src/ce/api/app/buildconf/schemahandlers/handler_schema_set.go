@@ -6,6 +6,7 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
+	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 )
@@ -41,6 +42,24 @@ func handlerSchemaSet(req *app.RequestContext) *shttp.Response {
 				slog.Errorf("failed to clean up schema after build config save failure: %v", err)
 			}
 
+			return shttp.Error(err)
+		}
+	}
+
+	if req.License().Enterprise {
+		diff := &audit.Diff{
+			New: audit.DiffFields{
+				SchemaName: name,
+			},
+		}
+
+		err = audit.FromRequestContext(req).
+			WithAction(audit.CreateAction, audit.TypeSchema).
+			WithDiff(diff).
+			WithEnvID(req.EnvID).
+			Insert()
+
+		if err != nil {
 			return shttp.Error(err)
 		}
 	}

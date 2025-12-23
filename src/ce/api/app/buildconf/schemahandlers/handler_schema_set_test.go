@@ -6,9 +6,12 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/schemahandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
+	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -47,6 +50,10 @@ func (s *HandlerSchemaSetSuite) AfterTest(_, _ string) {
 }
 
 func (s *HandlerSchemaSetSuite) Test_Success_CreateSchema() {
+	admin.ResetMockLicense()
+	config.SetIsSelfHosted(true)
+	defer config.SetIsSelfHosted(false)
+
 	schemaName := buildconf.SchemaName(s.app.ID, s.env.ID)
 
 	response := shttptest.RequestWithHeaders(
@@ -80,6 +87,60 @@ func (s *HandlerSchemaSetSuite) Test_Success_CreateSchema() {
 	s.Equal(schemaName, env.SchemaConf.SchemaName, "SchemaName should match")
 	s.Equal(fmt.Sprintf("a%de%d_migration_user", s.app.ID, s.env.ID), env.SchemaConf.MigrationUserName, "MigrationUserName should match")
 	s.Equal(fmt.Sprintf("a%de%d_user", s.app.ID, s.env.ID), env.SchemaConf.AppUserName, "AppUserName should match")
+
+	// Should not create audit logs for non-enterprise
+	audits, err := audit.NewStore().SelectAudits(context.Background(), audit.AuditFilters{
+		EnvID: env.ID,
+	})
+
+	s.NoError(err)
+	s.Len(audits, 0)
+}
+
+func (s *HandlerSchemaSetSuite) Test_Success_CreateSchema_AuditLogs() {
+	admin.SetMockLicense()
+	defer admin.ResetMockLicense()
+
+	schemaName := buildconf.SchemaName(s.app.ID, s.env.ID)
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(schemahandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/schema",
+		map[string]any{
+			"envId": s.env.ID,
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(s.usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+	s.JSONEq(fmt.Sprintf(`{"schema": "%s"}`, schemaName), response.String())
+
+	// Should create audit logs for enterprise
+	audits, err := audit.NewStore().SelectAudits(context.Background(), audit.AuditFilters{
+		EnvID: s.env.ID,
+	})
+
+	s.NoError(err)
+	s.Len(audits, 1)
+	s.Equal(audit.Audit{
+		ID:          audits[0].ID,
+		Timestamp:   audits[0].Timestamp,
+		Action:      "CREATE:SCHEMA",
+		EnvName:     s.env.Name,
+		EnvID:       s.env.ID,
+		AppID:       s.app.ID,
+		TeamID:      s.app.TeamID,
+		UserID:      s.usr.ID,
+		UserDisplay: s.usr.Display(),
+		Diff: &audit.Diff{
+			New: audit.DiffFields{
+				SchemaName: schemaName,
+			},
+		},
+	}, audits[0])
 }
 
 func (s *HandlerSchemaSetSuite) Test_Success_SchemaAlreadyExists() {
