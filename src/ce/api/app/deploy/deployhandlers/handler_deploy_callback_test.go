@@ -37,14 +37,15 @@ type HandlerDeployCallbackSuite struct {
 	mockClient       *mocks.ClientInterface
 }
 
-func (s *HandlerDeployCallbackSuite) BeforeTest(suiteName, _ string) {
-	s.conn = databasetest.InitTx(suiteName)
+func (s *HandlerDeployCallbackSuite) BeforeTest(suiteName, testName string) {
+	s.conn = databasetest.InitTx(suiteName + testName)
 	s.Factory = factory.New(s.conn)
 	deployhooks.StatusChecksEnabled = false
 	s.mockCacheService = &mocks.CacheInterface{}
 	s.mockClient = &mocks.ClientInterface{}
 	appcache.DefaultCacheService = s.mockCacheService
 	integrations.CachedClient = s.mockClient
+
 	config.SetIsStormkitCloud(true)
 }
 
@@ -526,7 +527,7 @@ func (s *HandlerDeployCallbackSuite) Test_InvalidDeployID() {
 	s.Equal(http.StatusUnauthorized, response.Code)
 }
 
-func (s *HandlerDeployCallbackSuite) Test_RunMigrations_Success() {
+func (s *HandlerDeployCallbackSuite) Test_RunMigrations() {
 	usr := s.MockUser()
 	app := s.MockApp(usr)
 	env := s.MockEnv(app, map[string]any{
@@ -538,14 +539,16 @@ func (s *HandlerDeployCallbackSuite) Test_RunMigrations_Success() {
 			MigrationPassword: s.conn.Cfg.Password,
 			MigrationUserName: s.conn.Cfg.User,
 			MigrationsEnabled: true,
+			DriverName:        "postgres", // Have to use a real driver here for advisory locks to work
 		},
 	})
 
 	migrationsFile := "local:/path/to/migrations.zip"
 
 	files := map[string][]byte{
-		"002_create_users.sql": []byte("CREATE TABLE test_users (id INT);"),
-		"003_add_index.sql":    []byte("CREATE INDEX idx_test_users ON test_users(id);"),
+		"001_init.sql":       []byte("CREATE TABLE IF NOT EXISTS test_users (id INT);"),
+		"002_drop_users.sql": []byte("DROP TABLE test_users;"),
+		"003_add_index.sql":  []byte("CREATE INDEX idx_test_users ON test_users(id);"), // should fail
 	}
 
 	zipContent, err := file.ZipInMemory(files)
@@ -558,7 +561,7 @@ func (s *HandlerDeployCallbackSuite) Test_RunMigrations_Success() {
 	}, nil).Once()
 
 	results, err := deployhandlers.RunMigrations(context.Background(), deployhandlers.RunMigrationsArgs{
-		DeploymentID:   env.ID,
+		DeploymentID:   6,
 		EnvID:          env.ID,
 		Branch:         env.Branch,
 		MigrationsFile: migrationsFile,
@@ -570,72 +573,30 @@ func (s *HandlerDeployCallbackSuite) Test_RunMigrations_Success() {
 	store, err := env.SchemaConf.Store(buildconf.SchemaAccessTypeMigrations)
 	s.NoError(err)
 
+	defer store.Close()
+
 	migrations, err := store.Migrations(context.Background())
 	s.NoError(err)
 
-	s.Len(migrations, 2)
-	s.Equal("002_create_users.sql", migrations[0].Name)
-	s.Equal("003_add_index.sql", migrations[1].Name)
-	s.Equal("002_create_users.sql", results[0].FileName)
-	s.Equal("003_add_index.sql", results[1].FileName)
+	s.Len(migrations, 3)
+
+	counter := 0
+
+	fileNames := []string{
+		"001_init.sql",
+		"002_drop_users.sql",
+		"003_add_index.sql",
+	}
+
+	for _, fileName := range fileNames {
+		s.Equal(fileName, migrations[counter].Name)
+		s.Equal(fileName, results[counter].FileName)
+		counter++
+	}
+
 	s.Empty(results[0].Error)
 	s.Empty(results[1].Error)
-}
-
-func (s *HandlerDeployCallbackSuite) Test_RunMigrations_Failed_InvalidSQL() {
-	usr := s.MockUser()
-	app := s.MockApp(usr)
-	env := s.MockEnv(app, map[string]any{
-		"SchemaConf": &buildconf.SchemaConf{
-			Host:              s.conn.Cfg.Host,
-			Port:              s.conn.Cfg.Port,
-			DBName:            s.conn.Cfg.DBName,
-			SchemaName:        s.conn.Cfg.Schema,
-			MigrationPassword: s.conn.Cfg.Password,
-			MigrationUserName: s.conn.Cfg.User,
-			MigrationsEnabled: true,
-		},
-	})
-
-	migrationsFile := "local:/path/to/migrations.zip"
-
-	files := map[string][]byte{
-		"002_create_users.sql": []byte("CREATE TABLE test_users (id INT);"),
-		"003_add_index.sql":    []byte("INVALID SQL STATEMENT;"),
-	}
-
-	zipContent, err := file.ZipInMemory(files)
-	s.NoError(err)
-
-	s.mockClient.On("GetFile", integrations.GetFileArgs{
-		Location: migrationsFile,
-	}).Return(&integrations.GetFileResult{
-		Content: zipContent,
-	}, nil).Once()
-
-	results, err := deployhandlers.RunMigrations(context.Background(), deployhandlers.RunMigrationsArgs{
-		DeploymentID:   env.ID,
-		EnvID:          env.ID,
-		Branch:         env.Branch,
-		MigrationsFile: migrationsFile,
-	})
-
-	s.NoError(err)
-	s.NotEmpty(results)
-
-	store, err := env.SchemaConf.Store(buildconf.SchemaAccessTypeMigrations)
-	s.NoError(err)
-
-	migrations, err := store.Migrations(context.Background())
-	s.NoError(err)
-
-	s.Len(migrations, 2)
-	s.Equal("002_create_users.sql", migrations[0].Name)
-	s.Equal("003_add_index.sql", migrations[1].Name)
-	s.Equal("002_create_users.sql", results[0].FileName)
-	s.Equal("003_add_index.sql", results[1].FileName)
-	s.Empty(results[0].Error)
-	s.Equal("pq: syntax error at or near \"INVALID\"", results[1].Error)
+	s.Equal(`pq: relation "test_users" does not exist`, results[2].Error)
 }
 
 func (s *HandlerDeployCallbackSuite) Test_RunMigrations_Failed_FileDoesNotExist() {
