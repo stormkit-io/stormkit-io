@@ -296,6 +296,26 @@ type TeamMemberFilters struct {
 	Role     string
 }
 
+// TeamMember returns the member with the given id in the given team.
+func (s *Store) TeamMember(ctx context.Context, teamID, memberID types.ID) (*Member, error) {
+	filters := TeamMemberFilters{
+		TeamID:   teamID,
+		MemberID: memberID,
+	}
+
+	members, err := s.TeamMembers(ctx, filters)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(members) == 0 {
+		return nil, nil
+	}
+
+	return &members[0], nil
+}
+
 // TeamMembers returns members for the given team.
 func (s *Store) TeamMembers(ctx context.Context, filters TeamMemberFilters) ([]Member, error) {
 	members := []Member{}
