@@ -12,7 +12,8 @@ import mockEnv from "~/testing/data/mock_environment";
 import {
   mockFetchSchema,
   mockCreateSchema,
-  mockUpdateSchemaConfig,
+  mockUpdateSchema,
+  mockDeleteSchema,
 } from "~/testing/nocks/nock_schema";
 import Database from "./Database";
 
@@ -134,6 +135,166 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
         expect(wrapper.getByText("Schema attached successfully")).toBeTruthy();
       });
     });
+
+    it("should display error when attach fails", async () => {
+      const createScope = mockCreateSchema({
+        payload: {
+          appId: currentApp.id,
+          envId: currentEnv.id!,
+        },
+        status: 500,
+      });
+
+      fireEvent.click(wrapper.getByText("Attach Database"));
+
+      await waitFor(() => {
+        expect(createScope.isDone()).toBe(true);
+        expect(
+          wrapper.getByText(
+            "Unknown error while attaching schema. Please try again."
+          )
+        ).toBeTruthy();
+      });
+    });
+  });
+
+  describe("deleting a schema", () => {
+    beforeEach(async () => {
+      await createWrapper({
+        schema: {
+          name: "a1e1",
+          tables: [],
+          migrationsEnabled: false,
+          migrationsFolder: "/migrations",
+        },
+      });
+    });
+
+    it("should close modal when cancel is clicked", async () => {
+      await waitFor(() => {
+        expect(wrapper.getByText("Delete")).toBeTruthy();
+      });
+
+      fireEvent.click(wrapper.getByText("Delete"));
+
+      await waitFor(() => {
+        expect(wrapper.getByText("Delete Database Schema")).toBeTruthy();
+      });
+
+      const cancelButton = wrapper.getByText("Cancel");
+      fireEvent.click(cancelButton);
+
+      await waitFor(() => {
+        expect(() => wrapper.getByText("Delete Database Schema")).toThrow();
+      });
+    });
+
+    it("should make DELETE request and refresh when deletion is confirmed", async () => {
+      const deleteScope = mockDeleteSchema({
+        payload: {
+          appId: currentApp.id,
+          envId: currentEnv.id!,
+        },
+        status: 200,
+      });
+
+      const refetchScope = mockFetchSchema({
+        envId: currentEnv.id!,
+        response: { schema: null },
+        status: 200,
+      });
+
+      await waitFor(() => {
+        expect(wrapper.getByText("Delete")).toBeTruthy();
+      });
+
+      fireEvent.click(wrapper.getByText("Delete"));
+
+      await waitFor(() => {
+        expect(wrapper.getByText("Delete Database Schema")).toBeTruthy();
+        expect(
+          wrapper.getByText(
+            /You are about to permanently delete this environment's database schema/i
+          )
+        ).toBeTruthy();
+      });
+
+      const confirmButton = wrapper.getByText("Yes, continue");
+      fireEvent.click(confirmButton);
+
+      await waitFor(() => {
+        expect(deleteScope.isDone()).toBe(true);
+        expect(refetchScope.isDone()).toBe(true);
+      });
+
+      await waitFor(() => {
+        expect(wrapper.getByText("Schema deleted successfully")).toBeTruthy();
+      });
+    });
+
+    it("should display permission error when delete returns 403", async () => {
+      const deleteScope = mockDeleteSchema({
+        payload: {
+          appId: currentApp.id,
+          envId: currentEnv.id!,
+        },
+        status: 403,
+      });
+
+      await waitFor(() => {
+        expect(wrapper.getByText("Delete")).toBeTruthy();
+      });
+
+      fireEvent.click(wrapper.getByText("Delete"));
+
+      await waitFor(() => {
+        expect(wrapper.getByText("Delete Database Schema")).toBeTruthy();
+      });
+
+      const confirmButton = wrapper.getByText("Yes, continue");
+      fireEvent.click(confirmButton);
+
+      await waitFor(() => {
+        expect(deleteScope.isDone()).toBe(true);
+        expect(
+          wrapper.getByText(
+            /You don't have permission to delete this database schema/i
+          )
+        ).toBeTruthy();
+      });
+    });
+
+    it("should display generic error when delete fails", async () => {
+      const deleteScope = mockDeleteSchema({
+        payload: {
+          appId: currentApp.id,
+          envId: currentEnv.id!,
+        },
+        status: 500,
+      });
+
+      await waitFor(() => {
+        expect(wrapper.getByText("Delete")).toBeTruthy();
+      });
+
+      fireEvent.click(wrapper.getByText("Delete"));
+
+      await waitFor(() => {
+        expect(wrapper.getByText("Delete Database Schema")).toBeTruthy();
+      });
+
+      const confirmButton = wrapper.getByText("Yes, continue");
+      fireEvent.click(confirmButton);
+
+      await waitFor(() => {
+        expect(deleteScope.isDone()).toBe(true);
+        expect(
+          wrapper.getByText(
+            "Failed to delete database schema. Please try again."
+          )
+        ).toBeTruthy();
+      });
+    });
   });
 
   describe("error handling", () => {
@@ -208,7 +369,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
 
           fireEvent.change(pathInput, { target: { value: "/app/migrations" } });
 
-          const scope = mockUpdateSchemaConfig({
+          const scope = mockUpdateSchema({
             payload: {
               appId: currentApp.id,
               envId: currentEnv.id!,
@@ -240,7 +401,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
 
           fireEvent.click(switchInput);
 
-          const scope = mockUpdateSchemaConfig({
+          const scope = mockUpdateSchema({
             payload: {
               appId: currentApp.id,
               envId: currentEnv.id!,
@@ -278,7 +439,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
           expect(wrapper.getByText("Save")).toBeTruthy();
         });
 
-        const scope = mockUpdateSchemaConfig({
+        const scope = mockUpdateSchema({
           payload: {
             appId: currentApp.id,
             envId: currentEnv.id!,

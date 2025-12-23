@@ -12,7 +12,10 @@ import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
 import EmptyPage from "~/components/EmptyPage";
 import CardFooter from "~/components/CardFooter";
-import { useFetchSchema, createSchema, updateSchemaConfig } from "./actions";
+import ConfirmModal from "~/components/ConfirmModal";
+import * as actions from "./actions";
+
+const { createSchema, deleteSchema, updateSchema, useFetchSchema } = actions;
 
 interface EmptyViewProps {
   onAttachClick: () => void;
@@ -64,6 +67,7 @@ export default function Database() {
   const [formError, setFormError] = useState<string>();
   const [isAttaching, setIsAttaching] = useState(false);
   const [migrationsEnabled, setMigrationsEnabled] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
   const { schema, loading, error } = result;
   const hasSchema = !loading && !error && Boolean(schema);
 
@@ -106,7 +110,7 @@ export default function Database() {
     setSuccess(undefined);
 
     try {
-      await updateSchemaConfig({
+      await updateSchema({
         appId: environment.appId!,
         envId: environment.id!,
         migrationsFolder,
@@ -186,6 +190,15 @@ export default function Database() {
       {hasSchema && (
         <CardFooter>
           <Button
+            variant="text"
+            color="primary"
+            type="button"
+            onClick={() => setDeleteConfirm(true)}
+            sx={{ mr: 2 }}
+          >
+            Delete
+          </Button>
+          <Button
             variant="contained"
             color="secondary"
             type="submit"
@@ -194,6 +207,40 @@ export default function Database() {
             Save
           </Button>
         </CardFooter>
+      )}
+      {deleteConfirm && (
+        <ConfirmModal
+          title="Delete Database Schema"
+          onConfirm={async ({ setLoading, setError }) => {
+            setLoading(true);
+
+            deleteSchema({ appId: environment.appId!, envId: environment.id! })
+              .then(() => {
+                setDeleteConfirm(false);
+                setSuccess("Schema deleted successfully");
+                setRefreshToken(Date.now());
+              })
+              .catch(res => {
+                if (res.status === 403) {
+                  setError(
+                    "You don't have permission to delete this database schema. Contact team admin."
+                  );
+                } else {
+                  setError(
+                    "Failed to delete database schema. Please try again."
+                  );
+                }
+              })
+              .finally(() => {
+                setLoading(false);
+              });
+          }}
+          onCancel={() => setDeleteConfirm(false)}
+        >
+          You are about to permanently delete this environment's database
+          schema. All application data will be lost and this action cannot be
+          undone.
+        </ConfirmModal>
       )}
     </Card>
   );

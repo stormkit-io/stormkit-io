@@ -34,7 +34,7 @@ export const mockCreateSchema = ({
   return nock(endpoint).post("/schema", payload).reply(status, response);
 };
 
-interface MockUpdateSchemaConfigProps {
+interface MockUpdateSchemaProps {
   payload: {
     appId: string;
     envId: string;
@@ -44,9 +44,26 @@ interface MockUpdateSchemaConfigProps {
   status?: number;
 }
 
-export const mockUpdateSchemaConfig = ({
+export const mockUpdateSchema = ({
   payload,
   status = 200,
-}: MockUpdateSchemaConfigProps) => {
+}: MockUpdateSchemaProps) => {
   return nock(endpoint).post("/schema/configure", payload).reply(status, {});
+};
+
+interface MockDeleteSchemaProps {
+  payload: {
+    appId: string;
+    envId: string;
+  };
+  status?: number;
+}
+
+export const mockDeleteSchema = ({
+  payload,
+  status = 200,
+}: MockDeleteSchemaProps) => {
+  return nock(endpoint)
+    .delete(`/schema?envId=${payload.envId}&appId=${payload.appId}`)
+    .reply(status, {});
 };

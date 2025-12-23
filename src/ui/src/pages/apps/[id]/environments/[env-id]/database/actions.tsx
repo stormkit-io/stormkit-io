@@ -56,19 +56,28 @@ export const createSchema = ({ appId, envId }: CreateSchemaProps) => {
   });
 };
 
-interface UpdateSchemaConfigProps {
+interface DeleteSchemaProps {
+  envId: string;
+  appId: string;
+}
+
+export const deleteSchema = ({ appId, envId }: DeleteSchemaProps) => {
+  return api.delete(`/schema?appId=${appId}&envId=${envId}`);
+};
+
+interface UpdateSchemaProps {
   appId: string;
   envId: string;
   migrationsFolder: string;
   migrationsEnabled: boolean;
 }
 
-export const updateSchemaConfig = ({
+export const updateSchema = ({
   appId,
   envId,
   migrationsFolder,
   migrationsEnabled,
-}: UpdateSchemaConfigProps) => {
+}: UpdateSchemaProps) => {
   return api.post(`/schema/configure`, {
     appId,
     envId,
