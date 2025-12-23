@@ -97,13 +97,13 @@ func (s *Store) Prepare(ctx context.Context, query string) (*sql.Stmt, error) {
 }
 
 // AdvisoryLock acquires a Postgres advisory lock with the given ID.
-func (s *Store) AdvisoryLock(ctx context.Context, lockID int64) error {
-	_, err := s.Exec(ctx, "SELECT pg_advisory_lock($1);", lockID)
+func (s *Store) AdvisoryLock(lockID int64) error {
+	_, err := s.Exec(context.Background(), "SELECT pg_advisory_lock($1);", lockID)
 	return err
 }
 
 // AdvisoryUnlock releases a Postgres advisory lock with the given ID.
-func (s *Store) AdvisoryUnlock(ctx context.Context, lockID int64) error {
-	_, err := s.Exec(ctx, "SELECT pg_advisory_unlock($1);", lockID)
+func (s *Store) AdvisoryUnlock(lockID int64) error {
+	_, err := s.Exec(context.Background(), "SELECT pg_advisory_unlock($1);", lockID)
 	return err
 }

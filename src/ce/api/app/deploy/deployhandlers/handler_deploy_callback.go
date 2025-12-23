@@ -300,11 +300,11 @@ func RunMigrations(ctx context.Context, args RunMigrationsArgs) ([]*buildconf.Mi
 		return nil, err
 	}
 
-	if err := store.AdvisoryLock(ctx, int64(env.ID)); err != nil {
-		return nil, errors.New("failed acquiring advisory lock for running migrations - are you running simultaneous deployments?")
+	if err := store.AdvisoryLock(int64(env.ID)); err != nil {
+		return nil, errors.New("failed to acquire advisory lock for running migrations; this may be caused by simultaneous deployments")
 	}
 
-	defer store.AdvisoryUnlock(ctx, int64(env.ID))
+	defer store.AdvisoryUnlock(int64(env.ID))
 
 	migrations, err := store.Migrations(ctx)
 
