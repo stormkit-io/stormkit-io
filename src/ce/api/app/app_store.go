@@ -417,26 +417,6 @@ func (s *Store) Apps(ctx context.Context, teamID types.ID, from, limit int, filt
 	return apps, rows.Err()
 }
 
-// IsMember checks whether the given user is an app member.
-func (s *Store) IsMember(ctx context.Context, appID, userID types.ID) (bool, error) {
-	selected := 0
-	row, err := s.QueryRow(ctx, stmt.isMember, appID, userID, appID, userID)
-
-	if err != nil {
-		return false, err
-	}
-
-	if err = row.Scan(&selected); err != nil {
-		if err == sql.ErrNoRows {
-			return false, nil
-		}
-
-		return false, err
-	}
-
-	return selected > 0, nil
-}
-
 // Settings returns the application settings, required to be displayed in the app settings page.
 func (s *Store) Settings(ctx context.Context, aid types.ID) (*Settings, error) {
 	set := &Settings{}

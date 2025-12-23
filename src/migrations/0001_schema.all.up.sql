@@ -167,13 +167,6 @@ CREATE TABLE IF NOT EXISTS skitapi.app_logs (
     id bigserial primary key NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS skitapi.app_members (
-    app_id bigint,
-    user_id bigint,
-    invited_by bigint NOT NULL,
-    created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text) NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS skitapi.app_outbound_webhooks (
     app_id bigint,
     request_headers jsonb,
@@ -456,10 +449,6 @@ CREATE INDEX IF NOT EXISTS idx_app_logs_label ON skitapi.app_logs USING btree (l
 
 CREATE INDEX IF NOT EXISTS idx_app_logs_request_id ON skitapi.app_logs USING btree (request_id);
 
-CREATE INDEX IF NOT EXISTS idx_app_member_invited_by ON skitapi.app_members USING btree (invited_by);
-
-CREATE INDEX IF NOT EXISTS idx_app_member_user_id ON skitapi.app_members USING btree (user_id);
-
 CREATE INDEX IF NOT EXISTS idx_app_repo ON skitapi.apps USING btree (lower(repo));
 
 CREATE INDEX IF NOT EXISTS idx_app_user_id ON skitapi.apps USING btree (user_id);
@@ -514,15 +503,6 @@ BEGIN
   
     ALTER TABLE ONLY skitapi.app_logs
         ADD CONSTRAINT app_logs_app_id_fkey FOREIGN KEY (app_id) REFERENCES skitapi.apps(app_id) ON UPDATE CASCADE ON DELETE CASCADE;
-  
-    ALTER TABLE ONLY skitapi.app_members
-        ADD CONSTRAINT app_members_app_id_fkey FOREIGN KEY (app_id) REFERENCES skitapi.apps(app_id) ON DELETE CASCADE;
-  
-    ALTER TABLE ONLY skitapi.app_members
-        ADD CONSTRAINT app_members_user_id_fkey FOREIGN KEY (user_id) REFERENCES skitapi.users(user_id) ON DELETE CASCADE;
-
-    ALTER TABLE ONLY skitapi.app_members
-        ADD CONSTRAINT app_members_app_id_user_id_key UNIQUE (app_id, user_id);
   
     ALTER TABLE ONLY skitapi.app_outbound_webhooks
         ADD CONSTRAINT app_outbound_webhooks_app_id_fkey FOREIGN KEY (app_id) REFERENCES skitapi.apps(app_id) ON DELETE CASCADE;

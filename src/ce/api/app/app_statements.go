@@ -8,7 +8,6 @@ import (
 
 var (
 	tableApps             = "apps"
-	tableMembers          = "app_members"
 	tableEnvs             = "apps_build_conf"
 	tableDomains          = "domains"
 	tableOutboundWebhooks = "app_outbound_webhooks"
@@ -24,10 +23,8 @@ type statement struct {
 	updateApp              string
 	updatePrivateKey       string
 	deletedApps            string
-	isMember               string
 	markAsDeleted          string
 	markArtifactsAsDeleted string
-	membersCount           string
 	removeDeployTrigger    string
 	updateDeployTrigger    string
 	selectOutboundWebhook  string
@@ -136,14 +133,6 @@ var stmt = &statement{
 		LIMIT $1;
 	`, tableApps),
 
-	isMember: fmt.Sprintf(`
-		SELECT a.app_id FROM %s a
-		WHERE a.app_id = $1 AND a.user_id = $2
-		UNION
-		SELECT m.app_id FROM %s m
-		WHERE m.app_id = $3 AND m.user_id = $4
-	`, tableApps, tableMembers),
-
 	markAsDeleted: `
 		WITH update_domains AS (
 			UPDATE {{ .domainsTableName }} SET domain_verified = FALSE
@@ -159,11 +148,6 @@ var stmt = &statement{
 		WHERE
 			app_id = $1;
 	`,
-
-	membersCount: fmt.Sprintf(`
-		SELECT COUNT(*) FROM %s
-		WHERE app_id = $1
-	`, tableMembers),
 
 	selectAppSettings: fmt.Sprintf(`
 		SELECT
