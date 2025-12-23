@@ -17,6 +17,7 @@ func (s *ServicesSuite) Test_Services() {
 	s.NotNil(services)
 
 	handlers := []string{
+		"DELETE:/schema",
 		"GET:/schema",
 		"POST:/schema",
 		"POST:/schema/configure",
