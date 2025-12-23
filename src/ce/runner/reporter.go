@@ -207,7 +207,7 @@ func (r *ReporterModel) AddStep(title string) {
 		return
 	}
 
-	_, err := r.file.Write([]byte(fmt.Sprintf("[sk-step] %s [ts:%d]\n", title, time.Now().Unix())))
+	_, err := r.file.Write([]byte(deploy.LogStep(title)))
 
 	if err != nil {
 		slog.Errorf("cannot add step: %s", title)
