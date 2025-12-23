@@ -177,15 +177,15 @@ ifeq ($(UNIX_LIKE),TRUE)
 
 endif
 
-# ====================================================================================
+# ===============================================================================================
 # Phony Targets
-# ====================================================================================
+# ===============================================================================================
 
-.PHONY: help check-deps start restart dev print-env test test-fe test-be test-fe-watch
+.PHONY: help check-deps start restart dev print-env test test-fe test-be test-fe-watch reset-data
 
-# ====================================================================================
+# ===============================================================================================
 # Tasks
-# ====================================================================================
+# ===============================================================================================
 
 # Default target - show help
 help:
@@ -260,3 +260,14 @@ test-be:
 
 # Development workflow - check dependencies and start services
 dev: check-deps start
+
+# Reset database, redis and build folder
+reset-data:
+	@echo "Resetting data..."
+	docker compose down -v
+ifeq ($(UNIX_LIKE),FALSE)
+	if (Test-Path "./build/*") { Remove-Item -Path "./build/*" -Recurse -Force }
+else
+	rm -rf ./build/*
+endif
+	@echo "Data reset complete."
