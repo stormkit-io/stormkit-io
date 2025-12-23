@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"regexp"
 	"text/template"
+	"time"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/database"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
@@ -23,8 +24,10 @@ var schemaStmt = struct {
 	createMigrationsTable: `
 		CREATE TABLE IF NOT EXISTS stormkit_schema_migrations (
 			migration_id SERIAL PRIMARY KEY,
-			migration_name TEXT NOT NULL,
-			content_hash TEXT NOT NULL UNIQUE,
+			migration_name TEXT NOT NULL UNIQUE,
+			migration_duration_ms BIGINT NOT NULL DEFAULT 0,
+			deployment_id BIGINT NOT NULL,
+			content_hash TEXT NOT NULL,
 			error_message TEXT,
 			applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		);
@@ -34,7 +37,9 @@ var schemaStmt = struct {
 		SELECT
 			migration_id, migration_name, content_hash, error_message
 		FROM
-			stormkit_schema_migrations;
+			stormkit_schema_migrations
+		ORDER BY
+			migration_id ASC;
 	`,
 
 	selectSchema: `
@@ -398,7 +403,7 @@ type Migration struct {
 	ErrorMsg    null.String
 }
 
-// Migrations retrieves the list of applied migrations from the schema.
+// Migrations retrieves the list of last migrations.
 func (s *schemaStore) Migrations(ctx context.Context) ([]Migration, error) {
 	if s.conf == nil {
 		return nil, fmt.Errorf("schema configuration is required to retrieve migrations")
@@ -427,32 +432,65 @@ func (s *schemaStore) Migrations(ctx context.Context) ([]Migration, error) {
 	return migrations, nil
 }
 
+type MigrationResult struct {
+	Duration time.Duration
+	FileName string
+	Error    string
+}
+
+type ApplyMigrationArgs struct {
+	MigrationName string
+	Content       []byte
+	SHA           string
+	DeploymentID  types.ID
+}
+
 // ApplyMigration applies a migration to the schema if it hasn't been applied yet.
-func (s *schemaStore) ApplyMigration(ctx context.Context, migrationName string, content []byte, sha string) error {
+func (s *schemaStore) ApplyMigration(ctx context.Context, args ApplyMigrationArgs) (*MigrationResult, error) {
 	if s.conf == nil {
-		return fmt.Errorf("schema configuration is required to apply migrations")
+		return nil, fmt.Errorf("schema configuration is required to apply migrations")
 	}
 
 	// Apply migration
-	_, err := s.Exec(ctx, string(content))
+	now := time.Now()
+	_, err := s.Exec(ctx, string(args.Content))
 
-	var msg null.String
+	result := MigrationResult{
+		Duration: time.Since(now),
+		FileName: args.MigrationName,
+	}
 
 	if err != nil {
-		msg = null.StringFrom(err.Error())
+		result.Error = err.Error()
 	}
 
 	// Record applied migration
 	_, err = s.Exec(ctx, `
-		INSERT INTO stormkit_schema_migrations (migration_name, content_hash, error_message)
-		VALUES ($1, $2, $3);
-	`, migrationName, sha, msg)
+		INSERT INTO
+			stormkit_schema_migrations (
+				migration_name, migration_duration_ms, deployment_id, content_hash, error_message
+			)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (migration_name)
+		DO UPDATE SET
+			content_hash = EXCLUDED.content_hash,
+			migration_duration_ms = EXCLUDED.migration_duration_ms,
+			deployment_id = EXCLUDED.deployment_id,
+			error_message = EXCLUDED.error_message,
+			applied_at = NOW();
+	`,
+		args.MigrationName,
+		result.Duration.Milliseconds(),
+		args.DeploymentID,
+		args.SHA,
+		null.NewString(result.Error, result.Error != ""),
+	)
 
 	if err != nil {
-		return fmt.Errorf("failed to record applied migration %s: %w", migrationName, err)
+		return nil, fmt.Errorf("failed to record applied migration %s: %w", args.MigrationName, err)
 	}
 
-	return nil
+	return &result, nil
 }
 
 // Close closes the schema store and its underlying database connection.

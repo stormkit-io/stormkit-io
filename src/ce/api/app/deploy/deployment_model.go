@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
@@ -271,6 +272,15 @@ func (d *Deployment) RepoSlug() string {
 	return ""
 }
 
+// AddLogs appends the given logs to the deployment logs.
+func (d *Deployment) AddLogs(logs []string) {
+	if len(logs) == 0 {
+		return
+	}
+
+	d.Logs = null.StringFrom(d.Logs.ValueOrZero() + "\n" + strings.Join(logs, "\n"))
+}
+
 // PrepareLogs prepares the deployment logs and returns an array of log objects.
 func (d *Deployment) PrepareLogs(rawLogs string, isStatusChecks bool) []*Log {
 	if rawLogs == "" && d.UploadResult == nil {
@@ -492,4 +502,9 @@ func byteCountDecimal(b int64) string {
 	}
 
 	return fmt.Sprintf("%.1f%cB", float64(b)/float64(div), "kMGTPE"[exp])
+}
+
+// LogStep formats a deployment step log.
+func LogStep(title string) string {
+	return fmt.Sprintf("[sk-step] %s [ts:%d]\n", title, time.Now().Unix())
 }

@@ -526,7 +526,7 @@ func (s *HandlerDeployCallbackSuite) Test_InvalidDeployID() {
 	s.Equal(http.StatusUnauthorized, response.Code)
 }
 
-func (s *HandlerDeployCallbackSuite) Test_RunMigrations() {
+func (s *HandlerDeployCallbackSuite) Test_RunMigrations_Success() {
 	usr := s.MockUser()
 	app := s.MockApp(usr)
 	env := s.MockEnv(app, map[string]any{
@@ -557,7 +557,15 @@ func (s *HandlerDeployCallbackSuite) Test_RunMigrations() {
 		Content: zipContent,
 	}, nil).Once()
 
-	s.NoError(deployhandlers.RunMigrations(context.Background(), env.ID, env.Branch, migrationsFile))
+	results, err := deployhandlers.RunMigrations(context.Background(), deployhandlers.RunMigrationsArgs{
+		DeploymentID:   env.ID,
+		EnvID:          env.ID,
+		Branch:         env.Branch,
+		MigrationsFile: migrationsFile,
+	})
+
+	s.NoError(err)
+	s.NotEmpty(results)
 
 	store, err := env.SchemaConf.Store(buildconf.SchemaAccessTypeMigrations)
 	s.NoError(err)
@@ -568,9 +576,69 @@ func (s *HandlerDeployCallbackSuite) Test_RunMigrations() {
 	s.Len(migrations, 2)
 	s.Equal("002_create_users.sql", migrations[0].Name)
 	s.Equal("003_add_index.sql", migrations[1].Name)
+	s.Equal("002_create_users.sql", results[0].FileName)
+	s.Equal("003_add_index.sql", results[1].FileName)
+	s.Empty(results[0].Error)
+	s.Empty(results[1].Error)
 }
 
-func (s *HandlerDeployCallbackSuite) Test_RunMigrations_Failed() {
+func (s *HandlerDeployCallbackSuite) Test_RunMigrations_Failed_InvalidSQL() {
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app, map[string]any{
+		"SchemaConf": &buildconf.SchemaConf{
+			Host:              s.conn.Cfg.Host,
+			Port:              s.conn.Cfg.Port,
+			DBName:            s.conn.Cfg.DBName,
+			SchemaName:        s.conn.Cfg.Schema,
+			MigrationPassword: s.conn.Cfg.Password,
+			MigrationUserName: s.conn.Cfg.User,
+			MigrationsEnabled: true,
+		},
+	})
+
+	migrationsFile := "local:/path/to/migrations.zip"
+
+	files := map[string][]byte{
+		"002_create_users.sql": []byte("CREATE TABLE test_users (id INT);"),
+		"003_add_index.sql":    []byte("INVALID SQL STATEMENT;"),
+	}
+
+	zipContent, err := file.ZipInMemory(files)
+	s.NoError(err)
+
+	s.mockClient.On("GetFile", integrations.GetFileArgs{
+		Location: migrationsFile,
+	}).Return(&integrations.GetFileResult{
+		Content: zipContent,
+	}, nil).Once()
+
+	results, err := deployhandlers.RunMigrations(context.Background(), deployhandlers.RunMigrationsArgs{
+		DeploymentID:   env.ID,
+		EnvID:          env.ID,
+		Branch:         env.Branch,
+		MigrationsFile: migrationsFile,
+	})
+
+	s.NoError(err)
+	s.NotEmpty(results)
+
+	store, err := env.SchemaConf.Store(buildconf.SchemaAccessTypeMigrations)
+	s.NoError(err)
+
+	migrations, err := store.Migrations(context.Background())
+	s.NoError(err)
+
+	s.Len(migrations, 2)
+	s.Equal("002_create_users.sql", migrations[0].Name)
+	s.Equal("003_add_index.sql", migrations[1].Name)
+	s.Equal("002_create_users.sql", results[0].FileName)
+	s.Equal("003_add_index.sql", results[1].FileName)
+	s.Empty(results[0].Error)
+	s.Equal("pq: syntax error at or near \"INVALID\"", results[1].Error)
+}
+
+func (s *HandlerDeployCallbackSuite) Test_RunMigrations_Failed_FileDoesNotExist() {
 	config.SetIsSelfHosted(true)
 
 	file := "local:/path/to/migrations.zip"

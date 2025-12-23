@@ -339,7 +339,17 @@ func (s *SchemaStoreSuite) Test_Migrations_Success() {
 	}
 
 	for _, m := range migrations1 {
-		s.NoError(store.ApplyMigration(ctx, m.name, []byte(m.content), m.hash))
+		result, err := store.ApplyMigration(ctx, buildconf.ApplyMigrationArgs{
+			MigrationName: m.name,
+			Content:       []byte(m.content),
+			SHA:           m.hash,
+			DeploymentID:  1,
+		})
+
+		s.NoError(err)
+		s.NotNil(result)
+		s.Empty(result.Error, "migration should apply without error")
+		s.True(result.Duration.Milliseconds() > 0, "migration duration should be recorded")
 	}
 
 	// Retrieve migrations

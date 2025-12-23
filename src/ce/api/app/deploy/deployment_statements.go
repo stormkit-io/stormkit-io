@@ -190,9 +190,10 @@ var stmt = &statement{
 			error = $2,
 			exit_code = $3,
 			build_manifest = $4,
+			logs = COALESCE(logs, '') || $5,
 			stopped_at = NOW() AT TIME ZONE 'UTC'
 		WHERE
-			deployment_id = $5
+			deployment_id = $6
 		RETURNING
 			stopped_at;
 	`, tableDeploys),

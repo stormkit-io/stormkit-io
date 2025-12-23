@@ -394,6 +394,7 @@ func (s *Store) UpdateDeploymentResult(ctx context.Context, d *Deployment, resul
 		d.Error,
 		d.ExitCode,
 		d.BuildManifest,
+		d.Logs.ValueOrZero(),
 		d.ID,
 	)
 

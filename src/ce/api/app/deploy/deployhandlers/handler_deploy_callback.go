@@ -2,6 +2,7 @@ package deployhandlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -73,7 +74,7 @@ func handlerDeployCallback(req *shttp.RequestContext) *shttp.Response {
 
 	depl, err := deploy.NewStore().MyDeployment(req.Context(), &deploy.DeploymentsQueryFilters{
 		DeploymentID: deployID,
-		IncludeLogs:  aws.Bool(true),
+		IncludeLogs:  aws.Bool(false),
 	})
 
 	if err != nil {
@@ -179,9 +180,41 @@ func UpdateExit(req *shttp.RequestContext, data deployCallbackRequest) *shttp.Re
 
 	// If the deployment branch == environment branch, it means we need to migrate the environment
 	if data.Result.Migrations.Location != "" {
-		if err := RunMigrations(req.Context(), data.deployment.EnvID, data.deployment.Branch, data.Result.Migrations.Location); err != nil {
+		logs := []string{}
+		logs = append(logs, deploy.LogStep("database migrations"))
+
+		results, err := RunMigrations(req.Context(), RunMigrationsArgs{
+			DeploymentID:   data.deployment.ID,
+			EnvID:          data.deployment.EnvID,
+			Branch:         data.deployment.Branch,
+			MigrationsFile: data.Result.Migrations.Location,
+		})
+
+		if err != nil {
 			data.deployment.Error = null.StringFrom(err.Error())
 		}
+
+		for _, result := range results {
+			if result == nil {
+				continue
+			}
+
+			errorMsg := ""
+			tickOrCross := "✓"
+
+			if result.Error != "" {
+				tickOrCross = "✗"
+				errorMsg = " - Error: " + result.Error
+			}
+
+			logs = append(logs, fmt.Sprintf("%s (%dms) %s%s", result.FileName, result.Duration.Milliseconds(), tickOrCross, errorMsg))
+		}
+
+		if len(results) == 0 {
+			logs = append(logs, "No new migrations to apply.")
+		}
+
+		data.deployment.AddLogs(logs)
 	}
 
 	if err := deploy.NewStore().UpdateDeploymentResult(req.Context(), data.deployment, data.Result); err != nil {
@@ -214,57 +247,72 @@ func UpdateExit(req *shttp.RequestContext, data deployCallbackRequest) *shttp.Re
 	return shttp.OK()
 }
 
+type RunMigrationsArgs struct {
+	DeploymentID   types.ID
+	EnvID          types.ID
+	Branch         string
+	MigrationsFile string
+}
+
 // RunMigrations runs database migrations for the given environment.
-func RunMigrations(ctx context.Context, envID types.ID, branch string, migrationsFile string) error {
-	env, err := buildconf.NewStore().EnvironmentByID(ctx, envID)
+func RunMigrations(ctx context.Context, args RunMigrationsArgs) ([]*buildconf.MigrationResult, error) {
+	env, err := buildconf.NewStore().EnvironmentByID(ctx, args.EnvID)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if env == nil {
-		return fmt.Errorf("environment not found for deployment: %d", envID)
+		return nil, fmt.Errorf("deployment environment not found: %d", args.EnvID)
 	}
 
 	// Migrations not enabled
 	if env.SchemaConf == nil || !env.SchemaConf.MigrationsEnabled {
-		return nil
+		return nil, nil
 	}
 
 	// Skip migrations as we're not on the default branch
-	if env.Branch != branch {
-		return nil
+	if env.Branch != args.Branch {
+		return nil, nil
 	}
 
 	migrationsZip, err := integrations.Client().GetFile(integrations.GetFileArgs{
-		Location: migrationsFile,
+		Location: args.MigrationsFile,
 	})
 
 	if err != nil {
-		return fmt.Errorf("error while fetching migrations file: %s", err.Error())
+		return nil, fmt.Errorf("error while fetching migrations file: %s", err.Error())
 	}
 
 	if migrationsZip == nil {
-		return fmt.Errorf("migrations file not found at location: %s", migrationsFile)
+		return nil, fmt.Errorf("migrations file not found at location: %s", args.MigrationsFile)
 	}
 
 	store, err := env.SchemaConf.Store(buildconf.SchemaAccessTypeMigrations)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	defer store.Close()
 
 	if err := store.EnsureMigrationsTable(); err != nil {
-		return err
+		return nil, err
 	}
+
+	if err := store.AdvisoryLock(ctx, int64(env.ID)); err != nil {
+		return nil, errors.New("failed acquiring advisory lock for running migrations - are you running simultaneous deployments?")
+	}
+
+	defer store.AdvisoryUnlock(ctx, int64(env.ID))
 
 	migrations, err := store.Migrations(ctx)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
+
+	results := []*buildconf.MigrationResult{}
 
 	err = file.ZipIterator(migrationsZip.Content, func(fileName string, content []byte) error {
 		hash := utils.Hash(content)
@@ -281,18 +329,23 @@ func RunMigrations(ctx context.Context, envID types.ID, branch string, migration
 			return nil
 		}
 
-		if err := store.ApplyMigration(ctx, fileName, content, hash); err != nil {
+		result, err := store.ApplyMigration(ctx, buildconf.ApplyMigrationArgs{
+			MigrationName: fileName,
+			Content:       content,
+			SHA:           hash,
+			DeploymentID:  args.DeploymentID,
+		})
+
+		results = append(results, result)
+
+		if err != nil {
 			return err
 		}
 
 		return nil
 	})
 
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return results, err
 }
 
 // LockDeployment is called when the deployment is complete. A deployment is complete
