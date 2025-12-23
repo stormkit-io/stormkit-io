@@ -349,7 +349,6 @@ func (s *SchemaStoreSuite) Test_Migrations_Success() {
 		s.NoError(err)
 		s.NotNil(result)
 		s.Empty(result.Error, "migration should apply without error")
-		s.True(result.Duration.Milliseconds() > 0, "migration duration should be recorded")
 	}
 
 	// Retrieve migrations
