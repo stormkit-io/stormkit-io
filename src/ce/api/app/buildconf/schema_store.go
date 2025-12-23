@@ -487,7 +487,7 @@ func (s *schemaStore) ApplyMigration(ctx context.Context, args ApplyMigrationArg
 	)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to record applied migration %s: %w", args.MigrationName, err)
+		return &result, fmt.Errorf("failed to record applied migration %s: %w", args.MigrationName, err)
 	}
 
 	return &result, nil
