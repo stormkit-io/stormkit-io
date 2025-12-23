@@ -31,7 +31,7 @@ func handlerSchemaDelete(req *app.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	if !team.HasWriteAccess(member.Role) {
+	if member == nil || !team.HasWriteAccess(member.Role) {
 		return shttp.Forbidden()
 	}
 
