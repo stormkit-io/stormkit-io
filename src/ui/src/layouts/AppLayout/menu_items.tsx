@@ -91,11 +91,11 @@ export const envMenuItems = ({
       icon: Icon(StorageIcon),
       isActive: pathname.includes("/volumes"),
     },
-    // {
-    //   text: "Database",
-    //   path: `${envPath}/database`,
-    //   isActive: pathname.includes("/database"),
-    // },
+    {
+      text: "Database",
+      path: `${envPath}/database`,
+      isActive: pathname.includes("/database"),
+    },
   ];
 
   if (env.published?.length) {
