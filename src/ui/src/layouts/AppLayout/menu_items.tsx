@@ -5,6 +5,7 @@ import ScheduleIcon from "@mui/icons-material/Schedule";
 import StorageIcon from "@mui/icons-material/Storage";
 import TextSnippetIcon from "@mui/icons-material/TextSnippet";
 import InsertChartIcon from "@mui/icons-material/InsertChart";
+import DatabaseIcon from "@mui/icons-material/Inventory";
 
 export const appMenuItems = ({
   app,
@@ -94,6 +95,7 @@ export const envMenuItems = ({
     {
       text: "Database",
       path: `${envPath}/database`,
+      icon: Icon(DatabaseIcon),
       isActive: pathname.includes("/database"),
     },
   ];
