@@ -11,6 +11,7 @@ import 'prismjs/components/prism-yaml'
 import 'prismjs/components/prism-regex'
 import 'prismjs/components/prism-typescript'
 import 'prismjs/components/prism-docker'
+import 'prismjs/components/prism-sql'
 import { useParams } from 'react-router'
 
 export interface Attributes {
