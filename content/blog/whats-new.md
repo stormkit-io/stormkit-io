@@ -5,6 +5,10 @@ description: Discover the latest changes and improvements to Stormkit. Stay up-t
 
 Follow the latest developments on Stormkit.
 
+## December 24th, 2025
+
+Introducing **Database Integration**: Attach isolated PostgreSQL schemas to your environments with automatic migrations, secure credential management, and built-in permission controls. Write plain SQL migrations that execute in milliseconds. [Learn more](/docs/features/database).
+
 ## September 6th, 2025
 
 - New event cycle for outbound webhooks: On Cache Purge
