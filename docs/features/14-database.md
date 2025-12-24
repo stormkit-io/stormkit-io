@@ -5,6 +5,10 @@ description: Learn how to attach a PostgreSQL schema to your environment and run
 
 # Database
 
+<div class="blog-alert">
+  <strong>Note:</strong> The Database feature is currently available only for self-hosted Stormkit instances.
+</div>
+
 Stormkit's Database feature provides each environment with an isolated PostgreSQL schema, complete with automatic schema migrations and secure credential management. This allows you to develop and deploy database-backed applications with confidence.
 
 ## How it works
