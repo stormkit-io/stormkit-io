@@ -30,29 +30,6 @@ Navigate to your environment's Database section and click **Attach Database**.
   <img src="/assets/docs/features/demo-database-attach.png" alt="Attach database to environment" />
 </div>
 
-## Environment variables
-
-The following environment variables are automatically injected into your application:
-
-```bash
-DATABASE_URL=postgresql://a123e456_user:secure_password@postgres:5432/stormkit?schema=a123e456
-POSTGRES_USER=a123e456_app_user
-POSTGRES_PASSWORD=secure_password
-POSTGRES_HOST=example_host
-POSTGRES_PORT=5432
-POSTGRES_DB=stormkit
-POSTGRES_SCHEMA=a123e456
-```
-
-You can use these in your application:
-
-```typescript
-// Next.js, Remix, etc.
-const db = new Client({
-  connectionString: process.env.DATABASE_URL,
-});
-```
-
 ## Automatic migrations
 
 Enable **schema migrations** to automatically apply SQL migration files during deployment.
@@ -72,12 +49,12 @@ Stormkit's migration system is designed for simplicity and power:
 2. Set the **Migrations path** (e.g., `/migrations`, `/db/migrations`)
 
 <div class="img-wrapper">
-  <img src="/assets/docs/features/demo-database-migrations.png" alt="Configure database migrations" />
+  <img src="/assets/docs/features/demo-database-configure.png" alt="Configure database migrations" />
 </div>
 
 ### Migration files
 
-Place your SQL migration files in the configured path:
+Place your SQL migration files in the configured path and deploy your application:
 
 ```
 /migrations
@@ -85,6 +62,10 @@ Place your SQL migration files in the configured path:
   ├── 002_add_posts.sql
   └── 003_add_comments.sql
 ```
+
+<div class="img-wrapper">
+  <img src="/assets/docs/features/demo-database-migrations.png" alt="Preview migrations" />
+</div>
 
 **Important**:
 
@@ -108,6 +89,29 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE INDEX idx_users_email ON users(email);
 ```
 
+## Environment variables
+
+The following environment variables are automatically injected into your application:
+
+```bash
+DATABASE_URL=postgresql://a123e456_user:secure_password@postgres:5432/stormkit?schema=a123e456
+POSTGRES_USER=a123e456_app_user
+POSTGRES_PASSWORD=secure_password
+POSTGRES_HOST=example_host
+POSTGRES_PORT=5432
+POSTGRES_DB=stormkit
+POSTGRES_SCHEMA=a123e456
+```
+
+You can use these in your application:
+
+```typescript
+// Next.js, Remix, etc.
+const db = new Client({
+  connectionString: process.env.DATABASE_URL,
+});
+```
+
 ## Security & permissions
 
 ### Migration user
@@ -123,7 +127,7 @@ Used **only during deployments** with resource limits:
 | `idle_in_transaction_session_timeout` | `60s`   |
 | `connection limit`                    | `1`     |
 
-**Can do**: CREATE/ALTER/DROP tables, indexes, and sequences within the schema
+**Can do**: `CREATE`/`ALTER`/`DROP` tables, indexes, and sequences within the schema
 
 **Cannot do**: Access other schemas, create databases, modify roles, or access the file system
 
@@ -140,9 +144,9 @@ Used by your **running application** with runtime limits:
 | `idle_in_transaction_session_timeout` | `60s`   |
 | `connection limit`                    | `10`    |
 
-**Can do**: SELECT, INSERT, UPDATE, DELETE on tables and sequences
+**Can do**: `SELECT`, `INSERT`, `UPDATE`, `DELETE` on tables and sequences
 
-**Cannot do**: ALTER/DROP tables, CREATE tables, or access other schemas
+**Cannot do**: `ALTER`/`DROP` tables, `CREATE` tables, or access other schemas
 
 ## Deleting a schema
 
