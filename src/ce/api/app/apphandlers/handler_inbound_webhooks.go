@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/dlclark/regexp2"
-	"gopkg.in/guregu/null.v3"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
@@ -125,24 +124,14 @@ func TriggerDeploy(ctx context.Context, input TriggerDeployInput) *shttp.Respons
 		}
 
 		depl := deploy.New(a.App)
-		depl.WebhookEvent = input.payload
-		depl.Branch = input.Branch
-		depl.Env = a.EnvName
-		depl.EnvID = a.EnvID
-		depl.IsAutoDeploy = true
-		depl.Commit.ID = null.NewString(input.CommitSha, input.CommitSha != "")
-		depl.CheckoutRepo = input.CheckoutRepo
-		depl.IsFork = input.IsFork
-		depl.BuildConfig = a.BuildConfig
-		depl.ShouldPublish = a.ShouldPublish
-
-		if a.SchemaConf != nil && a.SchemaConf.MigrationsEnabled {
-			depl.MigrationsFolder = null.StringFrom(a.SchemaConf.MigrationsFolder)
-		}
-
-		if input.PullRequestNumber != 0 {
-			depl.PullRequestNumber = null.NewInt(input.PullRequestNumber, true)
-		}
+		depl.PopulateFromDeployCandidate(a, deploy.DeployCandidatePayload{
+			Branch:            input.Branch,
+			CommitSha:         input.CommitSha,
+			WebhookEvent:      input.payload,
+			CheckoutRepo:      input.CheckoutRepo,
+			IsFork:            input.IsFork,
+			PullRequestNumber: input.PullRequestNumber,
+		})
 
 		if err := deployservice.New().Deploy(ctx, a.App, depl); err != nil {
 			isContextCanceled := errors.Is(err, context.Canceled)

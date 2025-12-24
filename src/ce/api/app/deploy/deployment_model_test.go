@@ -6,9 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
+	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"github.com/stretchr/testify/suite"
 	"gopkg.in/guregu/null.v3"
@@ -207,6 +210,92 @@ func (s *DeploymentModelSuite) Test_DeploymentLogs_WithMultipleSteps() {
 			"payload":null
 		}
 	]`, string(b))
+}
+
+func (s *DeploymentModelSuite) Test_PopulateFromEnv() {
+	dep := &deploy.Deployment{}
+	env := &buildconf.Env{
+		ID:          15,
+		Name:        "development",
+		Branch:      "dev",
+		AutoPublish: true,
+		Data: &buildconf.BuildConf{
+			InstallCmd: "npm install",
+			ServerCmd:  "npm run server",
+		},
+		SchemaConf: &buildconf.SchemaConf{
+			MigrationsEnabled: true,
+			MigrationsFolder:  "/migrations",
+			Host:              "localhost",
+			Port:              "5432",
+			DBName:            "custom_db",
+			SchemaName:        "custom_schema",
+			AppUserName:       "custom_user",
+			AppPassword:       "custom_password",
+		},
+	}
+
+	dep.PopulateFromEnv(env)
+
+	s.Equal(types.ID(15), dep.EnvID)
+	s.Equal("development", dep.Env)
+	s.Equal("dev", dep.Branch)
+	s.Equal(true, dep.ShouldPublish)
+	s.Equal("npm install", dep.BuildConfig.InstallCmd)
+	s.Equal("npm run server", dep.BuildConfig.ServerCmd)
+	s.Equal(null.StringFrom("/migrations"), dep.MigrationsFolder)
+	s.Equal("custom_db", dep.BuildConfig.Vars["POSTGRES_DB"])
+	s.Equal("custom_schema", dep.BuildConfig.Vars["POSTGRES_SCHEMA"])
+	s.Equal("custom_user", dep.BuildConfig.Vars["POSTGRES_USER"])
+	s.Equal("custom_password", dep.BuildConfig.Vars["POSTGRES_PASSWORD"])
+	s.Equal("localhost", dep.BuildConfig.Vars["POSTGRES_HOST"])
+	s.Equal("5432", dep.BuildConfig.Vars["POSTGRES_PORT"])
+}
+
+func (s *DeploymentModelSuite) Test_PopulateFromDeployCandidate() {
+	dep := &deploy.Deployment{}
+	can := &app.DeployCandidate{
+		EnvID:   types.ID(15),
+		EnvName: "development",
+		BuildConfig: &buildconf.BuildConf{
+			InstallCmd: "npm install",
+			ServerCmd:  "npm run server",
+			Vars: map[string]string{
+				"POSTGRES_SCHEMA":   "my_schema",
+				"POSTGRES_USER":     "my_user",
+				"POSTGRES_PASSWORD": "my_password",
+				"POSTGRES_HOST":     "db.host",
+				"POSTGRES_PORT":     "6543",
+				"POSTGRES_DB":       "my_database",
+			},
+		},
+		SchemaConf: &buildconf.SchemaConf{
+			MigrationsEnabled: true,
+			MigrationsFolder:  "/migrations",
+			DBName:            "custom_db",
+			SchemaName:        "custom_schema",
+			AppUserName:       "custom_user",
+			AppPassword:       "custom_password",
+		},
+	}
+
+	dep.PopulateFromDeployCandidate(can, deploy.DeployCandidatePayload{
+		Branch: "dev",
+	})
+
+	s.Equal(types.ID(15), dep.EnvID)
+	s.Equal("development", dep.Env)
+	s.Equal("dev", dep.Branch)
+	s.Equal(false, dep.ShouldPublish)
+	s.Equal("npm install", dep.BuildConfig.InstallCmd)
+	s.Equal("npm run server", dep.BuildConfig.ServerCmd)
+	s.Equal(null.StringFrom("/migrations"), dep.MigrationsFolder)
+	s.Equal("my_database", dep.BuildConfig.Vars["POSTGRES_DB"])
+	s.Equal("my_schema", dep.BuildConfig.Vars["POSTGRES_SCHEMA"])
+	s.Equal("my_user", dep.BuildConfig.Vars["POSTGRES_USER"])
+	s.Equal("my_password", dep.BuildConfig.Vars["POSTGRES_PASSWORD"])
+	s.Equal("db.host", dep.BuildConfig.Vars["POSTGRES_HOST"])
+	s.Equal("6543", dep.BuildConfig.Vars["POSTGRES_PORT"])
 }
 
 func TestDeploymentModel(t *testing.T) {

@@ -91,13 +91,12 @@ func (s *HooksSuite) TestOutboundWebhooks() {
 	a.NoError(err)
 
 	deployhooks.Exec(context.Background(), &deploy.Deployment{
-		ID:            depl.ID,
-		Env:           "production",
-		EnvBranchName: "master",
-		Branch:        "master",
-		EnvID:         s.GetEnv().ID,
-		AppID:         s.GetApp().ID,
-		ExitCode:      null.NewInt(0, true),
+		ID:       depl.ID,
+		Env:      "production",
+		Branch:   "master",
+		EnvID:    s.GetEnv().ID,
+		AppID:    s.GetApp().ID,
+		ExitCode: null.NewInt(0, true),
 	})
 
 	a.Equal(mr.NumberOfCalls, 1)

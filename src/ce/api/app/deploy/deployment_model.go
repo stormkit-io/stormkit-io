@@ -105,10 +105,9 @@ type Deployment struct {
 	// the environment id and the released percentage.
 	Published PublishedInfo `json:"-"`
 
-	BuildConfig   *buildconf.BuildConf `json:"-"` // ConfigCopy is the snapshot of the environment used during the deployment.
-	EnvBranchName string               `json:"-"` // EnvBranchName represents the branch name that is associated with the given environment.
-	DisplayName   string               `json:"-"` // DisplayName is the name of the app. It is injected to the deployment object.
-	IsRestart     bool                 `json:"-"`
+	BuildConfig *buildconf.BuildConf `json:"-"` // ConfigCopy is the snapshot of the environment used during the deployment.
+	DisplayName string               `json:"-"` // DisplayName is the name of the app. It is injected to the deployment object.
+	IsRestart   bool                 `json:"-"`
 }
 
 // PublishedInfo represents information on the publish details
@@ -147,16 +146,84 @@ func New(a *app.App) *Deployment {
 	return d
 }
 
+// includeSchemaVars includes the database schema variables into the deployment build config.
+func (d *Deployment) includeSchemaVars(schema *buildconf.SchemaConf) {
+	d.MigrationsFolder = null.StringFrom(schema.MigrationsFolder)
+
+	if d.BuildConfig == nil {
+		d.BuildConfig = &buildconf.BuildConf{}
+	}
+
+	if d.BuildConfig.Vars == nil {
+		d.BuildConfig.Vars = make(map[string]string)
+	}
+
+	if d.BuildConfig.Vars["POSTGRES_HOST"] == "" {
+		d.BuildConfig.Vars["POSTGRES_HOST"] = schema.Host
+	}
+
+	if d.BuildConfig.Vars["POSTGRES_PORT"] == "" {
+		d.BuildConfig.Vars["POSTGRES_PORT"] = schema.Port
+	}
+
+	if d.BuildConfig.Vars["POSTGRES_DB"] == "" {
+		d.BuildConfig.Vars["POSTGRES_DB"] = schema.DBName
+	}
+
+	if d.BuildConfig.Vars["POSTGRES_SCHEMA"] == "" {
+		d.BuildConfig.Vars["POSTGRES_SCHEMA"] = schema.SchemaName
+	}
+
+	if d.BuildConfig.Vars["POSTGRES_USER"] == "" {
+		d.BuildConfig.Vars["POSTGRES_USER"] = schema.AppUserName
+	}
+
+	if d.BuildConfig.Vars["POSTGRES_PASSWORD"] == "" {
+		d.BuildConfig.Vars["POSTGRES_PASSWORD"] = schema.AppPassword
+	}
+}
+
 // PopulateFromEnv populates the deployment from the given environment.
 func (d *Deployment) PopulateFromEnv(env *buildconf.Env) {
 	d.Env = env.Name
-	d.EnvBranchName = env.Branch
 	d.EnvID = env.ID
+	d.Branch = env.Branch
 	d.BuildConfig = env.Data
 	d.ShouldPublish = env.AutoPublish
 
 	if env.SchemaConf != nil && env.SchemaConf.MigrationsEnabled {
-		d.MigrationsFolder = null.StringFrom(env.SchemaConf.MigrationsFolder)
+		d.includeSchemaVars(env.SchemaConf)
+	}
+}
+
+type DeployCandidatePayload struct {
+	Branch            string
+	CommitSha         string
+	CheckoutRepo      string
+	IsFork            bool
+	PullRequestNumber int64
+	WebhookEvent      any
+}
+
+// PopulateFromDeployCandidate populates the deployment from the given deploy candidate.
+func (d *Deployment) PopulateFromDeployCandidate(a *app.DeployCandidate, p DeployCandidatePayload) {
+	// Info coming from environment
+	d.Env = a.EnvName
+	d.EnvID = a.EnvID
+	d.IsAutoDeploy = true
+	d.BuildConfig = a.BuildConfig
+	d.ShouldPublish = a.ShouldPublish
+	d.WebhookEvent = p.WebhookEvent
+
+	// Info coming from payload
+	d.Branch = p.Branch
+	d.Commit.ID = null.NewString(p.CommitSha, p.CommitSha != "")
+	d.CheckoutRepo = p.CheckoutRepo
+	d.IsFork = p.IsFork
+	d.PullRequestNumber = null.NewInt(p.PullRequestNumber, p.PullRequestNumber != 0)
+
+	if a.SchemaConf != nil && a.SchemaConf.MigrationsEnabled {
+		d.includeSchemaVars(a.SchemaConf)
 	}
 }
 
