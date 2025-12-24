@@ -57,7 +57,7 @@ func (s *APIBuilderSuite) Test_NewAPIBuilder() {
 	ctx := context.Background()
 	options := runner.APIBuilderOpts{
 		WorkDir:        s.config.Repo.Dir,
-		Env:            s.config.Build.EnvVarsRaw,
+		EnvVarsSlice:   s.config.Build.EnvVarsRaw,
 		APIDir:         "api",
 		OutputDir:      "dist",
 		PackageManager: "npm",
@@ -70,7 +70,7 @@ func (s *APIBuilderSuite) Test_BuildAll_NoAPIFiles() {
 	ctx := context.Background()
 	options := runner.APIBuilderOpts{
 		WorkDir:        s.config.Repo.Dir,
-		Env:            s.config.Build.EnvVarsRaw,
+		EnvVarsSlice:   s.config.Build.EnvVarsRaw,
 		APIDir:         "api",
 		OutputDir:      "dist",
 		PackageManager: "npm",
@@ -87,7 +87,7 @@ func (s *APIBuilderSuite) Test_BuildAll_WithJSFiles() {
 	ctx := context.Background()
 	options := runner.APIBuilderOpts{
 		WorkDir:        s.config.Repo.Dir,
-		Env:            s.config.Build.EnvVarsRaw,
+		EnvVarsSlice:   s.config.Build.EnvVarsRaw,
 		APIDir:         "api",
 		OutputDir:      "dist",
 		PackageManager: "npm",
@@ -136,7 +136,7 @@ func (s *APIBuilderSuite) Test_BuildAll_WithNestedDirectories() {
 	ctx := context.Background()
 	options := runner.APIBuilderOpts{
 		WorkDir:        s.config.Repo.Dir,
-		Env:            s.config.Build.EnvVarsRaw,
+		EnvVarsSlice:   s.config.Build.EnvVarsRaw,
 		APIDir:         "api",
 		OutputDir:      "dist",
 		PackageManager: "npm",
@@ -169,7 +169,7 @@ func (s *APIBuilderSuite) Test_BuildAll_SkipsPrivateFiles() {
 	ctx := context.Background()
 	options := runner.APIBuilderOpts{
 		WorkDir:        s.config.Repo.Dir,
-		Env:            s.config.Build.EnvVarsRaw,
+		EnvVarsSlice:   s.config.Build.EnvVarsRaw,
 		APIDir:         "api",
 		OutputDir:      "dist",
 		PackageManager: "npm",
@@ -205,7 +205,7 @@ func (s *APIBuilderSuite) Test_InstallDependencies_NPM() {
 	options := runner.APIBuilderOpts{
 		WorkDir:        s.config.Repo.Dir,
 		Reporter:       s.config.Reporter,
-		Env:            s.config.Build.EnvVarsRaw,
+		EnvVarsSlice:   s.config.Build.EnvVarsRaw,
 		APIDir:         "api",
 		OutputDir:      "dist",
 		PackageManager: "npm",
@@ -246,7 +246,7 @@ func (s *APIBuilderSuite) Test_InstallDependencies_NPM_WithLockFile() {
 	options := runner.APIBuilderOpts{
 		WorkDir:        s.config.Repo.Dir,
 		Reporter:       s.config.Reporter,
-		Env:            s.config.Build.EnvVarsRaw,
+		EnvVarsSlice:   s.config.Build.EnvVarsRaw,
 		APIDir:         "api",
 		OutputDir:      "dist",
 		PackageManager: "npm",
@@ -288,7 +288,7 @@ func (s *APIBuilderSuite) Test_InstallDependencies_Yarn() {
 	ctx := context.Background()
 	options := runner.APIBuilderOpts{
 		WorkDir:        s.config.Repo.Dir,
-		Env:            s.config.Build.EnvVarsRaw,
+		EnvVarsSlice:   s.config.Build.EnvVarsRaw,
 		Reporter:       s.config.Reporter,
 		APIDir:         "api",
 		OutputDir:      "dist",
@@ -331,7 +331,7 @@ func (s *APIBuilderSuite) Test_InstallDependencies_MultiplePackageFiles() {
 	options := runner.APIBuilderOpts{
 		WorkDir:        s.config.Repo.Dir,
 		Reporter:       s.config.Reporter,
-		Env:            s.config.Build.EnvVarsRaw,
+		EnvVarsSlice:   s.config.Build.EnvVarsRaw,
 		APIDir:         "api",
 		OutputDir:      "dist",
 		PackageManager: "npm",
@@ -383,7 +383,7 @@ func (s *APIBuilderSuite) Test_BuildAll_SupportedFileExtensions() {
 	ctx := context.Background()
 	options := runner.APIBuilderOpts{
 		WorkDir:        s.config.Repo.Dir,
-		Env:            s.config.Build.EnvVarsRaw,
+		EnvVarsSlice:   s.config.Build.EnvVarsRaw,
 		Reporter:       s.config.Reporter,
 		APIDir:         "api",
 		OutputDir:      "dist",
@@ -427,7 +427,7 @@ func (s *APIBuilderSuite) Test_InstallDependencies_CommandFailure() {
 	ctx := context.Background()
 	options := runner.APIBuilderOpts{
 		WorkDir:        s.config.Repo.Dir,
-		Env:            s.config.Build.EnvVarsRaw,
+		EnvVarsSlice:   s.config.Build.EnvVarsRaw,
 		Reporter:       s.config.Reporter,
 		APIDir:         "api",
 		OutputDir:      "dist",

@@ -183,8 +183,8 @@ var stmt = &statement{
 		UPDATE %s SET github_run_id = $1 WHERE deployment_id = $2 AND github_run_id IS NULL;
 	`, tableDeploys),
 
-	updateDeploymentResult: fmt.Sprintf(`
-		UPDATE %s
+	updateDeploymentResult: `
+		UPDATE deployments
 		SET
 			upload_result = $1,
 			error = $2,
@@ -196,7 +196,7 @@ var stmt = &statement{
 			deployment_id = $6
 		RETURNING
 			stopped_at;
-	`, tableDeploys),
+	`,
 
 	markArtifactsAsDeleted: fmt.Sprintf(`
 		UPDATE %s

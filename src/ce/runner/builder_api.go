@@ -20,7 +20,8 @@ type APIBuilderOpts struct {
 	APIDir         string
 	OutputDir      string
 	PackageManager string // "npm", "yarn", "pnpm"
-	Env            []string
+	EnvVarsMap     map[string]string
+	EnvVarsSlice   []string
 	Reporter       *ReporterModel
 }
 
@@ -80,7 +81,7 @@ func (b *APIBuilder) InstallDependencies() error {
 	// Install nested dependencies
 	for _, ip := range installPaths {
 		cmd := sys.Command(b.ctx, sys.CommandOpts{
-			Env:    b.options.Env,
+			Env:    b.options.EnvVarsSlice,
 			Name:   b.options.PackageManager,
 			Args:   strings.Split(ip.installArg, " "),
 			Dir:    ip.path,
@@ -169,6 +170,12 @@ func (b *APIBuilder) bundleFile(entryName string, entryPath string) error {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
+	define := map[string]string{}
+
+	for key, value := range b.options.EnvVarsMap {
+		define["process.env."+key] = fmt.Sprintf("%q", value)
+	}
+
 	// Configure esbuild options
 	buildOptions := api.BuildOptions{
 		EntryPoints:       []string{entryPath},
@@ -185,6 +192,7 @@ func (b *APIBuilder) bundleFile(entryName string, entryPath string) error {
 		Sourcemap:         api.SourceMapNone,
 		LogLevel:          api.LogLevelSilent,
 		AbsWorkingDir:     path.Join(b.options.WorkDir, b.options.APIDir),
+		Define:            define,
 		Banner: map[string]string{
 			// Shim require if needed
 			"js": `import module from 'module'; if (typeof globalThis.require === "undefined") { globalThis.require = module.createRequire(import.meta.url); }`,

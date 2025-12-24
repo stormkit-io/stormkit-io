@@ -99,7 +99,8 @@ func (bm Builder) BuildApiIfNecessary(ctx context.Context) (bool, error) {
 		APIDir:         bm.apiDir,
 		OutputDir:      path.Join(".stormkit", "api"),
 		PackageManager: bm.packageMngr,
-		Env:            bm.envVarsRaw,
+		EnvVarsMap:     bm.envVars,
+		EnvVarsSlice:   bm.envVarsRaw,
 		Reporter:       bm.reporter,
 	})
 

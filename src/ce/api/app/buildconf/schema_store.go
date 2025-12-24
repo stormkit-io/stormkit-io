@@ -125,8 +125,10 @@ var sqlTemplates = struct {
 				GRANT USAGE ON SCHEMA "{{.SchemaName}}" TO "{{.AppUserName}}";
 				GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "{{.SchemaName}}" TO "{{.AppUserName}}";
 				GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA "{{.SchemaName}}" TO "{{.AppUserName}}";
-				ALTER DEFAULT PRIVILEGES IN SCHEMA "{{.SchemaName}}" GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "{{.AppUserName}}";
-				ALTER DEFAULT PRIVILEGES IN SCHEMA "{{.SchemaName}}" GRANT USAGE, SELECT ON SEQUENCES TO "{{.AppUserName}}";
+
+				-- Grant permissions on future objects created by migration user
+				ALTER DEFAULT PRIVILEGES FOR ROLE "{{.MigrationUserName}}" IN SCHEMA "{{.SchemaName}}" GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "{{.AppUserName}}";
+				ALTER DEFAULT PRIVILEGES FOR ROLE "{{.MigrationUserName}}" IN SCHEMA "{{.SchemaName}}" GRANT USAGE, SELECT ON SEQUENCES TO "{{.AppUserName}}";
 			END IF;
 		END
 		$$;
@@ -331,9 +333,10 @@ func (s *schemaStore) CreateSchema(ctx context.Context, schemaName string) (*Sch
 	appPassword := utils.RandomToken(32)
 
 	err = sqlTemplates.createAppUser.Execute(&buf, map[string]string{
-		"SchemaName":      schemaName,
-		"AppUserName":     appUserName,
-		"AppUserPassword": appPassword,
+		"SchemaName":        schemaName,
+		"AppUserName":       appUserName,
+		"AppUserPassword":   appPassword,
+		"MigrationUserName": migrationUserName,
 	})
 
 	if err != nil {

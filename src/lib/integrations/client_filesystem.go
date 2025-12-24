@@ -1,6 +1,7 @@
 package integrations
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -11,6 +12,7 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"text/template"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
@@ -20,7 +22,9 @@ import (
 )
 
 type FilesysClient struct {
-	pm *ProcessManager
+	pm  *ProcessManager
+	mjs *template.Template
+	cjs *template.Template
 }
 
 var _filesys *FilesysClient
@@ -31,7 +35,22 @@ func Filesys() *FilesysClient {
 	defer _filesysMux.Unlock()
 
 	if _filesys == nil {
-		_filesys = &FilesysClient{}
+		_filesys = &FilesysClient{
+			mjs: template.Must(template.New("mjs").Parse(strings.Join(strings.Fields(`
+				const log = (r) => r && console.log(JSON.stringify(r)) || process.exit(0);
+				const err = (e) => console.log({ body: e && e.message ? e.message : e, status: 500 }) || process.exit(1);
+
+				import("./{{ .fileName }}").then(m => {
+					m.{{ .handlerName }}({{ .payload }}, {}, (e, r) => log(r))
+						.then(log)
+						.catch(err)
+				}).catch(err)
+			`), " "))),
+
+			cjs: template.Must(template.New("cjs").Parse(strings.Join(strings.Fields(`
+				require("./{{ .fileName }}").{{ .handlerName }}({{ .payload }}, {}, (e,r) => console.log(JSON.stringify(r)))
+			`), " "))),
+		}
 	}
 
 	return _filesys
@@ -65,15 +84,27 @@ func (c *FilesysClient) Invoke(args InvokeArgs) (*InvokeResult, error) {
 		return nil, err
 	}
 
-	var script string
+	var wr bytes.Buffer
+	var tmpl *template.Template
 
 	fileName := path.Base(fnPath)
 	fileDir := path.Dir(fnPath)
 
 	if strings.HasSuffix(fnPath, ".mjs") {
-		script = fmt.Sprintf(`import("./%s").then(m => m.%s(%s, {}, (e, r) => console.log(JSON.stringify(r))).then(r => r && console.log(JSON.stringify(r))))`, fileName, fnHandler, string(requestPayload))
+		tmpl = c.mjs
 	} else {
-		script = fmt.Sprintf(`require("./%s").%s(%s, {}, (e,r) => console.log(JSON.stringify(r)))`, fileName, fnHandler, string(requestPayload))
+		tmpl = c.cjs
+	}
+
+	err = tmpl.Execute(&wr, map[string]string{
+		"fileName":    fileName,
+		"handlerName": fnHandler,
+		"payload":     string(requestPayload),
+	})
+
+	if err != nil {
+		slog.Errorf("error while executing template: %v", err)
+		return nil, err
 	}
 
 	vars := []string{}
@@ -84,7 +115,7 @@ func (c *FilesysClient) Invoke(args InvokeArgs) (*InvokeResult, error) {
 
 	cmd := sys.Command(context.Background(), sys.CommandOpts{
 		Name: "node",
-		Args: []string{"-e", script},
+		Args: []string{"-e", wr.String()},
 		Env:  vars,
 		Dir:  fileDir,
 	})
