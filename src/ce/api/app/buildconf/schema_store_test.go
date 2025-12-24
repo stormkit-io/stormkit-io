@@ -394,7 +394,7 @@ func (s *SchemaStoreSuite) Test_SchemaConf_URL() {
 		SSLMode:           "require",
 	}
 
-	expected := "postgresql://app_user:app_password@localhost:5432/test_db?search_path=test_schema&sslmode=require"
+	expected := "postgresql://app_user:app_password@localhost:5432/test_db?options=-csearch_path=test_schema&sslmode=require"
 	s.Equal(expected, conf.URL())
 }
 

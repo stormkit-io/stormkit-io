@@ -127,7 +127,7 @@ func (sc *SchemaConf) Store(accessType string) (*schemaStore, error) {
 
 // URL returns the psql connection URL.
 func (sc *SchemaConf) URL() string {
-	return fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?search_path=%s&sslmode=%s",
+	return fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?options=-csearch_path=%s&sslmode=%s",
 		sc.AppUserName,
 		sc.AppPassword,
 		sc.Host,

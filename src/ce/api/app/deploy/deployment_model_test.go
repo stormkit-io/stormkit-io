@@ -250,7 +250,7 @@ func (s *DeploymentModelSuite) Test_PopulateFromEnv() {
 	s.Equal("custom_password", dep.BuildConfig.Vars["POSTGRES_PASSWORD"])
 	s.Equal("localhost", dep.BuildConfig.Vars["POSTGRES_HOST"])
 	s.Equal("5432", dep.BuildConfig.Vars["POSTGRES_PORT"])
-	s.Equal("postgresql://custom_user:custom_password@localhost:5432/custom_db?search_path=custom_schema&sslmode=disable", dep.BuildConfig.Vars["DATABASE_URL"])
+	s.Equal("postgresql://custom_user:custom_password@localhost:5432/custom_db?options=-csearch_path=custom_schema&sslmode=disable", dep.BuildConfig.Vars["DATABASE_URL"])
 }
 
 func (s *DeploymentModelSuite) Test_PopulateFromDeployCandidate() {

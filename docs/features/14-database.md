@@ -72,7 +72,7 @@ Place your SQL migration files in the configured path and deploy your applicatio
 - Files are executed in **alphabetical order** - use numeric prefixes (001, 002, etc.)
 - Each file is executed **once per deployment**
 - Failed migrations **abort the deployment**
-- If the content of o previously executed file changes, it is re-executed
+- If the content of a previously executed file changes, it is re-executed
 - The migrations are executed only when environment's default branch is updated
 
 ### Example migration file
@@ -94,13 +94,13 @@ CREATE INDEX idx_users_email ON users(email);
 The following environment variables are automatically injected into your application:
 
 ```bash
-DATABASE_URL=postgresql://a123e456_user:secure_password@postgres:5432/stormkit?schema=a123e456
-POSTGRES_USER=a123e456_app_user
+DATABASE_URL=postgresql://user_name:secure_password@db_host:5432/db?options=-csearch_path=my_schema
+POSTGRES_USER=user_name
 POSTGRES_PASSWORD=secure_password
-POSTGRES_HOST=example_host
+POSTGRES_HOST=db_host
 POSTGRES_PORT=5432
-POSTGRES_DB=stormkit
-POSTGRES_SCHEMA=a123e456
+POSTGRES_DB=db
+POSTGRES_SCHEMA=my_schema
 ```
 
 You can use these in your application:
