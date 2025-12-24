@@ -73,7 +73,7 @@ func Get() *shttp.Router {
 	}
 
 	// This is currently only available in development mode
-	if config.IsDevelopment() {
+	if config.IsDevelopment() || config.IsSelfHosted() {
 		r.RegisterService(schemahandlers.Services)
 	}
 
