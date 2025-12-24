@@ -181,6 +181,10 @@ func (d *Deployment) includeSchemaVars(schema *buildconf.SchemaConf) {
 	if d.BuildConfig.Vars["POSTGRES_PASSWORD"] == "" {
 		d.BuildConfig.Vars["POSTGRES_PASSWORD"] = schema.AppPassword
 	}
+
+	if d.BuildConfig.Vars["DATABASE_URL"] == "" {
+		d.BuildConfig.Vars["DATABASE_URL"] = schema.URL()
+	}
 }
 
 // PopulateFromEnv populates the deployment from the given environment.

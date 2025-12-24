@@ -381,6 +381,23 @@ func (s *SchemaStoreSuite) Test_SchemaConf_String() {
 	s.Equal(expected, conf.String())
 }
 
+func (s *SchemaStoreSuite) Test_SchemaConf_URL() {
+	conf := &buildconf.SchemaConf{
+		AppUserName:       "app_user",
+		AppPassword:       "app_password",
+		MigrationUserName: "migration_user",
+		MigrationPassword: "migration_password",
+		DBName:            "test_db",
+		SchemaName:        "test_schema",
+		Port:              "5432",
+		Host:              "localhost",
+		SSLMode:           "require",
+	}
+
+	expected := "postgresql://app_user:app_password@localhost:5432/test_db?search_path=test_schema&sslmode=require"
+	s.Equal(expected, conf.URL())
+}
+
 func TestSchemaStore(t *testing.T) {
 	suite.Run(t, &SchemaStoreSuite{})
 }

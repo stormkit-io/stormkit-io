@@ -250,6 +250,7 @@ func (s *DeploymentModelSuite) Test_PopulateFromEnv() {
 	s.Equal("custom_password", dep.BuildConfig.Vars["POSTGRES_PASSWORD"])
 	s.Equal("localhost", dep.BuildConfig.Vars["POSTGRES_HOST"])
 	s.Equal("5432", dep.BuildConfig.Vars["POSTGRES_PORT"])
+	s.Equal("postgresql://custom_user:custom_password@localhost:5432/custom_db?search_path=custom_schema&sslmode=disable", dep.BuildConfig.Vars["DATABASE_URL"])
 }
 
 func (s *DeploymentModelSuite) Test_PopulateFromDeployCandidate() {
@@ -267,6 +268,7 @@ func (s *DeploymentModelSuite) Test_PopulateFromDeployCandidate() {
 				"POSTGRES_HOST":     "db.host",
 				"POSTGRES_PORT":     "6543",
 				"POSTGRES_DB":       "my_database",
+				"DATABASE_URL":      "should_not_overwrite",
 			},
 		},
 		SchemaConf: &buildconf.SchemaConf{
@@ -296,6 +298,7 @@ func (s *DeploymentModelSuite) Test_PopulateFromDeployCandidate() {
 	s.Equal("my_password", dep.BuildConfig.Vars["POSTGRES_PASSWORD"])
 	s.Equal("db.host", dep.BuildConfig.Vars["POSTGRES_HOST"])
 	s.Equal("6543", dep.BuildConfig.Vars["POSTGRES_PORT"])
+	s.Equal("should_not_overwrite", dep.BuildConfig.Vars["DATABASE_URL"])
 }
 
 func TestDeploymentModel(t *testing.T) {
