@@ -93,15 +93,14 @@ func (f *Factory) MockDeployment(env *MockEnv, overwrites ...map[string]any) *Mo
 	}
 
 	depl := &deploy.Deployment{
-		AppID:         env.AppID,
-		EnvID:         env.ID,
-		Env:           env.Name,
-		EnvBranchName: env.Branch,
-		Branch:        "main",
-		ConfigCopy:    snapshot,
-		IsAutoDeploy:  false,
-		CheckoutRepo:  f.GetApp().Repo,
-		BuildConfig:   conf.BuildConfig,
+		AppID:        env.AppID,
+		EnvID:        env.ID,
+		Env:          env.Name,
+		Branch:       "main",
+		ConfigCopy:   snapshot,
+		IsAutoDeploy: false,
+		CheckoutRepo: f.GetApp().Repo,
+		BuildConfig:  conf.BuildConfig,
 		BuildManifest: &deploy.BuildManifest{
 			CDNFiles: []deploy.CDNFile{
 				{Name: "index", Headers: map[string]string{"Keep-Alive": "30"}},
