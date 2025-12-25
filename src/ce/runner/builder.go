@@ -4,7 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
-	"path"
+	"path/filepath"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/file"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/sys"
@@ -86,7 +86,7 @@ func (bm Builder) BuildApiIfNecessary(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 
-	if !file.Exists(path.Join(bm.workDir, bm.apiDir)) {
+	if !file.Exists(filepath.Join(bm.workDir, bm.apiDir)) {
 		return false, nil
 	}
 
@@ -97,7 +97,7 @@ func (bm Builder) BuildApiIfNecessary(ctx context.Context) (bool, error) {
 	bundler := NewAPIBuilder(ctx, APIBuilderOpts{
 		WorkDir:        bm.workDir,
 		APIDir:         bm.apiDir,
-		OutputDir:      path.Join(".stormkit", "api"),
+		OutputDir:      filepath.Join(".stormkit", "api"),
 		PackageManager: bm.packageMngr,
 		EnvVarsMap:     bm.envVars,
 		EnvVarsSlice:   bm.envVarsRaw,
