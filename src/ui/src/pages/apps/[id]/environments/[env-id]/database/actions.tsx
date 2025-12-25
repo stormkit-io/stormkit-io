@@ -17,17 +17,24 @@ export interface Schema {
 interface UseFetchSchemaProps {
   envId: string;
   refreshToken?: number;
+  isCloud?: boolean;
 }
 
 export const useFetchSchema = ({
   envId,
   refreshToken,
+  isCloud,
 }: UseFetchSchemaProps) => {
   const [schema, setSchema] = useState<Schema | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
 
   useEffect(() => {
+    if (isCloud) {
+      setLoading(false);
+      return;
+    }
+
     api
       .fetch<{ schema: Schema | null }>(`/schema?envId=${envId}`)
       .then(({ schema }) => {
@@ -39,7 +46,7 @@ export const useFetchSchema = ({
       .finally(() => {
         setLoading(false);
       });
-  }, [envId, refreshToken]);
+  }, [envId, refreshToken, isCloud]);
 
   return { schema, loading, error };
 };

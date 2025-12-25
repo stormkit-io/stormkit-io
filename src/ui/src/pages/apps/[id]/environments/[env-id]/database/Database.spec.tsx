@@ -1,5 +1,5 @@
 import type { Schema } from "./actions";
-import { describe, expect, beforeEach, it } from "vitest";
+import { describe, expect, beforeEach, it, vi } from "vitest";
 import {
   render,
   waitFor,
@@ -7,18 +7,22 @@ import {
   type RenderResult,
 } from "@testing-library/react";
 import { EnvironmentContext } from "~/pages/apps/[id]/environments/Environment.context";
+import { RootContext } from "~/pages/Root.context";
 import mockApp from "~/testing/data/mock_app";
 import mockEnv from "~/testing/data/mock_environment";
-import {
+import * as nocks from "~/testing/nocks/nock_schema";
+import Database from "./Database";
+
+const {
   mockFetchSchema,
   mockCreateSchema,
   mockUpdateSchema,
   mockDeleteSchema,
-} from "~/testing/nocks/nock_schema";
-import Database from "./Database";
+} = nocks;
 
 interface Props {
   schema?: Schema | null;
+  edition?: "development" | "self-hosted" | "cloud";
 }
 
 describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => {
@@ -26,7 +30,10 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
   let currentApp: App;
   let currentEnv: Environment;
 
-  const createWrapper = async ({ schema = null }: Props = {}) => {
+  const createWrapper = async ({
+    schema = null,
+    edition = "self-hosted",
+  }: Props = {}) => {
     currentApp = mockApp();
     currentEnv = mockEnv({ app: currentApp });
 
@@ -37,15 +44,49 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
     });
 
     wrapper = render(
-      <EnvironmentContext.Provider value={{ environment: currentEnv }}>
-        <Database />
-      </EnvironmentContext.Provider>
+      <RootContext.Provider
+        value={{
+          mode: "light",
+          setMode: vi.fn(),
+          details: {
+            stormkit: {
+              apiCommit: "",
+              apiVersion: "v1.0.0",
+              edition,
+            },
+          },
+        }}
+      >
+        <EnvironmentContext.Provider value={{ environment: currentEnv }}>
+          <Database />
+        </EnvironmentContext.Provider>
+      </RootContext.Provider>
     );
 
     await waitFor(() => {
-      expect(scope.isDone()).toBe(true);
+      expect(scope.isDone()).toBe(edition !== "cloud");
     });
   };
+
+  describe("when is cloud edition", () => {
+    beforeEach(async () => {
+      await createWrapper({ edition: "cloud", schema: null });
+    });
+
+    it("should display an empty page with a description and learn more link", async () => {
+      await waitFor(() => {
+        expect(() => wrapper.getByText("Attach Database")).toThrow();
+        expect(
+          wrapper.getByText(
+            "The database feature is currently only available for self-hosted installations."
+          )
+        ).toBeTruthy();
+        expect(wrapper.getByText("Learn more").getAttribute("href")).toBe(
+          "https://www.stormkit.io/docs/features/database"
+        );
+      });
+    });
+  });
 
   describe("when no schema exists", () => {
     beforeEach(async () => {

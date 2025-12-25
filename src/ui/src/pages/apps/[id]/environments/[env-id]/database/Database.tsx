@@ -14,15 +14,21 @@ import EmptyPage from "~/components/EmptyPage";
 import CardFooter from "~/components/CardFooter";
 import ConfirmModal from "~/components/ConfirmModal";
 import * as actions from "./actions";
+import { RootContext } from "~/pages/Root.context";
 
 const { createSchema, deleteSchema, updateSchema, useFetchSchema } = actions;
 
 interface EmptyViewProps {
   onAttachClick: () => void;
   isAttachLoading?: boolean;
+  isCloud?: boolean;
 }
 
-function EmptyView({ onAttachClick, isAttachLoading }: EmptyViewProps) {
+function EmptyView({
+  onAttachClick,
+  isAttachLoading,
+  isCloud,
+}: EmptyViewProps) {
   return (
     <EmptyPage>
       <Typography
@@ -30,7 +36,9 @@ function EmptyView({ onAttachClick, isAttachLoading }: EmptyViewProps) {
         variant="h6"
         sx={{ mb: 4, display: "block" }}
       >
-        No database attached to this environment
+        {isCloud
+          ? "The database feature is currently only available for self-hosted installations."
+          : "No database attached to this environment"}
       </Typography>
       <Box component="span" sx={{ display: "block" }}>
         <Button
@@ -43,25 +51,29 @@ function EmptyView({ onAttachClick, isAttachLoading }: EmptyViewProps) {
         >
           Learn more
         </Button>
-        <Button
-          variant="contained"
-          color="secondary"
-          sx={{ ml: 2 }}
-          onClick={onAttachClick}
-          startIcon={<AddIcon />}
-          loading={isAttachLoading}
-        >
-          Attach Database
-        </Button>
+        {!isCloud && (
+          <Button
+            variant="contained"
+            color="secondary"
+            sx={{ ml: 2 }}
+            onClick={onAttachClick}
+            startIcon={<AddIcon />}
+            loading={isAttachLoading}
+          >
+            Attach Database
+          </Button>
+        )}
       </Box>
     </EmptyPage>
   );
 }
 
 export default function Database() {
-  const { environment } = useContext(EnvironmentContext);
+  const { details } = useContext(RootContext);
+  const isCloud = details?.stormkit?.edition === "cloud";
+  const { environment: env } = useContext(EnvironmentContext);
   const [refreshToken, setRefreshToken] = useState<number>();
-  const result = useFetchSchema({ envId: environment.id!, refreshToken });
+  const result = useFetchSchema({ envId: env.id!, refreshToken, isCloud });
   const [updating, setUpdating] = useState(false);
   const [success, setSuccess] = useState<string>();
   const [formError, setFormError] = useState<string>();
@@ -82,8 +94,8 @@ export default function Database() {
 
     try {
       await createSchema({
-        appId: environment.appId!,
-        envId: environment.id!,
+        appId: env.appId!,
+        envId: env.id!,
       });
 
       setFormError(undefined);
@@ -111,8 +123,8 @@ export default function Database() {
 
     try {
       await updateSchema({
-        appId: environment.appId!,
-        envId: environment.id!,
+        appId: env.appId!,
+        envId: env.id!,
         migrationsFolder,
         migrationsEnabled,
       });
@@ -140,7 +152,7 @@ export default function Database() {
         title="Database"
         subtitle="Attach and access a PostgreSQL schema to manage your application data"
       />
-      {hasSchema ? (
+      {hasSchema && !isCloud ? (
         <>
           <Box sx={{ bgcolor: "container.paper", p: 1.75, pt: 1, mb: 4 }}>
             <FormControlLabel
@@ -183,6 +195,7 @@ export default function Database() {
         </>
       ) : (
         <EmptyView
+          isCloud={isCloud}
           onAttachClick={handleAttachSchema}
           isAttachLoading={isAttaching}
         />
@@ -214,7 +227,7 @@ export default function Database() {
           onConfirm={async ({ setLoading, setError }) => {
             setLoading(true);
 
-            deleteSchema({ appId: environment.appId!, envId: environment.id! })
+            deleteSchema({ appId: env.appId!, envId: env.id! })
               .then(() => {
                 setDeleteConfirm(false);
                 setSuccess("Schema deleted successfully");
