@@ -456,19 +456,19 @@ func (s *schemaStore) ApplyMigration(ctx context.Context, args ApplyMigrationArg
 
 	// Apply migration
 	now := time.Now()
-	_, err := s.Exec(ctx, string(args.Content))
+	_, migrationErr := s.Conn.ExecContext(ctx, string(args.Content))
 
 	result := MigrationResult{
 		Duration: time.Since(now),
 		FileName: args.MigrationName,
 	}
 
-	if err != nil {
-		result.Error = err.Error()
+	if migrationErr != nil {
+		result.Error = migrationErr.Error()
 	}
 
 	// Record applied migration
-	_, err = s.Exec(ctx, `
+	_, err := s.Exec(ctx, `
 		INSERT INTO
 			stormkit_schema_migrations (
 				migration_name, migration_duration_ms, deployment_id, content_hash, error_message
@@ -493,7 +493,7 @@ func (s *schemaStore) ApplyMigration(ctx context.Context, args ApplyMigrationArg
 		return &result, fmt.Errorf("failed to record applied migration %s: %w", args.MigrationName, err)
 	}
 
-	return &result, nil
+	return &result, migrationErr
 }
 
 // Close closes the schema store and its underlying database connection.

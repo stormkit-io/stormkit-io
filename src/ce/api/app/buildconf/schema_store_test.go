@@ -333,7 +333,7 @@ func (s *SchemaStoreSuite) Test_Migrations_Success() {
 		content string
 		hash    string
 	}{
-		{"001_init", "CREATE TABLE test1 (id INT);", "hash1"},
+		{"001_init", "CREATE TABLE test1 (id INT); INSERT INTO test1 VALUES (1);", "hash1"},
 		{"002_add_users", "CREATE TABLE test2 (id INT);", "hash2"},
 		{"003_add_posts", "CREATE TABLE test3 (id INT);", "hash3"},
 	}
