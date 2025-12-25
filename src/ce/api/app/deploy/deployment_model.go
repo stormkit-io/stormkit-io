@@ -16,9 +16,10 @@ import (
 	"gopkg.in/guregu/null.v3"
 )
 
-const ExitCodeSuccess = int(0)
-const ExitCodeStopped = int(-1)
-const ExitCodeFailed = int(1)
+const ExitCodeSuccess = int64(0)
+const ExitCodeStopped = int64(-1)
+const ExitCodeFailed = int64(1)
+const ExitCodeMigrationsFailed = int64(2)
 
 type Log struct {
 	Title     string                 `json:"title"`
@@ -434,9 +435,11 @@ func (d *Deployment) PrepareLogs(rawLogs string, isStatusChecks bool) []*Log {
 	}
 
 	if !isStatusChecks {
-		isSuccess := d.ExitCode.ValueOrZero() == 0 && d.ExitCode.Valid
+		isSuccess := d.ExitCode.ValueOrZero() == ExitCodeSuccess && d.ExitCode.Valid
 
-		if buildingFinished || isSuccess {
+		if d.ExitCode.ValueOrZero() == ExitCodeMigrationsFailed {
+			lastStep.Status = false
+		} else if buildingFinished || isSuccess {
 			logs = append(logs, d.deploymentsResult(lastStepTimestamp))
 		} else if !deploymentComplete {
 			// Let's sync the last step

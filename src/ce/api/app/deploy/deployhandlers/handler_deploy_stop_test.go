@@ -60,7 +60,7 @@ func (s *DeployStopSuite) Test_Stop_Success() {
 
 	s.NoError(err)
 	s.Equal(response.Code, http.StatusOK)
-	s.Equal(int64(deploy.ExitCodeStopped), d.ExitCode.ValueOrZero())
+	s.Equal(deploy.ExitCodeStopped, d.ExitCode.ValueOrZero())
 }
 
 func (s *DeployStopSuite) Test_Stop_StatusChecks_Success() {
@@ -89,14 +89,14 @@ func (s *DeployStopSuite) Test_Stop_StatusChecks_Success() {
 
 	s.NoError(err)
 	s.Equal(response.Code, http.StatusOK)
-	s.Equal(int64(deploy.ExitCodeSuccess), d.ExitCode.ValueOrZero())
+	s.Equal(deploy.ExitCodeSuccess, d.ExitCode.ValueOrZero())
 	s.True(d.StatusChecksPassed.Valid)
 	s.False(d.StatusChecksPassed.ValueOrZero())
 }
 
 func (s *DeployStopSuite) Test_Fail_AlreadyStopped() {
 	depl := s.Factory.MockDeployment(nil, map[string]any{
-		"ExitCode": null.NewInt(int64(deploy.ExitCodeStopped), true),
+		"ExitCode": null.NewInt(deploy.ExitCodeStopped, true),
 	})
 
 	app := s.Factory.GetApp()
@@ -120,12 +120,12 @@ func (s *DeployStopSuite) Test_Fail_AlreadyStopped() {
 
 	s.Equal(http.StatusOK, response.Code)
 	s.NoError(err)
-	s.Equal(int64(deploy.ExitCodeStopped), d.ExitCode.ValueOrZero())
+	s.Equal(deploy.ExitCodeStopped, d.ExitCode.ValueOrZero())
 }
 
 func (s *DeployStopSuite) Test_Fail_AlreadyCompleted() {
 	depl := s.Factory.MockDeployment(nil, map[string]any{
-		"ExitCode":    null.IntFrom(int64(deploy.ExitCodeSuccess)),
+		"ExitCode":    null.IntFrom(deploy.ExitCodeSuccess),
 		"IsImmutable": null.BoolFrom(true),
 	})
 
@@ -150,7 +150,7 @@ func (s *DeployStopSuite) Test_Fail_AlreadyCompleted() {
 
 	s.Equal(http.StatusOK, response.Code)
 	s.NoError(err)
-	s.Equal(int64(deploy.ExitCodeSuccess), d.ExitCode.ValueOrZero())
+	s.Equal(deploy.ExitCodeSuccess, d.ExitCode.ValueOrZero())
 }
 
 func (s *DeployStopSuite) Test_Fail_DeploymentNotFound() {

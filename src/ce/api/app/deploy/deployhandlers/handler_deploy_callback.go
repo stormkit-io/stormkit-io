@@ -190,7 +190,8 @@ func UpdateExit(req *shttp.RequestContext, data deployCallbackRequest) *shttp.Re
 			MigrationsFile: data.Result.Migrations.Location,
 		})
 
-		if err != nil {
+		// If there was an error and no migrations were applied, set the deployment error
+		if err != nil && len(results) == 0 {
 			data.deployment.Error = null.StringFrom(err.Error())
 		}
 
@@ -205,6 +206,7 @@ func UpdateExit(req *shttp.RequestContext, data deployCallbackRequest) *shttp.Re
 			if result.Error != "" {
 				tickOrCross = "✗"
 				errorMsg = " - Error: " + result.Error
+				data.deployment.ExitCode = null.IntFrom(deploy.ExitCodeMigrationsFailed)
 			}
 
 			logs = append(logs, fmt.Sprintf("%s (%dms) %s%s", result.FileName, result.Duration.Milliseconds(), tickOrCross, errorMsg))
@@ -317,9 +319,9 @@ func RunMigrations(ctx context.Context, args RunMigrationsArgs) ([]*buildconf.Mi
 	err = file.ZipIterator(migrationsZip.Content, func(fileName string, content []byte) error {
 		hash := utils.Hash(content)
 
-		// Skip migrations that have already been applied
+		// Skip migrations that have already been applied successfully
 		for _, migration := range migrations {
-			if migration.ContentHash == hash {
+			if migration.ContentHash == hash && migration.ErrorMsg.ValueOrZero() == "" {
 				return nil
 			}
 		}

@@ -546,9 +546,10 @@ func (s *HandlerDeployCallbackSuite) Test_RunMigrations() {
 	migrationsFile := "local:/path/to/migrations.zip"
 
 	files := map[string][]byte{
-		"001_init.sql":       []byte("CREATE TABLE IF NOT EXISTS test_users (id INT);"),
-		"002_drop_users.sql": []byte("DROP TABLE test_users;"),
-		"003_add_index.sql":  []byte("CREATE INDEX idx_test_users ON test_users(id);"), // should fail
+		"001_init.sql":         []byte("CREATE TABLE IF NOT EXISTS test_users (id INT);"),
+		"002_drop_users.sql":   []byte("DROP TABLE test_users;"),
+		"003_add_index.sql":    []byte("CREATE INDEX idx_test_users ON test_users(id);"), // should fail
+		"004_create_table.sql": []byte("CREATE TABLE should_not_be_executed (id INT);"),  // should not be executed
 	}
 
 	zipContent, err := file.ZipInMemory(files)
@@ -567,7 +568,7 @@ func (s *HandlerDeployCallbackSuite) Test_RunMigrations() {
 		MigrationsFile: migrationsFile,
 	})
 
-	s.NoError(err)
+	s.Error(err, "pq: relation \"test_users\" does not exist")
 	s.NotEmpty(results)
 
 	store, err := env.SchemaConf.Store(buildconf.SchemaAccessTypeMigrations)

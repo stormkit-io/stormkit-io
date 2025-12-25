@@ -350,7 +350,7 @@ func (s *Store) IsDeploymentStopped(ctx context.Context, deploymentID types.ID) 
 		return false, err
 	}
 
-	return exitCode.ValueOrZero() == int64(ExitCodeStopped), nil
+	return exitCode.ValueOrZero() == ExitCodeStopped, nil
 }
 
 // UpdateGithubRunID updates the run id associated with the deployment. This value
