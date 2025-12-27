@@ -15,12 +15,6 @@ export const appMenuItems = ({
   pathname: string;
 }): Path[] => [
   {
-    // List environments
-    path: `/apps/${app.id}/environments`,
-    text: "Environments",
-    isActive: pathname.includes("/environments"),
-  },
-  {
     // List settings
     path: `/apps/${app.id}/feed`,
     text: "Activity Feed",

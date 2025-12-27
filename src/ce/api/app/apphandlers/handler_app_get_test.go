@@ -53,6 +53,7 @@ func (s *AppGetSuite) Test_Success() {
 		  "teamId": "%d",
 		  "createdAt": "1700489144",
 		  "defaultEnv": "production",
+		  "defaultEnvId": "0",
 		  "displayName": "%s",
 		  "repo": "github/svedova/react-minimal",
 		  "isBare": false

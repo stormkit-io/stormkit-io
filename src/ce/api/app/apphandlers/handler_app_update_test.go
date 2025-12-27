@@ -68,7 +68,6 @@ func (s *AppUpdateSuite) Test_SuccessGithub() {
 			"appId":       mockApp.ID.String(),
 			"repo":        "github/stormkit-io/test-repo-update",
 			"displayName": "stormkit-io",
-			"runtime":     config.NodeRuntime22,
 		},
 		map[string]string{
 			"Authorization": usertest.Authorization(usr.ID),
@@ -81,7 +80,6 @@ func (s *AppUpdateSuite) Test_SuccessGithub() {
 	appl, err := app.NewStore().AppByID(context.Background(), mockApp.ID)
 	a.NoError(err)
 	a.Equal("github/stormkit-io/test-repo-update", appl.Repo)
-	a.Equal(config.NodeRuntime22, appl.Runtime)
 
 	audits, err := audit.NewStore().SelectAudits(context.Background(), audit.AuditFilters{
 		AppID: mockApp.ID,
@@ -129,7 +127,6 @@ func (s *AppUpdateSuite) Test_GitlabSuccess() {
 			"appId":       mockApp.ID.String(),
 			"repo":        "gitlab/stormkit-io/test-repo-update",
 			"displayName": "stormkit-io",
-			"runtime":     config.NodeRuntime20,
 		},
 		map[string]string{
 			"Authorization": usertest.Authorization(usr.ID),

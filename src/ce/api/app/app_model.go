@@ -39,6 +39,9 @@ type App struct {
 	// TeamID is the ID of the team that the app belongs to.
 	TeamID types.ID `json:"teamId,omitempty,string"`
 
+	// DefaultEnvID is the ID of the default environment.
+	DefaultEnvID types.ID `json:"defaultEnvId,omitempty,string"`
+
 	// Repo represents the application repository. It is in the following format:
 	// :provider/:owner/:slug where provider can be either github, bitbucket or gitlab.
 	Repo string `json:"repo"`
@@ -161,14 +164,15 @@ func (a *App) PrivateKey(ctx context.Context) *utils.PrivateKey {
 // JSON returns a map that is ready to be sent to the frontend.
 func (a *App) JSON() map[string]any {
 	return map[string]any{
-		"id":          a.ID.String(),
-		"userId":      a.UserID.String(),
-		"teamId":      a.TeamID.String(),
-		"repo":        a.Repo,
-		"isBare":      a.Repo == "",
-		"displayName": a.DisplayName,
-		"defaultEnv":  a.DefaultEnv,
-		"createdAt":   a.CreatedAt.UnixStr(),
+		"id":           a.ID.String(),
+		"userId":       a.UserID.String(),
+		"teamId":       a.TeamID.String(),
+		"repo":         a.Repo,
+		"isBare":       a.Repo == "",
+		"displayName":  a.DisplayName,
+		"defaultEnv":   a.DefaultEnv,
+		"defaultEnvId": a.DefaultEnvID.String(),
+		"createdAt":    a.CreatedAt.UnixStr(),
 	}
 }
 

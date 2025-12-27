@@ -1,16 +1,20 @@
-import { useContext, useMemo } from "react";
+import { useContext, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Select from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
+import Button from "@mui/material/Button";
+import PlusIcon from "@mui/icons-material/Add";
 import { AppContext } from "~/pages/apps/[id]/App.context";
 import MenuLink from "~/components/MenuLink";
-import { envMenuItems } from "./menu_items";
 import DotDotDot from "~/components/DotDotDotV2";
+import EnvironmentFormModal from "~/pages/apps/[id]/environments/_components/EnvironmentFormModal";
+import { envMenuItems } from "./menu_items";
 
 export default function EnvMenu() {
   const { app, environments } = useContext(AppContext);
   const { pathname } = useLocation();
+  const [isModalOpen, toggleModal] = useState(false);
   const navigate = useNavigate();
 
   // Deduce the envId from the pathname because we cannot access
@@ -57,7 +61,6 @@ export default function EnvMenu() {
         >
           <Select
             variant="outlined"
-            disableUnderline
             aria-label="Environment selector"
             onChange={e => {
               if (pathname.includes(`/environments/${selectedEnvId}`)) {
@@ -114,6 +117,30 @@ export default function EnvMenu() {
         <Box sx={{ display: { xs: "block", md: "none" }, mr: 2 }}>
           <DotDotDot items={envMenu} />
         </Box>
+      </Box>
+      <Box
+        sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}
+      >
+        <Button
+          variant="outlined"
+          color="primary"
+          sx={{ mx: 2 }}
+          startIcon={<PlusIcon />}
+          onClick={() => toggleModal(true)}
+          fullWidth
+        >
+          New environment
+        </Button>
+
+        {isModalOpen && (
+          <EnvironmentFormModal
+            app={app}
+            isOpen={isModalOpen}
+            onClose={() => {
+              toggleModal(false);
+            }}
+          />
+        )}
       </Box>
     </Box>
   );

@@ -16,7 +16,7 @@ interface Props {
 
 export default function MenuLink({ item, sx }: Props) {
   return (
-    <Typography sx={{ display: "inline-block" }}>
+    <Typography component="div" sx={{ display: "inline-block" }}>
       <Link
         key={item.path}
         href={item.path}

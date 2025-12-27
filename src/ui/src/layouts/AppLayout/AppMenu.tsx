@@ -38,10 +38,16 @@ export default function AppMenu({ app, team }: Props) {
           alignItems: "center",
         }}
       >
-        <Box sx={{ mr: 2, display: "flex", alignItems: "center" }}>
+        <Box
+          sx={{
+            mr: 1,
+            display: "flex",
+            alignItems: "center",
+          }}
+        >
           <MenuLink
             sx={{
-              mr: 2,
+              mr: 1,
               px: { xs: 1, md: 1 },
               pr: { xs: 1, md: 2 },
               bgcolor: "container.transparent",
@@ -53,9 +59,13 @@ export default function AppMenu({ app, team }: Props) {
               icon: <ArrowBack sx={{ fontSize: 18, mr: 1 }} />,
             }}
           />
-          <Box sx={{ pt: 0.25 /* fixes an alignment issue with buttons */ }}>
-            <AppName app={app} />
-          </Box>
+          <MenuLink
+            item={{
+              text: <AppName imageSize={18} app={app} />,
+              path: `/apps/${app.id}/environments/${app.defaultEnvId}`,
+              isActive: pathname.includes(`/environments/${app.defaultEnvId}`),
+            }}
+          />
         </Box>
         <Box>
           {appMenu.map(item => (

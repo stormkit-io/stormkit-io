@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"text/template"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
@@ -14,8 +15,6 @@ var (
 )
 
 type statement struct {
-	selectApp              string
-	selectApps             string
 	selectAppPrivateKey    string
 	selectDeployCandidates string
 	selectAppSettings      string
@@ -34,33 +33,32 @@ type statement struct {
 	deleteOutboundWebhook  string
 }
 
+var sqlTemplates = struct {
+	selectApps *template.Template
+}{
+	selectApps: template.Must(template.New("selectApps").Parse(`
+			SELECT
+				a.app_id, COALESCE(a.repo, ''), a.created_at, a.user_id,
+				a.display_name, a.auto_deploy, a.team_id,
+				COALESCE(envs.env_name, 'production'),
+				COALESCE(envs.env_id, '0')
+			FROM
+				apps a
+			LEFT JOIN
+				{{ .join }}
+			WHERE
+				{{ .where }}
+			ORDER BY
+				a.app_id ASC
+			LIMIT
+				{{ .limit }}
+			OFFSET
+				{{ .offset }};
+		`)),
+}
+
 var stmt = &statement{
 	removeDeployTrigger: utils.QUpdate(tableApps, `app_id = $2`, "deploy_trigger"),
-
-	selectApps: fmt.Sprintf(`
-		SELECT
-			a.app_id, COALESCE(a.repo, ''), a.created_at, a.user_id,
-			a.display_name, a.auto_deploy, a.default_env_name, a.team_id, runtime
-		FROM %s a
-		WHERE
-			a.team_id = $1
-			AND a.deleted_at IS NULL
-			:filter
-		ORDER BY a.app_id ASC
-		LIMIT $2 OFFSET $3;
-	`, tableApps),
-
-	selectApp: `
-		SELECT
-			a.app_id, COALESCE(a.repo, ''), a.user_id,
-			a.created_at, a.client_id,
-			a.client_secret, a.display_name, a.auto_deploy,
-			a.default_env_name, a.team_id, a.runtime
-		FROM
-			apps a
-		{{ .join }}
-		WHERE {{ .where }};
-	`,
 
 	selectDeployCandidates: `
 		SELECT

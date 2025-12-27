@@ -1,9 +1,22 @@
+import { useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import Async from "~/components/Async";
+
+function RedirectToEnvPage() {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    navigate(`${pathname}/environments/default`, { replace: true });
+  }, [navigate]);
+
+  return <></>;
+}
 
 export const routes = [
   {
     path: "/environments",
-    element: Async(() => import("~/pages/apps/[id]/environments")),
+    element: <RedirectToEnvPage />,
   },
   {
     path: "/environments/default",

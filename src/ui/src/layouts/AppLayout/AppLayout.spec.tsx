@@ -40,8 +40,10 @@ describe("~/layouts/AppLayout/Applayout.tsx", () => {
   describe("app menu - with no selected environment", () => {
     beforeEach(() => {
       createWrapper({
-        path: "/apps/:id/environments",
-        initialEntries: [`/apps/${defaultApp.id}/environments`],
+        path: "/apps/:id/environments/:envId/*",
+        initialEntries: [
+          `/apps/${defaultApp.id}/environments/${defaultApp.defaultEnvId}`,
+        ],
       });
     });
 
@@ -57,9 +59,7 @@ describe("~/layouts/AppLayout/Applayout.tsx", () => {
       expect(links).toEqual([
         "/", // Stormkit logo link
         "/personal", // <- My apps Link
-        `/apps/${defaultApp.id}/environments`, // <- app display name link
-        "https://gitlab.com/stormkit-io/frontend",
-        `/apps/${defaultApp.id}/environments`,
+        `/apps/${defaultApp.id}/environments/${defaultApp.defaultEnvId}`, // <- app display name link
         `/apps/${defaultApp.id}/feed`,
         `/apps/${defaultApp.id}/settings`,
       ]);
@@ -69,7 +69,7 @@ describe("~/layouts/AppLayout/Applayout.tsx", () => {
   describe("app header - with selected environment", () => {
     beforeEach(() => {
       createWrapper({
-        path: "/apps/:id/environments/:envId/deployments",
+        path: "/apps/:id/environments/:envId/deployments/*",
         initialEntries: [
           `/apps/${defaultApp.id}/environments/${defaultEnvs[0].id}/deployments`,
         ],
@@ -89,9 +89,7 @@ describe("~/layouts/AppLayout/Applayout.tsx", () => {
       expect(links).toEqual([
         "/", // Stormkit logo link
         "/personal", // <- My apps Link
-        `/apps/${defaultApp.id}/environments`, // <- app display name link
-        "https://gitlab.com/stormkit-io/frontend",
-        `/apps/${defaultApp.id}/environments`,
+        `/apps/${defaultApp.id}/environments/${defaultApp.defaultEnvId}`, // <- app display name link
         `/apps/${defaultApp.id}/feed`,
         `/apps/${defaultApp.id}/settings`,
         `/apps/${defaultApp.id}/environments/${defaultEnvs[0].id}`,

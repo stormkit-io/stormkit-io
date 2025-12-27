@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"text/template"
@@ -22,7 +23,6 @@ import (
 // Store is the store to handle app logic
 type Store struct {
 	*database.Store
-	selectAppTmpl        *template.Template
 	markAsDeletedTmpl    *template.Template
 	deployCandidatesTmpl *template.Template
 }
@@ -33,7 +33,6 @@ func NewStore() *Store {
 		Store:                database.NewStore(),
 		markAsDeletedTmpl:    template.Must(template.New("markAppsAsDeleted").Parse(stmt.markAsDeleted)),
 		deployCandidatesTmpl: template.Must(template.New("deployCandidates").Parse(stmt.selectDeployCandidates)),
-		selectAppTmpl:        template.Must(template.New("selectApp").Parse(stmt.selectApp)),
 	}
 }
 
@@ -190,79 +189,64 @@ func (s *Store) MarkArtifactsAsDeleted(ctx context.Context, a *App) error {
 	return err
 }
 
-func (s *Store) fetchApp(ctx context.Context, data map[string]any, params ...any) (*App, error) {
-	app := &App{}
-	env := null.NewString("", false)
-	rnt := null.NewString("", false)
-
-	var qb strings.Builder
-
-	if err := s.selectAppTmpl.Execute(&qb, data); err != nil {
-		slog.Errorf("error executing query template: %s", err.Error())
-		return nil, err
-	}
-
-	row, err := s.QueryRow(ctx, qb.String(), params...)
+// AppByID returns an app by its id.
+func (s *Store) AppByID(ctx context.Context, appID types.ID) (*App, error) {
+	apps, err := s.Apps(ctx, AppsArgs{Limit: 1, AppID: appID})
 
 	if err != nil {
 		return nil, err
 	}
 
-	err = row.Scan(
-		&app.ID, &app.Repo,
-		&app.UserID, &app.CreatedAt, &app.ClientID,
-		&app.ClientSecret, &app.DisplayName,
-		&app.AutoDeploy, &env, &app.TeamID, &rnt,
-	)
-
-	if err == sql.ErrNoRows {
+	if len(apps) == 0 {
 		return nil, nil
 	}
 
-	app.DefaultEnv = env.ValueOrZero()
-	app.Runtime = rnt.ValueOrZero()
-
-	if app.DefaultEnv == "" {
-		app.DefaultEnv = config.AppDefaultEnvironmentName
-	}
-
-	if app.Runtime == "" {
-		app.Runtime = config.DefaultNodeRuntime
-	}
-
-	return app, err
-}
-
-// AppByID returns an app by its id.
-func (s *Store) AppByID(ctx context.Context, appID types.ID) (*App, error) {
-	return s.fetchApp(ctx, map[string]any{
-		"join":  "",
-		"where": "a.app_id = $1 AND a.deleted_at IS NULL",
-	}, appID)
+	return apps[0], nil
 }
 
 // AppByDisplayName returns an app by it's display name.
 func (s *Store) AppByDisplayName(ctx context.Context, displayName string) (*App, error) {
-	return s.fetchApp(ctx, map[string]any{
-		"join":  "",
-		"where": "a.display_name = $1 AND a.deleted_at IS NULL",
-	}, displayName)
+	apps, err := s.Apps(ctx, AppsArgs{Limit: 1, DisplayName: displayName})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(apps) == 0 {
+		return nil, nil
+	}
+
+	return apps[0], nil
 }
 
 // AppByDomainName returns the app that the domain is associated with.
 func (s *Store) AppByDomainName(ctx context.Context, domainName string) (*App, error) {
-	return s.fetchApp(ctx, map[string]any{
-		"join":  "LEFT JOIN domains d ON d.app_id = a.app_id",
-		"where": "d.domain_name = $1 AND a.deleted_at IS NULL",
-	}, domainName)
+	apps, err := s.Apps(ctx, AppsArgs{Limit: 1, DomainName: domainName})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(apps) == 0 {
+		return nil, nil
+	}
+
+	return apps[0], nil
 }
 
 // AppByEnvID returns an app by the environment id.
 func (s *Store) AppByEnvID(ctx context.Context, envID types.ID) (*App, error) {
-	return s.fetchApp(ctx, map[string]any{
-		"join":  "LEFT JOIN apps_build_conf e ON e.app_id = a.app_id",
-		"where": "e.env_id = $1 AND e.deleted_at IS NULL AND a.deleted_at IS NULL",
-	}, envID)
+	apps, err := s.Apps(ctx, AppsArgs{Limit: 1, EnvID: envID})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(apps) == 0 {
+		return nil, nil
+	}
+
+	return apps[0], nil
 }
 
 // DeployCandidate represents an app, with an environment and branch
@@ -362,59 +346,106 @@ func (s *Store) savePrivateKey(ctx context.Context, a *App) error {
 	return err
 }
 
-// Apps returns a list of apps that belong to the user.
-func (s *Store) Apps(ctx context.Context, teamID types.ID, from, limit int, filter ...string) ([]*MyApp, error) {
-	filterCondition := ""
-	params := []any{teamID, limit, from}
+type AppsArgs struct {
+	From        int
+	Limit       int
+	AppID       types.ID
+	TeamID      types.ID
+	EnvID       types.ID
+	Filter      string
+	DisplayName string
+	DomainName  string
+}
 
-	if len(filter) > 0 {
-		filterCondition = `AND (
-			LOWER(a.repo) LIKE '%' || $4 || '%' OR
-			LOWER(a.display_name) LIKE '%' || $5 || '%'
-		)`
-		params = append(params, filter[0], filter[0])
+// Apps returns a list of apps that belong to the user.
+func (s *Store) Apps(ctx context.Context, args AppsArgs) ([]*App, error) {
+	var join string
+	where := []string{"a.deleted_at IS NULL"}
+	params := []any{}
+
+	if args.EnvID != 0 {
+		join = "apps_build_conf envs ON envs.app_id = a.app_id"
+		params = append(params, args.EnvID)
+		where = append(where, fmt.Sprintf("envs.env_id = $%d AND envs.deleted_at IS NULL", len(params)))
+	} else {
+		join = "apps_build_conf envs ON envs.app_id = a.app_id AND envs.env_name = $1 AND envs.deleted_at IS NULL"
+		params = append(params, config.AppDefaultEnvironmentName)
 	}
 
-	query := strings.Replace(stmt.selectApps, ":filter", filterCondition, 1)
-	rows, err := s.Query(ctx, query, params...)
+	if args.Filter != "" {
+		params = append(params, strings.ToLower(args.Filter), strings.ToLower(args.Filter))
+		where = append(where, `(
+			LOWER(a.repo) LIKE '%' || $2 || '%' OR
+			LOWER(a.display_name) LIKE '%' || $3 || '%'
+		)`)
+	}
+
+	if args.DomainName != "" {
+		params = append(params, args.DomainName)
+		where = append(where, fmt.Sprintf("a.app_id IN (SELECT d.app_id FROM domains d WHERE d.domain_name = $%d)", len(params)))
+	}
+
+	if args.DisplayName != "" {
+		params = append(params, args.DisplayName)
+		where = append(where, fmt.Sprintf("LOWER(a.display_name) = LOWER($%d)", len(params)))
+	}
+
+	if args.AppID != 0 {
+		params = append(params, args.AppID)
+		where = append(where, fmt.Sprintf("a.app_id = $%d", len(params)))
+	}
+
+	if args.TeamID != 0 {
+		params = append(params, args.TeamID)
+		where = append(where, fmt.Sprintf("a.team_id = $%d", len(params)))
+	}
+
+	if args.Limit == 0 {
+		args.Limit = 25
+	}
+
+	if args.From < 0 {
+		args.From = 0
+	}
+
+	buf := bytes.Buffer{}
+
+	err := sqlTemplates.selectApps.Execute(&buf, map[string]any{
+		"join":   join,
+		"where":  strings.Join(where, " AND "),
+		"limit":  args.Limit,
+		"offset": args.From,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := s.Query(ctx, buf.String(), params...)
 
 	if err != nil {
 		return nil, err
 	}
 
 	defer rows.Close()
-	apps := []*MyApp{}
+	apps := []*App{}
 
 	for rows.Next() {
-		env := null.NewString("", false)
-		rnt := null.NewString("", false)
-		ma := &MyApp{App: &App{}}
+		ma := &App{}
 		err := rows.Scan(
 			&ma.ID, &ma.Repo, &ma.CreatedAt,
 			&ma.UserID, &ma.DisplayName, &ma.AutoDeploy,
-			&env, &ma.TeamID, &rnt,
+			&ma.TeamID, &ma.DefaultEnv, &ma.DefaultEnvID,
 		)
 
 		if err != nil {
-			slog.Error(err.Error())
-			continue
-		}
-
-		ma.DefaultEnv = env.ValueOrZero()
-		ma.Runtime = rnt.ValueOrZero()
-
-		if ma.DefaultEnv == "" {
-			ma.DefaultEnv = config.AppDefaultEnvironmentName
-		}
-
-		if ma.Runtime == "" {
-			ma.Runtime = config.DefaultNodeRuntime
+			return nil, err
 		}
 
 		apps = append(apps, ma)
 	}
 
-	return apps, rows.Err()
+	return apps, nil
 }
 
 // Settings returns the application settings, required to be displayed in the app settings page.

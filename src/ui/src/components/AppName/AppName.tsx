@@ -1,4 +1,3 @@
-import Link from "@mui/material/Link";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import BoltIcon from "@mui/icons-material/Bolt";
@@ -11,16 +10,13 @@ interface Props {
   imageSize?: number;
 }
 
-const providerHosts: Record<Provider, string> = {
-  bitbucket: "bitbucket.org",
-  github: "github.com",
-  gitlab: "gitlab.com",
-};
-
 export default function AppName({ app, imageSize = 20 }: Props) {
   if (app.isBare) {
     return (
-      <Typography sx={{ display: "flex", alignItems: "center" }}>
+      <Typography
+        component="div"
+        sx={{ display: "flex", alignItems: "center" }}
+      >
         <IconBg
           sx={{
             width: imageSize,
@@ -31,14 +27,13 @@ export default function AppName({ app, imageSize = 20 }: Props) {
         >
           <BoltIcon sx={{ ml: 0, fontSize: 16, color: "container.paper" }} />
         </IconBg>
-        <Link href={`/apps/${app.id}/environments`}>{app.displayName}</Link>
+        {app.displayName}
       </Typography>
     );
   }
 
   const { repo, provider } = parseRepo(app.repo);
   const providerLogo = getLogoForProvider(provider);
-  const linkToRepo = `https://${providerHosts[provider]}/${repo}`;
 
   return (
     <Box
@@ -58,19 +53,12 @@ export default function AppName({ app, imageSize = 20 }: Props) {
         alt={provider}
       />
 
-      <Typography>
-        <Link href={`/apps/${app.id}/environments`}>{app.displayName}</Link>
-      </Typography>
-      <Dot />
-      <Typography>
-        <Link
-          href={linkToRepo}
-          target="_blank"
-          rel="noreferrer noopener"
-          sx={{ color: "text.secondary" }}
-        >
+      <Typography component="div">
+        {app.displayName}
+        <Dot />
+        <Typography component="span" color="text.secondary">
           {repo}
-        </Link>
+        </Typography>
       </Typography>
     </Box>
   );

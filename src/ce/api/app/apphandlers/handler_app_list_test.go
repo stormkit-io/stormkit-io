@@ -36,6 +36,7 @@ func (s *HandlerAppListSuite) Test_WithItems() {
 	usr2 := s.MockUser()
 	app1 := s.MockApp(usr1)
 	app2 := s.MockApp(usr1)
+	env1 := s.MockEnv(app1)
 	s.MockApp(usr2)
 
 	defaultTeamID, err := team.NewStore().DefaultTeamID(context.Background(), usr1.ID)
@@ -57,6 +58,7 @@ func (s *HandlerAppListSuite) Test_WithItems() {
 		  "userId": "%s",
 		  "teamId": "%d",
 		  "defaultEnv": "production",
+		  "defaultEnvId": "%s",
 		  "createdAt": "1700489144",
 		  "displayName": "%s",
 		  "repo": "github/svedova/react-minimal",
@@ -66,6 +68,7 @@ func (s *HandlerAppListSuite) Test_WithItems() {
 		  "userId": "%s",
 		  "teamId": "%d",
 		  "defaultEnv": "production",
+		  "defaultEnvId": "0",
 		  "createdAt": "1700489144",
 		  "displayName": "%s",
 		  "repo": "github/svedova/react-minimal",
@@ -76,6 +79,7 @@ func (s *HandlerAppListSuite) Test_WithItems() {
 		app1.ID.String(),
 		usr1.ID.String(),
 		usr1.DefaultTeamID,
+		env1.ID.String(),
 		app1.DisplayName,
 		app2.ID.String(),
 		usr1.ID.String(),
@@ -110,6 +114,7 @@ func (s *HandlerAppListSuite) Test_WithItems_Filtering() {
 		  "userId": "%s",
 		  "teamId": "%d",
 		  "defaultEnv": "production",
+		  "defaultEnvId": "0",
 		  "createdAt": "1700489144",
 		  "displayName": "%s",
 		  "repo": "github/svedova/react-minimal",
@@ -156,6 +161,7 @@ func (s *HandlerAppListSuite) Test_WithItems_Pagination() {
 		  "userId": "%s",
 		  "teamId": "%d",
 		  "defaultEnv": "production",
+		  "defaultEnvId": "0",
 		  "createdAt": "1700489144",
 		  "displayName": "%s",
 		  "repo": "github/svedova/react-minimal",

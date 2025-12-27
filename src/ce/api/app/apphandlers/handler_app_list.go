@@ -68,7 +68,12 @@ func handlerAppIndex(req *user.RequestContext) *shttp.Response {
 		return shttp.NotAllowed()
 	}
 
-	myApps, err := app.NewStore().Apps(req.Context(), air.TeamID, air.From, air.Limit+1, air.Filter)
+	myApps, err := app.NewStore().Apps(req.Context(), app.AppsArgs{
+		TeamID: air.TeamID,
+		Filter: air.Filter,
+		From:   air.From,
+		Limit:  air.Limit + 1,
+	})
 
 	if err != nil {
 		return shttp.Error(err)
@@ -84,16 +89,7 @@ func handlerAppIndex(req *user.RequestContext) *shttp.Response {
 	apps := []map[string]any{}
 
 	for _, a := range myApps {
-		apps = append(apps, map[string]any{
-			"id":          a.ID.String(),
-			"userId":      a.UserID.String(),
-			"teamId":      a.TeamID.String(),
-			"defaultEnv":  a.DefaultEnv,
-			"repo":        a.Repo,
-			"isBare":      a.Repo == "",
-			"displayName": a.DisplayName,
-			"createdAt":   a.CreatedAt.UnixStr(),
-		})
+		apps = append(apps, a.JSON())
 	}
 
 	return &shttp.Response{

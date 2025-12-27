@@ -38,7 +38,7 @@ func (s *HandleAppInsertSuite) AfterTest(_, _ string) {
 	admin.ResetMockLicense()
 }
 
-func (s *HandleAppInsertSuite) checkAudits(usr *factory.MockUser, appl *app.MyApp) {
+func (s *HandleAppInsertSuite) checkAudits(usr *factory.MockUser, appl *app.App) {
 	audits, err := audit.NewStore().SelectAudits(context.Background(), audit.AuditFilters{
 		TeamID: appl.TeamID,
 	})
@@ -84,7 +84,12 @@ func (s *HandleAppInsertSuite) Test_GithubRepo() {
 
 	s.Contains(body, `"repo":"github/stormkit-test-acc/test-repo"`)
 
-	apps, err := app.NewStore().Apps(context.Background(), usr.DefaultTeamID, 0, 10)
+	apps, err := app.NewStore().Apps(context.Background(), app.AppsArgs{
+		TeamID: usr.DefaultTeamID,
+		From:   0,
+		Limit:  10,
+	})
+
 	s.NoError(err)
 	s.Len(apps, 1)
 
@@ -117,7 +122,12 @@ func (s *HandleAppInsertSuite) Test_BitbucketRepo() {
 	body := response.String()
 	s.Contains(body, `"repo":"bitbucket/stormkit-test/test-repo"`)
 
-	apps, err := app.NewStore().Apps(context.Background(), usr.DefaultTeamID, 0, 10)
+	apps, err := app.NewStore().Apps(context.Background(), app.AppsArgs{
+		TeamID: usr.DefaultTeamID,
+		From:   0,
+		Limit:  10,
+	})
+
 	s.NoError(err)
 	s.Len(apps, 1)
 
@@ -147,7 +157,12 @@ func (s *HandleAppInsertSuite) Test_BareApp() {
 	s.Equal(http.StatusOK, response.Code)
 	s.Contains(response.String(), `"repo":""`)
 
-	apps, err := app.NewStore().Apps(context.Background(), usr.DefaultTeamID, 0, 10)
+	apps, err := app.NewStore().Apps(context.Background(), app.AppsArgs{
+		TeamID: usr.DefaultTeamID,
+		From:   0,
+		Limit:  10,
+	})
+
 	s.NoError(err)
 	s.Len(apps, 1)
 	s.Equal("", apps[0].Repo)
@@ -175,7 +190,12 @@ func (s *HandleAppInsertSuite) Test_InvalidRepoProvider() {
 	s.Equal(http.StatusBadRequest, response.Code)
 	s.Equal(expected, response.String())
 
-	apps, err := app.NewStore().Apps(context.Background(), usr.DefaultTeamID, 0, 10)
+	apps, err := app.NewStore().Apps(context.Background(), app.AppsArgs{
+		TeamID: usr.DefaultTeamID,
+		From:   0,
+		Limit:  10,
+	})
+
 	s.NoError(err)
 	s.Len(apps, 0)
 }

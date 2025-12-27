@@ -1,11 +1,6 @@
 import { useState, useContext } from "react";
 import { useNavigate } from "react-router";
-import { LocalStorage } from "~/utils/storage";
-import { LS_PROVIDER } from "~/utils/api/Api";
-import Card from "~/components/Card";
-import CardHeader from "~/components/CardHeader";
-import CardFooter from "~/components/CardFooter";
-import CardRow from "~/components/CardRow";
+import Button from "@mui/material/Button";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
 import TextField from "@mui/material/TextField";
@@ -17,6 +12,12 @@ import SearchIcon from "@mui/icons-material/Search";
 import ArrowForward from "@mui/icons-material/ArrowForwardIos";
 import { AuthContext } from "~/pages/auth/Auth.context";
 import ButtonDropdown from "~/components/ButtonDropdown";
+import { LocalStorage } from "~/utils/storage";
+import { LS_PROVIDER } from "~/utils/api/Api";
+import Card from "~/components/Card";
+import CardHeader from "~/components/CardHeader";
+import CardFooter from "~/components/CardFooter";
+import CardRow from "~/components/CardRow";
 import AppName from "~/components/AppName";
 import { useSelectedTeam } from "~/layouts/TopMenu/Teams/actions";
 import { providerToText } from "~/utils/helpers/string";
@@ -178,7 +179,7 @@ export default function Apps() {
           />
         </Box>
         {apps.map(app => {
-          const environmentsUrl = `/apps/${app.id}/environments`;
+          const environmentsUrl = `/apps/${app.id}/environments/${app.defaultEnvId}`;
 
           return (
             <CardRow
@@ -189,7 +190,12 @@ export default function Apps() {
                 </IconButton>
               }
             >
-              <AppName app={app} />
+              <Button
+                href={`/apps/${app.id}/environments/${app.defaultEnvId}`}
+                sx={{ textTransform: "none" }}
+              >
+                <AppName app={app} />
+              </Button>
             </CardRow>
           );
         })}
