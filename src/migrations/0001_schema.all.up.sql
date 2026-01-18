@@ -201,6 +201,7 @@ CREATE TABLE IF NOT EXISTS skitapi.apps (
 
 CREATE TABLE IF NOT EXISTS skitapi.apps_build_conf (
     app_id bigint,
+    env_id serial primary key NOT NULL,
     env_name text NOT NULL,
     build_conf jsonb,
     branch text NOT NULL,
@@ -208,12 +209,12 @@ CREATE TABLE IF NOT EXISTS skitapi.apps_build_conf (
     deleted_at timestamp without time zone,
     updated_at timestamp without time zone,
     created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text) NOT NULL,
-    env_id serial primary key NOT NULL,
     auto_deploy_commits text,
     auto_deploy_branches text,
     auto_deploy boolean DEFAULT false,
     mailer_conf jsonb,
     auth_wall_conf jsonb,
+    auth_conf bytea,
     schema_conf bytea
 );
 
@@ -423,6 +424,18 @@ CREATE TABLE IF NOT EXISTS skitapi.auth_wall (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS skitapi.oauth_configs (
+    provider_id serial primary key NOT NULL,
+    provider_name text NOT NULL,
+    provider_client_id text NOT NULL,
+    provider_client_secret text NOT NULL,
+    provider_redirect_url text NOT NULL,
+    provider_scopes text[] NOT NULL,
+    provider_status boolean NOT NULL DEFAULT FALSE,
+    env_id bigint NOT NULL,
+    app_id bigint NOT NULL
+);
+
 CREATE UNIQUE INDEX IF NOT EXISTS api_keys_value_unique_key ON skitapi.api_keys USING btree (key_value);
 
 CREATE UNIQUE INDEX IF NOT EXISTS apps_build_conf_env_name_unique_key ON skitapi.apps_build_conf USING btree (app_id, env_name) WHERE (deleted_at IS NULL);
@@ -434,6 +447,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS domains_domain_name_unique_key ON skitapi.doma
 CREATE UNIQUE INDEX IF NOT EXISTS snippets_snippet_content_hash_key ON skitapi.snippets USING btree (env_id, snippet_content_hash);
 
 CREATE UNIQUE INDEX IF NOT EXISTS auth_wall_env_id_login_email ON skitapi.auth_wall USING btree (env_id, login_email);
+
+CREATE UNIQUE INDEX IF NOT EXISTS oauth_configs_env_provider_unique_key ON skitapi.oauth_configs (env_id, provider_name);
 
 CREATE INDEX IF NOT EXISTS idx_access_log_stats_host_name ON skitapi.access_log_stats USING btree (host_name);
 
@@ -599,6 +614,13 @@ BEGIN
 
     ALTER TABLE ONLY skitapi.volumes
         ADD CONSTRAINT volumes_file_name_env_id_key UNIQUE (file_name, env_id);
+
+    ALTER TABLE ONLY skitapi.oauth_configs
+        ADD CONSTRAINT oauth_configs_env_id_fkey FOREIGN KEY (env_id) REFERENCES skitapi.apps_build_conf(env_id) ON DELETE CASCADE;
+
+    ALTER TABLE ONLY skitapi.oauth_configs
+        ADD CONSTRAINT oauth_configs_app_id_fkey FOREIGN KEY (app_id) REFERENCES skitapi.apps(app_id) ON DELETE CASCADE;
+
   EXCEPTION
     WHEN duplicate_table THEN  -- postgres raises duplicate_table at surprising times. Ex.: for UNIQUE constraints.
     WHEN duplicate_object THEN

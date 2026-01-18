@@ -1,6 +1,7 @@
 package buildconf
 
 import (
+	"database/sql/driver"
 	"encoding/json"
 	"regexp"
 	"strings"
@@ -26,6 +27,16 @@ type PublishedInfo struct {
 	CommitMessage null.String `json:"commitMessage"`
 }
 
+type AuthConf struct {
+	Secret string
+	TTL    int // in minutes
+}
+
+// Value implements the Sql Driver interface.
+func (ac *AuthConf) Value() (driver.Value, error) {
+	return utils.ByteaValue(ac)
+}
+
 // Env represents an application's environment.
 type Env struct {
 	model.Model `json:"-"`
@@ -45,6 +56,9 @@ type Env struct {
 
 	// SchemaConf holds the database schema configuration.
 	SchemaConf *SchemaConf `json:"-"`
+
+	// AuthConf holds the configuration for authentication.
+	AuthConf *AuthConf `json:"authConf"`
 
 	// AutoPublish specifies whether successful deployment should be
 	// publish to 100% immediately.

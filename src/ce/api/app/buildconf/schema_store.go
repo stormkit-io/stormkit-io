@@ -9,6 +9,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
 	"github.com/stormkit-io/stormkit-io/src/lib/database"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
@@ -18,9 +19,36 @@ import (
 var schemaStmt = struct {
 	selectSchema          string
 	selectTables          string
+	createAuthTable       string
 	createMigrationsTable string
 	selectMigrations      string
+	selectAuthUser        string
+	insertOAuth           string
+	insertAuthUser        string
 }{
+	createAuthTable: `
+		CREATE TABLE IF NOT EXISTS stormkit_auth_users (
+			user_id SERIAL PRIMARY KEY NOT NULL,
+			email TEXT NOT NULL UNIQUE,
+			first_name TEXT,
+			last_name TEXT,
+			avatar TEXT,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			last_login_at TIMESTAMPTZ
+		);
+
+		CREATE TABLE IF NOT EXISTS stormkit_auth_providers (
+			auth_id SERIAL PRIMARY KEY NOT NULL,
+			user_id BIGINT NOT NULL REFERENCES stormkit_auth_users(user_id) ON DELETE CASCADE,
+			access_token TEXT NOT NULL,
+			refresh_token TEXT NOT NULL,
+			token_type TEXT NOT NULL,
+			provider_name TEXT NOT NULL,
+			expiry TIMESTAMPTZ NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);
+	`,
+
 	createMigrationsTable: `
 		CREATE TABLE IF NOT EXISTS stormkit_schema_migrations (
 			migration_id SERIAL PRIMARY KEY,
@@ -47,6 +75,7 @@ var schemaStmt = struct {
 			SELECT 1 FROM information_schema.schemata where schema_name = $1
 		);
 	`,
+
 	selectTables: `
 		SELECT
 			t.table_name,
@@ -60,6 +89,38 @@ var schemaStmt = struct {
 			t.table_schema = $1
 			AND t.table_type = 'BASE TABLE'
 		ORDER BY 3;
+	`,
+
+	selectAuthUser: `
+		SELECT
+			user_id,
+			first_name,
+			last_name,
+			email,
+			avatar,
+			created_at,
+			last_login_at
+		FROM
+			stormkit_auth_users
+		WHERE
+			user_id = $1;
+	`,
+
+	insertOAuth: `
+		INSERT INTO stormkit_auth_providers (
+			user_id, access_token, refresh_token, token_type, provider_name, expiry
+		) VALUES (
+			$1, $2, $3, $4, $5, $6
+		);
+	`,
+
+	insertAuthUser: `
+		INSERT INTO stormkit_auth_users (
+			email, first_name, last_name, avatar
+		) VALUES (
+			$1, $2, $3, $4
+		) RETURNING
+			user_id;
 	`,
 }
 
@@ -399,6 +460,16 @@ func (s *schemaStore) EnsureMigrationsTable() error {
 	return err
 }
 
+// CreateAuthTable creates the authentication table in the schema for the given environment.
+func (s *schemaStore) CreateAuthTable(ctx context.Context) error {
+	if s.conf == nil {
+		return fmt.Errorf("schema configuration is required to create auth table")
+	}
+
+	_, err := s.Conn.ExecContext(ctx, schemaStmt.createAuthTable)
+	return err
+}
+
 type Migration struct {
 	ID          types.ID
 	Name        string
@@ -494,6 +565,80 @@ func (s *schemaStore) ApplyMigration(ctx context.Context, args ApplyMigrationArg
 	}
 
 	return &result, migrationErr
+}
+
+// InsertAuthUser inserts a new authentication user into the database.
+func (s *schemaStore) InsertAuthUser(ctx context.Context, oauth *skauth.OAuth, user *skauth.User) error {
+	if s.conf == nil {
+		return fmt.Errorf("schema configuration is required to insert auth user")
+	}
+
+	tx, err := s.Conn.BeginTx(ctx, nil)
+
+	if err != nil {
+		fmt.Println("Failed to begin transaction:", err)
+		return err
+	}
+
+	// Defer rollback - will be a no-op if transaction is committed successfully
+	defer tx.Rollback()
+
+	err = tx.QueryRowContext(ctx, schemaStmt.insertAuthUser, user.Email, user.FirstName, user.LastName, user.Avatar).Scan(&user.ID)
+
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.ExecContext(ctx, schemaStmt.insertOAuth,
+		user.ID,
+		utils.EncryptToString(oauth.AccessToken),
+		utils.EncryptToString(oauth.RefreshToken),
+		oauth.TokenType,
+		oauth.ProviderName,
+		oauth.Expiry,
+	)
+
+	if err != nil {
+		fmt.Println("Failed to insert OAuth record:", err)
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// AuthUser retrieves the authentication user by its ID.
+func (s *schemaStore) AuthUser(ctx context.Context, authID types.ID) (*skauth.User, error) {
+	if s.conf == nil {
+		return nil, fmt.Errorf("schema configuration is required to retrieve auth user")
+	}
+
+	row, err := s.QueryRow(ctx, schemaStmt.selectAuthUser, authID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	authUser := &skauth.User{}
+
+	err = row.Scan(
+		&authUser.ID,
+		&authUser.FirstName,
+		&authUser.LastName,
+		&authUser.Email,
+		&authUser.Avatar,
+		&authUser.CreatedAt,
+		&authUser.LastLoginAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return authUser, nil
 }
 
 // Close closes the schema store and its underlying database connection.

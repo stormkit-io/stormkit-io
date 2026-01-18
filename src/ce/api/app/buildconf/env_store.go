@@ -9,6 +9,7 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/lib/database"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
 var tableEnvs = "apps_build_conf"
@@ -114,7 +115,8 @@ func (s *Store) ListEnvironments(ctx context.Context, appID types.ID) (cnfs []*E
 			var publishedInfo []byte
 
 			err := rows.Scan(
-				&cnf.ID, &cnf.Name, &cnf.AppID, &buildConf, &cnf.AutoPublish, &cnf.Branch,
+				&cnf.ID, &cnf.Name, &cnf.AppID,
+				&buildConf, &cnf.AutoPublish, &cnf.Branch,
 				&cnf.AutoDeploy, &cnf.AutoDeployBranches, &cnf.AutoDeployCommits,
 				&cnf.DeployedAt, &cnf.LastDeployID, &cnf.LastDeployExitCode, &publishedInfo,
 			)
@@ -148,6 +150,8 @@ func (s *Store) ListEnvironments(ctx context.Context, appID types.ID) (cnfs []*E
 
 func (s *Store) selectEnvironment(ctx context.Context, query string, appID types.ID, param any) (*Env, error) {
 	var buildConf []byte
+	var schemaConf []byte
+	var authConf []byte
 
 	cnf := &Env{
 		Data: &BuildConf{},
@@ -169,19 +173,31 @@ func (s *Store) selectEnvironment(ctx context.Context, query string, appID types
 		&cnf.ID, &cnf.Name, &cnf.AppID, &buildConf,
 		&cnf.AutoPublish, &cnf.Branch, &cnf.AutoDeploy,
 		&cnf.AutoDeployBranches, &cnf.AutoDeployCommits,
-		&cnf.UpdatedAt, &cnf.SchemaConf,
+		&cnf.UpdatedAt, &schemaConf, &authConf,
 	)
 
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		}
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
 
+	if err != nil {
 		return nil, err
 	}
 
 	// TODO: Remove this once we're done renaming this field.
 	cnf.Env = cnf.Name
+
+	if authConf != nil {
+		if err := utils.ByteaScan(authConf, &cnf.AuthConf); err != nil {
+			return nil, err
+		}
+	}
+
+	if schemaConf != nil {
+		if err := utils.ByteaScan(schemaConf, &cnf.SchemaConf); err != nil {
+			return nil, err
+		}
+	}
 
 	if buildConf != nil {
 		if err := json.Unmarshal(buildConf, cnf.Data); err != nil {

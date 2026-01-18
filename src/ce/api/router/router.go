@@ -15,6 +15,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/mailer/mailerhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/providerhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/redirects/redirectshandlers"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth/skauthhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/volumes/volumeshandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/applog/apploghandlers"
 	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
@@ -72,9 +73,9 @@ func Get() *shttp.Router {
 		r.RegisterService(subscriptionhandlers.Services)
 	}
 
-	// This is currently only available in development mode
 	if config.IsDevelopment() || config.IsSelfHosted() {
 		r.RegisterService(schemahandlers.Services)
+		r.RegisterService(skauthhandlers.Services)
 	}
 
 	return r
