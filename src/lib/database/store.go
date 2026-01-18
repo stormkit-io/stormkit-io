@@ -33,10 +33,6 @@ func NewStore() *Store {
 func (s *Store) Query(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
 	stmt, err := s.Prepare(ctx, query)
 
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-
 	if err != nil {
 		return nil, err
 	}
