@@ -40,12 +40,14 @@ var schemaStmt = struct {
 		CREATE TABLE IF NOT EXISTS stormkit_auth_providers (
 			auth_id SERIAL PRIMARY KEY NOT NULL,
 			user_id BIGINT NOT NULL REFERENCES stormkit_auth_users(user_id) ON DELETE CASCADE,
+			account_id TEXT,
 			access_token TEXT NOT NULL,
 			refresh_token TEXT NOT NULL,
 			token_type TEXT NOT NULL,
 			provider_name TEXT NOT NULL,
 			expiry TIMESTAMPTZ NULL,
-			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			UNIQUE (user_id, provider_name)
 		);
 	`,
 
@@ -108,9 +110,9 @@ var schemaStmt = struct {
 
 	insertOAuth: `
 		INSERT INTO stormkit_auth_providers (
-			user_id, access_token, refresh_token, token_type, provider_name, expiry
+			user_id, account_id, access_token, refresh_token, token_type, provider_name, expiry
 		) VALUES (
-			$1, $2, $3, $4, $5, $6
+			$1, $2, $3, $4, $5, $6, $7
 		);
 	`,
 
@@ -591,6 +593,7 @@ func (s *schemaStore) InsertAuthUser(ctx context.Context, oauth *skauth.OAuth, u
 
 	_, err = tx.ExecContext(ctx, schemaStmt.insertOAuth,
 		user.ID,
+		oauth.AccountID,
 		utils.EncryptToString(oauth.AccessToken),
 		utils.EncryptToString(oauth.RefreshToken),
 		oauth.TokenType,
