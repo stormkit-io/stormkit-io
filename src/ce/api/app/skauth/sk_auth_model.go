@@ -81,5 +81,5 @@ type User struct {
 	Email       string     `json:"email"`
 	Avatar      string     `json:"avatar,omitempty"`
 	CreatedAt   utils.Unix `json:"createdAt"`
-	LastLoginAt utils.Unix `json:"deletedAt,omitempty"`
+	LastLoginAt utils.Unix `json:"lastLoginAt,omitempty"`
 }
