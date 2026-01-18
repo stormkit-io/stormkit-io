@@ -67,7 +67,7 @@ func WithEE(req *shttp.RequestContext) *shttp.Response {
 }
 
 // JWT returns a signed JWT token string.
-func JWT(values jwt.MapClaims) (string, error) {
+func JWT(values jwt.MapClaims, secret ...string) (string, error) {
 	claims := make(jwt.MapClaims)
 	claims["issued"] = time.Now().Unix()
 
@@ -78,7 +78,15 @@ func JWT(values jwt.MapClaims) (string, error) {
 	token := jwt.New(jwt.GetSigningMethod("HS256"))
 	token.Claims = claims
 
-	return token.SignedString([]byte(config.AppSecret()))
+	var tokenSecret string
+
+	if len(secret) == 0 {
+		tokenSecret = config.AppSecret()
+	} else {
+		tokenSecret = secret[0]
+	}
+
+	return token.SignedString([]byte(tokenSecret))
 }
 
 // FromContext fetches the user object from the request.
