@@ -73,6 +73,7 @@ func (s *HandlerEnvsGetSuite) Test_Success() {
 			"autoPublish": false,
 			"autoDeployBranches": null,
 			"autoDeployCommits": null,
+			"authConf": null,
 			"id": "%s",
 			"appId": "%s",
 			"domain": {

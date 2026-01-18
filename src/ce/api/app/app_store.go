@@ -18,6 +18,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/database"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
 // Store is the store to handle app logic
@@ -288,6 +289,7 @@ func (s *Store) DeployCandidates(ctx context.Context, repo string) ([]*DeployCan
 	defer rows.Close()
 
 	for rows.Next() {
+		var schemaConf []byte
 		var buildConf []byte
 		var defaultEnv null.String
 
@@ -303,7 +305,7 @@ func (s *Store) DeployCandidates(ctx context.Context, repo string) ([]*DeployCan
 			&ma.UserID, &ma.TeamID, &ma.EnvName, &ma.EnvID,
 			&ma.ShouldPublish, &buildConf, &ma.EnvDefaultBranch,
 			&ma.AutoDeployBranches, &ma.AutoDeployCommits, &ma.EnvAutoDeploy,
-			&ma.SchemaConf,
+			&schemaConf,
 		)
 
 		if defaultEnv.ValueOrZero() == "" {
@@ -314,6 +316,12 @@ func (s *Store) DeployCandidates(ctx context.Context, repo string) ([]*DeployCan
 
 		if buildConf != nil {
 			if err := json.Unmarshal(buildConf, ma.BuildConfig); err != nil {
+				return nil, err
+			}
+		}
+
+		if schemaConf != nil {
+			if err := utils.ByteaScan(schemaConf, &ma.SchemaConf); err != nil {
 				return nil, err
 			}
 		}

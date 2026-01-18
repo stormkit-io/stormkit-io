@@ -48,6 +48,15 @@ type Provider struct {
 	Status       bool
 }
 
+func (p *Provider) Config() *oauth2.Config {
+	return &oauth2.Config{
+		ClientID:     p.ClientID,
+		ClientSecret: p.ClientSecret,
+		RedirectURL:  p.RedirectURL,
+		Scopes:       p.Scopes,
+	}
+}
+
 type Client interface {
 	UserInfo(ctx context.Context, token *oauth2.Token) (*UserInfo, error)
 	Config() *oauth2.Config

@@ -7,7 +7,6 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/database"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
-	"golang.org/x/oauth2"
 )
 
 var stmt = struct {
@@ -16,10 +15,13 @@ var stmt = struct {
 }{
 	selectOAuthConfig: `
 		SELECT
+			provider_id,
+			provider_name,
 			provider_client_id,
 			provider_client_secret,
 			provider_redirect_url,
-			provider_scopes
+			provider_scopes,
+			provider_status
 		FROM
 			oauth_configs
 		WHERE
@@ -61,35 +63,6 @@ func NewStore() *Store {
 	return &Store{
 		Store: database.NewStore(),
 	}
-}
-
-type ConfigArgs struct {
-	EnvID        types.ID
-	ProviderName string
-}
-
-// Config retrieves the OAuth2 configuration for a given app and provider.
-func (s *Store) Config(ctx context.Context, args ConfigArgs) (*oauth2.Config, error) {
-	row, err := s.QueryRow(ctx, stmt.selectOAuthConfig, args.EnvID, args.ProviderName)
-
-	if err != nil || row == nil {
-		return nil, err
-	}
-
-	config := &oauth2.Config{}
-
-	err = row.Scan(
-		&config.ClientID,
-		&config.ClientSecret,
-		&config.RedirectURL,
-		pq.Array(&config.Scopes),
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return config, nil
 }
 
 type SaveProviderArgs struct {

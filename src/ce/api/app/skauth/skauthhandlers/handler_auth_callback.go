@@ -35,16 +35,18 @@ func handlerAuthCallback(req *shttp.RequestContext) *shttp.Response {
 		return shttp.NotFound()
 	}
 
-	config, err := skauth.NewStore().Config(req.Context(), skauth.ConfigArgs{
-		EnvID:        env.ID,
-		ProviderName: provider,
-	})
+	prv, err := skauth.NewStore().Provider(req.Context(), env.ID, provider)
 
 	if err != nil {
 		return shttp.Error(err)
 	}
 
+	if prv == nil {
+		return shttp.NotFound()
+	}
+
 	// Exchange authorization code for token
+	config := prv.Config()
 	token, err := Exchange(req.Context(), config, req.FormValue("code"))
 
 	if err != nil {

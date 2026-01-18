@@ -31,17 +31,14 @@ func handlerAuthRedirect(req *shttp.RequestContext) *shttp.Response {
 		})
 	}
 
-	config, err := skauth.NewStore().Config(req.Context(), skauth.ConfigArgs{
-		EnvID:        envID,
-		ProviderName: provider,
-	})
+	prv, err := skauth.NewStore().Provider(req.Context(), envID, provider)
 
 	if err != nil {
 		fmt.Println("CONFIG ERR", err)
 		return shttp.Error(err)
 	}
 
-	if config == nil {
+	if prv == nil {
 		return shttp.NotFound()
 	}
 
@@ -54,7 +51,7 @@ func handlerAuthRedirect(req *shttp.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	req.Redirect(config.AuthCodeURL(state, oauth2.ApprovalForce, oauth2.AccessTypeOffline), http.StatusFound)
+	req.Redirect(prv.Config().AuthCodeURL(state, oauth2.ApprovalForce, oauth2.AccessTypeOffline), http.StatusFound)
 
 	return nil
 }

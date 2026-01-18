@@ -7,7 +7,6 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/buildconfhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
@@ -50,8 +49,7 @@ func (s *HandlerEnvGetSuite) Test_Success() {
 		},
 	)
 
-	a := assert.New(s.T())
-	a.Equal(http.StatusOK, response.Code)
+	s.Equal(http.StatusOK, response.Code)
 
 	exp := `{
 		"config":{
@@ -68,16 +66,17 @@ func (s *HandlerEnvGetSuite) Test_Success() {
 		   "autoPublish":true,
 		   "id":"1",
 		   "appId":"1",
-		   "autoDeploy":false,
+		   "autoDeploy": false,
 		   "autoDeployBranches": null,
 		   "autoDeployCommits": null,
+		   "authConf": null,
 		   "domain":{
 			  "verified": false
 		   }
 		}
 	 }`
 
-	a.JSONEq(exp, response.String())
+	s.JSONEq(exp, response.String())
 }
 
 func TestHandlerEnvGet(t *testing.T) {
