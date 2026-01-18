@@ -5,9 +5,12 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha1"
+	"database/sql/driver"
 	"encoding/base64"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
@@ -155,4 +158,40 @@ func EncodeToString(text []byte) string {
 // DecodeString decodes the given string to an array of bytes.
 func DecodeString(s string) ([]byte, error) {
 	return base64.URLEncoding.DecodeString(s)
+}
+
+// Scan implements the Scanner interface.
+func ByteaScan(value any, out any) error {
+	if value == nil {
+		return nil
+	}
+
+	b, ok := value.([]byte)
+
+	if !ok {
+		return fmt.Errorf("failed to scan: invalid type %T", value)
+	}
+
+	decrypted, err := Decrypt(b)
+
+	if err != nil {
+		return err
+	}
+
+	return json.Unmarshal(decrypted, out)
+}
+
+// Value implements the Sql Driver interface.
+func ByteaValue(ac any) (driver.Value, error) {
+	if ac == nil {
+		return nil, nil
+	}
+
+	js, err := json.Marshal(ac)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return Encrypt(js)
 }
