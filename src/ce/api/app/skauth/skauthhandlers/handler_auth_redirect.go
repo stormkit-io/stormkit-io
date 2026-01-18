@@ -1,7 +1,6 @@
 package skauthhandlers
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -34,7 +33,6 @@ func handlerAuthRedirect(req *shttp.RequestContext) *shttp.Response {
 	prv, err := skauth.NewStore().Provider(req.Context(), envID, provider)
 
 	if err != nil {
-		fmt.Println("CONFIG ERR", err)
 		return shttp.Error(err)
 	}
 
