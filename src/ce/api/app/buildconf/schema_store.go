@@ -578,7 +578,6 @@ func (s *schemaStore) InsertAuthUser(ctx context.Context, oauth *skauth.OAuth, u
 	tx, err := s.Conn.BeginTx(ctx, nil)
 
 	if err != nil {
-		fmt.Println("Failed to begin transaction:", err)
 		return err
 	}
 
