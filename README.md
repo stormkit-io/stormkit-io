@@ -120,6 +120,29 @@ make test-be
 make test-fe
 ```
 
+### Generating mocks
+
+When adding or changing interfaces under `src/lib` (or other packages) we generate testify mocks using mockery so tests can inject fakes.
+
+Recommended command (run from the repository root):
+
+```bash
+# generate mocks for all interfaces in the repo that require the alibaba and imageopt build tags
+mockery --case=underscore --dir ./ --tags=alibaba,imageopt --all --output=./src/mocks
+```
+
+Notes:
+
+- You can run mockery via `go run` if you don't want to install the binary globally:
+
+```bash
+go run github.com/vektra/mockery/v2@latest --case=underscore --dir ./ --tags=alibaba,imageopt --all --output=./src/mocks
+```
+
+- If you need expecter helpers for testify, add `--with-expecter` to the command.
+- Use `--case=underscore` to match repository naming conventions for generated files.
+- After regenerating mocks, run `gofmt`/`go vet` and `go test ./...` and commit the updated files under `src/mocks`.
+
 ## Troubleshooting
 
 For detailed troubleshooting steps, see our dedicated [troubleshooting guide](./docs/troubleshooting.md).
