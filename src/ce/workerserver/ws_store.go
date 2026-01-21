@@ -32,6 +32,31 @@ func (s *Store) MarkDeploymentArtifactsDeleted(ctx context.Context, ids []types.
 	return err
 }
 
+// TimedOutDeployments returns deployments that have timed out.
+func (s *Store) TimedOutDeployments(ctx context.Context) ([]types.ID, error) {
+	ids := []types.ID{}
+
+	rows, err := s.Query(ctx, stmt.selectTimedOutDeployments)
+
+	if rows == nil || err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var id types.ID
+
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+
+		ids = append(ids, id)
+	}
+
+	return ids, nil
+}
+
 // DeploymentsOlderThan30Days returns 100 deployments older than 30 days.
 // Returned deployments are not published.
 func (s *Store) DeploymentsOlderThan30Days(ctx context.Context, numberOfDays, limit int) ([]*deploy.Deployment, error) {

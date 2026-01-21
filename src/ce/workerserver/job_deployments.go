@@ -3,7 +3,9 @@ package jobs
 import (
 	"context"
 	"strings"
+	"time"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/integrations"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
@@ -80,4 +82,30 @@ func RemoveDeploymentArtifacts(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// TimedOutDeployments is a job to time out deployments that have been running for too long.
+func TimedOutDeployments(ctx context.Context) error {
+	dids, err := NewStore().TimedOutDeployments(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	for _, did := range dids {
+		slog.Infof("timing out deployment: %s", did.String())
+
+		if err := deploy.NewStore().TimeoutDeployment(ctx, did); err != nil {
+			slog.Errorf("error while timing out deployment %s: %s", did.String(), err.Error())
+		}
+
+		// Sleep for a second to avoid overwhelming the database
+		SleepOneSecond()
+	}
+
+	return nil
+}
+
+var SleepOneSecond = func() {
+	time.Sleep(1 * time.Second)
 }

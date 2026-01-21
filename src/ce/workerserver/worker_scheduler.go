@@ -88,6 +88,7 @@ func (s *Scheduler) RegisterMasterTasks(ctx context.Context) {
 		{Handler: SyncAnalyticsByCountries, Def: dj(EVERY_HOUR), Opt: immediate},
 		{Handler: CleanupDeletedTeams, Def: dj(EVERY_HOUR), Opt: immediate},
 		{Handler: PingDomains, Def: dj(EVERY_MINUTE), Opt: immediate},
+		{Handler: TimedOutDeployments, Def: dj(EVERY_MINUTE), Opt: immediate},
 	}
 
 	s.masterTasks = s.registerTasks(ctx, tasks)
@@ -119,8 +120,4 @@ func (s *Scheduler) registerTasks(ctx context.Context, tasks []TaskDefinition) [
 	}
 
 	return registeredTasks
-}
-
-func debug(jobName string) {
-	slog.Infof("[%s] running job: %s", time.Now().Format("15:04"), jobName)
 }

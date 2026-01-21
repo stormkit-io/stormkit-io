@@ -160,9 +160,9 @@ var stmt = &statement{
 		UPDATE deployments
 		SET
 			stopped_at = NOW() AT TIME ZONE 'UTC',
-			exit_code = -1
+			exit_code = $1
 		WHERE
-			deployment_id = $1 AND
+			deployment_id = $2 AND
 			exit_code IS NULL;
 	`,
 
@@ -231,7 +231,7 @@ var stmt = &statement{
 				t.user_id,
 				extract(YEAR FROM CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::INTEGER AS year,
 				extract(MONTH FROM CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::INTEGER AS month,
-				ceil(ABS(extract(epoch FROM (d.stopped_at - d.created_at)) / 60))::INTEGER AS build_minutes,
+				ceil(ABS(extract(epoch FROM (COALESCE(d.stopped_at, NOW() AT TIME ZONE 'UTC') - d.created_at)) / 60))::INTEGER AS build_minutes,
 				coalesce(upload_result->>'serverlessBytes', '0')::bigint + coalesce(upload_result->>'serverBytes', '0')::bigint + coalesce(upload_result->>'clientBytes', '0')::bigint as storage_used
 			FROM deployments d
 			JOIN apps a ON a.app_id = d.app_id

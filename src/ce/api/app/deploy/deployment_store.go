@@ -320,7 +320,7 @@ func (s *Store) IsDeploymentAlreadyBuilt(ctx context.Context, commitID string) (
 // StopDeployment stops a deployment by updating the stopped_at field
 // and setting the exit_code to -1.
 func (s *Store) StopDeployment(ctx context.Context, deploymentID types.ID) error {
-	_, err := s.Exec(ctx, stmt.stopDeployment, deploymentID)
+	_, err := s.Exec(ctx, stmt.stopDeployment, ExitCodeStopped, deploymentID)
 	return err
 }
 
@@ -427,6 +427,36 @@ func (s *Store) LockDeployment(ctx context.Context, id types.ID, statusChecksPas
 	}
 
 	return nil
+}
+
+// TimeoutDeployment marks a deployment as timed out.
+func (s *Store) TimeoutDeployment(ctx context.Context, id types.ID) error {
+	tx, err := s.Conn.BeginTx(ctx, nil)
+
+	if err != nil {
+		return err
+	}
+
+	defer tx.Rollback()
+
+	result, err := tx.ExecContext(ctx, stmt.stopDeployment, ExitCodeTimeout, id)
+
+	if err != nil {
+		return err
+	}
+
+	// Deployment was stopped, nothing to update
+	if count, err := result.RowsAffected(); count == 0 {
+		return err
+	}
+
+	if config.IsStormkitCloud() {
+		if _, err := tx.ExecContext(ctx, stmt.updateUserMetrics, id); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
 }
 
 // Restart resets the output of the deployment and prepares the deployment for a restart.

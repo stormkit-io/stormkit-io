@@ -18,6 +18,7 @@ import (
 
 const ExitCodeSuccess = int64(0)
 const ExitCodeStopped = int64(-1)
+const ExitCodeTimeout = int64(-2)
 const ExitCodeFailed = int64(1)
 const ExitCodeMigrationsFailed = int64(2)
 

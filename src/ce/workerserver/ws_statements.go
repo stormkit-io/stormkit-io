@@ -13,6 +13,7 @@ type statement struct {
 	markDeploymentArtifactsDeleted  string
 	markStaleAppsAndEnvsSoftDeleted string
 	deleteStaleEnvironments         string
+	selectTimedOutDeployments       string
 	selectOldOrDeletedDeployments   string
 	removeOldLogs                   string
 	syncAnalyticsVisitors           string
@@ -53,6 +54,17 @@ var stmt = &statement{
 				AND d.deleted_at IS NOT NULL
 			LIMIT 50
 	);`, tableEnvs, tableEnvs, tableDeploys),
+
+	selectTimedOutDeployments: `
+		SELECT
+			d.deployment_id
+		FROM
+			deployments d
+		WHERE
+			d.created_at < NOW() - INTERVAL '15 minutes' AND
+			d.exit_code IS NULL
+		LIMIT 100;
+	`,
 
 	selectOldOrDeletedDeployments: `
 		SELECT
