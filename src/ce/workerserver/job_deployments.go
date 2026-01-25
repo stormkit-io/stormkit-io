@@ -77,7 +77,7 @@ func RemoveDeploymentArtifacts(ctx context.Context) error {
 		return err
 	}
 
-	if !config.IsTest() {
+	if !config.IsTest() && len(idsToBeMarked) > 0 {
 		slog.Infof("artifacts deleted: %s", strings.Join(idsToBeMarked, ", "))
 	}
 
