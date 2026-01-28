@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
@@ -22,7 +21,7 @@ func NewGoogleClient(clientID, secretKey string) Client {
 	config := &oauth2.Config{
 		ClientID:     clientID,
 		ClientSecret: secretKey,
-		RedirectURL:  admin.MustConfig().ApiURL("/auth/v1/callback"),
+		RedirectURL:  RedirectURL(),
 		Endpoint:     google.Endpoint,
 		Scopes: []string{
 			"https://www.googleapis.com/auth/userinfo.email",
@@ -38,6 +37,16 @@ func NewGoogleClient(clientID, secretKey string) Client {
 // Name returns the name of the provider.
 func (g *GoogleClient) Name() string {
 	return ProviderGoogle
+}
+
+// Data returns the provider data.
+func (g *GoogleClient) Data() ProviderData {
+	return ProviderData{
+		ClientID:     g.oauth2Config.ClientID,
+		ClientSecret: g.oauth2Config.ClientSecret,
+		RedirectURL:  g.oauth2Config.RedirectURL,
+		Scopes:       g.oauth2Config.Scopes,
+	}
 }
 
 type GoogleUserInfo struct {

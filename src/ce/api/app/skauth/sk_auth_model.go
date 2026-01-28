@@ -3,15 +3,18 @@ package skauth
 import (
 	"context"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"golang.org/x/oauth2"
 )
 
 const ProviderGoogle = "google"
+const ProviderX = "x"
 
 var Providers = []string{
 	ProviderGoogle,
+	ProviderX,
 }
 
 type OAuthToken struct {
@@ -38,22 +41,30 @@ type UserInfo struct {
 	LastName  string `json:"lastName,omitempty"`
 }
 
+type ProviderData struct {
+	ClientID     string   `json:"clientId"`
+	ClientSecret string   `json:"clientSecret"`
+	RedirectURL  string   `json:"redirectURL"`
+	Scopes       []string `json:"scopes"`
+}
+
 type Provider struct {
-	ID           types.ID
-	Name         string
-	ClientID     string
-	ClientSecret string
-	RedirectURL  string
-	Scopes       []string
-	Status       bool
+	ID     types.ID
+	Name   string
+	Data   ProviderData
+	Status bool
 }
 
 func (p *Provider) Config() *oauth2.Config {
+	if p.Data.ClientID == "" || p.Data.ClientSecret == "" {
+		return nil
+	}
+
 	return &oauth2.Config{
-		ClientID:     p.ClientID,
-		ClientSecret: p.ClientSecret,
-		RedirectURL:  p.RedirectURL,
-		Scopes:       p.Scopes,
+		ClientID:     p.Data.ClientID,
+		ClientSecret: p.Data.ClientSecret,
+		RedirectURL:  p.Data.RedirectURL,
+		Scopes:       p.Data.Scopes,
 	}
 }
 
@@ -61,6 +72,7 @@ type Client interface {
 	UserInfo(ctx context.Context, token *oauth2.Token) (*UserInfo, error)
 	Config() *oauth2.Config
 	Name() string
+	Data() ProviderData
 }
 
 type OAuth struct {
@@ -82,4 +94,9 @@ type User struct {
 	Avatar      string     `json:"avatar,omitempty"`
 	CreatedAt   utils.Unix `json:"createdAt"`
 	LastLoginAt utils.Unix `json:"lastLoginAt,omitempty"`
+}
+
+// RedirectURL returns the OAuth2 redirect URL.
+func RedirectURL() string {
+	return admin.MustConfig().ApiURL("/auth/v1/callback")
 }

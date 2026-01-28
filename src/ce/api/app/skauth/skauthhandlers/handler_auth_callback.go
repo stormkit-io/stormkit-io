@@ -47,6 +47,13 @@ func handlerAuthCallback(req *shttp.RequestContext) *shttp.Response {
 
 	// Exchange authorization code for token
 	config := prv.Config()
+
+	if config == nil {
+		return shttp.BadRequest(map[string]any{
+			"error": "Provider is not an oauth",
+		})
+	}
+
 	token, err := Exchange(req.Context(), config, req.FormValue("code"))
 
 	if err != nil {

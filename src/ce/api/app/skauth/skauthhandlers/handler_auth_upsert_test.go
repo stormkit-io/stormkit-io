@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type HandlerAuthEnableSuite struct {
+type HandlerAuthUpsertSuite struct {
 	suite.Suite
 	*factory.Factory
 	conn       databasetest.TestDB
@@ -27,7 +27,7 @@ type HandlerAuthEnableSuite struct {
 	schemaName string
 }
 
-func (s *HandlerAuthEnableSuite) BeforeTest(suiteName, _ string) {
+func (s *HandlerAuthUpsertSuite) BeforeTest(suiteName, _ string) {
 	s.conn = databasetest.InitTx(suiteName)
 	s.Factory = factory.New(s.conn)
 
@@ -49,7 +49,7 @@ func (s *HandlerAuthEnableSuite) BeforeTest(suiteName, _ string) {
 	})
 }
 
-func (s *HandlerAuthEnableSuite) AfterTest(_, _ string) {
+func (s *HandlerAuthUpsertSuite) AfterTest(_, _ string) {
 	// Clean up schema
 	if s.schemaName != "" {
 		_ = buildconf.SchemaStore().DropSchema(context.Background(), s.schemaName)
@@ -58,11 +58,11 @@ func (s *HandlerAuthEnableSuite) AfterTest(_, _ string) {
 	s.conn.CloseTx()
 }
 
-func (s *HandlerAuthEnableSuite) Test_Success() {
+func (s *HandlerAuthUpsertSuite) Test_Success() {
 	response := shttptest.RequestWithHeaders(
 		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
 		shttp.MethodPost,
-		"/auth/enable",
+		"/skauth",
 		map[string]any{
 			"envId":        s.env.ID,
 			"providerName": "google",
@@ -81,16 +81,62 @@ func (s *HandlerAuthEnableSuite) Test_Success() {
 	s.NoError(err)
 	s.NotNil(provider, "Provider should be saved")
 	s.True(provider.Status)
-	s.Equal("test-client-id", provider.ClientID)
-	s.Equal("test", provider.ClientSecret)
-	s.Equal("google", provider.Name)
-	s.Equal([]string{
-		"https://www.googleapis.com/auth/userinfo.email",
-		"https://www.googleapis.com/auth/userinfo.profile",
-	}, provider.Scopes)
+
+	s.Equal(skauth.ProviderData{
+		ClientID:     "test-client-id",
+		ClientSecret: "test",
+		RedirectURL:  "http://api.stormkit:8888/auth/v1/callback",
+		Scopes: []string{
+			"https://www.googleapis.com/auth/userinfo.email",
+			"https://www.googleapis.com/auth/userinfo.profile",
+		},
+	}, provider.Data)
 }
 
-func (s *HandlerAuthEnableSuite) Test_InvalidRequests() {
+func (s *HandlerAuthUpsertSuite) Test_Update() {
+	err := skauth.NewStore().SaveProvider(context.Background(), skauth.SaveProviderArgs{
+		EnvID:  s.env.ID,
+		AppID:  s.app.ID,
+		Status: true,
+		Client: skauth.NewGoogleClient("my-client-id", "my-client-secret"),
+	})
+
+	s.NoError(err)
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/skauth",
+		map[string]any{
+			"envId":        s.env.ID,
+			"providerName": "google",
+			"clientId":     "test-client-id",
+			"status":       true,
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(s.usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+
+	provider, err := skauth.NewStore().Provider(context.Background(), s.env.ID, skauth.ProviderGoogle)
+	s.NoError(err)
+	s.NotNil(provider, "Provider should be saved")
+	s.True(provider.Status)
+	s.Equal("google", provider.Name)
+	s.Equal(skauth.ProviderData{
+		ClientID:     "test-client-id",
+		ClientSecret: "my-client-secret",
+		RedirectURL:  "http://api.stormkit:8888/auth/v1/callback",
+		Scopes: []string{
+			"https://www.googleapis.com/auth/userinfo.email",
+			"https://www.googleapis.com/auth/userinfo.profile",
+		},
+	}, provider.Data)
+}
+
+func (s *HandlerAuthUpsertSuite) Test_InvalidRequests() {
 	type payload = map[string]any
 
 	envWithoutSchema := s.MockEnv(s.app, map[string]any{
@@ -126,7 +172,7 @@ func (s *HandlerAuthEnableSuite) Test_InvalidRequests() {
 			response := shttptest.RequestWithHeaders(
 				shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
 				shttp.MethodPost,
-				"/auth/enable",
+				"/skauth",
 				payload,
 				map[string]string{
 					"Authorization": usertest.Authorization(s.usr.ID),
@@ -139,12 +185,12 @@ func (s *HandlerAuthEnableSuite) Test_InvalidRequests() {
 	}
 }
 
-func (s *HandlerAuthEnableSuite) Test_Idempotent() {
+func (s *HandlerAuthUpsertSuite) Test_Idempotent() {
 	for range 2 {
 		response := shttptest.RequestWithHeaders(
 			shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
 			shttp.MethodPost,
-			"/auth/enable",
+			"/skauth",
 			map[string]any{
 				"envId":        s.env.ID,
 				"providerName": "google",
@@ -164,15 +210,18 @@ func (s *HandlerAuthEnableSuite) Test_Idempotent() {
 	s.NoError(err)
 	s.NotNil(provider, "Provider should be saved")
 	s.True(provider.Status)
-	s.Equal("my-client-id", provider.ClientID)
-	s.Equal("my-secret", provider.ClientSecret)
 	s.Equal("google", provider.Name)
-	s.Equal([]string{
-		"https://www.googleapis.com/auth/userinfo.email",
-		"https://www.googleapis.com/auth/userinfo.profile",
-	}, provider.Scopes)
+	s.Equal(skauth.ProviderData{
+		ClientID:     "my-client-id",
+		ClientSecret: "my-secret",
+		RedirectURL:  "http://api.stormkit:8888/auth/v1/callback",
+		Scopes: []string{
+			"https://www.googleapis.com/auth/userinfo.email",
+			"https://www.googleapis.com/auth/userinfo.profile",
+		},
+	}, provider.Data)
 }
 
-func TestHandlerAuthEnable(t *testing.T) {
-	suite.Run(t, &HandlerAuthEnableSuite{})
+func TestHandlerUpsertSuite(t *testing.T) {
+	suite.Run(t, &HandlerAuthUpsertSuite{})
 }

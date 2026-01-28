@@ -16,8 +16,9 @@ func Services(r *shttp.Router) *shttp.Service {
 	s := r.NewService()
 
 	// api endpoints
-	s.NewEndpoint("/auth").
-		Handler(shttp.MethodPost, "/enable", app.WithApp(handlerAuthEnable, &app.Opts{Env: true}))
+	s.NewEndpoint("/skauth").
+		Handler(shttp.MethodPost, "", app.WithApp(handlerAuthUpsert, &app.Opts{Env: true})).
+		Handler(shttp.MethodGet, "/providers", app.WithApp(handlerAuths, &app.Opts{Env: true}))
 
 	// v1 public endpoints
 	s.NewEndpoint("/auth/v1").
@@ -54,6 +55,8 @@ func GetProviderClient(providerName, clientID, clientSecret string) skauth.Clien
 	switch providerName {
 	case skauth.ProviderGoogle:
 		return skauth.NewGoogleClient(clientID, clientSecret)
+	case skauth.ProviderX:
+		return skauth.NewXClient(clientID, clientSecret)
 	default:
 		return nil
 	}

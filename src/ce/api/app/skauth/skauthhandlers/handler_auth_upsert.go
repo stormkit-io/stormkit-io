@@ -9,15 +9,16 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 )
 
-type AuthEnableRequest struct {
+type AuthUpsertRequest struct {
 	ProviderName string `json:"providerName"`
 	ClientID     string `json:"clientId"`
 	ClientSecret string `json:"clientSecret"`
 	Status       bool   `json:"status"`
 }
 
-func handlerAuthEnable(req *app.RequestContext) *shttp.Response {
-	data := &AuthEnableRequest{}
+// handlerAuthUpsert handles the upsert of an authentication provider configuration.
+func handlerAuthUpsert(req *app.RequestContext) *shttp.Response {
+	data := &AuthUpsertRequest{}
 
 	if err := req.Post(data); err != nil {
 		return shttp.Error(err)
@@ -37,6 +38,19 @@ func handlerAuthEnable(req *app.RequestContext) *shttp.Response {
 	}
 
 	data.ProviderName = strings.TrimSpace(strings.ToLower(data.ProviderName))
+
+	// If updating an existing provider and client secret is not provided, retain the existing secret
+	if data.ClientSecret == "" || data.ClientSecret == ClientSecretPlaceholder {
+		existingProvider, err := skauth.NewStore().Provider(ctx, req.EnvID, data.ProviderName)
+
+		if err != nil {
+			return shttp.Error(err)
+		}
+
+		if existingProvider != nil && existingProvider.Data.ClientSecret != "" {
+			data.ClientSecret = existingProvider.Data.ClientSecret
+		}
+	}
 
 	provider := GetProviderClient(data.ProviderName, data.ClientID, data.ClientSecret)
 

@@ -5,6 +5,7 @@ import ScheduleIcon from "@mui/icons-material/Schedule";
 import StorageIcon from "@mui/icons-material/Storage";
 import TextSnippetIcon from "@mui/icons-material/TextSnippet";
 import InsertChartIcon from "@mui/icons-material/InsertChart";
+import GroupIcon from "@mui/icons-material/Group";
 import DatabaseIcon from "@mui/icons-material/Inventory";
 
 export const appMenuItems = ({
@@ -91,6 +92,12 @@ export const envMenuItems = ({
       path: `${envPath}/database`,
       icon: Icon(DatabaseIcon),
       isActive: pathname.includes("/database"),
+    },
+    {
+      text: "Authentication",
+      path: `${envPath}/auth`,
+      icon: Icon(GroupIcon),
+      isActive: pathname.includes("/auth"),
     },
   ];
 
