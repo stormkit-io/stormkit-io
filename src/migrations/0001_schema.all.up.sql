@@ -427,10 +427,7 @@ CREATE TABLE IF NOT EXISTS skitapi.auth_wall (
 CREATE TABLE IF NOT EXISTS skitapi.oauth_configs (
     provider_id serial primary key NOT NULL,
     provider_name text NOT NULL,
-    provider_client_id text NOT NULL,
-    provider_client_secret text NOT NULL,
-    provider_redirect_url text NOT NULL,
-    provider_scopes text[] NOT NULL,
+    provider_data bytea NOT NULL,
     provider_status boolean NOT NULL DEFAULT FALSE,
     env_id bigint NOT NULL,
     app_id bigint NOT NULL

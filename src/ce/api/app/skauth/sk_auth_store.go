@@ -1,56 +1,51 @@
 package skauth
 
 import (
+	"bytes"
 	"context"
+	"strings"
+	"text/template"
 
-	"github.com/lib/pq"
 	"github.com/stormkit-io/stormkit-io/src/lib/database"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
-var stmt = struct {
-	selectOAuthConfig string
-	saveOAuthConfig   string
+var sqlTemplates = struct {
+	selectOAuthConfig *template.Template
 }{
-	selectOAuthConfig: `
+	selectOAuthConfig: template.Must(template.New("selectOAuthConfig").Parse(`
 		SELECT
 			provider_id,
 			provider_name,
-			provider_client_id,
-			provider_client_secret,
-			provider_redirect_url,
-			provider_scopes,
+			provider_data,
 			provider_status
 		FROM
 			oauth_configs
 		WHERE
-			env_id = $1 AND
-			provider_name = $2;
-	`,
+			{{ .where }};
+	`)),
+}
 
+var stmt = struct {
+	saveOAuthConfig string
+}{
 	saveOAuthConfig: `
 		INSERT INTO oauth_configs (
 			provider_name,
-			provider_client_id,
-			provider_client_secret,
-			provider_redirect_url,
-			provider_scopes,
+			provider_data,
 			provider_status,
 			env_id,
 			app_id
 		) 
 		VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8
+			$1, $2, $3, $4, $5
 		)
 		ON CONFLICT (
 			env_id, provider_name
 		)
 		DO UPDATE SET
-			provider_client_id = EXCLUDED.provider_client_id,
-			provider_client_secret = EXCLUDED.provider_client_secret,
-			provider_redirect_url = EXCLUDED.provider_redirect_url,
-			provider_scopes = EXCLUDED.provider_scopes,
+			provider_data = EXCLUDED.provider_data,
 			provider_status = EXCLUDED.provider_status;
 	`,
 }
@@ -74,15 +69,16 @@ type SaveProviderArgs struct {
 
 // SaveProvider saves the OAuth2 provider configuration.
 func (s *Store) SaveProvider(ctx context.Context, args SaveProviderArgs) error {
-	config := args.Client.Config()
+	providerData, err := utils.ByteaValue(args.Client.Data())
 
-	_, err := s.Exec(
+	if err != nil {
+		return err
+	}
+
+	_, err = s.Exec(
 		ctx, stmt.saveOAuthConfig,
 		args.Client.Name(),
-		config.ClientID,
-		utils.EncryptToString(config.ClientSecret),
-		config.RedirectURL,
-		pq.Array(config.Scopes),
+		providerData,
 		args.Status,
 		args.EnvID,
 		args.AppID,
@@ -91,31 +87,78 @@ func (s *Store) SaveProvider(ctx context.Context, args SaveProviderArgs) error {
 	return err
 }
 
-// Provider retrieves the OAuth2 client for a given environment and provider name.
-func (s *Store) Provider(ctx context.Context, envID types.ID, providerName string) (*Provider, error) {
-	row, err := s.QueryRow(ctx, stmt.selectOAuthConfig, envID, providerName)
+type ProvidersArgs struct {
+	EnvID        types.ID
+	ProviderName string
+}
 
-	if err != nil || row == nil {
-		return nil, err
+func (s *Store) Providers(ctx context.Context, args ProvidersArgs) ([]*Provider, error) {
+	where := []string{"env_id = $1"}
+	params := []any{args.EnvID}
+
+	if args.ProviderName != "" {
+		where = append(where, "provider_name = $2")
+		params = append(params, args.ProviderName)
 	}
 
-	provider := &Provider{}
-
-	err = row.Scan(
-		&provider.ID,
-		&provider.Name,
-		&provider.ClientID,
-		&provider.ClientSecret,
-		&provider.RedirectURL,
-		pq.Array(&provider.Scopes),
-		&provider.Status,
-	)
+	buf := bytes.Buffer{}
+	err := sqlTemplates.selectOAuthConfig.Execute(&buf, map[string]string{
+		"where": strings.Join(where, " AND "),
+	})
 
 	if err != nil {
 		return nil, err
 	}
 
-	provider.ClientSecret = utils.DecryptToString(provider.ClientSecret)
+	rows, err := s.Query(ctx, buf.String(), params...)
 
-	return provider, nil
+	if err != nil || rows == nil {
+		return nil, err
+	}
+
+	providers := []*Provider{}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		provider := &Provider{}
+		var providerData []byte
+
+		err = rows.Scan(
+			&provider.ID,
+			&provider.Name,
+			&providerData,
+			&provider.Status,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if err := utils.ByteaScan(providerData, &provider.Data); err != nil {
+			return nil, err
+		}
+
+		providers = append(providers, provider)
+	}
+
+	return providers, nil
+}
+
+// Provider retrieves the OAuth2 client for a given environment and provider name.
+func (s *Store) Provider(ctx context.Context, envID types.ID, providerName string) (*Provider, error) {
+	providers, err := s.Providers(ctx, ProvidersArgs{
+		EnvID:        envID,
+		ProviderName: providerName,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(providers) == 0 {
+		return nil, nil
+	}
+
+	return providers[0], nil
 }
