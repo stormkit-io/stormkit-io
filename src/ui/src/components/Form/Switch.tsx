@@ -1,65 +1,41 @@
-import React, { useState, useEffect, ReactElement, FC } from "react";
-import { Tooltip } from "@mui/material";
-import SwitchUI, { SwitchProps } from "@mui/material/Switch";
+import Box from "@mui/material/Box";
+import Typography from "@mui/material/Typography";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Switch from "@mui/material/Switch";
 
-interface Props extends SwitchProps {
-  confirm?: (arg0: (val: boolean) => void) => void;
-  withWrapper?: boolean;
-  children?: React.ReactNode;
-  tooltip?: React.ReactNode;
+interface Props {
+  name: string;
+  label: string;
+  checked: boolean;
+  setChecked: (val: boolean) => void;
+  description: string;
 }
 
-/**
- * Wrap the Material-UI Switch component since it does not
- * support a default checked value.
- */
-const Switch: FC<Props> = ({
-  checked = false,
-  confirm,
-  withWrapper,
-  children,
-  tooltip,
-  ...rest
-}: Props): ReactElement => {
-  const [isChecked, setChecked] = useState<boolean>(checked);
-
-  useEffect(() => {
-    setChecked(checked);
-  }, [checked]);
-
-  const component = (
-    <SwitchUI
-      {...rest}
-      checked={isChecked}
-      onChange={val => {
-        if (typeof confirm === "function") {
-          confirm(setChecked);
-        } else {
-          setChecked(!isChecked);
-          rest.onChange && rest.onChange(val, !isChecked);
+export default function SwitchForm({
+  name,
+  label,
+  checked,
+  setChecked,
+  description,
+}: Props) {
+  return (
+    <Box sx={{ bgcolor: "container.paper", p: 1.75, pt: 1, mb: 4 }}>
+      <FormControlLabel
+        sx={{ pl: 0, ml: 0 }}
+        label={label}
+        control={
+          <Switch
+            name={name}
+            color="secondary"
+            checked={checked}
+            onChange={e => {
+              setChecked(e.target.checked);
+            }}
+          />
         }
-      }}
-    />
+        labelPlacement="start"
+      />
+      <Typography color="text.secondary">{description}</Typography>
+    </Box>
   );
-
-  return withWrapper ? (
-    <div className="flex w-full border border-solid border-gray-85 rounded-sm py-2 items-center text-sm bg-gray-90 pr-3">
-      <label className="cursor-pointer flex-grow">
-        {component}
-        {children}
-      </label>
-      {tooltip && (
-        <Tooltip title={tooltip} arrow className="relative right-px text-black">
-          <span className="fas fa-question-circle" />
-        </Tooltip>
-      )}
-    </div>
-  ) : (
-    <label className="cursor-pointer">
-      {component}
-      {children}
-    </label>
-  );
-};
-
-export default Switch;
+}
