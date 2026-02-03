@@ -39,7 +39,7 @@ func handlerAuthDelete(req *app.RequestContext) *shttp.Response {
 		idsStr = append(idsStr, id.String())
 	}
 
-	if req.License().Enterprise {
+	if req.License().IsEnterprise() {
 		diff := &audit.Diff{
 			Old: audit.DiffFields{
 				AuthWallDeleteLoginIDs: strings.Join(idsStr, ","),

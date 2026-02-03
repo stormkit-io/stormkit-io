@@ -121,8 +121,8 @@ func (s *HandlerAuthCallbackSuite) Test_SeatsExhausted_EE_Version() {
 	defer config.SetIsSelfHosted(false)
 
 	admin.CachedLicense = &admin.License{
-		Seats:      0,
-		Enterprise: true,
+		Seats:   0,
+		Premium: true,
 	}
 
 	token := "vxz9414sf9zx93"

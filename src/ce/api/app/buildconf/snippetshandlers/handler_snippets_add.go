@@ -60,7 +60,7 @@ func HandlerSnippetsAdd(req *app.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	if req.License().Enterprise {
+	if req.License().IsEnterprise() {
 		diff := &audit.Diff{
 			New: audit.DiffFields{
 				Snippets: titles,

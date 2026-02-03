@@ -70,7 +70,7 @@ func handlerAuthConfigSet(req *app.RequestContext) *shttp.Response {
 		diff.New.AuthWallStatus = data.AuthWall
 	}
 
-	if req.License().Enterprise {
+	if req.License().IsEnterprise() {
 		err = audit.FromRequestContext(req).
 			WithAction(audit.UpdateAction, audit.TypeAuthWall).
 			WithDiff(diff).

@@ -53,7 +53,7 @@ func HandlerDomainDelete(req *app.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	if req.License().Enterprise {
+	if req.License().IsEnterprise() {
 		err = audit.FromRequestContext(req).
 			WithAction(audit.DeleteAction, audit.TypeDomain).
 			WithDiff(&audit.Diff{Old: audit.DiffFields{DomainName: domain.Name}}).

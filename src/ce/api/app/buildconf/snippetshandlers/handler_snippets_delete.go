@@ -71,7 +71,7 @@ func HandlerSnippetsDelete(req *app.RequestContext) *shttp.Response {
 		},
 	}
 
-	if req.License().Enterprise {
+	if req.License().IsEnterprise() {
 		err := audit.FromRequestContext(req).
 			WithAction(audit.DeleteAction, audit.TypeSnippet).
 			WithDiff(diff).

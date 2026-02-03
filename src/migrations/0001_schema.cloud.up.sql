@@ -2,6 +2,8 @@ CREATE TABLE IF NOT EXISTS skitapi.licenses (
     license_id serial primary key NOT NULL,
     license_key text NOT NULL,
     license_version text NOT NULL DEFAULT '2024-06-10',
+    is_premium boolean NOT NULL DEFAULT FALSE,
+    is_ultimate boolean NOT NULL DEFAULT FALSE,
     number_of_seats integer NOT NULL,
     user_id bigint NULL,
     metadata jsonb NULL,

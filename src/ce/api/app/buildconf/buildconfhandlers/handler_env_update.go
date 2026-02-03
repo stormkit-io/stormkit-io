@@ -63,7 +63,7 @@ func handlerEnvUpdate(req *app.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	if req.License().Enterprise {
+	if req.License().IsEnterprise() {
 		diff := &audit.Diff{
 			Old: audit.DiffFields{
 				EnvName:               env.Name,

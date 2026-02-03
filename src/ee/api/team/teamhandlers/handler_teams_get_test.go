@@ -11,6 +11,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/team"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/team/teamhandlers"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -41,6 +42,7 @@ func (s *HandlerTeamsGetSuite) BeforeTest(suiteName, _ string) {
 	s.user = user
 	s.teams = []team.Team{team1, team2}
 
+	config.SetIsSelfHosted(true)
 }
 
 func (s *HandlerTeamsGetSuite) AfterTest(suiteName, _ string) {

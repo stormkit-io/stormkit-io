@@ -116,7 +116,14 @@ func (s *HandlerLicenseGenerateSuite) Test_ReplacesExistingLicense() {
 	})
 
 	// Create an existing license first
-	l, err := user.NewStore().GenerateSelfHostedLicense(context.Background(), usr.Metadata.SeatsPurchased, usr.ID, nil)
+	l, err := user.NewStore().GenerateSelfHostedLicense(
+		context.Background(),
+		usr.Metadata.SeatsPurchased,
+		usr.ID,
+		config.PackagePremium,
+		nil,
+	)
+
 	s.NoError(err)
 	s.NotNil(l)
 

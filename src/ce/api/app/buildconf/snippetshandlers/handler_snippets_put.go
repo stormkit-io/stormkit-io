@@ -85,7 +85,7 @@ func HandlerSnippetsPut(req *app.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	if req.License().Enterprise {
+	if req.License().IsEnterprise() {
 		err = audit.FromRequestContext(req).
 			WithAction(audit.UpdateAction, audit.TypeSnippet).
 			WithDiff(diff).

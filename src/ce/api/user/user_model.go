@@ -147,6 +147,23 @@ func (u User) Display() string {
 
 // JSON casts the user object into a map, ready to be sent to the frontend.
 func (u User) JSON() map[string]any {
+	packageName := utils.GetString(u.Metadata.PackageName, config.PackageFree)
+	seats := utils.GetInt(u.Metadata.SeatsPurchased, 1)
+
+	if config.IsSelfHosted() {
+		if license := admin.CurrentLicense(); license != nil {
+			seats = utils.GetInt(license.Seats, 1)
+
+			if license.Premium {
+				packageName = config.PackagePremium
+			} else if license.Ultimate {
+				packageName = config.PackageUltimate
+			} else {
+				packageName = config.PackageFree
+			}
+		}
+	}
+
 	userData := map[string]any{
 		"id":          u.ID.String(),
 		"avatar":      u.Avatar,
@@ -155,8 +172,8 @@ func (u User) JSON() map[string]any {
 		"displayName": u.DisplayName,
 		"memberSince": u.CreatedAt.Unix(),
 		"package": map[string]any{
-			"id":    utils.GetString(u.Metadata.PackageName, config.PackageFree),
-			"seats": utils.GetInt(u.Metadata.SeatsPurchased, 1),
+			"id":    packageName,
+			"seats": seats,
 		},
 	}
 

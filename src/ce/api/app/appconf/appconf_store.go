@@ -330,7 +330,7 @@ func rowsToConfigs(rows *sql.Rows, err error) ([]*Config, error) {
 		}
 
 		if config.IsSelfHosted() {
-			cnf.IsEnterprise = admin.CurrentLicense().Enterprise
+			cnf.IsEnterprise = admin.CurrentLicense().IsEnterprise()
 		} else {
 			cnf.IsEnterprise = tier == config.PackagePremium || tier == config.PackageUltimate
 		}

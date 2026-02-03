@@ -2,12 +2,14 @@ package adminhandlers
 
 import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 )
 
 type LicenseGenerateRequest struct {
 	Seats       int    `json:"seats"`
 	Description string `json:"description"`
+	IsUltimate  bool   `json:"isUltimate"`
 }
 
 func handlerLicenseGenerate(req *user.RequestContext) *shttp.Response {
@@ -23,9 +25,20 @@ func handlerLicenseGenerate(req *user.RequestContext) *shttp.Response {
 		})
 	}
 
-	license, err := user.NewStore().GenerateSelfHostedLicense(req.Context(), data.Seats, 0, map[string]any{
-		"description": data.Description,
-	})
+	packageName := config.PackagePremium
+
+	if data.IsUltimate {
+		packageName = config.PackageUltimate
+	}
+
+	license, err := user.NewStore().GenerateSelfHostedLicense(
+		req.Context(),
+		data.Seats,
+		0,
+		packageName,
+		map[string]any{
+			"description": data.Description,
+		})
 
 	if err != nil {
 		return shttp.Error(err)

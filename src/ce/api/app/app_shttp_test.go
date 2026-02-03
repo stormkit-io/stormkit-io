@@ -38,10 +38,9 @@ func (s *AppSHTTPSuite) AfterTest(_, _ string) {
 
 func (s *AppSHTTPSuite) MockLicense() *admin.License {
 	return &admin.License{
-		Seats:      10,
-		Key:        "abcd-efgh-1234-defg-5829-bnac-00",
-		Version:    admin.LicenseVersion20240610,
-		Enterprise: false,
+		Seats:   10,
+		Key:     "abcd-efgh-1234-defg-5829-bnac-00",
+		Version: admin.LicenseVersion20240610,
 	}
 }
 

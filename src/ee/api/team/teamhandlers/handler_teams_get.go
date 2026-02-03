@@ -23,7 +23,7 @@ func handlerTeamsGet(req *user.RequestContext) *shttp.Response {
 	data := []map[string]any{}
 	slugs := map[string]bool{}
 	hasUniqueSlugs := true
-	isEnterprise := req.License().Enterprise
+	isEnterprise := req.License().IsEnterprise()
 
 	for _, team := range teams {
 		// Only show default teams in CE

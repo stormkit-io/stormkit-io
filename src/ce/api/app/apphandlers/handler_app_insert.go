@@ -69,7 +69,7 @@ func handlerAppInsert(req *user.RequestContext) *shttp.Response {
 	myApp.TeamID = data.TeamID
 
 	// Non-enterprise users cannot set TeamID
-	if myApp.TeamID == 0 || !req.License().Enterprise {
+	if myApp.TeamID == 0 || !req.License().IsEnterprise() {
 		var err error
 		myApp.TeamID, err = team.NewStore().DefaultTeamID(req.Context(), req.User.ID)
 
@@ -97,7 +97,7 @@ func handlerAppInsert(req *user.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	if req.License().Enterprise {
+	if req.License().IsEnterprise() {
 		diff := &audit.Diff{
 			New: audit.DiffFields{
 				AppName: myApp.DisplayName,

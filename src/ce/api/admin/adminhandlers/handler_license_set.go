@@ -50,8 +50,10 @@ func handlerLicenseSet(req *user.RequestContext) *shttp.Response {
 
 	return &shttp.Response{
 		Data: map[string]any{
-			"seats":   license.Seats,
-			"edition": license.Edition(),
+			"seats":    license.Seats,
+			"premium":  license.Premium,
+			"ultimate": license.Ultimate,
+			"edition":  license.Edition(),
 		},
 	}
 }

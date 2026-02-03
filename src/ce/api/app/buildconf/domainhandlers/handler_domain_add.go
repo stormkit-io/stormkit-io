@@ -109,7 +109,7 @@ func HandlerDomainAdd(req *app.RequestContext) *shttp.Response {
 		}
 	}
 
-	if req.License().Enterprise {
+	if req.License().IsEnterprise() {
 		err := audit.FromRequestContext(req).
 			WithAction(audit.CreateAction, audit.TypeDomain).
 			WithDiff(&audit.Diff{New: audit.DiffFields{DomainName: domain.Name}}).

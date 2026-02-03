@@ -251,7 +251,14 @@ func (s *Store) selectLicense(ctx context.Context, query string, params ...any) 
 		return nil, nil
 	}
 
-	err = row.Scan(&license.Key, &license.Version, &license.Seats, &license.UserID)
+	err = row.Scan(
+		&license.Key,
+		&license.Version,
+		&license.Premium,
+		&license.Ultimate,
+		&license.Seats,
+		&license.UserID,
+	)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -734,11 +741,13 @@ func (s *Store) UpdateSubscription(ctx context.Context, userID types.ID, meta Us
 
 // GenerateSelfHostedLicense will generate a license with the user's api key. If the user
 // has an api key it will be used, otherwise a new api key will be generated.
-func (s *Store) GenerateSelfHostedLicense(ctx context.Context, quantity int, userID types.ID, meta map[string]any) (*admin.License, error) {
+func (s *Store) GenerateSelfHostedLicense(ctx context.Context, quantity int, userID types.ID, packageName string, meta map[string]any) (*admin.License, error) {
 	// Generate a new license using the apiKey.value
 	license := admin.NewLicense(admin.NewLicenseArgs{
 		Seats:    quantity,
 		UserID:   userID,
+		Premium:  packageName == config.PackagePremium,
+		Ultimate: packageName == config.PackageUltimate,
 		Metadata: meta,
 	})
 
@@ -756,6 +765,8 @@ func (s *Store) GenerateSelfHostedLicense(ctx context.Context, quantity int, use
 	_, err = s.Exec(ctx, ustmt.insertLicense,
 		utils.EncryptToString(license.Key),
 		license.Version,
+		license.Premium,
+		license.Ultimate,
 		license.Seats,
 		null.NewInt(int64(userID), userID > 0),
 		md,

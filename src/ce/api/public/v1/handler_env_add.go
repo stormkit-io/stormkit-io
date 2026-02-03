@@ -126,7 +126,7 @@ func handlerEnvAdd(req *app.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	if req.License().Enterprise {
+	if req.License().IsEnterprise() {
 		err := audit.FromRequestContext(req).
 			WithAction(audit.CreateAction, audit.TypeEnv).
 			WithDiff(&audit.Diff{New: audit.DiffFields{EnvName: cnf.Name, EnvID: cnf.ID.String()}}).

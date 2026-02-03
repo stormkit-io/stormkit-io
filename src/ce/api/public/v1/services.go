@@ -6,6 +6,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/snippetshandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/mailer/mailerhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 )
 
@@ -44,10 +45,12 @@ func Services(r *shttp.Router) *shttp.Service {
 	s.NewEndpoint("/v1/mail").
 		Handler(shttp.MethodPost, "", app.WithAPIKey(mailerhandlers.HandlerMail, &app.Opts{Env: true}))
 
-	s.NewEndpoint("/v1/license").
-		// Temporary solution until we migrate previous licenses
-		Handler(shttp.MethodGet, "", func(rc *shttp.RequestContext) *shttp.Response { return shttp.OK() }).
-		Handler(shttp.MethodGet, "/check", handlerLicenseCheck)
+	if config.IsStormkitCloud() {
+		s.NewEndpoint("/v1/license").
+			// Temporary solution until we migrate previous licenses
+			Handler(shttp.MethodGet, "", func(rc *shttp.RequestContext) *shttp.Response { return shttp.OK() }).
+			Handler(shttp.MethodGet, "/check", handlerLicenseCheck)
+	}
 
 	return s
 }

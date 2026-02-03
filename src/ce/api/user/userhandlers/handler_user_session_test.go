@@ -35,8 +35,9 @@ func (s *UserSessionSuite) AfterTest(suiteName, _ string) {
 	s.conn.CloseTx()
 }
 
-func (s *UserSessionSuite) Test_Success_SelfHosted() {
+func (s *UserSessionSuite) Test_Success_SelfHosted_PremiumLicense() {
 	config.SetIsSelfHosted(true)
+	admin.SetMockLicense()
 	usr := s.MockUser()
 
 	response := shttptest.RequestWithHeaders(
@@ -64,6 +65,44 @@ func (s *UserSessionSuite) Test_Success_SelfHosted() {
 			"memberSince": 1551193200,
 			"package": {
 				"id": "premium",
+				"seats": 10
+			}
+		}
+	}`, usr.ID.String(), usr.PrimaryEmail())
+
+	s.Equal(response.Code, http.StatusOK)
+	s.JSONEq(expected, response.String())
+}
+
+func (s *UserSessionSuite) Test_Success_SelfHosted_FreeLicense() {
+	config.SetIsSelfHosted(true)
+	usr := s.MockUser()
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(userhandlers.Services).Router().Handler(),
+		shttp.MethodGet,
+		"/user",
+		nil,
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+
+	expected := fmt.Sprintf(`{
+		"accounts": [
+			{ "provider": "github", "url": "https://api.github.com/users/dlorenzo", "displayName": "dlorenzo", "hasPersonalAccessToken": false },
+			{ "provider": "bitbucket", "url": "https://bitbucket.org/dlorenzo", "displayName": "dlorenzo", "hasPersonalAccessToken": false },
+			{ "provider": "gitlab", "url":"https://gitlab.com/dlorenzo", "displayName": "dlorenzo", "hasPersonalAccessToken": true }
+		],
+		"user": {
+			"avatar": "https://avatars3.githubusercontent.com/u/55663230?v=4",
+			"displayName": "dlorenzo",
+			"fullName": "David Lorenzo",
+			"id": "%s",
+			"email": "%s",
+			"memberSince": 1551193200,
+			"package": {
+				"id": "free",
 				"seats": 1
 			}
 		}

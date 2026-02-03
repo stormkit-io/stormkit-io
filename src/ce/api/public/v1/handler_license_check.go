@@ -38,8 +38,10 @@ func handlerLicenseCheck(req *shttp.RequestContext) *shttp.Response {
 		Status: http.StatusOK,
 		Data: map[string]any{
 			"license": map[string]any{
-				"version": fromDB.Version,
-				"seats":   fromDB.Seats,
+				"premium":  fromDB.Premium,
+				"ultimate": fromDB.Ultimate,
+				"version":  fromDB.Version,
+				"seats":    fromDB.Seats,
 			},
 		},
 	}

@@ -63,7 +63,7 @@ func handlerEnvDelete(req *app.RequestContext) *shttp.Response {
 		return shttp.NotFound()
 	}
 
-	if req.License().Enterprise {
+	if req.License().IsEnterprise() {
 		err = audit.FromRequestContext(req).
 			WithAction(audit.DeleteAction, audit.TypeEnv).
 			WithDiff(&audit.Diff{Old: audit.DiffFields{EnvName: env.Name}}).

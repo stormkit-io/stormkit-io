@@ -26,6 +26,7 @@ type HandlerLicenseCheckSuite struct {
 func (s *HandlerLicenseCheckSuite) BeforeTest(suiteName, _ string) {
 	s.conn = databasetest.InitTx(suiteName)
 	s.Factory = factory.New(s.conn)
+	config.SetIsStormkitCloud(true)
 }
 
 func (s *HandlerLicenseCheckSuite) AfterTest(_, _ string) {
@@ -37,7 +38,7 @@ func (s *HandlerLicenseCheckSuite) Test_Success() {
 	ctx := context.Background()
 	store := user.NewStore()
 
-	license, err := store.GenerateSelfHostedLicense(ctx, 5, usr.ID, nil)
+	license, err := store.GenerateSelfHostedLicense(ctx, 5, usr.ID, config.PackagePremium, nil)
 	s.NoError(err)
 	s.NotNil(license)
 
@@ -52,8 +53,11 @@ func (s *HandlerLicenseCheckSuite) Test_Success() {
 		nil,
 	)
 
+	str := response.String()
+
 	s.Equal(http.StatusOK, response.Code)
-	s.JSONEq(`{"license": { "seats": 5, "version": "2025-09-26" }}`, response.String())
+	s.Require().NotEmpty(str, "response body should not be empty")
+	s.JSONEq(`{"license": { "seats": 5, "version": "2025-09-26", "premium": true, "ultimate": false }}`, str)
 
 	// Let's update the subscription to free and retest
 	s.NoError(store.UpdateSubscription(ctx, usr.ID, user.UserMeta{

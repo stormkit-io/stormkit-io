@@ -46,7 +46,7 @@ func handlerSchemaSet(req *app.RequestContext) *shttp.Response {
 		}
 	}
 
-	if req.License().Enterprise {
+	if req.License().IsEnterprise() {
 		diff := &audit.Diff{
 			New: audit.DiffFields{
 				SchemaName: name,

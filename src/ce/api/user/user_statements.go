@@ -190,7 +190,7 @@ var ustmt = &userStatement{
 
 	selectLicense: `
 		SELECT
-			license_key, license_version, number_of_seats, user_id
+			license_key, license_version, is_premium, is_ultimate, number_of_seats, user_id
 		FROM
 			licenses
 		WHERE
@@ -199,9 +199,9 @@ var ustmt = &userStatement{
 
 	insertLicense: `
 		INSERT INTO licenses
-			(license_key, license_version, number_of_seats, user_id, metadata)
+			(license_key, license_version, is_premium, is_ultimate, number_of_seats, user_id, metadata)
 		VALUES
-			($1, $2, $3, $4, $5);
+			($1, $2, $3, $4, $5, $6, $7);
 	`,
 
 	deleteLicense: `

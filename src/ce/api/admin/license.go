@@ -26,20 +26,22 @@ var CachedLicense *License
 var mux sync.Mutex
 
 type License struct {
-	Key        string         `json:"key"`
-	Version    string         `json:"version"`
-	Seats      int            `json:"seats"`
-	UserID     types.ID       `json:"userId,omitempty"`
-	Enterprise bool           `json:"isEnterprise"` // Enables enterprise features
-	Metadata   map[string]any `json:"metadata,omitempty"`
+	Key      string         `json:"key"`
+	Version  string         `json:"version"`
+	Seats    int            `json:"seats"`
+	UserID   types.ID       `json:"userId,omitempty"`
+	Premium  bool           `json:"premium"`  // Enables premium features
+	Ultimate bool           `json:"ultimate"` // Enables ultimate features
+	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
 type NewLicenseArgs struct {
-	Seats      int
-	Key        string
-	UserID     types.ID
-	Enterprise bool
-	Metadata   map[string]any
+	Seats    int
+	Key      string
+	UserID   types.ID
+	Premium  bool
+	Ultimate bool
+	Metadata map[string]any
 }
 
 func NewLicense(args NewLicenseArgs) *License {
@@ -50,12 +52,13 @@ func NewLicense(args NewLicenseArgs) *License {
 	}
 
 	return &License{
-		Key:        key,
-		Seats:      args.Seats,
-		UserID:     args.UserID,
-		Version:    LicenseVersion20250926,
-		Enterprise: args.Enterprise,
-		Metadata:   args.Metadata,
+		Key:      key,
+		Seats:    args.Seats,
+		UserID:   args.UserID,
+		Version:  LicenseVersion20250926,
+		Premium:  args.Premium,
+		Ultimate: args.Ultimate,
+		Metadata: args.Metadata,
 	}
 }
 
@@ -66,10 +69,10 @@ func CurrentLicense() *License {
 
 	if config.IsStormkitCloud() {
 		CachedLicense = &License{
-			Seats:      -1,
-			Key:        "stormkit-cloud",
-			Version:    LicenseVersion20250926,
-			Enterprise: true,
+			Seats:   -1,
+			Key:     "stormkit-cloud",
+			Version: LicenseVersion20250926,
+			Premium: true,
 		}
 
 		return CachedLicense
@@ -177,10 +180,11 @@ func ValidateLicense(key string) (*License, error) {
 
 	// We need to generate a full-blown license because we're going to store it in the DB
 	return &License{
-		Seats:      data.License.Seats,
-		Version:    data.License.Version,
-		Enterprise: data.License.Seats >= 1,
-		Key:        key,
+		Seats:    data.License.Seats,
+		Version:  data.License.Version,
+		Premium:  data.License.Premium,
+		Ultimate: data.License.Ultimate,
+		Key:      key,
 	}, nil
 }
 
@@ -195,7 +199,7 @@ func (l *License) IsEnterprise() bool {
 		return true
 	}
 
-	return l.Enterprise
+	return l.Premium || l.Ultimate
 }
 
 // Edition returns the edition of the license: "community" or "enterprise".
@@ -231,10 +235,11 @@ func SetMockLicense() {
 	defer mux.Unlock()
 
 	CachedLicense = &License{
-		Seats:      10,
-		Key:        "abcd-efgh-1234-defg-5829-bnac-00",
-		Version:    LicenseVersion20250926,
-		Enterprise: true,
+		Seats:    10,
+		Key:      "abcd-efgh-1234-defg-5829-bnac-00",
+		Version:  LicenseVersion20250926,
+		Premium:  true,
+		Ultimate: false,
 	}
 }
 

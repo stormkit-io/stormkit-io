@@ -47,8 +47,9 @@ func License(user *User) *admin.License {
 	}
 
 	return &admin.License{
-		Seats:      user.Metadata.SeatsPurchased,
-		Enterprise: user.Metadata.PackageName == config.PackagePremium || user.Metadata.PackageName == config.PackageUltimate,
+		Seats:    user.Metadata.SeatsPurchased,
+		Premium:  user.Metadata.PackageName == config.PackagePremium,
+		Ultimate: user.Metadata.PackageName == config.PackageUltimate,
 	}
 }
 
@@ -59,7 +60,7 @@ func WithEE(req *shttp.RequestContext) *shttp.Response {
 	usr, _ := FromContext(req)
 	license := License(usr)
 
-	if license == nil || !license.Enterprise {
+	if license == nil || !license.IsEnterprise() {
 		return shttp.Error(ErrEnterpriseOnly)
 	}
 

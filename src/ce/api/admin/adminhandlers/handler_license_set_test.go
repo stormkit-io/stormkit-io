@@ -61,7 +61,7 @@ func (s *HandlerLicenseSetSuite) Test_Success_WithValidLicense() {
 	key := "valid-license-key"
 
 	// Twice because we call it once to validate the license and once after cache is updated
-	s.mockResponse(key, http.StatusOK, `{ "license": {"seats":7,"version":"2025-09-26"} }`, 2)
+	s.mockResponse(key, http.StatusOK, `{ "license": {"seats":7, "ultimate": true, "premium": false, "version":"2025-09-26"} }`, 2)
 
 	response := shttptest.RequestWithHeaders(
 		shttp.NewRouter().RegisterService(adminhandlers.Services).Router().Handler(),
@@ -75,7 +75,7 @@ func (s *HandlerLicenseSetSuite) Test_Success_WithValidLicense() {
 		},
 	)
 
-	expected := `{ "seats":7, "edition": "enterprise" }`
+	expected := `{ "seats":7, "ultimate": true, "premium": false, "edition": "enterprise" }`
 
 	s.Equal(http.StatusOK, response.Code)
 	s.JSONEq(expected, response.String())
@@ -91,9 +91,9 @@ func (s *HandlerLicenseSetSuite) Test_Success_RemoveLicense() {
 
 	// First set a license
 	validLicense := admin.NewLicense(admin.NewLicenseArgs{
-		Seats:      50,
-		Enterprise: true,
-		UserID:     usr.ID,
+		Seats:   50,
+		Premium: true,
+		UserID:  usr.ID,
 	})
 
 	// Set initial license
@@ -120,7 +120,7 @@ func (s *HandlerLicenseSetSuite) Test_Success_RemoveLicense() {
 		},
 	)
 
-	expected := `{ "seats": -1, "edition": "community" }`
+	expected := `{ "seats": -1, "premium": false, "ultimate": false, "edition": "community" }`
 
 	s.Equal(http.StatusOK, response.Code)
 	s.JSONEq(expected, response.String())

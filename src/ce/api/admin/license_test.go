@@ -53,13 +53,14 @@ func (s *LicenseSuite) Test_FreeLicense() {
 	license := admin.CurrentLicense()
 	s.NotNil(license)
 	s.Equal(admin.MaximumFreeSeats, license.Seats)
-	s.False(license.Enterprise)
+	s.False(license.IsEnterprise())
 }
 
 func (s *LicenseSuite) Test_FetchingLicenseFromDB_Success() {
 	license := admin.NewLicense(admin.NewLicenseArgs{
-		Seats: 5,
-		Key:   "abcd-efgh-ijkl-mnop",
+		Seats:   5,
+		Premium: true,
+		Key:     "abcd-efgh-ijkl-mnop",
 	})
 
 	cnf, err := admin.Store().Config(context.Background())
@@ -79,7 +80,7 @@ func (s *LicenseSuite) Test_FetchingLicenseFromDB_Success() {
 	s.mockRequest.On("Do").Return(&shttp.HTTPResponse{
 		Response: &http.Response{
 			StatusCode: http.StatusOK,
-			Body:       io.NopCloser(strings.NewReader(`{ "license": {"seats":7,"version":"2025-09-26"} }`)),
+			Body:       io.NopCloser(strings.NewReader(`{ "license": {"seats":7, "premium": true, "version":"2025-09-26"} }`)),
 		},
 	}, nil).Once()
 
@@ -88,7 +89,7 @@ func (s *LicenseSuite) Test_FetchingLicenseFromDB_Success() {
 	l := admin.CurrentLicense()
 	s.NotNil(l)
 	s.Equal(7, l.Seats)
-	s.True(l.Enterprise)
+	s.True(l.IsEnterprise())
 
 	cnf, err = admin.Store().Config(context.Background())
 	s.NoError(err)
@@ -127,7 +128,7 @@ func (s *LicenseSuite) Test_FetchingLicenseFromDB_ExpiredLicense() {
 	l := admin.CurrentLicense()
 	s.NotNil(l)
 	s.Equal(admin.MaximumFreeSeats, l.Seats)
-	s.False(l.Enterprise)
+	s.False(l.IsEnterprise())
 
 	cnf, err = admin.Store().Config(context.Background())
 	s.NoError(err)

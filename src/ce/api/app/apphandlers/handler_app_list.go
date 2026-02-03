@@ -56,7 +56,7 @@ func handlerAppIndex(req *user.RequestContext) *shttp.Response {
 
 	// If the team id is not provided, fallback to the default team.
 	// Otherwise check if the user is a member.
-	if air.TeamID == 0 || !req.License().Enterprise {
+	if air.TeamID == 0 || !req.License().IsEnterprise() {
 		teamID, err := teamStore.DefaultTeamID(req.Context(), req.User.ID)
 
 		if err != nil {

@@ -17,7 +17,13 @@ func handlerLicenseGenerate(req *user.RequestContext) *shttp.Response {
 		})
 	}
 
-	license, err := user.NewStore().GenerateSelfHostedLicense(req.Context(), req.User.Metadata.SeatsPurchased, req.User.ID, nil)
+	license, err := user.NewStore().GenerateSelfHostedLicense(
+		req.Context(),
+		req.User.Metadata.SeatsPurchased,
+		req.User.ID,
+		req.User.Metadata.PackageName,
+		nil,
+	)
 
 	if err != nil {
 		return shttp.Error(err)
