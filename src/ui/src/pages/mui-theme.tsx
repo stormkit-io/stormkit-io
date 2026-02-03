@@ -177,6 +177,12 @@ export default (mode: "dark" | "light") => {
           colorWarning: {
             backgroundColor: "#b75c22",
             color: "white",
+            fontWeight: 500,
+          },
+          colorInfo: {
+            backgroundColor: grey[700],
+            color: "white",
+            fontWeight: 500,
           },
         },
       },
