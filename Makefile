@@ -181,7 +181,7 @@ endif
 # Phony Targets
 # ===============================================================================================
 
-.PHONY: help check-deps start restart dev print-env test test-fe test-be test-fe-watch reset-data
+.PHONY: help check-deps start restart dev print-env test test-fe test-be test-fe-watch reset-data migration
 
 # ===============================================================================================
 # Tasks
@@ -257,6 +257,21 @@ test-be:
 	@echo "Running tests..."
 	go test -tags=imageopt,alibaba -p 1 -v -failfast -coverprofile=coverage.out ./...
 	go test -p 1 -v -failfast ./src/lib/integrations/
+
+# Create a new migration file in `src/migrations` based on the previous file name.
+# The new file will use the next numeric prefix (zero-padded to 4 digits) and today's
+# date, e.g. `0021_2026-02-04.up.sql`. If `src/migrations/next_migration.sql` exists
+# it will be copied into the new file as a template.
+migration:
+	@echo "Creating new migration file based on last migration..."
+	@mkdir -p src/migrations
+	@last=$$(ls src/migrations 2>/dev/null | grep -E '^[0-9]{4}_' | sort | tail -n1 || true); \
+	if [ -z "$$last" ]; then next=1; else next=$$(echo $$last | sed -E 's/^([0-9]+).*/\1/' | awk '{print $$1+1}'); fi; \
+	padded=$$(printf "%04d" $$next); \
+	date=$$(date +%F); \
+	new="src/migrations/$${padded}_$${date}.up.sql"; \
+	if [ -f src/migrations/next_migration.sql ]; then cp src/migrations/next_migration.sql "$$new"; else touch "$$new"; fi; \
+	printf "Created %s\n" "$$new"
 
 # Development workflow - check dependencies and start services
 dev: check-deps start
