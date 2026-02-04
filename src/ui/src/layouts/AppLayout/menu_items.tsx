@@ -93,12 +93,12 @@ export const envMenuItems = ({
       icon: Icon(DatabaseIcon),
       isActive: pathname.includes("/database"),
     },
-    {
-      text: "Authentication",
-      path: `${envPath}/auth`,
-      icon: Icon(GroupIcon),
-      isActive: pathname.includes("/auth"),
-    },
+    // {
+    //   text: "Authentication",
+    //   path: `${envPath}/auth`,
+    //   icon: Icon(GroupIcon),
+    //   isActive: pathname.includes("/auth"),
+    // },
   ];
 
   if (env.published?.length) {
