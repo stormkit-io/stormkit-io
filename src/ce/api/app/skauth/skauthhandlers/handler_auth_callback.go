@@ -50,7 +50,7 @@ func handlerAuthCallback(req *shttp.RequestContext) *shttp.Response {
 
 	if config == nil {
 		return shttp.BadRequest(map[string]any{
-			"error": "Provider is not an oauth",
+			"error": "Provider is not an OAuth2 provider",
 		})
 	}
 

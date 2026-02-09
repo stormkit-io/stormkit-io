@@ -194,7 +194,7 @@ func (s *HandlerAuthCallbackSuite) Test_Provider_EmptyConfig() {
 	)
 
 	s.Equal(http.StatusBadRequest, response.Code)
-	s.JSONEq(`{"error":"Provider is not an oauth"}`, response.String())
+	s.JSONEq(`{"error":"Provider is not an OAuth2 provider"}`, response.String())
 }
 
 func (s *HandlerAuthCallbackSuite) Test_InvalidStateToken() {
