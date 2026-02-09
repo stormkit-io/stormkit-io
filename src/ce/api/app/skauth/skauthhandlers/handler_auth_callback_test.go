@@ -35,14 +35,12 @@ type HandlerAuthCallbackSuite struct {
 }
 
 func (s *HandlerAuthCallbackSuite) BeforeTest(suiteName, _ string) {
+	s.mockClient = &mocks.Client{}
 	s.exchangeFn = skauthhandlers.Exchange
 	s.conn = databasetest.InitTx(suiteName)
 	s.Factory = factory.New(s.conn)
-	s.mockClient = &mocks.Client{}
-	skauthhandlers.DefaultClient = s.mockClient
-
-	// Create test user, app, and environment
 	s.app = s.MockApp(s.MockUser(nil), nil)
+	skauthhandlers.DefaultClient = s.mockClient
 }
 
 func (s *HandlerAuthCallbackSuite) AfterTest(_, _ string) {
@@ -166,17 +164,13 @@ func (s *HandlerAuthCallbackSuite) Test_Provider_EmptyConfig() {
 		},
 	})
 
-	store, err := env.SchemaConf.Store(buildconf.SchemaAccessTypeMigrations)
-	s.NoError(err)
-	s.NoError(store.CreateAuthTable(context.Background()))
-
 	mockClient := &mocks.Client{}
 	mockClient.On("Data").Once().Return(skauth.ProviderData{}) // used in SaveProvider method
-	mockClient.On("Name").Once().Return(skauth.ProviderGoogle)
+	mockClient.On("Name").Once().Return(skauth.ProviderX)
 	mockClient.On("Config").Once().Return(nil)
 
 	ctx := context.Background()
-	err = skauth.NewStore().SaveProvider(ctx, skauth.SaveProviderArgs{
+	err := skauth.NewStore().SaveProvider(ctx, skauth.SaveProviderArgs{
 		EnvID:  env.ID,
 		AppID:  s.app.ID,
 		Status: true,
@@ -188,7 +182,7 @@ func (s *HandlerAuthCallbackSuite) Test_Provider_EmptyConfig() {
 	response := shttptest.RequestWithHeaders(
 		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
 		shttp.MethodGet,
-		fmt.Sprintf("/auth/v1/callback?state=%s&code=test-code", s.generateStateToken(env.ID, skauth.ProviderGoogle)),
+		fmt.Sprintf("/auth/v1/callback?state=%s&code=test-code", s.generateStateToken(env.ID, skauth.ProviderX)),
 		nil,
 		nil,
 	)
