@@ -105,7 +105,6 @@ func (s *HandlerAuthCallbackSuite) Test_Success() {
 		Avatar:    "link-to-avatar",
 	}, nil)
 
-	// Generate state token with non-existent environment
 	state := s.generateStateToken(env.ID, skauth.ProviderGoogle)
 
 	response := shttptest.RequestWithHeaders(
@@ -147,6 +146,55 @@ func (s *HandlerAuthCallbackSuite) Test_Success() {
 	s.Equal("Jane", usr.FirstName)
 	s.Equal("Doe", usr.LastName)
 	s.Equal("link-to-avatar", usr.Avatar)
+}
+
+func (s *HandlerAuthCallbackSuite) Test_Provider_EmptyConfig() {
+	secret := "test-secret-key-for-jwt"
+	env := s.MockEnv(s.app, map[string]any{
+		"AuthConf": &buildconf.AuthConf{
+			Secret: secret,
+		},
+		"SchemaConf": &buildconf.SchemaConf{
+			SchemaName:        s.conn.Cfg.Schema,
+			DBName:            s.conn.Cfg.DBName,
+			Port:              s.conn.Cfg.Port,
+			Host:              s.conn.Cfg.Host,
+			MigrationUserName: s.conn.Cfg.User,
+			MigrationPassword: s.conn.Cfg.Password,
+			AppUserName:       s.conn.Cfg.User,
+			AppPassword:       s.conn.Cfg.Password,
+		},
+	})
+
+	store, err := env.SchemaConf.Store(buildconf.SchemaAccessTypeMigrations)
+	s.NoError(err)
+	s.NoError(store.CreateAuthTable(context.Background()))
+
+	mockClient := &mocks.Client{}
+	mockClient.On("Data").Once().Return(skauth.ProviderData{}) // used in SaveProvider method
+	mockClient.On("Name").Once().Return(skauth.ProviderGoogle)
+	mockClient.On("Config").Once().Return(nil)
+
+	ctx := context.Background()
+	err = skauth.NewStore().SaveProvider(ctx, skauth.SaveProviderArgs{
+		EnvID:  env.ID,
+		AppID:  s.app.ID,
+		Status: true,
+		Client: mockClient,
+	})
+
+	s.NoError(err)
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.MethodGet,
+		fmt.Sprintf("/auth/v1/callback?state=%s&code=test-code", s.generateStateToken(env.ID, skauth.ProviderGoogle)),
+		nil,
+		nil,
+	)
+
+	s.Equal(http.StatusBadRequest, response.Code)
+	s.JSONEq(`{"error":"Provider is not an oauth"}`, response.String())
 }
 
 func (s *HandlerAuthCallbackSuite) Test_InvalidStateToken() {
