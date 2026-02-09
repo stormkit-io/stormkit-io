@@ -16,10 +16,10 @@ func (s *ServicesSuite) TestServices() {
 	services := shttp.NewRouter().RegisterService(skauthhandlers.Services)
 
 	handlers := []string{
+		"GET:/auth/v1",
+		"GET:/auth/v1/callback",
+		"GET:/auth/v1/session",
 		"GET:/skauth/providers",
-		"GET:/skauth/v1",
-		"GET:/skauth/v1/callback",
-		"GET:/skauth/v1/session",
 		"POST:/skauth",
 	}
 
