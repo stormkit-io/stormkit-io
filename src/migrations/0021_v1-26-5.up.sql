@@ -373,3 +373,293 @@ DROP INDEX IF EXISTS skitapi.idx_apps_build_conf_api_key_unique;
 
 ALTER TABLE skitapi.apps DROP COLUMN IF EXISTS api_key;
 ALTER TABLE skitapi.apps_build_conf DROP COLUMN IF EXISTS api_key;
+
+-- ======================
+-- 0015_2025-03-31.up.sql
+-- ======================
+
+ALTER TABLE skitapi.apps ALTER COLUMN repo DROP NOT NULL;
+ALTER TABLE skitapi.deployments ALTER COLUMN branch DROP NOT NULL;
+ALTER TABLE skitapi.deployments ALTER COLUMN checkout_repo DROP NOT NULL;
+
+-- ======================
+-- 0016_2025-09-29.up.sql
+-- ======================
+
+-- Drop feature flags
+DROP INDEX IF EXISTS skitapi.feature_flags_ff_name_unique_key;
+DROP INDEX IF EXISTS skitapi.idx_feature_flags_app_id;
+
+DO $$ 
+BEGIN
+	IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'skitapi' AND table_name = 'feature_flags') THEN
+		ALTER TABLE ONLY skitapi.feature_flags DROP CONSTRAINT IF EXISTS feature_flags_app_id_fkey;
+		ALTER TABLE ONLY skitapi.feature_flags DROP CONSTRAINT IF EXISTS feature_flags_env_id_fkey;
+	END IF;
+END $$;
+
+DROP TABLE IF EXISTS skitapi.feature_flags;
+
+-- Drop stripe client id from users and add metadata column
+DROP INDEX IF EXISTS skitapi.idx_users_stripe_client_id;
+ALTER TABLE ONLY skitapi.users DROP COLUMN IF EXISTS stripe_client_id;
+ALTER TABLE ONLY skitapi.users ADD COLUMN IF NOT EXISTS metadata JSONB;
+
+-- Drop user stats: our business model is no longer based on deployments
+DROP INDEX IF EXISTS skitapi.idx_userid_user_stats;
+DROP TABLE IF EXISTS skitapi.user_stats;
+
+-- ======================
+-- 0017_2025-10-21.up.sql
+-- ======================
+
+-- ==========================================================
+-- create user_id column in teams table
+-- rename column to client_package_size in deployments table
+-- ==========================================================
+
+ALTER TABLE skitapi.teams ADD COLUMN IF NOT EXISTS user_id BIGINT NULL;
+
+DO $$
+BEGIN
+  BEGIN
+
+    ALTER TABLE ONLY skitapi.teams
+        ADD CONSTRAINT teams_user_id_fkey FOREIGN KEY (user_id) REFERENCES skitapi.users(user_id) ON DELETE CASCADE;
+
+  EXCEPTION
+    WHEN duplicate_table THEN  -- postgres raises duplicate_table at surprising times. Ex.: for UNIQUE constraints.
+    WHEN duplicate_object THEN
+      RAISE NOTICE 'Table constraint already exists';
+  END;
+END $$;
+
+UPDATE skitapi.teams t SET user_id = (
+    SELECT
+        user_id
+    FROM
+        skitapi.team_members tm
+    WHERE
+        tm.team_id = t.team_id AND
+        tm.member_role = 'owner'
+);
+
+ALTER TABLE skitapi.teams ALTER COLUMN user_id SET NOT NULL;
+
+DO $$
+BEGIN
+  BEGIN
+
+    ALTER TABLE skitapi.deployments RENAME COLUMN s3_total_size_in_bytes TO client_package_size;
+    ALTER TABLE skitapi.deployments ALTER COLUMN client_package_size TYPE BIGINT;
+
+  EXCEPTION
+    WHEN undefined_column THEN
+  END;
+END $$;
+
+-- ======================
+-- 0018_2025-11-13.up.sql
+-- ======================
+
+ALTER TABLE skitapi.users ADD COLUMN IF NOT EXISTS is_approved BOOLEAN NULL DEFAULT TRUE;
+
+-- ======================
+-- 0019_2025-12-09.up.sql
+-- ======================
+
+ALTER TABLE skitapi.apps_build_conf ADD COLUMN IF NOT EXISTS schema_conf BYTEA;
+ALTER TABLE skitapi.deployments ADD COLUMN IF NOT EXISTS migrations_folder TEXT;
+ALTER TABLE skitapi.deployments ADD COLUMN IF NOT EXISTS upload_result jsonb;
+ALTER TABLE skitapi.deployments DROP COLUMN IF EXISTS s3_number_of_files;
+
+-- Migrate data from old columns to upload_result jsonb structure
+DO $$
+DECLARE
+    has_api_package_size boolean;
+    has_client_package_size boolean;
+    has_server_package_size boolean;
+    has_function_location boolean;
+    has_storage_location boolean;
+    has_api_location boolean;
+    json_parts TEXT[];
+    where_parts TEXT[];
+BEGIN
+    -- Check which columns exist
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'skitapi' 
+        AND table_name = 'deployments' 
+        AND column_name = 'api_package_size'
+    ) INTO has_api_package_size;
+
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'skitapi' 
+        AND table_name = 'deployments' 
+        AND column_name = 'client_package_size'
+    ) INTO has_client_package_size;
+
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'skitapi' 
+        AND table_name = 'deployments' 
+        AND column_name = 'server_package_size'
+    ) INTO has_server_package_size;
+
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'skitapi' 
+        AND table_name = 'deployments' 
+        AND column_name = 'function_location'
+    ) INTO has_function_location;
+
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'skitapi' 
+        AND table_name = 'deployments' 
+        AND column_name = 'storage_location'
+    ) INTO has_storage_location;
+
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'skitapi' 
+        AND table_name = 'deployments' 
+        AND column_name = 'api_location'
+    ) INTO has_api_location;
+
+    -- Only migrate if at least one old column exists
+    IF has_api_package_size OR has_client_package_size OR has_server_package_size OR 
+       has_function_location OR has_storage_location OR has_api_location THEN
+        
+        -- Build array of non-null JSON parts
+        json_parts := ARRAY[]::TEXT[];
+        where_parts := ARRAY[]::TEXT[];
+
+        IF has_api_package_size THEN
+            json_parts := array_append(json_parts, '''serverlessBytes'', api_package_size');
+            where_parts := array_append(where_parts, 'api_package_size IS NOT NULL');
+        END IF;
+
+        IF has_client_package_size THEN
+            json_parts := array_append(json_parts, '''clientBytes'', client_package_size');
+            where_parts := array_append(where_parts, 'client_package_size IS NOT NULL');
+        END IF;
+
+        IF has_server_package_size THEN
+            json_parts := array_append(json_parts, '''serverBytes'', server_package_size');
+            where_parts := array_append(where_parts, 'server_package_size IS NOT NULL');
+        END IF;
+
+        IF has_function_location THEN
+            json_parts := array_append(json_parts, '''serverLocation'', function_location');
+            where_parts := array_append(where_parts, 'function_location IS NOT NULL');
+        END IF;
+
+        IF has_storage_location THEN
+            json_parts := array_append(json_parts, '''clientLocation'', storage_location');
+            where_parts := array_append(where_parts, 'storage_location IS NOT NULL');
+        END IF;
+
+        IF has_api_location THEN
+            json_parts := array_append(json_parts, '''serverlessLocation'', api_location');
+            where_parts := array_append(where_parts, 'api_location IS NOT NULL');
+        END IF;
+
+        -- Execute update with properly joined parts
+        EXECUTE format($sql$
+            UPDATE skitapi.deployments
+            SET upload_result = jsonb_build_object(%s)
+            WHERE upload_result IS NULL
+            AND (%s)
+        $sql$,
+            array_to_string(json_parts, ', '),
+            array_to_string(where_parts, ' OR ')
+        );
+        
+        RAISE NOTICE 'Migrated deployment upload results from old columns to upload_result jsonb';
+    ELSE
+        RAISE NOTICE 'No old columns found, skipping migration';
+    END IF;
+
+    -- Drop old columns if they exist
+    IF has_api_package_size THEN
+        ALTER TABLE skitapi.deployments DROP COLUMN api_package_size;
+        RAISE NOTICE 'Dropped column api_package_size';
+    END IF;
+
+    IF has_client_package_size THEN
+        ALTER TABLE skitapi.deployments DROP COLUMN client_package_size;
+        RAISE NOTICE 'Dropped column client_package_size';
+    END IF;
+
+    IF has_server_package_size THEN
+        ALTER TABLE skitapi.deployments DROP COLUMN server_package_size;
+        RAISE NOTICE 'Dropped column server_package_size';
+    END IF;
+
+    IF has_function_location THEN
+        ALTER TABLE skitapi.deployments DROP COLUMN function_location;
+        RAISE NOTICE 'Dropped column function_location';
+    END IF;
+
+    IF has_storage_location THEN
+        ALTER TABLE skitapi.deployments DROP COLUMN storage_location;
+        RAISE NOTICE 'Dropped column storage_location';
+    END IF;
+
+    IF has_api_location THEN
+        ALTER TABLE skitapi.deployments DROP COLUMN api_location;
+        RAISE NOTICE 'Dropped column api_location';
+    END IF;
+END $$;
+
+-- ======================
+-- 0020_2026-01-04.up.sql
+-- ======================
+
+ALTER TABLE skitapi.apps_build_conf ADD COLUMN IF NOT EXISTS auth_conf bytea;
+
+CREATE TABLE IF NOT EXISTS skitapi.oauth_configs (
+    provider_id serial primary key NOT NULL,
+    provider_name text NOT NULL,
+    provider_client_id text NOT NULL,
+    provider_client_secret text NOT NULL,
+    provider_redirect_url text NOT NULL,
+    provider_scopes text[] NOT NULL,
+    provider_status boolean NOT NULL DEFAULT FALSE,
+    env_id bigint NOT NULL,
+    app_id bigint NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS oauth_configs_env_provider_unique_key ON skitapi.oauth_configs (env_id, provider_name);
+
+DO $$
+BEGIN
+  BEGIN
+
+        ALTER TABLE ONLY skitapi.oauth_configs
+            ADD CONSTRAINT oauth_configs_env_id_fkey FOREIGN KEY (env_id) REFERENCES skitapi.apps_build_conf(env_id) ON DELETE CASCADE;
+
+        ALTER TABLE ONLY skitapi.oauth_configs
+            ADD CONSTRAINT oauth_configs_app_id_fkey FOREIGN KEY (app_id) REFERENCES skitapi.apps(app_id) ON DELETE CASCADE;
+
+  EXCEPTION
+    WHEN duplicate_table THEN 
+    WHEN duplicate_object THEN
+      RAISE NOTICE 'Table constraint already exists';
+  END;
+
+END $$;
+
+-- ===================
+-- 0021_v1-26.5.up.sql
+-- ===================
+
+ALTER TABLE skitapi.oauth_configs ADD COLUMN IF NOT EXISTS provider_data bytea NOT NULL;
+ALTER TABLE skitapi.oauth_configs DROP COLUMN IF EXISTS provider_client_id;
+ALTER TABLE skitapi.oauth_configs DROP COLUMN IF EXISTS provider_client_secret;
+ALTER TABLE skitapi.oauth_configs DROP COLUMN IF EXISTS provider_redirect_url;
+ALTER TABLE skitapi.oauth_configs DROP COLUMN IF EXISTS provider_scopes;
+
+
