@@ -16,6 +16,35 @@ import DomainSelector from "~/shared/domains/DomainSelector";
 import { useFetchSnippets, deleteSnippet, updateSnippet } from "./actions";
 import SnippetModal from "./SnippetModal";
 
+interface SnippetLocationProps {
+  prepend: boolean;
+  location: "head" | "body" | undefined;
+}
+
+const SnippetLocation = ({ prepend, location }: SnippetLocationProps) => {
+  const tag = location || "head";
+  let text: string;
+
+  if (prepend) {
+    text = "Inserted right after <";
+  } else {
+    text = "Inserted right before </";
+  }
+
+  return (
+    <Typography data-testid="snippet-location" sx={{ color: "text.secondary" }}>
+      {text}
+      <Typography
+        component="span"
+        sx={{ fontFamily: "monospace", fontSize: 11 }}
+      >
+        {tag}
+        {">"}
+      </Typography>
+    </Typography>
+  );
+};
+
 export default function Snippets() {
   const { app } = useContext(AppContext);
   const { environment: env } = useContext(EnvironmentContext);
@@ -95,15 +124,10 @@ export default function Snippets() {
             <Box sx={{ display: "flex" }}>
               <Box sx={{ flex: 1 }}>
                 <Typography>{snippet.title}</Typography>
-                <Typography sx={{ color: "text.secondary" }}>
-                  Inserted {snippet.prepend ? "before" : "after"}{" "}
-                  <Typography
-                    component="span"
-                    sx={{ fontFamily: "monospace", fontSize: 11 }}
-                  >
-                    {`<${snippet.prepend ? "/" : ""}${snippet.location}>`}
-                  </Typography>
-                </Typography>
+                <SnippetLocation
+                  prepend={snippet.prepend}
+                  location={snippet.location}
+                />
                 <Typography sx={{ color: "text.secondary" }}>
                   {snippet.rules?.hosts?.join(", ") || "All hosts"}
                 </Typography>

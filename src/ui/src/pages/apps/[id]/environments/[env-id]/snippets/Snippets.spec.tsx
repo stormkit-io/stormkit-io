@@ -50,7 +50,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/snippets/Snippets.tsx", () => 
             <Snippets />
           </EnvironmentContext.Provider>
         </AppContext.Provider>
-      </MemoryRouter>
+      </MemoryRouter>,
     );
   };
 
@@ -59,10 +59,14 @@ describe("~/pages/apps/[id]/environments/[env-id]/snippets/Snippets.tsx", () => 
       currentApp = mockApp();
       currentEnv = mockEnvironment({ app: currentApp });
       snippets = mockSnippets();
+
       fetchSnippetsScope = mockFetchSnippets({
         appId: currentApp.id,
         envId: currentEnv.id!,
-        response: { snippets, pagination: { hasNextPage: false } },
+        response: {
+          snippets,
+          pagination: { hasNextPage: false },
+        },
       });
 
       createWrapper({ app: currentApp, env: currentEnv });
@@ -75,13 +79,19 @@ describe("~/pages/apps/[id]/environments/[env-id]/snippets/Snippets.tsx", () => 
     });
 
     it("should load snippets", async () => {
-      const s1 = snippets[0];
-      const s2 = snippets[0];
+      const getText = (index: number) =>
+        wrapper.getAllByTestId("snippet-location").at(index)?.textContent;
 
       await waitFor(() => {
         expect(fetchSnippetsScope.isDone()).toBe(true);
-        expect(wrapper.getByText(`${s1.title}`)).toBeTruthy();
-        expect(wrapper.getByText(`${s2.title}`)).toBeTruthy();
+        expect(wrapper.getByText(snippets[0].title)).toBeTruthy();
+        expect(wrapper.getByText(snippets[1].title)).toBeTruthy();
+        expect(wrapper.getByText(snippets[2].title)).toBeTruthy();
+        expect(wrapper.getByText(snippets[3].title)).toBeTruthy();
+        expect(getText(0)).toContain("Inserted right before </head>");
+        expect(getText(1)).toContain("Inserted right before </body>");
+        expect(getText(2)).toContain("Inserted right after <head>");
+        expect(getText(3)).toContain("Inserted right after <body>");
       });
     });
 
@@ -129,11 +139,11 @@ describe("~/pages/apps/[id]/environments/[env-id]/snippets/Snippets.tsx", () => 
 
       fireEvent.click(wrapper.getByText("Load more"));
 
-      const nextSnippets = mockSnippets();
-      nextSnippets[0].id = "3";
-      nextSnippets[0].title = "Newly loaded snippet - 1";
-      nextSnippets[1].id = "4";
-      nextSnippets[1].title = "Newly loaded snippet - 2";
+      const nextSnippets = mockSnippets().map(s => ({
+        ...s,
+        id: `${s.id}1`,
+        title: `#${s.id} ${s.title} - next`,
+      }));
 
       fetchSnippetsScope = mockFetchSnippets({
         appId: currentApp.id,

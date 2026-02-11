@@ -51,7 +51,7 @@ export default function SnippetModal({
   const [loading, setLoading] = useState(false);
   const [selectedHosts, setSelectedHosts] = useState<string[]>();
   const [codeContent, setCodeContent] = useState<string>(
-    snippet?.content || defaultContent
+    snippet?.content || defaultContent,
   );
 
   const handleSubmit: FormEventHandler = e => {
@@ -62,7 +62,7 @@ export default function SnippetModal({
 
     const handler = snippet?.id ? updateSnippet : addSnippet;
     const values = Object.fromEntries(
-      new FormData(e.target as HTMLFormElement).entries()
+      new FormData(e.target as HTMLFormElement).entries(),
     ) as unknown as FormValues;
 
     const [location, prependOrAppend] = values.injectLocation.split("_");
@@ -162,17 +162,17 @@ export default function SnippetModal({
                 snippet?.prepend ? "prepend" : "append"
               }`}
             >
-              <Option value="head_append">
-                Append to Head {"(inserted before </head>)"}
-              </Option>
               <Option value="head_prepend">
-                Prepend to Head {"(inserted after <head>)"}
+                Prepend to Head {"(inserted right after <head>)"}
               </Option>
-              <Option value="body_append">
-                Append to Body {"(inserted after <body>)"}
+              <Option value="head_append">
+                Append to Head {"(inserted right before </head>)"}
               </Option>
               <Option value="body_prepend">
-                Prepend to Body {"(inserted before </body>)"}
+                Prepend to Body {"(inserted right after <body>)"}
+              </Option>
+              <Option value="body_append">
+                Append to Body {"(inserted right before </body>)"}
               </Option>
             </Select>
           </FormControl>
