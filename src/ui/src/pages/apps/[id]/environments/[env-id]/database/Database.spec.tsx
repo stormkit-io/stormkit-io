@@ -60,7 +60,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
         <EnvironmentContext.Provider value={{ environment: currentEnv }}>
           <Database />
         </EnvironmentContext.Provider>
-      </RootContext.Provider>
+      </RootContext.Provider>,
     );
 
     await waitFor(() => {
@@ -78,11 +78,11 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
         expect(() => wrapper.getByText("Attach Database")).toThrow();
         expect(
           wrapper.getByText(
-            "The database feature is currently only available for self-hosted installations."
-          )
+            "The database feature is currently only available for self-hosted installations.",
+          ),
         ).toBeTruthy();
         expect(wrapper.getByText("Learn more").getAttribute("href")).toBe(
-          "https://www.stormkit.io/docs/features/database"
+          "https://www.stormkit.io/docs/features/database",
         );
       });
     });
@@ -97,7 +97,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
       await waitFor(() => {
         expect(wrapper.getByText("Attach Database")).toBeTruthy();
         expect(
-          wrapper.getByText("No database attached to this environment")
+          wrapper.getByText("No database attached to this environment"),
         ).toBeTruthy();
       });
     });
@@ -105,7 +105,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
     it("should display a learn more button", async () => {
       await waitFor(() => {
         expect(wrapper.getByText("Learn more").getAttribute("href")).toBe(
-          "https://www.stormkit.io/docs/features/database"
+          "https://www.stormkit.io/docs/features/database",
         );
       });
     });
@@ -130,7 +130,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
     it("should not display the empty page", async () => {
       await waitFor(() => {
         expect(() =>
-          wrapper.getByText("No database attached to this environment")
+          wrapper.getByText("No database attached to this environment"),
         ).toThrow();
       });
     });
@@ -165,7 +165,8 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
         status: 200,
       });
 
-      fireEvent.click(wrapper.getByText("Attach Database"));
+      const button = await waitFor(() => wrapper.getByText("Attach Database"));
+      fireEvent.click(button);
 
       await waitFor(() => {
         expect(createScope.isDone()).toBe(true);
@@ -186,14 +187,16 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
         status: 500,
       });
 
-      fireEvent.click(wrapper.getByText("Attach Database"));
+      const button = await waitFor(() => wrapper.getByText("Attach Database"));
+
+      fireEvent.click(button);
 
       await waitFor(() => {
         expect(createScope.isDone()).toBe(true);
         expect(
           wrapper.getByText(
-            "Unknown error while attaching schema. Please try again."
-          )
+            "Unknown error while attaching schema. Please try again.",
+          ),
         ).toBeTruthy();
       });
     });
@@ -255,8 +258,8 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
         expect(wrapper.getByText("Delete Database Schema")).toBeTruthy();
         expect(
           wrapper.getByText(
-            /You are about to permanently delete this environment's database schema/i
-          )
+            /You are about to permanently delete this environment's database schema/i,
+          ),
         ).toBeTruthy();
       });
 
@@ -299,8 +302,8 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
         expect(deleteScope.isDone()).toBe(true);
         expect(
           wrapper.getByText(
-            /You don't have permission to delete this database schema/i
-          )
+            /You don't have permission to delete this database schema/i,
+          ),
         ).toBeTruthy();
       });
     });
@@ -331,8 +334,8 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
         expect(deleteScope.isDone()).toBe(true);
         expect(
           wrapper.getByText(
-            "Failed to delete database schema. Please try again."
-          )
+            "Failed to delete database schema. Please try again.",
+          ),
         ).toBeTruthy();
       });
     });
@@ -352,13 +355,13 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
       wrapper = render(
         <EnvironmentContext.Provider value={{ environment: currentEnv }}>
           <Database />
-        </EnvironmentContext.Provider>
+        </EnvironmentContext.Provider>,
       );
 
       await waitFor(() => {
         expect(scope.isDone()).toBe(true);
         expect(
-          wrapper.getByText("Unknown error while fetching database.")
+          wrapper.getByText("Unknown error while fetching database."),
         ).toBeTruthy();
       });
     });
@@ -386,7 +389,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
         it("should display form elements appropriately", async () => {
           await waitFor(() => {
             const pathInput = wrapper.getByLabelText(
-              "Migrations path"
+              "Migrations path",
             ) as HTMLInputElement;
 
             const switchInput = wrapper.getByRole("switch", {
@@ -405,7 +408,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
           });
 
           const pathInput = wrapper.getByLabelText(
-            "Migrations path"
+            "Migrations path",
           ) as HTMLInputElement;
 
           fireEvent.change(pathInput, { target: { value: "/app/migrations" } });
@@ -424,7 +427,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
           await waitFor(() => {
             expect(scope.isDone()).toBe(true);
             expect(
-              wrapper.getByText("Schema updated successfully")
+              wrapper.getByText("Schema updated successfully"),
             ).toBeTruthy();
           });
         });
@@ -432,7 +435,9 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
         it("should toggle migrations when switch is clicked", async () => {
           await waitFor(() => {
             expect(
-              wrapper.getByRole("switch", { name: /enable schema migrations/i })
+              wrapper.getByRole("switch", {
+                name: /enable schema migrations/i,
+              }),
             ).toBeTruthy();
           });
 
@@ -456,11 +461,11 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
           await waitFor(() => {
             expect(scope.isDone()).toBe(true);
             expect(
-              wrapper.getByText("Schema updated successfully")
+              wrapper.getByText("Schema updated successfully"),
             ).toBeTruthy();
           });
         });
-      }
+      },
     );
 
     describe("error handling for migrations configuration", () => {
@@ -497,8 +502,8 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
           expect(scope.isDone()).toBe(true);
           expect(
             wrapper.getByText(
-              "Unknown error while updating schema. Please try again."
-            )
+              "Unknown error while updating schema. Please try again.",
+            ),
           ).toBeTruthy();
         });
       });

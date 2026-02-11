@@ -73,7 +73,7 @@ describe("~/pages/admin/AuthConfig/PendingUsers.tsx", () => {
         expect(scope.isDone()).toBe(true);
         expect(wrapper.getByText("Pending Users")).toBeTruthy();
         expect(
-          wrapper.getByText("List of users awaiting approval")
+          wrapper.getByText("List of users awaiting approval"),
         ).toBeTruthy();
       });
     });
@@ -87,7 +87,9 @@ describe("~/pages/admin/AuthConfig/PendingUsers.tsx", () => {
 
       await waitFor(() => {
         expect(
-          wrapper.getByText(/Something went wrong while fetching pending users/)
+          wrapper.getByText(
+            /Something went wrong while fetching pending users/,
+          ),
         ).toBeTruthy();
       });
     });
@@ -99,7 +101,7 @@ describe("~/pages/admin/AuthConfig/PendingUsers.tsx", () => {
       await waitFor(() => {
         expect(scope.isDone()).toBe(true);
         expect(
-          wrapper.getByText("There are no pending users at the moment.")
+          wrapper.getByText("There are no pending users at the moment."),
         ).toBeTruthy();
       });
     });
@@ -165,7 +167,7 @@ describe("~/pages/admin/AuthConfig/PendingUsers.tsx", () => {
 
       await waitFor(() => {
         expect(
-          wrapper.getByText("Approve selected").getAttribute("disabled")
+          wrapper.getByText("Approve selected").getAttribute("disabled"),
         ).toBe(null);
       });
 
@@ -174,10 +176,10 @@ describe("~/pages/admin/AuthConfig/PendingUsers.tsx", () => {
 
       await waitFor(() => {
         expect(
-          wrapper.getByText("Approve selected").getAttribute("disabled")
+          wrapper.getByText("Approve selected").getAttribute("disabled"),
         ).toBe("");
         expect(
-          wrapper.getByText("Reject selected").getAttribute("disabled")
+          wrapper.getByText("Reject selected").getAttribute("disabled"),
         ).toBe("");
       });
     });
@@ -206,10 +208,10 @@ describe("~/pages/admin/AuthConfig/PendingUsers.tsx", () => {
 
         // Buttons should be enabled
         expect(
-          wrapper.getByText("Approve selected").getAttribute("disabled")
+          wrapper.getByText("Approve selected").getAttribute("disabled"),
         ).toBe(null);
         expect(
-          wrapper.getByText("Reject selected").getAttribute("disabled")
+          wrapper.getByText("Reject selected").getAttribute("disabled"),
         ).toBe(null);
       });
     });
@@ -237,7 +239,7 @@ describe("~/pages/admin/AuthConfig/PendingUsers.tsx", () => {
         expect(fetchScope.isDone()).toBe(true);
       });
 
-      const checkboxes = wrapper.getAllByRole("checkbox");
+      const checkboxes = await waitFor(() => wrapper.getAllByRole("checkbox"));
 
       // Select first two users
       fireEvent.click(checkboxes[1]);
@@ -245,7 +247,7 @@ describe("~/pages/admin/AuthConfig/PendingUsers.tsx", () => {
 
       await waitFor(() => {
         expect(
-          wrapper.getByText("Reject selected").getAttribute("disabled")
+          wrapper.getByText("Reject selected").getAttribute("disabled"),
         ).toBe(null);
       });
 
@@ -256,7 +258,7 @@ describe("~/pages/admin/AuthConfig/PendingUsers.tsx", () => {
       await waitFor(() => {
         expect(wrapper.getByText("Reject Users")).toBeTruthy();
         expect(
-          wrapper.getByText(/You are about to reject the selected users/)
+          wrapper.getByText(/You are about to reject the selected users/),
         ).toBeTruthy();
       });
 
@@ -294,7 +296,7 @@ describe("~/pages/admin/AuthConfig/PendingUsers.tsx", () => {
 
       await waitFor(() => {
         expect(
-          wrapper.getByText("Reject selected").getAttribute("disabled")
+          wrapper.getByText("Reject selected").getAttribute("disabled"),
         ).toBe(null);
       });
 
@@ -314,8 +316,8 @@ describe("~/pages/admin/AuthConfig/PendingUsers.tsx", () => {
         expect(manageScope.isDone()).toBe(true);
         expect(
           wrapper.getByText(
-            /Something went wrong while managing the selected users/
-          )
+            /Something went wrong while managing the selected users/,
+          ),
         ).toBeTruthy();
       });
     });
@@ -351,7 +353,7 @@ describe("~/pages/admin/AuthConfig/PendingUsers.tsx", () => {
 
       await waitFor(() => {
         expect(
-          wrapper.getByText("Approve selected").getAttribute("disabled")
+          wrapper.getByText("Approve selected").getAttribute("disabled"),
         ).toBe(null);
       });
 
@@ -362,7 +364,7 @@ describe("~/pages/admin/AuthConfig/PendingUsers.tsx", () => {
       await waitFor(() => {
         expect(wrapper.getByText("Approve Users")).toBeTruthy();
         expect(
-          wrapper.getByText(/You are about to approve the selected users/)
+          wrapper.getByText(/You are about to approve the selected users/),
         ).toBeTruthy();
       });
 
@@ -400,7 +402,7 @@ describe("~/pages/admin/AuthConfig/PendingUsers.tsx", () => {
 
       await waitFor(() => {
         expect(
-          wrapper.getByText("Approve selected").getAttribute("disabled")
+          wrapper.getByText("Approve selected").getAttribute("disabled"),
         ).toBe(null);
       });
 
@@ -420,8 +422,8 @@ describe("~/pages/admin/AuthConfig/PendingUsers.tsx", () => {
         expect(manageScope.isDone()).toBe(true);
         expect(
           wrapper.getByText(
-            /Something went wrong while managing the selected users/
-          )
+            /Something went wrong while managing the selected users/,
+          ),
         ).toBeTruthy();
       });
     });
@@ -469,10 +471,10 @@ describe("~/pages/admin/AuthConfig/PendingUsers.tsx", () => {
 
         // Buttons should be disabled again (selection cleared)
         expect(
-          wrapper.getByText("Approve selected").getAttribute("disabled")
+          wrapper.getByText("Approve selected").getAttribute("disabled"),
         ).toBe("");
         expect(
-          wrapper.getByText("Reject selected").getAttribute("disabled")
+          wrapper.getByText("Reject selected").getAttribute("disabled"),
         ).toBe("");
       });
     });
