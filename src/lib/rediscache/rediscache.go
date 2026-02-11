@@ -21,7 +21,7 @@ type RedisCache struct {
 	*redis.Client
 }
 
-var Cache *redis.Client
+var Cache *RedisCache
 
 func newClient() (*redis.Client, error) {
 	client := redis.NewClient(&redis.Options{
@@ -46,13 +46,14 @@ func newClient() (*redis.Client, error) {
 
 // Client returns a new RedisCache instance. If the connection is not
 // closed yet, it returns the shared client.
-func Client() *redis.Client {
+func Client() *RedisCache {
 	mux.Lock()
 	defer mux.Unlock()
 
 	if Cache == nil {
 		var err error
-		Cache, err = newClient()
+		var client *redis.Client
+		client, err = newClient()
 
 		if err != nil {
 			for attempt := 1; attempt <= 5; attempt++ {
@@ -60,20 +61,51 @@ func Client() *redis.Client {
 				slog.Errorf("redis connection attempt %d failed, retrying in %v", attempt, backoffDuration)
 				time.Sleep(backoffDuration)
 
-				if Cache, _ = newClient(); Cache != nil {
+				if client, _ = newClient(); client != nil {
 					break
 				}
 			}
 
-			if Cache == nil {
+			if client == nil {
 				slog.Errorf("failed to establish redis connection after 5 attempts: %v", err)
+				return nil
 			}
 		}
 
+		Cache = &RedisCache{Client: client}
 		slog.Info("created new redis client successfully")
 	}
 
 	return Cache
+}
+
+// Keys returns all keys matching the given pattern using SCAN.
+// This is a cluster-safe alternative to the KEYS command, which may be
+// disabled on managed Redis instances.
+func (r *RedisCache) Keys(ctx context.Context, pattern string) ([]string, error) {
+	if r == nil || r.Client == nil {
+		return nil, errors.New("redis client is not available")
+	}
+
+	var keys []string
+	var cursor uint64
+
+	for {
+		batch, nextCursor, err := r.Scan(ctx, cursor, pattern, 100).Result()
+
+		if err != nil {
+			return nil, err
+		}
+
+		keys = append(keys, batch...)
+		cursor = nextCursor
+
+		if cursor == 0 {
+			break
+		}
+	}
+
+	return keys, nil
 }
 
 func IsConnectionError(err error) bool {

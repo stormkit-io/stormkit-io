@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	jobs "github.com/stormkit-io/stormkit-io/src/ce/workerserver"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/analytics"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
@@ -24,7 +23,7 @@ type JobHandlerForwardTest struct {
 	*factory.Factory
 	conn   databasetest.TestDB
 	ctx    context.Context
-	client *redis.Client
+	client *rediscache.RedisCache
 }
 
 func (s *JobHandlerForwardTest) BeforeTest(suiteName, _ string) {

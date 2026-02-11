@@ -17,7 +17,7 @@ type Node struct {
 	id         string
 	options    Options
 	key        string
-	redis      *redis.Client
+	redis      *rediscache.RedisCache
 	renewMu    sync.Mutex
 	renewID    *time.Ticker
 	electID    *time.Timer

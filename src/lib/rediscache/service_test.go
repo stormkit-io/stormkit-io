@@ -55,6 +55,23 @@ func (s *ServiceSuite) Test_SubscribeAndBroadcast() {
 	}, 5*time.Second, 500*time.Millisecond)
 }
 
+func (s *ServiceSuite) Test_DelAll() {
+	service := rediscache.Service()
+	services := []string{"service1", "service2"}
+
+	for _, svc := range services {
+		s.NoError(service.SetAll("test_key", "test_value", []string{svc}))
+	}
+
+	s.NoError(service.DelAll("test_key", services))
+
+	for _, svc := range services {
+		status, err := service.GetAll("test_key", []string{svc})
+		s.NoError(err)
+		s.Equal("", status[svc], "Expected key to be deleted for service: %s", svc)
+	}
+}
+
 func TestServiceSuite(t *testing.T) {
 	suite.Run(t, &ServiceSuite{})
 }

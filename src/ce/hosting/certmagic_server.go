@@ -25,7 +25,7 @@ func storage(logger *zap.Logger) certmagic.Storage {
 	slog.Infof("using redis storage for certificates")
 
 	storage := NewRedisStorage(logger)
-	storage.SetClient(rediscache.Client())
+	storage.SetClient(rediscache.Client().Client)
 
 	return storage
 }

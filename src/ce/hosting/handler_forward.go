@@ -77,7 +77,7 @@ type RequestServer struct {
 	req       *RequestContext
 	res       *shttp.Response
 	client    integrations.ClientInterface
-	cache     *redis.Client
+	cache     *rediscache.RedisCache
 	fileMeta  *FileMeta
 	imgName   string
 	logs      []integrations.Log

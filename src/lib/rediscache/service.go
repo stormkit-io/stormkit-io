@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
 	"github.com/stormkit-io/stormkit-io/src/lib/shutdown"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
@@ -47,7 +46,7 @@ type MicroService struct {
 	Name   string `json:"name"`
 	ctx    context.Context
 	cancel context.CancelFunc
-	client *redis.Client
+	client *RedisCache
 }
 
 type MicroServiceInterface interface {
@@ -58,6 +57,7 @@ type MicroServiceInterface interface {
 	List([]string) ([]*MicroService, error)
 	SetAll(string, string, []string) error
 	GetAll(string, []string) (map[string]string, error)
+	DelAll(string, []string) error
 }
 
 var _service MicroServiceInterface
@@ -194,7 +194,7 @@ func (s *MicroService) Broadcast(event string, payload ...string) error {
 func (s *MicroService) List(filter []string) ([]*MicroService, error) {
 	client := Client()
 
-	keys, err := client.Keys(s.ctx, "service:sd:*").Result()
+	keys, err := client.Keys(s.ctx, "service:sd:*")
 
 	if err != nil {
 		return nil, err
@@ -274,6 +274,21 @@ func (s *MicroService) GetAll(key string, filter []string) (map[string]string, e
 	return result, nil
 }
 
+// DelAll deletes the specified key from all registered microservices.
+func (s *MicroService) DelAll(key string, filter []string) error {
+	services, err := s.List(filter)
+
+	if err != nil {
+		return err
+	}
+
+	for _, service := range services {
+		s.client.Del(s.ctx, service.Key(key))
+	}
+
+	return nil
+}
+
 // Status checks the status of the specified key across all registered microservices.
 // It returns StatusOK only if all services have StatusOK, otherwise it returns the
 // first encountered status.
@@ -314,4 +329,9 @@ func SetAll(key, value string, filter []string) error {
 // GetAll is a convenience function to get the values of a key across all services with optional filtering.
 func GetAll(key string, filter []string) (map[string]string, error) {
 	return Service().GetAll(key, filter)
+}
+
+// DelAll is a convenience function to delete a key across all services with optional filtering.
+func DelAll(key string, filter []string) error {
+	return Service().DelAll(key, filter)
 }

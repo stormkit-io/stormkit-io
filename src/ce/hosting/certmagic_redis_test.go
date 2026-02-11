@@ -21,14 +21,14 @@ func (s *CertmagicRedisSuite) SetupSuite() {
 	// Create a new RedisStorage with test configuration
 	s.storage = hosting.NewRedisStorage(nil)
 	s.storage.KeyPrefix = "test-certmagic"
-	s.storage.SetClient(rediscache.Client())
+	s.storage.SetClient(rediscache.Client().Client)
 	s.ctx = context.Background()
 }
 
 func (s *CertmagicRedisSuite) TearDownSuite() {
 	// Clean up all test keys
 	if s.storage != nil {
-		keys, err := rediscache.Client().Keys(s.ctx, s.storage.KeyPrefix+"*").Result()
+		keys, err := rediscache.Client().Keys(s.ctx, s.storage.KeyPrefix+"*")
 
 		if err == nil && len(keys) > 0 {
 			rediscache.Client().Del(s.ctx, keys...)
@@ -38,7 +38,7 @@ func (s *CertmagicRedisSuite) TearDownSuite() {
 
 func (s *CertmagicRedisSuite) BeforeTest(_, _ string) {
 	// Clean up keys before each test
-	keys, err := rediscache.Client().Keys(s.ctx, s.storage.KeyPrefix+"*").Result()
+	keys, err := rediscache.Client().Keys(s.ctx, s.storage.KeyPrefix+"*")
 
 	if err == nil && len(keys) > 0 {
 		rediscache.Client().Del(s.ctx, keys...)
