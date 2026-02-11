@@ -129,7 +129,7 @@ export default function ProviderSettings({
         >
           {provider.steps?.map((step, index) => (
             <Typography
-              component="ol"
+              component="li"
               key={index}
               sx={{ mb: 1, "&:last-child": { mb: 0 } }}
             >
