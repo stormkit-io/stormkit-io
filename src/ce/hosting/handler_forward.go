@@ -565,7 +565,7 @@ func insertBefore(str, pattern, replace string) string {
 		return str
 	}
 
-	return strings.Replace(str, pattern, replace+"</body>", 1)
+	return strings.Replace(str, pattern, replace+pattern, 1)
 }
 
 func insertAfter(str, tag, text string) string {
