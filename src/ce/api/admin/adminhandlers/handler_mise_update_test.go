@@ -64,6 +64,30 @@ func (s *HandlerMiseUpdateSuite) Test_Success() {
 	s.Equal(http.StatusOK, response.Code)
 }
 
+func (s *HandlerMiseUpdateSuite) Test_Success_Abort() {
+	usr := s.MockUser(map[string]any{"IsAdmin": true})
+	services := []string{
+		rediscache.ServiceHosting,
+		rediscache.ServiceWorkerserver,
+	}
+
+	s.service.On("DelAll", "mise_update", services).Return(nil).Once()
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(adminhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/admin/system/mise",
+		map[string]any{
+			"abort": true,
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+}
+
 func (s *HandlerMiseUpdateSuite) Test_BroadcastError() {
 	usr := s.MockUser(map[string]any{"IsAdmin": true})
 	expectedError := errors.New("broadcast failed")

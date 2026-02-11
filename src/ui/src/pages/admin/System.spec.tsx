@@ -1,11 +1,7 @@
+import type { RenderResult } from "@testing-library/react";
 import nock from "nock";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import {
-  render,
-  fireEvent,
-  waitFor,
-  type RenderResult,
-} from "@testing-library/react";
+import { render, fireEvent, waitFor, act } from "@testing-library/react";
 import CircularProgress from "@mui/material/CircularProgress";
 import CheckIcon from "@mui/icons-material/Check";
 import TimesIcon from "@mui/icons-material/Close";
@@ -17,6 +13,7 @@ describe("~/pages/admin/System.tsx", () => {
 
   beforeEach(() => {
     window.location = { assign: vi.fn(), reload: vi.fn() } as any;
+    vi.useFakeTimers({ shouldAdvanceTime: true });
   });
 
   const fetchRuntimesScope = (runtimes: string[]) => {
@@ -87,12 +84,12 @@ describe("~/pages/admin/System.tsx", () => {
     expect(wrapper.getByText("Installed runtimes")).toBeTruthy();
     expect(
       wrapper.getByText(
-        "Manage runtimes that are installed on your Stormkit instance"
-      )
+        "Manage runtimes that are installed on your Stormkit instance",
+      ),
     ).toBeTruthy();
     expect(wrapper.getByText("Domains")).toBeTruthy();
     expect(
-      wrapper.getByText("Configure custom domains for your Stormkit instance")
+      wrapper.getByText("Configure custom domains for your Stormkit instance"),
     ).toBeTruthy();
   });
 
@@ -125,8 +122,8 @@ describe("~/pages/admin/System.tsx", () => {
     expect(wrapper.getByText("Mise"));
     expect(
       wrapper.getByText(
-        "Stormkit relies on open-source mise for runtime management"
-      )
+        "Stormkit relies on open-source mise for runtime management",
+      ),
     );
     expect(wrapper.getByText("Upgrade to latest"));
 
@@ -143,13 +140,29 @@ describe("~/pages/admin/System.tsx", () => {
 
     const fetchScope = nock(process.env.API_DOMAIN || "")
       .get("/admin/system/mise")
-      .reply(200, { version: "2.0.0", status: "ok" });
+      .reply(200, { version: "2.0.0", status: "processing" });
 
     fireEvent.click(wrapper.getByText("Upgrade to latest"));
 
     await waitFor(() => {
       expect(scope.isDone()).toBe(true);
       expect(fetchScope.isDone()).toBe(true);
+    });
+
+    await waitFor(() => {
+      expect(wrapper.getByRole("button", { name: "Abort" })).toBeTruthy();
+    });
+
+    const refetchScope = nock(process.env.API_DOMAIN || "")
+      .get("/admin/system/mise")
+      .reply(200, { version: "2.0.0", status: "processing" });
+
+    await act(async () => {
+      await vi.advanceTimersByTime(2500);
+    });
+
+    await waitFor(() => {
+      expect(refetchScope.isDone()).toBe(true);
     });
 
     await waitFor(() => {
@@ -242,7 +255,7 @@ describe("~/pages/admin/System.tsx", () => {
       const result = mapRuntimeStatus(
         "processing",
         mockInstalled,
-        mockRuntimes
+        mockRuntimes,
       );
       expect(result).toBeDefined();
       // Since it returns JSX, we can't directly test the component type here
@@ -258,7 +271,7 @@ describe("~/pages/admin/System.tsx", () => {
       const result = mapRuntimeStatus(
         undefined as any,
         mockInstalled,
-        mockRuntimes
+        mockRuntimes,
       );
 
       expect(result).toEqual(<CircularProgress size={14} />);
@@ -286,7 +299,7 @@ describe("~/pages/admin/System.tsx", () => {
               fontSize: 14,
               visibility: runtime === "go" ? "hidden" : undefined,
             }}
-          />
+          />,
         );
       });
     });
@@ -302,7 +315,7 @@ describe("~/pages/admin/System.tsx", () => {
             sx={{
               fontSize: 14,
             }}
-          />
+          />,
         );
       });
 
@@ -313,7 +326,7 @@ describe("~/pages/admin/System.tsx", () => {
           sx={{
             fontSize: 14,
           }}
-        />
+        />,
       );
     });
 
@@ -329,7 +342,7 @@ describe("~/pages/admin/System.tsx", () => {
               fontSize: 14,
               visibility: "hidden",
             }}
-          />
+          />,
         );
       });
     });
@@ -348,7 +361,7 @@ describe("~/pages/admin/System.tsx", () => {
               fontSize: 14,
               visibility: "hidden",
             }}
-          />
+          />,
         );
       });
     });
@@ -360,8 +373,8 @@ describe("~/pages/admin/System.tsx", () => {
         expect(wrapper.getByText("Domains")).toBeTruthy();
         expect(
           wrapper.getByText(
-            "Configure custom domains for your Stormkit instance"
-          )
+            "Configure custom domains for your Stormkit instance",
+          ),
         ).toBeTruthy();
         expect(wrapper.getByLabelText("API Domain")).toBeTruthy();
         expect(wrapper.getByLabelText("App Domain")).toBeTruthy();
@@ -384,17 +397,17 @@ describe("~/pages/admin/System.tsx", () => {
     it("should display helper texts for domain fields", async () => {
       await waitFor(() => {
         expect(
-          wrapper.getByText("API requests will be served from this domain")
+          wrapper.getByText("API requests will be served from this domain"),
         ).toBeTruthy();
         expect(
           wrapper.getByText(
-            "This domain will be used to access your Stormkit dashboard"
-          )
+            "This domain will be used to access your Stormkit dashboard",
+          ),
         ).toBeTruthy();
         expect(
           wrapper.getByText(
-            "Deployment previews will be displayed using subdomains of this domain"
-          )
+            "Deployment previews will be displayed using subdomains of this domain",
+          ),
         ).toBeTruthy();
       });
     });
@@ -428,7 +441,7 @@ describe("~/pages/admin/System.tsx", () => {
 
       await waitFor(() => {
         expect(
-          errorWrapper.getByText("Something went wrong while fetching domains")
+          errorWrapper.getByText("Something went wrong while fetching domains"),
         ).toBeTruthy();
       });
     });
@@ -485,8 +498,8 @@ describe("~/pages/admin/System.tsx", () => {
         expect(postScope.isDone()).toBe(true);
         expect(
           wrapper.getByText(
-            "An error occurred while updating domains. Make sure specified domains are valid."
-          )
+            "An error occurred while updating domains. Make sure specified domains are valid.",
+          ),
         ).toBeTruthy();
       });
     });

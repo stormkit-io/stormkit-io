@@ -99,7 +99,7 @@ export const mapRuntimes = (runtimes: string[]): Record<string, string> => {
 export const mapRuntimeStatus = (
   status: Status,
   installed: Installed,
-  runtimes: Record<string, string>
+  runtimes: Record<string, string>,
 ): React.ReactNode | React.ReactNode[] => {
   if (
     status === "sent" ||
@@ -113,7 +113,7 @@ export const mapRuntimeStatus = (
 
   return Object.keys(runtimes).map(runtime => {
     const runtimeStatus = installed[runtime]?.find(
-      pkg => pkg.requested_version === runtimes[runtime]
+      pkg => pkg.requested_version === runtimes[runtime],
     );
 
     // Placeholder icon
@@ -201,7 +201,7 @@ function Runtimes() {
             <Switch
               name="autoInstall"
               color="secondary"
-              checked={autoInstall}
+              checked={autoInstall || false}
               onChange={e => {
                 setAutoInstall(e.target.checked);
               }}
@@ -241,7 +241,7 @@ function Runtimes() {
             Api.post("/admin/system/runtimes", {
               autoInstall,
               runtimes: Object.entries(kv).map(
-                ([key, value]) => `${key}@${value || "latest"}`
+                ([key, value]) => `${key}@${value || "latest"}`,
               ),
             })
               .then(() => {
@@ -249,7 +249,7 @@ function Runtimes() {
               })
               .catch(() => {
                 setUpdateError(
-                  "An error occurred while installing runtimes. Make sure specified versions are correct."
+                  "An error occurred while installing runtimes. Make sure specified versions are correct.",
                 );
               })
               .finally(() => {
@@ -289,7 +289,7 @@ const useFetchMise = () => {
 
         if (s === "error") {
           setError(
-            "An error occurred while installing or upgrading mise. Check instance logs for more details."
+            "An error occurred while installing or upgrading mise. Check instance logs for more details.",
           );
         }
       })
@@ -317,37 +317,59 @@ function Mise() {
         title="Mise"
         subtitle="Stormkit relies on open-source mise for runtime management"
         actions={
-          <Button
-            variant="contained"
-            color="secondary"
-            loading={
-              updateLoading || status === "processing" || status === "sent"
-            }
-            onClick={() => {
-              setUpdateLoading(true);
+          <>
+            {status === "processing" || status === "sent" ? (
+              <Button
+                variant="outlined"
+                color="primary"
+                type="reset"
+                sx={{ mr: 2 }}
+                onClick={() => {
+                  Api.post<{ status: "error" | "ok" }>("/admin/system/mise", {
+                    abort: true,
+                  }).then(() => {
+                    setUpdateError(undefined);
+                    setUpdateLoading(false);
+                    setRefreshToken(Date.now());
+                  });
+                }}
+              >
+                Abort
+              </Button>
+            ) : null}
+            <Button
+              variant="contained"
+              color="secondary"
+              loading={
+                updateLoading || status === "processing" || status === "sent"
+              }
+              onClick={() => {
+                setUpdateLoading(true);
+                setUpdateError(undefined);
 
-              Api.post<{ status: "error" | "ok" }>("/admin/system/mise")
-                .then(({ status }) => {
-                  if (status === "error") {
-                    setUpdateError(
-                      "An error occurred while upgrading mise. Check instance logs for more details."
-                    );
+                Api.post<{ status: "error" | "ok" }>("/admin/system/mise")
+                  .then(({ status }) => {
+                    if (status === "error") {
+                      setUpdateError(
+                        "An error occurred while upgrading mise. Check instance logs for more details.",
+                      );
 
-                    return;
-                  }
+                      return;
+                    }
 
-                  setRefreshToken(Date.now());
-                })
-                .catch(() => {
-                  setUpdateError("An error occurred while upgrading mise.");
-                })
-                .finally(() => {
-                  setUpdateLoading(false);
-                });
-            }}
-          >
-            Upgrade to latest
-          </Button>
+                    setRefreshToken(Date.now());
+                  })
+                  .catch(() => {
+                    setUpdateError("An error occurred while upgrading mise.");
+                  })
+                  .finally(() => {
+                    setUpdateLoading(false);
+                  });
+              }}
+            >
+              Upgrade to latest
+            </Button>
+          </>
         }
       />
       <CardRow>
@@ -420,7 +442,7 @@ function Domains() {
           label="API Domain"
           variant="filled"
           name="api"
-          defaultValue={domains.api}
+          defaultValue={domains.api || ""}
           slotProps={{ inputLabel: { shrink: true } }}
           helperText="API requests will be served from this domain"
           fullWidth
@@ -430,7 +452,7 @@ function Domains() {
         <TextField
           label="App Domain"
           name="app"
-          defaultValue={domains.app}
+          defaultValue={domains.app || ""}
           variant="filled"
           slotProps={{ inputLabel: { shrink: true } }}
           helperText="This domain will be used to access your Stormkit dashboard"
@@ -441,7 +463,7 @@ function Domains() {
         <TextField
           label="Dev Domain"
           name="dev"
-          defaultValue={domains.dev}
+          defaultValue={domains.dev || ""}
           variant="filled"
           slotProps={{ inputLabel: { shrink: true } }}
           helperText="Deployment previews will be displayed using subdomains of this domain"
@@ -472,7 +494,7 @@ function Domains() {
               })
               .catch(() => {
                 setUpdateError(
-                  "An error occurred while updating domains. Make sure specified domains are valid."
+                  "An error occurred while updating domains. Make sure specified domains are valid.",
                 );
               })
               .finally(() => {
