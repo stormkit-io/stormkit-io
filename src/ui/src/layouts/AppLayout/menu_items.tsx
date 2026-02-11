@@ -5,7 +5,7 @@ import ScheduleIcon from "@mui/icons-material/Schedule";
 import StorageIcon from "@mui/icons-material/Storage";
 import TextSnippetIcon from "@mui/icons-material/TextSnippet";
 import InsertChartIcon from "@mui/icons-material/InsertChart";
-import GroupIcon from "@mui/icons-material/Group";
+// import GroupIcon from "@mui/icons-material/Group";
 import DatabaseIcon from "@mui/icons-material/Inventory";
 
 export const appMenuItems = ({
