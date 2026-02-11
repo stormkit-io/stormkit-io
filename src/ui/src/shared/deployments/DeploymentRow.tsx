@@ -60,7 +60,7 @@ export default function DeploymentRow({
         envId: deployment.envId,
       }).then(() => {
         navigate(
-          `/apps/${deployment.appId}/environments/${deployment.envId}/deployments/${deployment.id}`
+          `/apps/${deployment.appId}/environments/${deployment.envId}/deployments/${deployment.id}`,
         );
         setRefreshToken(Date.now());
       });
@@ -123,7 +123,7 @@ export default function DeploymentRow({
               .catch(() => {
                 setLoading(false);
                 setError(
-                  "Something went wrong while deleting deployment. Please try again."
+                  "Something went wrong while deleting deployment. Please try again.",
                 );
               });
           }}
@@ -151,7 +151,7 @@ export default function DeploymentRow({
               .catch(() => {
                 setLoading(false);
                 setError(
-                  "Something went wrong while stopping deployment. Please try again."
+                  "Something went wrong while stopping deployment. Please try again.",
                 );
               });
           }}

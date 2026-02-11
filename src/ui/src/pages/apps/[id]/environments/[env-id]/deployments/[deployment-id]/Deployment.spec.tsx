@@ -1,9 +1,11 @@
 import type { Scope } from "nock";
-import { describe, expect, it, vi } from "vitest";
-import { RenderResult, waitFor } from "@testing-library/react";
+import { describe, beforeEach, afterEach, expect, it, vi } from "vitest";
+import { MemoryRouter, Routes, Route } from "react-router";
+import { RenderResult, waitFor, render, act } from "@testing-library/react";
+import { AppContext } from "~/pages/apps/[id]/App.context";
+import mockApp from "~/testing/data/mock_app";
 import mockDeployments from "~/testing/data/mock_deployments_v2";
 import { mockFetchDeployments } from "~/testing/nocks/nock_deployments_v2";
-import { renderWithRouter } from "~/testing/helpers";
 import Deployment from "./Deployment";
 
 interface Props {
@@ -17,9 +19,21 @@ vi.mock("~/utils/helpers/deployments", () => ({
 describe("~/apps/[id]/environments/[env-id]/deployments/Deployment.tsx", () => {
   let wrapper: RenderResult;
   let currentDeploy: DeploymentV2;
+  let currentApp: App;
   let scope: Scope;
+  let setRefreshToken = vi.fn();
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+
+  afterEach(() => {
+    wrapper?.unmount();
+    vi.useRealTimers();
+  });
 
   const createWrapper = ({ deployment }: Props | undefined = {}) => {
+    currentApp = mockApp();
     currentDeploy = deployment || mockDeployments()[0];
 
     scope = mockFetchDeployments({
@@ -27,14 +41,55 @@ describe("~/apps/[id]/environments/[env-id]/deployments/Deployment.tsx", () => {
       response: { deployments: [currentDeploy] },
     });
 
-    wrapper = renderWithRouter({
-      el: () => <Deployment />,
-      path: "/apps/:appId/environments/:envId/deployments/:deploymentId",
-      initialEntries: [
-        `/apps/${currentDeploy.appId}/environments/${currentDeploy.envId}/deployments/${currentDeploy.id}`,
-      ],
-    });
+    wrapper = render(
+      <MemoryRouter initialEntries={[`/${currentDeploy.id}`]} initialIndex={0}>
+        <Routes>
+          <Route
+            path="/:deploymentId"
+            element={
+              <AppContext.Provider
+                value={{
+                  app: currentApp,
+                  environments: [],
+                  setRefreshToken,
+                }}
+              >
+                <Deployment />
+              </AppContext.Provider>
+            }
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
   };
+
+  it("should continuously poll the deployment until it is not running anymore", async () => {
+    const deployment = mockDeployments()[0];
+    deployment.status = "running";
+
+    createWrapper({ deployment });
+
+    // Wait for the first fetch to complete
+    await waitFor(() => {
+      expect(scope.isDone()).toBe(true);
+    });
+
+    // Set up a second mock for the polling request (nock consumes interceptors)
+    const secondScope = mockFetchDeployments({
+      deploymentId: deployment.id,
+      response: { deployments: [{ ...deployment, status: "success" }] },
+    });
+
+    // Advance timers to trigger the polling interval (wrapped in act)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    // Verify the second fetch was made
+    await waitFor(() => {
+      expect(secondScope.isDone()).toBe(true);
+    });
+  });
 
   it("should display deployment details", async () => {
     createWrapper();
@@ -79,7 +134,7 @@ describe("~/apps/[id]/environments/[env-id]/deployments/Deployment.tsx", () => {
 
     await waitFor(() => {
       expect(
-        wrapper.getByLabelText(`Deployment ${currentDeploy.id} menu`)
+        wrapper.getByLabelText(`Deployment ${currentDeploy.id} menu`),
       ).toBeTruthy();
     });
   });

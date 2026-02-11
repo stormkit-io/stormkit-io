@@ -44,7 +44,7 @@ export const publishDeployments = ({
 
   if (total !== 100) {
     return Promise.reject(
-      `The sum of percentages has be to 100. Currently it is ${total}.`
+      `The sum of percentages has to be 100. Currently it is ${total}.`,
     );
   }
 
@@ -135,14 +135,14 @@ export const useFetchDeployments = ({
 
     api
       .fetch<{ deployments: DeploymentV2[] }>(
-        `/my/deployments?${params.toString()}`
+        `/my/deployments?${params.toString()}`,
       )
       .then(res => {
         if (unmounted !== true) {
           setDeployments(
             from && from > 0
               ? [...deployments, ...res.deployments]
-              : res.deployments
+              : res.deployments,
           );
         }
       })
@@ -181,12 +181,14 @@ export const stopDeployment = ({
 
 interface FetchDeploymentProps {
   deploymentId?: string;
-  refreshToken?: number;
+  restartToken?: number;
+  refreshApp: (n: number) => void;
 }
 
 export const useFetchDeployment = ({
   deploymentId,
-  refreshToken,
+  restartToken,
+  refreshApp,
 }: FetchDeploymentProps) => {
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(true);
@@ -208,7 +210,7 @@ export const useFetchDeployment = ({
 
     api
       .fetch<{ deployments: DeploymentV2[] }>(
-        `/my/deployments?deploymentId=${deploymentId}`
+        `/my/deployments?deploymentId=${deploymentId}`,
       )
       .then(res => {
         const deployment = res.deployments[0];
@@ -221,18 +223,24 @@ export const useFetchDeployment = ({
           setDeploy(deployment);
         }
 
+        if (time && time > 0 && deployment.status === "success") {
+          refreshApp(Date.now());
+        }
+
         // If the deployment is still running, then refetch it every 5 seconds
         // by refreshing the time to trigger a new call.
         setTimeout(() => {
-          if (unmounted !== true && deployment.status === "running") {
-            setTime(Date.now());
+          if (unmounted) {
+            return;
           }
+
+          setTime(deployment.status === "running" ? Date.now() : 0);
         }, 5000);
       })
       .catch(() => {
         if (unmounted !== true) {
           setError(
-            "Something went wrong on our side while fetching deployments. Please try again and if the problem persists contact us from Discord or email."
+            "Something went wrong on our side while fetching deployments. Please try again and if the problem persists contact us from Discord or email.",
           );
         }
       })
@@ -241,35 +249,9 @@ export const useFetchDeployment = ({
       });
 
     return () => {
-      unmounted = false;
+      unmounted = true;
     };
-  }, [deploymentId, refreshToken, time]);
+  }, [deploymentId, restartToken, time]);
 
   return { deployment: deploy, loading, error };
-};
-
-interface WithPageRefreshProps {
-  deployment?: DeploymentV2;
-  setRefreshToken: (val: number) => void;
-}
-
-let shouldRefresh = false;
-
-// Refresh app and envs when a deployment completes running
-export const useWithPageRefresh = ({
-  deployment,
-  setRefreshToken,
-}: WithPageRefreshProps) => {
-  useEffect(() => {
-    const isRunning = deployment?.status === "running";
-
-    if (isRunning) {
-      shouldRefresh = true;
-      return;
-    }
-
-    if (shouldRefresh) {
-      setRefreshToken?.(Date.now());
-    }
-  }, [deployment?.status]);
 };

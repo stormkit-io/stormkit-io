@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useContext } from "react";
 import { useParams } from "react-router";
 import Button from "@mui/material/Button";
 import Card from "~/components/Card";
@@ -6,19 +6,20 @@ import CardHeader from "~/components/CardHeader";
 import CardFooter from "~/components/CardFooter";
 import Error404 from "~/components/Errors/Error404";
 import Spinner from "~/components/Spinner";
-import { useFetchDeployment, useWithPageRefresh } from "../actions";
+import { AppContext } from "~/pages/apps/[id]/App.context";
+import { useFetchDeployment } from "../actions";
 import DeploymentRow from "~/shared/deployments/DeploymentRow";
 import DeploymentLogs from "./DeploymentLogs";
 
 export default function Deployment() {
   const { deploymentId } = useParams();
-  const [refreshToken, setRefreshToken] = useState<number>();
+  const { setRefreshToken: refreshApp } = useContext(AppContext);
+  const [restartToken, setRestartToken] = useState(0);
   const { deployment, error, loading } = useFetchDeployment({
     deploymentId,
-    refreshToken,
+    restartToken,
+    refreshApp,
   });
-
-  useWithPageRefresh({ deployment, setRefreshToken });
 
   const isRunningLogs =
     deployment?.status === "running" && !deployment.stoppedAt;
@@ -69,7 +70,7 @@ export default function Deployment() {
           {deployment && (
             <DeploymentRow
               deployment={deployment}
-              setRefreshToken={setRefreshToken}
+              setRefreshToken={setRestartToken}
               viewDetails={false}
               exactTime
               sx={{ borderTop: "none !important" }}
