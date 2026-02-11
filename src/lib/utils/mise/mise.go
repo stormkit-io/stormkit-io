@@ -323,7 +323,7 @@ func (m *Mise) SelfUpdate(ctx context.Context) error {
 		String: "mise self-update --yes --force",
 	})
 
-	output, err := cmd.Output()
+	output, err := cmd.CombinedOutput()
 
 	if err != nil {
 		slog.Errorf("mise self-update output: %s, err: %s", string(output), err.Error())
