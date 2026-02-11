@@ -26,6 +26,8 @@ export default function ProviderSettings({
   onClose,
 }: Props) {
   const [isEnabled, setIsEnabled] = useState(!!provider.enabled);
+  const [error, setError] = useState<string>();
+  const [loading, setLoading] = useState(false);
 
   return (
     <Drawer
@@ -36,6 +38,7 @@ export default function ProviderSettings({
     >
       <Card
         component="form"
+        error={error}
         sx={{ minHeight: "100vh", minWidth: "600px", maxWidth: "800px" }}
         onSubmit={e => {
           e.preventDefault();
@@ -44,13 +47,25 @@ export default function ProviderSettings({
             new FormData(form).entries(),
           ) as Record<string, string>;
 
+          setLoading(true);
+          setError(undefined);
+
           Api.post(`/skauth`, {
             envId,
-            providerName: provider,
+            providerName: provider.id,
             clientId: data.clientId,
             clientSecret: data.clientSecret,
-            status: data.status === "enabled",
-          });
+            status: isEnabled,
+          })
+            .then(() => {
+              onClose();
+            })
+            .catch(() => {
+              setError("Something went wrong while saving provider settings.");
+            })
+            .finally(() => {
+              setLoading(false);
+            });
         }}
       >
         <CardHeader
@@ -126,7 +141,12 @@ export default function ProviderSettings({
           <Button onClick={onClose} sx={{ mr: 2 }} variant="outlined">
             Cancel
           </Button>
-          <Button variant="contained" color="secondary" type="submit">
+          <Button
+            variant="contained"
+            color="secondary"
+            type="submit"
+            loading={loading}
+          >
             Save
           </Button>
         </CardFooter>

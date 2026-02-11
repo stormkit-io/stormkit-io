@@ -155,7 +155,6 @@ export const useFetchProviders = ({ envId }: FetchProvidersParams) => {
         setProviders(result);
       })
       .catch(e => {
-        console.log(e);
         setError("Failed to fetch authentication providers");
       })
       .finally(() => {
