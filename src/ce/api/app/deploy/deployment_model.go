@@ -150,8 +150,6 @@ func New(a *app.App) *Deployment {
 
 // includeSchemaVars includes the database schema variables into the deployment build config.
 func (d *Deployment) includeSchemaVars(schema *buildconf.SchemaConf) {
-	d.MigrationsFolder = null.StringFrom(schema.MigrationsFolder)
-
 	if d.BuildConfig == nil {
 		d.BuildConfig = &buildconf.BuildConf{}
 	}
@@ -197,8 +195,14 @@ func (d *Deployment) PopulateFromEnv(env *buildconf.Env) {
 	d.BuildConfig = env.Data
 	d.ShouldPublish = env.AutoPublish
 
-	if env.SchemaConf != nil && env.SchemaConf.MigrationsEnabled {
-		d.includeSchemaVars(env.SchemaConf)
+	if env.SchemaConf != nil {
+		if env.SchemaConf.MigrationsEnabled {
+			d.MigrationsFolder = null.StringFrom(env.SchemaConf.MigrationsFolder)
+		}
+
+		if env.SchemaConf.InjectEnvVars {
+			d.includeSchemaVars(env.SchemaConf)
+		}
 	}
 }
 
@@ -228,8 +232,14 @@ func (d *Deployment) PopulateFromDeployCandidate(a *app.DeployCandidate, p Deplo
 	d.IsFork = p.IsFork
 	d.PullRequestNumber = null.NewInt(p.PullRequestNumber, p.PullRequestNumber != 0)
 
-	if a.SchemaConf != nil && a.SchemaConf.MigrationsEnabled {
-		d.includeSchemaVars(a.SchemaConf)
+	if a.SchemaConf != nil {
+		if a.SchemaConf.MigrationsEnabled {
+			d.MigrationsFolder = null.StringFrom(a.SchemaConf.MigrationsFolder)
+		}
+
+		if a.SchemaConf.InjectEnvVars {
+			d.includeSchemaVars(a.SchemaConf)
+		}
 	}
 }
 

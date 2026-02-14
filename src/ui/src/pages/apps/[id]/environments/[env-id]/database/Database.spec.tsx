@@ -419,6 +419,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
               envId: currentEnv.id!,
               migrationsEnabled,
               migrationsFolder: "/app/migrations",
+              injectEnvVars: false,
             },
           });
 
@@ -453,6 +454,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
               envId: currentEnv.id!,
               migrationsEnabled: !migrationsEnabled,
               migrationsFolder: "/db/migrations",
+              injectEnvVars: false,
             },
           });
 
@@ -491,6 +493,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
             envId: currentEnv.id!,
             migrationsEnabled: true,
             migrationsFolder: "/db/migrations",
+            injectEnvVars: false,
           },
           status: 500,
         });
@@ -503,6 +506,96 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
           expect(
             wrapper.getByText(
               "Unknown error while updating schema. Please try again.",
+            ),
+          ).toBeTruthy();
+        });
+      });
+    });
+  });
+
+  describe("inject environment variables", () => {
+    describe.each`
+      injectEnvVars
+      ${true}
+      ${false}
+    `("when injectEnvVars is: $injectEnvVars", ({ injectEnvVars }) => {
+      beforeEach(async () => {
+        await createWrapper({
+          schema: {
+            name: "a1e1",
+            tables: [],
+            injectEnvVars,
+            migrationsEnabled: false,
+            migrationsFolder: "/migrations",
+          },
+        });
+      });
+
+      it("should display the switch with correct checked state", async () => {
+        await waitFor(() => {
+          const switchInput = wrapper.getByRole("switch", {
+            name: /inject environment variables/i,
+          }) as HTMLInputElement;
+
+          expect(switchInput.checked).toBe(injectEnvVars);
+        });
+      });
+    });
+
+    describe("help content", () => {
+      beforeEach(async () => {
+        await createWrapper({
+          schema: {
+            name: "a1e1",
+            tables: [],
+            injectEnvVars: true,
+            migrationsEnabled: false,
+            migrationsFolder: "/migrations",
+          },
+        });
+      });
+
+      it("should display Learn more link in description", async () => {
+        await waitFor(() => {
+          expect(wrapper.getByText("Learn more.")).toBeTruthy();
+        });
+      });
+
+      it("should display all environment variables in help popover", async () => {
+        await waitFor(() => {
+          expect(wrapper.getByText("Learn more.")).toBeTruthy();
+        });
+
+        fireEvent.click(wrapper.getByText("Learn more."));
+
+        await waitFor(() => {
+          const expectedVars = [
+            "POSTGRES_HOST",
+            "POSTGRES_PORT",
+            "POSTGRES_DB",
+            "POSTGRES_SCHEMA",
+            "POSTGRES_USER",
+            "POSTGRES_PASSWORD",
+            "DATABASE_URL",
+          ];
+
+          expectedVars.forEach(varName => {
+            expect(wrapper.getByText(`- ${varName}`)).toBeTruthy();
+          });
+        });
+      });
+
+      it("should display DATABASE_URL example in help popover", async () => {
+        await waitFor(() => {
+          expect(wrapper.getByText("Learn more.")).toBeTruthy();
+        });
+
+        fireEvent.click(wrapper.getByText("Learn more."));
+
+        await waitFor(() => {
+          expect(
+            wrapper.getByText(
+              "postgresql://user:password@host:port/dbname?options=-csearch_path=schema_name",
             ),
           ).toBeTruthy();
         });

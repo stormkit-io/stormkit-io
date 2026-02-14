@@ -212,7 +212,7 @@ func (s *DeploymentModelSuite) Test_DeploymentLogs_WithMultipleSteps() {
 	]`, string(b))
 }
 
-func (s *DeploymentModelSuite) Test_PopulateFromEnv() {
+func (s *DeploymentModelSuite) Test_PopulateFromEnv_SchemaDoNotInjectEnvVars() {
 	dep := &deploy.Deployment{}
 	env := &buildconf.Env{
 		ID:          15,
@@ -225,6 +225,7 @@ func (s *DeploymentModelSuite) Test_PopulateFromEnv() {
 		},
 		SchemaConf: &buildconf.SchemaConf{
 			MigrationsEnabled: true,
+			InjectEnvVars:     false,
 			MigrationsFolder:  "/migrations",
 			Host:              "localhost",
 			Port:              "5432",
@@ -244,6 +245,48 @@ func (s *DeploymentModelSuite) Test_PopulateFromEnv() {
 	s.Equal("npm install", dep.BuildConfig.InstallCmd)
 	s.Equal("npm run server", dep.BuildConfig.ServerCmd)
 	s.Equal(null.StringFrom("/migrations"), dep.MigrationsFolder)
+	s.Empty(dep.BuildConfig.Vars["POSTGRES_DB"])
+	s.Empty(dep.BuildConfig.Vars["POSTGRES_SCHEMA"])
+	s.Empty(dep.BuildConfig.Vars["POSTGRES_USER"])
+	s.Empty(dep.BuildConfig.Vars["POSTGRES_PASSWORD"])
+	s.Empty(dep.BuildConfig.Vars["POSTGRES_HOST"])
+	s.Empty(dep.BuildConfig.Vars["POSTGRES_PORT"])
+	s.Empty(dep.BuildConfig.Vars["DATABASE_URL"])
+}
+
+func (s *DeploymentModelSuite) Test_PopulateFromEnv_SchemaInjectEnvVars() {
+	dep := &deploy.Deployment{}
+	env := &buildconf.Env{
+		ID:          15,
+		Name:        "development",
+		Branch:      "dev",
+		AutoPublish: true,
+		Data: &buildconf.BuildConf{
+			InstallCmd: "npm install",
+			ServerCmd:  "npm run server",
+		},
+		SchemaConf: &buildconf.SchemaConf{
+			MigrationsEnabled: false,
+			InjectEnvVars:     true,
+			MigrationsFolder:  "/migrations",
+			Host:              "localhost",
+			Port:              "5432",
+			DBName:            "custom_db",
+			SchemaName:        "custom_schema",
+			AppUserName:       "custom_user",
+			AppPassword:       "custom_password",
+		},
+	}
+
+	dep.PopulateFromEnv(env)
+
+	s.Equal(types.ID(15), dep.EnvID)
+	s.Equal("development", dep.Env)
+	s.Equal("dev", dep.Branch)
+	s.Equal(true, dep.ShouldPublish)
+	s.Equal("npm install", dep.BuildConfig.InstallCmd)
+	s.Equal("npm run server", dep.BuildConfig.ServerCmd)
+	s.False(dep.MigrationsFolder.Valid)
 	s.Equal("custom_db", dep.BuildConfig.Vars["POSTGRES_DB"])
 	s.Equal("custom_schema", dep.BuildConfig.Vars["POSTGRES_SCHEMA"])
 	s.Equal("custom_user", dep.BuildConfig.Vars["POSTGRES_USER"])

@@ -5,14 +5,14 @@ import Typography from "@mui/material/Typography";
 import AddIcon from "@mui/icons-material/Add";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import TextField from "@mui/material/TextField";
-import Switch from "@mui/material/Switch";
-import FormControlLabel from "@mui/material/FormControlLabel";
 import { EnvironmentContext } from "~/pages/apps/[id]/environments/Environment.context";
 import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
 import EmptyPage from "~/components/EmptyPage";
 import CardFooter from "~/components/CardFooter";
 import ConfirmModal from "~/components/ConfirmModal";
+import Help from "~/components/Help";
+import { Switch } from "~/components/Form";
 import * as actions from "./actions";
 import { RootContext } from "~/pages/Root.context";
 
@@ -79,15 +79,18 @@ export default function Database() {
   const [formError, setFormError] = useState<string>();
   const [isAttaching, setIsAttaching] = useState(false);
   const [migrationsEnabled, setMigrationsEnabled] = useState(false);
+  const [injectEnvVars, setInjectEnvVars] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const { schema, loading, error } = result;
   const hasSchema = !loading && !error && Boolean(schema);
 
+  // Sync props with form state when schema is loaded
   useEffect(() => {
     if (schema !== null) {
       setMigrationsEnabled(Boolean(schema.migrationsEnabled));
+      setInjectEnvVars(Boolean(schema.injectEnvVars));
     }
-  }, [schema?.migrationsEnabled]);
+  }, [schema?.migrationsEnabled, schema?.injectEnvVars]);
 
   const handleAttachSchema = async () => {
     setIsAttaching(true);
@@ -110,7 +113,7 @@ export default function Database() {
   };
 
   const handleSubmit: React.FormEventHandler = async (
-    e: React.FormEvent<HTMLFormElement>
+    e: React.FormEvent<HTMLFormElement>,
   ) => {
     e.preventDefault();
 
@@ -127,6 +130,7 @@ export default function Database() {
         envId: env.id!,
         migrationsFolder,
         migrationsEnabled,
+        injectEnvVars,
       });
 
       setSuccess("Schema updated successfully");
@@ -154,27 +158,80 @@ export default function Database() {
       />
       {hasSchema && !isCloud ? (
         <>
-          <Box sx={{ bgcolor: "container.paper", p: 1.75, pt: 1, mb: 4 }}>
-            <FormControlLabel
-              sx={{ pl: 0, ml: 0 }}
-              label="Enable schema migrations"
-              control={
-                <Switch
-                  name="migrationsEnabled"
-                  color="secondary"
-                  checked={migrationsEnabled}
-                  onChange={e => {
-                    setMigrationsEnabled(e.target.checked);
-                  }}
-                />
-              }
-              labelPlacement="start"
-            />
-            <Typography color="text.secondary" variant="body2">
-              When applied, Stormkit will automatically migrate your database
-              schema based on the migration files in your repository.
-            </Typography>
-          </Box>
+          <Switch
+            name="migrationsEnabled"
+            label="Enable schema migrations"
+            description="When applied, Stormkit will automatically migrate your database schema based on the migration files in your repository."
+            checked={migrationsEnabled}
+            setChecked={value => {
+              setMigrationsEnabled(value);
+            }}
+          />
+
+          <Switch
+            name="injectEnvVars"
+            label="Inject environment variables"
+            checked={injectEnvVars}
+            setChecked={value => {
+              setInjectEnvVars(value);
+            }}
+            description={
+              <>
+                When enabled, Stormkit will make environment variables available
+                to your deployment.{" "}
+                <Help
+                  title="How does this work?"
+                  buttonVariant="link"
+                  buttonText="Learn more."
+                >
+                  <Box>
+                    <Typography>
+                      When this option is enabled, Stormkit will inject the
+                      following environment variables at build time and make
+                      them available at runtime:
+                    </Typography>
+                    <Box component="ul" sx={{ my: 2 }}>
+                      {[
+                        "POSTGRES_HOST",
+                        "POSTGRES_PORT",
+                        "POSTGRES_DB",
+                        "POSTGRES_SCHEMA",
+                        "POSTGRES_USER",
+                        "POSTGRES_PASSWORD",
+                        "DATABASE_URL",
+                      ].map(varName => (
+                        <Box component="li" key={varName}>
+                          <Typography
+                            component="span"
+                            sx={{ fontFamily: "monospace" }}
+                          >
+                            - {varName}
+                          </Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                    <Typography>
+                      The <Box component="code">DATABASE_URL</Box> is a
+                      connection string that contains all the necessary
+                      information to connect to your database. Example:
+                    </Typography>
+                    <Box
+                      component="code"
+                      sx={{
+                        mt: 2,
+                        p: 2,
+                        display: "block",
+                        overflowX: "auto",
+                      }}
+                    >
+                      {`postgresql://user:password@host:port/dbname?options=-csearch_path=schema_name`}
+                    </Box>
+                  </Box>
+                </Help>
+              </>
+            }
+          />
+
           <Box sx={{ mb: 4 }}>
             <TextField
               label="Migrations path"
@@ -236,11 +293,11 @@ export default function Database() {
               .catch(res => {
                 if (res.status === 403) {
                   setError(
-                    "You don't have permission to delete this database schema. Contact team admin."
+                    "You don't have permission to delete this database schema. Contact team admin.",
                   );
                 } else {
                   setError(
-                    "Failed to delete database schema. Please try again."
+                    "Failed to delete database schema. Please try again.",
                   );
                 }
               })

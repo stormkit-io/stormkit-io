@@ -68,6 +68,7 @@ func (s *HandlerSchemaGetSuite) Test_Success_WithTables() {
 	s.env.SchemaConf = &buildconf.SchemaConf{
 		MigrationsEnabled: true,
 		MigrationsFolder:  "/migrations",
+		InjectEnvVars:     true,
 	}
 
 	s.NoError(buildconf.NewStore().SaveSchemaConf(context.Background(), s.env.ID, s.env.SchemaConf))
@@ -89,6 +90,7 @@ func (s *HandlerSchemaGetSuite) Test_Success_WithTables() {
 			"name": "%s",
 			"migrationsEnabled": true,
 			"migrationsFolder": "/migrations",
+			"injectEnvVars": true,
 			"tables": [
 				{
 					"name": "test_table",

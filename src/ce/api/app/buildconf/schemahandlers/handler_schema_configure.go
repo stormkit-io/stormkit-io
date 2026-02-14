@@ -10,6 +10,7 @@ import (
 )
 
 type SchemaConfigureRequest struct {
+	InjectEnvVars     bool   `json:"injectEnvVars"`
 	MigrationsEnabled bool   `json:"migrationsEnabled"`
 	MigrationsFolder  string `json:"migrationsFolder"`
 }
@@ -32,7 +33,8 @@ func handlerSchemaConfigure(req *app.RequestContext) *shttp.Response {
 	}
 
 	env.SchemaConf.MigrationsEnabled = data.MigrationsEnabled
-
+	env.SchemaConf.InjectEnvVars = data.InjectEnvVars
+	
 	if data.MigrationsFolder == "" {
 		env.SchemaConf.MigrationsFolder = ""
 	} else {

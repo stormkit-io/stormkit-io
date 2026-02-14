@@ -10,6 +10,7 @@ interface Table {
 export interface Schema {
   name: string;
   tables: Table[];
+  injectEnvVars?: boolean;
   migrationsEnabled?: boolean;
   migrationsFolder?: string;
 }
@@ -77,6 +78,7 @@ interface UpdateSchemaProps {
   envId: string;
   migrationsFolder: string;
   migrationsEnabled: boolean;
+  injectEnvVars: boolean;
 }
 
 export const updateSchema = ({
@@ -84,11 +86,13 @@ export const updateSchema = ({
   envId,
   migrationsFolder,
   migrationsEnabled,
+  injectEnvVars,
 }: UpdateSchemaProps) => {
   return api.post(`/schema/configure`, {
     appId,
     envId,
     migrationsFolder,
     migrationsEnabled,
+    injectEnvVars,
   });
 };

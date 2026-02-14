@@ -33,6 +33,7 @@ func handlerSchemaGet(req *app.RequestContext) *shttp.Response {
 		if env.SchemaConf != nil {
 			mappedData["migrationsEnabled"] = env.SchemaConf.MigrationsEnabled
 			mappedData["migrationsFolder"] = env.SchemaConf.MigrationsFolder
+			mappedData["injectEnvVars"] = env.SchemaConf.InjectEnvVars
 		}
 
 		data["schema"] = mappedData

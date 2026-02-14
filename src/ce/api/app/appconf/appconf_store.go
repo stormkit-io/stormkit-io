@@ -52,6 +52,7 @@ var stmt = &statement{
 				coalesce(d.upload_result->>'serverlessLocation', '') as api_loc,
 				coalesce(d.api_path_prefix, '/api')    	 			 as api_path_prefix,
 				d.build_manifest 						 			 as manifest,
+				d.config_snapshot							 		 as build_conf_snapshot,
 				e.env_name,
 				e.updated_at							 			 as env_updated,
 				e.build_conf							 			 as build_conf,
@@ -105,7 +106,7 @@ var stmt = &statement{
 		SELECT
 			d.app_id, d.deployment_id, d.env_id,
 			d.fn_loc, d.st_loc, d.api_loc, d.api_path_prefix,
-			d.manifest, d.env_updated, d.build_conf, d.percentage,
+			d.manifest, d.build_conf_snapshot, d.env_updated, d.build_conf, d.percentage,
 			coalesce(d.cert_value, '') as cert_value,
 			coalesce(d.cert_key, '') as cert_key,
 			d.domain_id, d.auth_wall_conf,
@@ -226,7 +227,8 @@ func rowsToConfigs(rows *sql.Rows, err error) ([]*Config, error) {
 	cnfs := []*Config{}
 
 	for rows.Next() {
-		var buildConf []byte
+		var buildConf []byte         // The up-to-date build config
+		var buildConfSnapshot []byte // The build config when the deployment was created
 		var buildManifest *deploy.BuildManifest
 		var certKey string
 		var certVal string
@@ -239,7 +241,7 @@ func rowsToConfigs(rows *sql.Rows, err error) ([]*Config, error) {
 			&cnf.AppID, &cnf.DeploymentID, &cnf.EnvID,
 			&cnf.FunctionLocation, &cnf.StorageLocation,
 			&cnf.APILocation, &cnf.APIPathPrefix,
-			&buildManifest, &cnf.UpdatedAt, &buildConf,
+			&buildManifest, &buildConfSnapshot, &cnf.UpdatedAt, &buildConf,
 			&cnf.Percentage, &certVal, &certKey, &cnf.DomainID,
 			&authwall, &cnf.Snippets, &displayName, &envName, &tier,
 			&cnf.BillingUserID,
@@ -255,6 +257,15 @@ func rowsToConfigs(rows *sql.Rows, err error) ([]*Config, error) {
 		}
 
 		customHeaders := []deploy.CustomHeader{}
+		confSnapshot := struct {
+			Build buildconf.BuildConf `json:"build"`
+		}{}
+
+		if buildConfSnapshot != nil {
+			if err := json.Unmarshal(buildConfSnapshot, &confSnapshot); err != nil {
+				return nil, err
+			}
+		}
 
 		if buildConf != nil {
 			data := buildconf.BuildConf{}
@@ -288,6 +299,11 @@ func rowsToConfigs(rows *sql.Rows, err error) ([]*Config, error) {
 					DisplayName:  displayName,
 				},
 			)
+
+			// Merge environment variables from the build
+			for k, v := range confSnapshot.Build.Vars {
+				cnf.EnvVariables[k] = v
+			}
 		}
 
 		if buildManifest != nil {

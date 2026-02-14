@@ -40,6 +40,7 @@ interface MockUpdateSchemaProps {
     envId: string;
     migrationsEnabled: boolean;
     migrationsFolder: string;
+    injectEnvVars: boolean;
   };
   status?: number;
 }
