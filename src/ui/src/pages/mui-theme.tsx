@@ -42,6 +42,13 @@ export default (mode: "dark" | "light") => {
           body: {
             backgroundColor: mode === "dark" ? "#0e0b21" : "#f1f3f4",
           },
+          code: {
+            fontFamily: "monospace",
+            backgroundColor: isDark ? "#1a1533" : grey[200],
+            padding: "2px 6px",
+            borderRadius: "4px",
+            fontSize: "0.9em",
+          },
         },
       },
       MuiFormHelperText: {

@@ -1,5 +1,6 @@
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import Link from "@mui/material/Link";
 import QuestionMarkOutlined from "@mui/icons-material/HelpCenter";
 import Drawer from "@mui/material/Drawer";
 import { useState } from "react";
@@ -11,20 +12,35 @@ interface Props {
   children: React.ReactNode;
   title?: string;
   subtitle?: React.ReactNode;
+  buttonText?: string;
+  buttonVariant?: "text" | "contained" | "outlined" | "link";
 }
 
-export default function Help({ children, title = "Help", subtitle }: Props) {
+export default function Help({
+  children,
+  title = "Help",
+  subtitle,
+  buttonText = "Help",
+  buttonVariant = "text",
+}: Props) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   return (
     <>
-      <Button
-        sx={{ display: "flex", alignItems: "center" }}
-        onClick={() => setIsDrawerOpen(true)}
-      >
-        <QuestionMarkOutlined sx={{ mr: 1 }} />
-        <Typography>Help</Typography>
-      </Button>
+      {buttonVariant === "link" ? (
+        <Link href="#" onClick={() => setIsDrawerOpen(true)}>
+          {buttonText}
+        </Link>
+      ) : (
+        <Button
+          variant={buttonVariant}
+          sx={{ display: "flex", alignItems: "center" }}
+          onClick={() => setIsDrawerOpen(true)}
+        >
+          <QuestionMarkOutlined sx={{ mr: 1 }} />
+          <Typography>{buttonText}</Typography>
+        </Button>
+      )}
       <Drawer
         anchor="right"
         open={isDrawerOpen}

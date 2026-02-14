@@ -8,7 +8,7 @@ interface Props {
   label: string;
   checked: boolean;
   setChecked: (val: boolean) => void;
-  description: string;
+  description: React.ReactNode;
 }
 
 export default function SwitchForm({
@@ -35,7 +35,9 @@ export default function SwitchForm({
         }
         labelPlacement="start"
       />
-      <Typography color="text.secondary">{description}</Typography>
+      <Typography component="div" color="text.secondary">
+        {description}
+      </Typography>
     </Box>
   );
 }
