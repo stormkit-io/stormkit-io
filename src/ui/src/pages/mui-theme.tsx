@@ -275,6 +275,11 @@ export default (mode: "dark" | "light") => {
             fontFamily,
             fontSize,
           },
+          h2: {
+            fontFamily,
+            fontSize: 20,
+            fontWeight: "bold",
+          },
           h6: {
             fontFamily,
             fontSize: 15,
