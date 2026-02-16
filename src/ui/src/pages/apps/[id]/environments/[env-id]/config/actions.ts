@@ -1,4 +1,4 @@
-import { FormEventHandler, useEffect, useState } from "react";
+import { FormEventHandler, useState } from "react";
 import api from "~/utils/api/Api";
 
 export const computeAutoDeployValue = (env?: Environment): AutoDeployValues => {
@@ -73,7 +73,7 @@ export const prepareBuildObject = (values: FormValues): BuildConfig => {
 export const buildFormValues = (
   env: Environment,
   form: HTMLFormElement,
-  controlled?: ControlledFormValues
+  controlled?: ControlledFormValues,
 ): FormValues => {
   let values = Object.fromEntries(new FormData(form).entries());
 
@@ -284,7 +284,7 @@ export const deleteEnvironment = ({
 
 export const validateRedirects = (
   redirects: string,
-  setError: (s: string) => void
+  setError: (s: string) => void,
 ) => {
   if (!redirects) {
     return true;
@@ -303,7 +303,7 @@ export const validateRedirects = (
     for (const redirect of parsed) {
       if (typeof redirect.from !== "string") {
         setError(
-          "Invalid format for redirects: `from` needs to be type of string."
+          "Invalid format for redirects: `from` needs to be type of string.",
         );
 
         return false;
@@ -311,7 +311,7 @@ export const validateRedirects = (
 
       if (typeof redirect.to !== "string") {
         setError(
-          "Invalid format for redirects: `to` needs to be type of string."
+          "Invalid format for redirects: `to` needs to be type of string.",
         );
 
         return false;
@@ -319,7 +319,7 @@ export const validateRedirects = (
 
       if (redirect.status && !availableStatuses.includes(redirect.status)) {
         setError(
-          "Invalid format for redirects: `status` needs to be either 200 or 3xx."
+          "Invalid format for redirects: `status` needs to be either 200 or 3xx.",
         );
 
         return false;
@@ -327,7 +327,7 @@ export const validateRedirects = (
 
       if (redirect.assets && typeof redirect.assets !== "boolean") {
         setError(
-          "Invalid format for redirects: `assets` needs to be either true, false or undefined."
+          "Invalid format for redirects: `assets` needs to be either true, false or undefined.",
         );
 
         return false;
@@ -336,7 +336,7 @@ export const validateRedirects = (
       if (redirect.hosts) {
         if (!Array.isArray(redirect.hosts)) {
           setError(
-            "Invalid format for redirects: `hosts` needs an array of strings."
+            "Invalid format for redirects: `hosts` needs an array of strings.",
           );
 
           return false;
@@ -345,7 +345,7 @@ export const validateRedirects = (
         for (const host of redirect.hosts) {
           if (typeof host !== "string") {
             setError(
-              "Invalid format for redirects: `hosts` needs an array of strings."
+              "Invalid format for redirects: `hosts` needs an array of strings.",
             );
 
             return false;
@@ -383,7 +383,7 @@ export const useSubmitHandler = ({
     const values: FormValues = buildFormValues(
       env,
       e.target as HTMLFormElement,
-      controlled
+      controlled,
     );
 
     if (!validateRedirects(values["build.redirects"] || "", setError)) {
@@ -403,48 +403,4 @@ export const useSubmitHandler = ({
   };
 
   return { submitHandler: handler, error, isLoading, success };
-};
-
-interface MailerConfig {
-  host: string;
-  port: string;
-  username: string;
-  password: string;
-}
-
-interface FetchMailerConfigProps {
-  appId: string;
-  envId: string;
-  refreshToken?: number;
-}
-
-export const useFetchMailerConfig = ({
-  envId,
-  appId,
-  refreshToken,
-}: FetchMailerConfigProps) => {
-  const [config, setConfig] = useState<MailerConfig>();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string>();
-
-  useEffect(() => {
-    setLoading(true);
-    setError(undefined);
-
-    api
-      .fetch<{ config: MailerConfig }>(
-        `/mailer/config?appId=${appId}&envId=${envId}`
-      )
-      .then(({ config }) => {
-        setConfig(config);
-      })
-      .catch(() => {
-        setError("Something went wrong while fetching mailer config.");
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, [refreshToken]);
-
-  return { config, loading, error };
 };

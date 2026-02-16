@@ -18,7 +18,6 @@ import TabConfigRedirects from "./_components/TabConfigRedirects";
 import TabConfigServerless from "./_components/TabConfigServerless";
 import TabStatusChecks from "./_components/TabStatusChecks";
 import TabAPIKey from "./_components/TabAPIKey";
-import TabMailer from "./_components/TabMailer";
 import TabAuthWall from "./_components/TabAuthWall";
 
 interface NavItem {
@@ -63,7 +62,6 @@ const generateListItems = (
     title: "Other Settings",
     children: [
       { path: "#domains", text: "Domains" },
-      { path: "#mailer", text: "Mailer" },
       { path: "#api-keys", text: "API Keys" },
     ],
   },
@@ -95,10 +93,6 @@ export default function EnvironmentConfig() {
       case "#api-keys":
         return ({ app, environment }: TabProps) => (
           <TabAPIKey app={app} environment={environment} />
-        );
-      case "#mailer":
-        return ({ app, environment }: TabProps) => (
-          <TabMailer app={app} environment={environment} />
         );
       case "#authwall":
         return ({ app, environment }: TabProps) => (

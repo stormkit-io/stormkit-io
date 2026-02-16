@@ -1,9 +1,11 @@
 import type { Scope } from "nock";
 import type { MockMailerConfig } from "~/testing/nocks/nock_mailer";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { RenderResult, waitFor } from "@testing-library/react";
 import { fireEvent, render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { AppContext } from "~/pages/apps/[id]/App.context";
+import { EnvironmentContext } from "~/pages/apps/[id]/environments/Environment.context";
 import mockApp from "~/testing/data/mock_app";
 import mockEnvironments from "~/testing/data/mock_environments";
 import {
@@ -11,7 +13,7 @@ import {
   mockSendTestEmail,
   mockSetMailerConfig,
 } from "~/testing/nocks/nock_mailer";
-import TabMailer from "./TabMailer";
+import TabMailer from "./Mailer";
 
 interface WrapperProps {
   config?: MockMailerConfig;
@@ -19,7 +21,7 @@ interface WrapperProps {
   setRefreshToken?: () => void;
 }
 
-describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabMailer.tsx", () => {
+describe("~/pages/apps/[id]/environments/[env-id]/mailer/Mailer.tsx", () => {
   let wrapper: RenderResult;
   let fetchScope: Scope;
   let currentApp: App;
@@ -40,7 +42,19 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabMailer.t
 
     setupFetchScope(config);
 
-    wrapper = render(<TabMailer app={currentApp} environment={currentEnv} />);
+    wrapper = render(
+      <AppContext.Provider
+        value={{
+          app: currentApp,
+          environments: [currentEnv],
+          setRefreshToken: vi.fn(),
+        }}
+      >
+        <EnvironmentContext.Provider value={{ environment: currentEnv }}>
+          <TabMailer />
+        </EnvironmentContext.Provider>
+      </AppContext.Provider>,
+    );
   };
 
   it("should fetch mailer config", async () => {
@@ -126,5 +140,44 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabMailer.t
     await waitFor(() => {
       expect(scope.isDone()).toBe(true);
     });
+  });
+
+  it("should display help drawer with configuration guide", async () => {
+    createWrapper({});
+
+    await waitFor(() => {
+      expect(fetchScope.isDone()).toBe(true);
+    });
+
+    // Click the "Learn more" link
+    fireEvent.click(wrapper.getByText("Learn more."));
+
+    // Help drawer should open with expected content
+    await waitFor(() => {
+      expect(wrapper.getByText("Mailer Configuration Help")).toBeTruthy();
+    });
+
+    // Check for help content
+    expect(
+      wrapper.getByText(/Configure your SMTP settings to enable/),
+    ).toBeTruthy();
+    expect(wrapper.getByText("Environment Variables")).toBeTruthy();
+    expect(wrapper.getByText("MAILER_URL")).toBeTruthy();
+    expect(
+      wrapper.getByText("The API endpoint for sending emails"),
+    ).toBeTruthy();
+
+    // Gmail configuration example
+    expect(wrapper.getByText("Example Configuration (Gmail)")).toBeTruthy();
+    expect(wrapper.getByText("smtp.gmail.com")).toBeTruthy();
+    expect(wrapper.getByText("587")).toBeTruthy();
+    expect(wrapper.getByText("your-email@gmail.com")).toBeTruthy();
+
+    // API documentation link
+    const apiDocLink = wrapper.getByText("API documentation");
+    expect(apiDocLink).toBeTruthy();
+    expect(apiDocLink.closest("a")?.getAttribute("href")).toBe(
+      "https://www.stormkit.io/docs/api/mailer",
+    );
   });
 });

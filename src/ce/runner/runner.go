@@ -59,7 +59,7 @@ func normalize(msg *deployservice.DeploymentMessage) *deployservice.DeploymentMe
 func printEnvVariables(opts RunnerOpts) error {
 	vars := []string{}
 
-	obfuscate := regexp.MustCompile("(?i)secret|_key|_token|password|database_url")
+	obfuscate := regexp.MustCompile("(?i)secret|_key|_token|password|database_url|mailer_url")
 
 	for k, v := range opts.Build.EnvVars {
 		if obfuscate.Match([]byte(k)) {

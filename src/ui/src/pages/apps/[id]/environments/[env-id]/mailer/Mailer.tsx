@@ -1,19 +1,21 @@
-import { useState } from "react";
+import { useState, useContext } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
+import Link from "@mui/material/Link";
 import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
 import CardFooter from "~/components/CardFooter";
 import api from "~/utils/api/Api";
-import { useFetchMailerConfig } from "../actions";
+import Help, { HelpTable } from "~/components/Help";
+import { AppContext } from "~/pages/apps/[id]/App.context";
+import { EnvironmentContext } from "~/pages/apps/[id]/environments/Environment.context";
+import { useFetchMailerConfig } from "./actions";
 
-interface Props {
-  app: App;
-  environment: Environment;
-}
-
-export default function TabMailer({ app, environment: env }: Props) {
+export default function TabMailer() {
+  const { app } = useContext(AppContext);
+  const { environment: env } = useContext(EnvironmentContext);
   const [refreshToken, setRefreshToken] = useState<number>();
   const [formError, setFormError] = useState<string>();
   const [sendLoading, setSendLoading] = useState<boolean>(false);
@@ -48,6 +50,7 @@ export default function TabMailer({ app, environment: env }: Props) {
     <Card
       id="mailer"
       component="form"
+      width="100%"
       loading={loading}
       error={error || formError}
       success={success}
@@ -56,7 +59,81 @@ export default function TabMailer({ app, environment: env }: Props) {
     >
       <CardHeader
         title="Mailer Configuration"
-        subtitle="Simple Email Service to send transactional emails."
+        subtitle={
+          <>
+            Simple Email Service to send transactional emails.{" "}
+            <Help
+              title="Mailer Configuration Help"
+              buttonText="Learn more."
+              buttonVariant="link"
+            >
+              <Box>
+                <Typography>
+                  Configure your SMTP settings to enable transactional emails
+                  from your application. Common SMTP providers include Gmail,
+                  SendGrid, Mailgun, and Amazon SES.
+                </Typography>
+                <Box sx={{ my: 4 }}>
+                  <Typography variant="h2" sx={{ mb: 1 }}>
+                    Environment Variables
+                  </Typography>
+                  <Typography sx={{ mb: 2 }}>
+                    When configured, Stormkit will inject the following
+                    environment variable at build time and make it available at
+                    runtime:
+                  </Typography>
+                  <HelpTable
+                    items={[
+                      {
+                        name: <Box component="code">MAILER_URL</Box>,
+                        desc: "The API endpoint for sending emails",
+                      },
+                    ]}
+                  />
+                </Box>
+                <Box sx={{ my: 4 }}>
+                  <Typography variant="h2" sx={{ mb: 1 }}>
+                    Example Configuration (Gmail)
+                  </Typography>
+                  <HelpTable
+                    items={[
+                      {
+                        name: "SMTP Host",
+                        desc: <Box component="code">smtp.gmail.com</Box>,
+                      },
+                      {
+                        name: "SMTP Port",
+                        desc: <Box component="code">587</Box>,
+                      },
+                      {
+                        name: "Username",
+                        desc: <Box component="code">your-email@gmail.com</Box>,
+                      },
+                      {
+                        name: "Password",
+                        desc: "Your Gmail app password (required if 2FA is enabled)",
+                      },
+                    ]}
+                  />
+                </Box>
+                <Typography>
+                  For programmatic email sending, generate an API key under{" "}
+                  <strong>Environment &gt; Config &gt; API Keys</strong> and
+                  refer to our{" "}
+                  <Link
+                    href="https://www.stormkit.io/docs/api/mailer"
+                    color="text.secondary"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    API documentation
+                  </Link>
+                  .
+                </Typography>
+              </Box>
+            </Help>
+          </>
+        }
       />
 
       <Box sx={{ mb: 4 }}>
@@ -133,7 +210,7 @@ export default function TabMailer({ app, environment: env }: Props) {
                 })
                 .catch(() => {
                   setFormError(
-                    "Something went wrong while sending test email."
+                    "Something went wrong while sending test email.",
                   );
                 })
                 .finally(() => {
