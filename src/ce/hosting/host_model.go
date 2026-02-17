@@ -71,9 +71,8 @@ type Host struct {
 // If the config is found in local cache, it's returned from the local cache.
 func FetchAppConf(hostName string) ([]*appconf.Config, error) {
 	appCacheMu.Lock()
-	defer appCacheMu.Unlock()
-
 	confFromCache := appCache[hostName]
+	appCacheMu.Unlock()
 
 	if confFromCache != nil {
 		// Frequently used caches should not be invalidated.
@@ -92,7 +91,9 @@ func FetchAppConf(hostName string) ([]*appconf.Config, error) {
 		InMemorySince: time.Now(),
 	}
 
+	appCacheMu.Lock()
 	appCache[hostName] = cached
+	appCacheMu.Unlock()
 
 	if len(configs) > 0 && configs[0].CertKey != "" && configs[0].CertValue != "" {
 		hash, err := CertMagic().

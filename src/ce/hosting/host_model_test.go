@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
@@ -129,4 +131,46 @@ func (s *HostSuite) Test_ModifyingURL() {
 
 func TestHostModel(t *testing.T) {
 	suite.Run(t, &HostSuite{})
+}
+
+var benchDBOnce sync.Once
+var benchDB databasetest.TestDB
+
+func setupBenchDB() {
+	benchDBOnce.Do(func() {
+		benchDB = databasetest.InitTx("fetch_app_conf_bench")
+	})
+}
+
+// BenchmarkFetchAppConfCacheMiss simulates concurrent requests for unique hostnames,
+// which forces cache misses and tests lock contention under load.
+func BenchmarkFetchAppConfCacheMiss(b *testing.B) {
+	setupBenchDB()
+
+	var counter int64
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			// Unique hostname each time = guaranteed cache miss
+			i := atomic.AddInt64(&counter, 1)
+			hostname := fmt.Sprintf("bench-test-%d.example.com", i)
+			hosting.FetchAppConf(hostname)
+		}
+	})
+}
+
+// BenchmarkFetchAppConfCacheHit simulates concurrent requests for the same hostname,
+// which tests cache hit performance.
+func BenchmarkFetchAppConfCacheHit(b *testing.B) {
+	setupBenchDB()
+
+	// Prime the cache
+	hosting.FetchAppConf("cached-host.example.com")
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			hosting.FetchAppConf("cached-host.example.com")
+		}
+	})
 }
