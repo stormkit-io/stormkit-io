@@ -23,6 +23,16 @@ In the Mailer Configuration panel, you will find the following fields. Fill them
 | **Username**  | Enter the username for SMTP authentication. Typically the email address associated with your account. |
 | **Password**  | Enter the password for SMTP authentication. Ensure this is securely stored and not shared publicly.   |
 
+## Environment Variables
+
+When configured, Stormkit will inject the following environment variable at build time and make it available at runtime:
+
+| Variable     | Description                         |
+| ------------ | ----------------------------------- |
+| `MAILER_URL` | The API endpoint for sending emails |
+
+> **Note:** If an environment already has a custom `MAILER_URL` configured, it won't be overwritten.
+
 ## Testing the Configuration
 
 After entering your SMTP credentials, click the `Send test email` button to verify the configuration.
