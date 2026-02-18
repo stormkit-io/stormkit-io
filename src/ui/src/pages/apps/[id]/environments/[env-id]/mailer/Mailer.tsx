@@ -90,6 +90,11 @@ export default function TabMailer() {
                       },
                     ]}
                   />
+                  <Typography sx={{ mt: 2 }}>
+                    Note that if an environment already has a custom{" "}
+                    <Box component="code">MAILER_URL</Box> configured, it won't
+                    be overwritten.
+                  </Typography>
                 </Box>
                 <Box sx={{ my: 4 }}>
                   <Typography variant="h2" sx={{ mb: 1 }}>
