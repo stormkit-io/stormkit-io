@@ -2,7 +2,7 @@ package buildconf
 
 import (
 	"encoding/json"
-	"fmt"
+	"net/url"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
@@ -32,7 +32,13 @@ func (mc *MailerConf) String() string {
 		port = "587"
 	}
 
-	return fmt.Sprintf("smtp://%s:%s@%s:%s", mc.Username, mc.Password, mc.Host, port)
+	u := &url.URL{
+		Scheme: "smtp",
+		User:   url.UserPassword(mc.Username, mc.Password),
+		Host:   mc.Host + ":" + port,
+	}
+
+	return u.String()
 }
 
 // UnmarshalJSON implements the marshaler interface.

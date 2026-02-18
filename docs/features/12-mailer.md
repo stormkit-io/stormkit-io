@@ -27,9 +27,9 @@ In the Mailer Configuration panel, you will find the following fields. Fill them
 
 When configured, Stormkit will inject the following environment variable at build time and make it available at runtime:
 
-| Variable     | Description                         |
-| ------------ | ----------------------------------- |
-| `MAILER_URL` | The API endpoint for sending emails |
+| Variable     | Description                                                     |
+| ------------ | --------------------------------------------------------------- |
+| `MAILER_URL` | The SMTP connection string (e.g., `smtp://user:pass@host:port`) |
 
 > **Note:** If an environment already has a custom `MAILER_URL` configured, it won't be overwritten.
 
