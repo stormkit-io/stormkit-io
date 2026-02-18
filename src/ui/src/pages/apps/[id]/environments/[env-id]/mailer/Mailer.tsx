@@ -89,7 +89,7 @@ export default function TabMailer() {
                     items={[
                       {
                         name: <Box component="code">MAILER_URL</Box>,
-                        desc: "The API endpoint for sending emails",
+                        desc: "The SMTP connection string (e.g., smtp://user:pass@host:port)",
                       },
                     ]}
                   />
