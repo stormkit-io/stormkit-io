@@ -1,15 +1,14 @@
-package mailer
+package buildconf
 
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/database"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 )
 
-var stmt = struct {
+var mstmt = struct {
 	selectConfig string
 	upsertConfig string
 	selectEmails string
@@ -52,71 +51,38 @@ var stmt = struct {
 }
 
 // Store represents a store for volume management.
-type store struct {
+type mailerStore struct {
 	*database.Store
 }
 
 // Store returns a new store instance.
-func Store() *store {
-	return &store{
+func MailerStore() *mailerStore {
+	return &mailerStore{
 		Store: database.NewStore(),
 	}
 }
 
-// Config returns the Mailer Configuration for the given environment.
-func (s *store) Config(ctx context.Context, envID types.ID) (*Config, error) {
-	row, err := s.QueryRow(ctx, stmt.selectConfig, envID)
-
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		}
-
-		return nil, err
-	}
-
-	var data []byte
-
-	if err := row.Scan(&data); err != nil {
-		return nil, err
-	}
-
-	cnf := &Config{
-		EnvID: envID,
-	}
-
-	if err := json.Unmarshal(data, cnf); err != nil {
-		return nil, err
-	}
-
-	if cnf.Host == "" || cnf.Username == "" || cnf.Password == "" {
-		return nil, nil
-	}
-
-	return cnf, nil
-}
-
 // UpsertConfig creates or updates the volumes config.
-func (s *store) UpsertConfig(ctx context.Context, cnf *Config) error {
-	data, err := json.Marshal(cnf)
+func (s *mailerStore) UpsertConfig(ctx context.Context, cnf *MailerConf) error {
+	data, err := cnf.Bytes()
 
 	if err != nil {
 		return err
 	}
 
-	_, err = s.Exec(ctx, stmt.upsertConfig, data, cnf.EnvID)
+	_, err = s.Exec(ctx, mstmt.upsertConfig, data, cnf.EnvID)
 	return err
 }
 
 // InsertMail inserts a sent email to the database. This is mostly for auditing.
-func (s *store) InsertEmail(ctx context.Context, mail Email) error {
-	_, err := s.Exec(ctx, stmt.insertEmail, mail.EnvID, mail.To, mail.From, mail.Body, mail.Subject)
+func (s *mailerStore) InsertEmail(ctx context.Context, mail Email) error {
+	_, err := s.Exec(ctx, mstmt.insertEmail, mail.EnvID, mail.To, mail.From, mail.Body, mail.Subject)
 	return err
 }
 
 // Emails returns the last sent 100 emails.
-func (s *store) Emails(ctx context.Context, envID types.ID) ([]*Email, error) {
-	rows, err := s.Query(ctx, stmt.selectEmails, envID)
+func (s *mailerStore) Emails(ctx context.Context, envID types.ID) ([]*Email, error) {
+	rows, err := s.Query(ctx, mstmt.selectEmails, envID)
 
 	if err != nil {
 		if err == sql.ErrNoRows {

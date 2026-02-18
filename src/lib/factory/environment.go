@@ -28,8 +28,8 @@ func (e MockEnv) Insert(conn databasetest.TestDB) error {
 		}
 	}
 
-	if e.Mailer != nil {
-		mailer, err = json.Marshal(e.Mailer)
+	if e.MailerConf != nil {
+		mailer, err = e.MailerConf.Bytes()
 
 		if err != nil {
 			return err

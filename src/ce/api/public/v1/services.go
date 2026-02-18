@@ -3,8 +3,8 @@ package publicapiv1
 import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/domainhandlers"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/mailerhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/snippetshandlers"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/mailer/mailerhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"

@@ -152,6 +152,7 @@ func (s *Store) selectEnvironment(ctx context.Context, query string, appID types
 	var buildConf []byte
 	var schemaConf []byte
 	var authConf []byte
+	var mailerConf []byte
 
 	cnf := &Env{
 		Data: &BuildConf{},
@@ -173,7 +174,7 @@ func (s *Store) selectEnvironment(ctx context.Context, query string, appID types
 		&cnf.ID, &cnf.Name, &cnf.AppID, &buildConf,
 		&cnf.AutoPublish, &cnf.Branch, &cnf.AutoDeploy,
 		&cnf.AutoDeployBranches, &cnf.AutoDeployCommits,
-		&cnf.UpdatedAt, &schemaConf, &authConf,
+		&cnf.UpdatedAt, &schemaConf, &authConf, &mailerConf,
 	)
 
 	if err == sql.ErrNoRows {
@@ -208,6 +209,15 @@ func (s *Store) selectEnvironment(ctx context.Context, query string, appID types
 		if cnf.Data.Cmd != "" {
 			cnf.Data.BuildCmd = cnf.Data.Cmd
 		}
+	}
+
+	if mailerConf != nil {
+		if err := json.Unmarshal(mailerConf, &cnf.MailerConf); err != nil {
+			return nil, err
+		}
+
+		cnf.MailerConf.Password = utils.DecryptToString(cnf.MailerConf.Password)
+		cnf.MailerConf.Username = utils.DecryptToString(cnf.MailerConf.Username)
 	}
 
 	return cnf, err

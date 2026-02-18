@@ -6,8 +6,8 @@ import (
 	"net/smtp"
 	"testing"
 
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/mailer"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/mailer/mailerhandlers"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/mailerhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
@@ -36,7 +36,7 @@ func (s *HandlerMailerConfigGetSuite) Test_Success() {
 	usr := s.MockUser()
 	app := s.MockApp(usr)
 	env := s.MockEnv(app, map[string]any{
-		"Mailer": &mailer.Config{
+		"MailerConf": &buildconf.MailerConf{
 			Host:     "smtp.gmail.com",
 			Port:     "587",
 			Username: "test",

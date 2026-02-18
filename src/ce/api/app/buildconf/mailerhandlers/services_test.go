@@ -3,7 +3,7 @@ package mailerhandlers_test
 import (
 	"testing"
 
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/mailer/mailerhandlers"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/mailerhandlers"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stretchr/testify/suite"
 )

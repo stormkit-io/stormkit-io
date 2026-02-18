@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/mailer"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 )
 
@@ -54,7 +54,7 @@ func HandlerMailerConfigSet(req *app.RequestContext) *shttp.Response {
 		}
 	}
 
-	config := &mailer.Config{
+	config := &buildconf.MailerConf{
 		Host:     data.SMTPHost,
 		Port:     data.SMTPPort,
 		Username: data.Username,
@@ -62,7 +62,7 @@ func HandlerMailerConfigSet(req *app.RequestContext) *shttp.Response {
 		EnvID:    req.EnvID,
 	}
 
-	if err := mailer.Store().UpsertConfig(req.Context(), config); err != nil {
+	if err := buildconf.MailerStore().UpsertConfig(req.Context(), config); err != nil {
 		return shttp.Error(err)
 	}
 

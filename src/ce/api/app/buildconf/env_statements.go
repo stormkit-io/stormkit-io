@@ -16,7 +16,8 @@ var stmt = &statement{
 		SELECT
 			e.env_id, e.env_name, e.app_id, e.build_conf,
 			e.auto_publish, e.branch, e.auto_deploy, e.auto_deploy_branches,
-			e.auto_deploy_commits, e.updated_at, e.schema_conf, e.auth_conf
+			e.auto_deploy_commits, e.updated_at, e.schema_conf, e.auth_conf,
+			e.mailer_conf
 		FROM
 			apps_build_conf e
 		WHERE
@@ -65,7 +66,7 @@ var stmt = &statement{
 		SELECT
 			e.env_id, e.env_name, e.app_id, e.build_conf, e.auto_publish,
 			e.branch, e.auto_deploy, e.auto_deploy_branches, e.auto_deploy_commits,
-			e.updated_at, e.schema_conf, e.auth_conf
+			e.updated_at, e.schema_conf, e.auth_conf, e.mailer_conf
 		FROM apps_build_conf e
 		WHERE
 			app_id = $1 AND deleted_at IS NULL AND LOWER(env_name) = LOWER($2);

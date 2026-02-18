@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/mailer"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
@@ -46,12 +46,13 @@ func HandlerMail(req *app.RequestContext) *shttp.Response {
 		}
 	}
 
-	store := mailer.Store()
-	config, err := store.Config(req.Context(), req.EnvID)
+	env, err := buildconf.NewStore().EnvironmentByID(req.Context(), req.EnvID)
 
 	if err != nil {
 		return shttp.Error(err)
 	}
+
+	config := env.MailerConf
 
 	if config == nil {
 		return &shttp.Response{
@@ -90,7 +91,7 @@ func HandlerMail(req *app.RequestContext) *shttp.Response {
 	}
 
 	// Store the sent email in the database
-	email := mailer.Email{
+	email := buildconf.Email{
 		EnvID:   req.EnvID,
 		From:    utils.GetString(data.From, config.Username),
 		To:      data.To,
@@ -98,7 +99,7 @@ func HandlerMail(req *app.RequestContext) *shttp.Response {
 		Subject: data.Subject,
 	}
 
-	if err := store.InsertEmail(req.Context(), email); err != nil {
+	if err := buildconf.MailerStore().InsertEmail(req.Context(), email); err != nil {
 		return shttp.Error(err)
 	}
 

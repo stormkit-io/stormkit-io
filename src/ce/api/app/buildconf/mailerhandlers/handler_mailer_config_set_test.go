@@ -6,8 +6,8 @@ import (
 	"net/smtp"
 	"testing"
 
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/mailer"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/mailer/mailerhandlers"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/mailerhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
@@ -56,15 +56,15 @@ func (s *HandlerMailerConfigSetSuite) Test_Success() {
 
 	s.Equal(http.StatusOK, response.Code)
 
-	config, err := mailer.Store().Config(context.Background(), env.ID)
+	envUpdated, err := buildconf.NewStore().EnvironmentByID(context.Background(), env.ID)
 	s.NoError(err)
-	s.Equal(&mailer.Config{
-		EnvID:    env.ID,
+	s.NotNil(envUpdated)
+	s.Equal(&buildconf.MailerConf{
 		Host:     "smtp.gmail.com",
 		Port:     "587",
 		Username: "test-user",
 		Password: "test-pwd",
-	}, config)
+	}, envUpdated.MailerConf)
 }
 
 func (s *HandlerMailerConfigSetSuite) Test_BadRequest() {

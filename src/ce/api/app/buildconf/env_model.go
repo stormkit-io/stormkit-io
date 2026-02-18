@@ -8,7 +8,6 @@ import (
 
 	"github.com/dlclark/regexp2"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/mailer"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/redirects"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/model"
@@ -60,6 +59,9 @@ type Env struct {
 	// AuthConf holds the configuration for authentication.
 	AuthConf *AuthConf `json:"authConf"`
 
+	// MailerConf holds the configuration for sending transactional emails.
+	MailerConf *MailerConf `json:"mailer,omitempty"`
+
 	// AutoPublish specifies whether successful deployment should be
 	// publish to 100% immediately.
 	AutoPublish bool `json:"autoPublish" db:"auto_publish"`
@@ -79,9 +81,6 @@ type Env struct {
 	// AutoDeployCommits is a regexp config that specifies which
 	// commits to deploy automatically.
 	AutoDeployCommits null.String `json:"autoDeployCommits,omitempty"`
-
-	// Mailer configuration for sending transactional emails.
-	Mailer *mailer.Config `json:"mailer,omitempty"`
 
 	UpdatedAt utils.Unix `json:"-"`
 
