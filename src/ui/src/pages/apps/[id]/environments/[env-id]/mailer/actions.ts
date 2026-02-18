@@ -40,7 +40,7 @@ export const useFetchMailerConfig = ({
       .finally(() => {
         setLoading(false);
       });
-  }, [refreshToken]);
+  }, [refreshToken, appId, envId]);
 
   return { config, loading, error };
 };
