@@ -44,7 +44,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/EnvironmentConfig.tsx",
             <EnvironmentConfig />
           </EnvironmentContext.Provider>
         </AppContext.Provider>
-      </MemoryRouter>
+      </MemoryRouter>,
     );
   };
 
@@ -75,7 +75,6 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/EnvironmentConfig.tsx",
     expect(wrapper.getByText("Redirects")).toBeTruthy();
     expect(wrapper.getByText("Auth wall")).toBeTruthy();
     expect(wrapper.getByText("Domains")).toBeTruthy();
-    expect(wrapper.getByText("Mailer")).toBeTruthy();
   });
 
   it.each`
@@ -90,7 +89,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/EnvironmentConfig.tsx",
     ({ hash, expectedString }) => {
       createWrapper({ hash });
       expect(wrapper.getByText(expectedString)).toBeTruthy();
-    }
+    },
   );
 
   it("should switch between tabs", async () => {
@@ -100,7 +99,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/EnvironmentConfig.tsx",
 
     await waitFor(() => {
       expect(
-        wrapper.getByTestId("env-config-nav").getAttribute("data-selected")
+        wrapper.getByTestId("env-config-nav").getAttribute("data-selected"),
       ).toBe("#env-vars");
     });
   });

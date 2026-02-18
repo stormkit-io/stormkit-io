@@ -53,7 +53,7 @@ describe("~/layouts/AppLayout/EnvMenu.tsx", () => {
 
     await waitFor(() => {
       expect(
-        getByLabelText(document.body, "development environment")
+        getByLabelText(document.body, "development environment"),
       ).toBeTruthy();
     });
 
@@ -61,7 +61,7 @@ describe("~/layouts/AppLayout/EnvMenu.tsx", () => {
 
     await waitFor(() => {
       expect(global.NavigateMock).toHaveBeenCalledWith(
-        `/apps/1/environments/${defaultEnvs[1].id}`
+        `/apps/1/environments/${defaultEnvs[1].id}`,
       );
     });
   });
@@ -78,6 +78,7 @@ describe("~/layouts/AppLayout/EnvMenu.tsx", () => {
       `/apps/${defaultApp.id}/environments/${defaultEnvs[0].id}/function-triggers`,
       `/apps/${defaultApp.id}/environments/${defaultEnvs[0].id}/volumes`,
       `/apps/${defaultApp.id}/environments/${defaultEnvs[0].id}/database`,
+      `/apps/${defaultApp.id}/environments/${defaultEnvs[0].id}/mailer`,
       `/apps/${defaultApp.id}/environments/${defaultEnvs[0].id}/analytics`,
     ]);
   });

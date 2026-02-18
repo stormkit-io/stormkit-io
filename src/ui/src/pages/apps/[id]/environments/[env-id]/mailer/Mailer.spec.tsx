@@ -150,34 +150,34 @@ describe("~/pages/apps/[id]/environments/[env-id]/mailer/Mailer.tsx", () => {
     });
 
     // Click the "Learn more" link
-    fireEvent.click(wrapper.getByText("Learn more."));
+    fireEvent.click(await waitFor(() => wrapper.getByText("Learn more.")));
 
     // Help drawer should open with expected content
     await waitFor(() => {
       expect(wrapper.getByText("Mailer Configuration Help")).toBeTruthy();
+
+      // Check for help content
+      expect(
+        wrapper.getByText(/Configure your SMTP settings to enable/),
+      ).toBeTruthy();
+      expect(wrapper.getByText("Environment Variables")).toBeTruthy();
+      expect(wrapper.getAllByText("MAILER_URL")).toBeTruthy();
+      expect(
+        wrapper.getByText("The API endpoint for sending emails"),
+      ).toBeTruthy();
+
+      // Gmail configuration example
+      expect(wrapper.getByText("Example Configuration (Gmail)")).toBeTruthy();
+      expect(wrapper.getByText("smtp.gmail.com")).toBeTruthy();
+      expect(wrapper.getByText("587")).toBeTruthy();
+      expect(wrapper.getByText("your-email@gmail.com")).toBeTruthy();
+
+      // API documentation link
+      const apiDocLink = wrapper.getByText("API documentation");
+      expect(apiDocLink).toBeTruthy();
+      expect(apiDocLink.closest("a")?.getAttribute("href")).toBe(
+        "https://www.stormkit.io/docs/api/mailer",
+      );
     });
-
-    // Check for help content
-    expect(
-      wrapper.getByText(/Configure your SMTP settings to enable/),
-    ).toBeTruthy();
-    expect(wrapper.getByText("Environment Variables")).toBeTruthy();
-    expect(wrapper.getByText("MAILER_URL")).toBeTruthy();
-    expect(
-      wrapper.getByText("The API endpoint for sending emails"),
-    ).toBeTruthy();
-
-    // Gmail configuration example
-    expect(wrapper.getByText("Example Configuration (Gmail)")).toBeTruthy();
-    expect(wrapper.getByText("smtp.gmail.com")).toBeTruthy();
-    expect(wrapper.getByText("587")).toBeTruthy();
-    expect(wrapper.getByText("your-email@gmail.com")).toBeTruthy();
-
-    // API documentation link
-    const apiDocLink = wrapper.getByText("API documentation");
-    expect(apiDocLink).toBeTruthy();
-    expect(apiDocLink.closest("a")?.getAttribute("href")).toBe(
-      "https://www.stormkit.io/docs/api/mailer",
-    );
   });
 });

@@ -98,6 +98,7 @@ describe("~/layouts/AppLayout/Applayout.tsx", () => {
         `/apps/${defaultApp.id}/environments/${defaultEnvs[0].id}/function-triggers`,
         `/apps/${defaultApp.id}/environments/${defaultEnvs[0].id}/volumes`,
         `/apps/${defaultApp.id}/environments/${defaultEnvs[0].id}/database`,
+        `/apps/${defaultApp.id}/environments/${defaultEnvs[0].id}/mailer`,
         `/apps/${defaultApp.id}/environments/${defaultEnvs[0].id}/analytics`,
       ]);
     });
