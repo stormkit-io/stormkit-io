@@ -163,7 +163,9 @@ describe("~/pages/apps/[id]/environments/[env-id]/mailer/Mailer.tsx", () => {
       expect(wrapper.getByText("Environment Variables")).toBeTruthy();
       expect(wrapper.getAllByText("MAILER_URL")).toBeTruthy();
       expect(
-        wrapper.getByText("The API endpoint for sending emails"),
+        wrapper.getByText(
+          "The SMTP connection string (e.g., smtp://user:pass@host:port)",
+        ),
       ).toBeTruthy();
 
       // Gmail configuration example
