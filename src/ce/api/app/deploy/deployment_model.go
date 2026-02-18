@@ -154,6 +154,10 @@ func (d *Deployment) includeMailerVars(mailer *buildconf.MailerConf) {
 		return
 	}
 
+	if d.BuildConfig == nil {
+		d.BuildConfig = &buildconf.BuildConf{}
+	}
+
 	if d.BuildConfig.Vars["MAILER_URL"] == "" {
 		d.BuildConfig.Vars["MAILER_URL"] = mailer.String()
 	}
