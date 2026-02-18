@@ -38,6 +38,9 @@ export default function TabMailer() {
       return setFormError("Username is a required field");
     }
 
+    setFormError(undefined);
+    setSuccess(undefined);
+
     api
       .post("/mailer/config", { appId: app.id, envId: env.id!, ...data })
       .then(() => {
