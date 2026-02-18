@@ -26,7 +26,13 @@ func (mc *MailerConf) Bytes() ([]byte, error) {
 
 // String returns a connection string.
 func (mc *MailerConf) String() string {
-	return fmt.Sprintf("smtp://%s:%s@%s:%s", mc.Username, mc.Password, mc.Host, mc.Port)
+	port := mc.Port
+
+	if port == "" {
+		port = "587"
+	}
+
+	return fmt.Sprintf("smtp://%s:%s@%s:%s", mc.Username, mc.Password, mc.Host, port)
 }
 
 // UnmarshalJSON implements the marshaler interface.
