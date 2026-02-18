@@ -148,6 +148,17 @@ func New(a *app.App) *Deployment {
 	return d
 }
 
+// includeMailerVars includes the mailer variables into the deployment build config.
+func (d *Deployment) includeMailerVars(mailer *buildconf.MailerConf) {
+	if mailer == nil {
+		return
+	}
+
+	if d.BuildConfig.Vars["MAILER_URL"] == "" {
+		d.BuildConfig.Vars["MAILER_URL"] = mailer.String()
+	}
+}
+
 // includeSchemaVars includes the database schema variables into the deployment build config.
 func (d *Deployment) includeSchemaVars(schema *buildconf.SchemaConf) {
 	if d.BuildConfig == nil {
@@ -204,6 +215,10 @@ func (d *Deployment) PopulateFromEnv(env *buildconf.Env) {
 			d.includeSchemaVars(env.SchemaConf)
 		}
 	}
+
+	if env.MailerConf != nil {
+		d.includeMailerVars(env.MailerConf)
+	}
 }
 
 type DeployCandidatePayload struct {
@@ -240,6 +255,10 @@ func (d *Deployment) PopulateFromDeployCandidate(a *app.DeployCandidate, p Deplo
 		if a.SchemaConf.InjectEnvVars {
 			d.includeSchemaVars(a.SchemaConf)
 		}
+	}
+
+	if a.MailerConf != nil {
+		d.includeMailerVars(a.MailerConf)
 	}
 }
 

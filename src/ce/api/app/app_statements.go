@@ -70,7 +70,7 @@ var stmt = &statement{
 			envs.env_name, envs.env_id, envs.auto_publish,
 			envs.build_conf, envs.branch,
 			envs.auto_deploy_branches, envs.auto_deploy_commits,
-			envs.auto_deploy, envs.schema_conf
+			envs.auto_deploy, envs.schema_conf, envs.mailer_conf
 		FROM
 			apps a
 		LEFT JOIN

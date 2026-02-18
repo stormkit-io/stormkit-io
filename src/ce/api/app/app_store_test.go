@@ -88,12 +88,20 @@ func (s *AppStoreSuite) Test_DeployCandidates() {
 	envDev := s.MockEnv(appl, map[string]any{
 		"Name":       "development",
 		"AutoDeploy": true,
+		"MailerConf": &buildconf.MailerConf{
+			Username: "test",
+			Password: "test-pwd",
+			Host:     "smtp.gmail.com",
+			Port:     "587",
+		},
 	})
 
 	candidates, err := app.NewStore().DeployCandidates(context.Background(), appl.Repo)
 	s.NoError(err)
 	s.Len(candidates, 1)
 	s.Equal(envDev.Name, candidates[0].EnvName)
+	s.NotNil(candidates[0].MailerConf)
+	s.Equal("smtp://test:test-pwd@smtp.gmail.com:587", candidates[0].MailerConf.String())
 }
 
 func TestAppStore(t *testing.T) {

@@ -3,6 +3,7 @@ package apphandlers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -109,7 +110,7 @@ func TriggerDeploy(ctx context.Context, input TriggerDeployInput) *shttp.Respons
 	apps, err := app.NewStore().DeployCandidates(ctx, input.Repo)
 
 	if err != nil {
-		return shttp.Error(err)
+		return shttp.Error(err, fmt.Sprintf("error while fetching deploy candidates: %s", err.Error()))
 	}
 
 	numberOfBuilds := 0

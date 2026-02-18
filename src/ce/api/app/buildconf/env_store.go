@@ -215,9 +215,6 @@ func (s *Store) selectEnvironment(ctx context.Context, query string, appID types
 		if err := json.Unmarshal(mailerConf, &cnf.MailerConf); err != nil {
 			return nil, err
 		}
-
-		cnf.MailerConf.Password = utils.DecryptToString(cnf.MailerConf.Password)
-		cnf.MailerConf.Username = utils.DecryptToString(cnf.MailerConf.Username)
 	}
 
 	return cnf, err

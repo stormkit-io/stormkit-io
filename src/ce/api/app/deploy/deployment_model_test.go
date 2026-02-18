@@ -254,7 +254,7 @@ func (s *DeploymentModelSuite) Test_PopulateFromEnv_SchemaDoNotInjectEnvVars() {
 	s.Empty(dep.BuildConfig.Vars["DATABASE_URL"])
 }
 
-func (s *DeploymentModelSuite) Test_PopulateFromEnv_SchemaInjectEnvVars() {
+func (s *DeploymentModelSuite) Test_PopulateFromEnv() {
 	dep := &deploy.Deployment{}
 	env := &buildconf.Env{
 		ID:          15,
@@ -276,6 +276,12 @@ func (s *DeploymentModelSuite) Test_PopulateFromEnv_SchemaInjectEnvVars() {
 			AppUserName:       "custom_user",
 			AppPassword:       "custom_password",
 		},
+		MailerConf: &buildconf.MailerConf{
+			Username: "test-user",
+			Password: "test-pwd",
+			Host:     "smtp.gmail.com",
+			Port:     "587",
+		},
 	}
 
 	dep.PopulateFromEnv(env)
@@ -294,6 +300,7 @@ func (s *DeploymentModelSuite) Test_PopulateFromEnv_SchemaInjectEnvVars() {
 	s.Equal("localhost", dep.BuildConfig.Vars["POSTGRES_HOST"])
 	s.Equal("5432", dep.BuildConfig.Vars["POSTGRES_PORT"])
 	s.Equal("postgresql://custom_user:custom_password@localhost:5432/custom_db?options=-csearch_path=custom_schema&sslmode=disable", dep.BuildConfig.Vars["DATABASE_URL"])
+	s.Equal("smtp://test-user:test-pwd@smtp.gmail.com:587", dep.BuildConfig.Vars["MAILER_URL"])
 }
 
 func (s *DeploymentModelSuite) Test_PopulateFromDeployCandidate() {
@@ -322,6 +329,12 @@ func (s *DeploymentModelSuite) Test_PopulateFromDeployCandidate() {
 			AppUserName:       "custom_user",
 			AppPassword:       "custom_password",
 		},
+		MailerConf: &buildconf.MailerConf{
+			Username: "test-user",
+			Password: "test-pwd",
+			Host:     "smtp.gmail.com",
+			Port:     "587",
+		},
 	}
 
 	dep.PopulateFromDeployCandidate(can, deploy.DeployCandidatePayload{
@@ -342,6 +355,7 @@ func (s *DeploymentModelSuite) Test_PopulateFromDeployCandidate() {
 	s.Equal("db.host", dep.BuildConfig.Vars["POSTGRES_HOST"])
 	s.Equal("6543", dep.BuildConfig.Vars["POSTGRES_PORT"])
 	s.Equal("should_not_overwrite", dep.BuildConfig.Vars["DATABASE_URL"])
+	s.Equal("smtp://test-user:test-pwd@smtp.gmail.com:587", dep.BuildConfig.Vars["MAILER_URL"])
 }
 
 func TestDeploymentModel(t *testing.T) {

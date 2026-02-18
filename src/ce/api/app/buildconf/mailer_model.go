@@ -2,6 +2,7 @@ package buildconf
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
@@ -21,6 +22,35 @@ func (mc *MailerConf) Bytes() ([]byte, error) {
 	cnf.Username = utils.EncryptToString(cnf.Username)
 	cnf.Password = utils.EncryptToString(cnf.Password)
 	return json.Marshal(cnf)
+}
+
+// String returns a connection string.
+func (mc *MailerConf) String() string {
+	return fmt.Sprintf("smtp://%s:%s@%s:%s", mc.Username, mc.Password, mc.Host, mc.Port)
+}
+
+// UnmarshalJSON implements the marshaler interface.
+func (mc *MailerConf) UnmarshalJSON(data []byte) error {
+	if data == nil {
+		return nil
+	}
+
+	hash := map[string]string{}
+
+	if err := json.Unmarshal(data, &hash); err != nil {
+		return err
+	}
+
+	if mc == nil {
+		mc = &MailerConf{}
+	}
+
+	mc.Username = utils.DecryptToString(hash["username"])
+	mc.Password = utils.DecryptToString(hash["password"])
+	mc.Host = hash["host"]
+	mc.Port = hash["port"]
+
+	return nil
 }
 
 type Email struct {

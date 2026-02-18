@@ -264,6 +264,7 @@ type DeployCandidate struct {
 	ShouldPublish      bool
 	BuildConfig        *buildconf.BuildConf
 	SchemaConf         *buildconf.SchemaConf
+	MailerConf         *buildconf.MailerConf
 }
 
 // DeployCandidates returns a list of deploy candidates that belongs to apps matching the repo name.
@@ -291,6 +292,7 @@ func (s *Store) DeployCandidates(ctx context.Context, repo string) ([]*DeployCan
 	for rows.Next() {
 		var schemaConf []byte
 		var buildConf []byte
+		var mailerConf []byte
 		var defaultEnv null.String
 
 		ma := &DeployCandidate{
@@ -305,7 +307,7 @@ func (s *Store) DeployCandidates(ctx context.Context, repo string) ([]*DeployCan
 			&ma.UserID, &ma.TeamID, &ma.EnvName, &ma.EnvID,
 			&ma.ShouldPublish, &buildConf, &ma.EnvDefaultBranch,
 			&ma.AutoDeployBranches, &ma.AutoDeployCommits, &ma.EnvAutoDeploy,
-			&schemaConf,
+			&schemaConf, &mailerConf,
 		)
 
 		if defaultEnv.ValueOrZero() == "" {
@@ -326,8 +328,13 @@ func (s *Store) DeployCandidates(ctx context.Context, repo string) ([]*DeployCan
 			}
 		}
 
+		if mailerConf != nil {
+			if err := json.Unmarshal(mailerConf, &ma.MailerConf); err != nil {
+				return nil, err
+			}
+		}
+
 		if err != nil {
-			slog.Errorf("error while fetching apps for auto deploy: %v", err)
 			return nil, err
 		}
 
