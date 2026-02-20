@@ -181,7 +181,7 @@ endif
 # Phony Targets
 # ===============================================================================================
 
-.PHONY: help check-deps start restart dev print-env test test-fe test-be test-fe-watch reset-data migration
+.PHONY: help check-deps start restart dev print-env test test-fe test-be test-fe-watch reset-data migration dump-schema
 
 # ===============================================================================================
 # Tasks
@@ -199,6 +199,7 @@ help:
 	@echo "  test-fe-watch - Run frontend tests in watch mode"
 	@echo "  test-be       - Run backend tests"
 	@echo "  restart       - Restart hosting and workerserver services"
+	@echo "  dump-schema   - Dump database schema to src/migrations/structure.sql"
 
 # Display environment information
 print-env:
@@ -272,6 +273,19 @@ migration:
 	new="src/migrations/$${padded}_$${date}.up.sql"; \
 	if [ -f src/migrations/next_migration.sql ]; then cp src/migrations/next_migration.sql "$$new"; else touch "$$new"; fi; \
 	printf "Created %s\n" "$$new"
+
+# Dump database schema to structure.sql
+dump-schema:
+	@echo "Dumping database schema to src/migrations/structure.sql..."
+	@mkdir -p src/migrations
+ifeq ($(UNIX_LIKE),FALSE)
+	@$$db = (Get-Content .env | Select-String -Pattern '^POSTGRES_DB=' | ForEach-Object { $$_ -replace '^POSTGRES_DB=', '' }); \
+	docker compose exec -T db pg_dump --schema-only -U skitadmin -d $$db | Out-File -Encoding utf8 -FilePath src/migrations/structure.sql
+else
+	@db=$$(grep '^POSTGRES_DB=' .env | cut -d '=' -f2); \
+	docker compose exec -T db pg_dump --schema-only -U skitadmin -d $$db > src/migrations/structure.sql
+endif
+	@echo "Schema dumped successfully!"
 
 # Development workflow - check dependencies and start services
 dev: check-deps start
