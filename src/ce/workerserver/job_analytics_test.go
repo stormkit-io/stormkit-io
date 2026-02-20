@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -27,6 +28,7 @@ type JobAnalyticsSuite struct {
 	yesterday   string
 	fiveDaysAgo string
 	today       string
+	randomToken string
 }
 
 func (s *JobAnalyticsSuite) BeforeTest(suiteName, _ string) {
@@ -59,13 +61,21 @@ func (s *JobAnalyticsSuite) BeforeTest(suiteName, _ string) {
 		"192.196.195.114": {yesterday.Format(time.DateTime), now.Format(time.DateTime)},
 	}
 
+	tokens := []string{}
+
+	for range 20 {
+		tokens = append(tokens, utils.RandomToken(63))
+	}
+
+	s.randomToken = strings.Join(tokens, "")
+
 	// We have total 8 requests, so 8 referrers:
 	referrers := map[string][]string{
 		"86.8.6.85":       {"google.com", "google.com"},
 		"188.167.251.87":  {"yahoo.com", "test.com"},
 		"171.22.106.134":  {"yahoo.com", "google.com"},
-		"192.196.195.114": {"example.org", "google.com"},
-		"181.130.251.87":  {"google.com"},
+		"192.196.195.114": {"example.org", fmt.Sprintf("test.com?code=%s", s.randomToken)},
+		"181.130.251.87":  {"test.com"},
 	}
 
 	records := []analytics.Record{}
@@ -206,9 +216,10 @@ func (s *JobAnalyticsSuite) Test_SyncAnalyticsReferrers() {
 	s.NoError(err)
 
 	expected := map[string]int{
-		"google.com":  3,
+		"google.com":  2,
 		"yahoo.com":   1,
 		"example.org": 1,
+		fmt.Sprintf("test.com?code=%s", s.randomToken): 1,
 	}
 
 	s.Equal(expected, data)
@@ -228,7 +239,7 @@ func (s *JobAnalyticsSuite) Test_SyncAnalyticsByCountries() {
 	s.NoError(err)
 
 	expected := map[string]int{
-		"US": 3,
+		"US": 2,
 	}
 
 	s.Equal(expected, data)

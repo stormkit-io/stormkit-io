@@ -144,7 +144,7 @@ var stmt = &statement{
 
 	syncAnalyticsReferrers: `
 		INSERT INTO analytics_referrers
-			(aggregate_date, referrer, request_path, domain_id, visit_count)
+			(aggregate_date, referrer, referrer_hash, request_path, request_path_hash, domain_id, visit_count)
             SELECT
                 DATE(a.request_timestamp) as req_date,
 				regexp_replace(
@@ -154,7 +154,17 @@ var stmt = &statement{
 					),
 					'/$', ''
 				) as referrer_domain,
+				decode(md5(
+					regexp_replace(
+						regexp_replace(
+							COALESCE(a.referrer, ''),
+							'^https?://(www\.)?', ''
+						),
+						'/$', ''
+					)
+				), 'hex') as referrer_hash,
 				a.request_path,
+				decode(md5(a.request_path), 'hex') as request_path_hash,
 				a.domain_id,
 				COUNT(a.domain_id) AS total_count
             FROM
@@ -166,7 +176,7 @@ var stmt = &statement{
 				req_date, referrer_domain,
 				a.request_path, a.domain_id
 		ON CONFLICT
-			(aggregate_date, referrer, request_path, domain_id)
+			(aggregate_date, referrer_hash, request_path_hash, domain_id)
 		DO UPDATE SET
 			visit_count = EXCLUDED.visit_count;
 	`,
