@@ -50,7 +50,6 @@ func init() {
 	// Clean up schema_migrations
 	var stmts = []string{
 		"DROP TABLE IF EXISTS public.migrations;",
-		"DROP TABLE IF EXISTS public.migrations_lock;",
 		fmt.Sprintf(`DROP SCHEMA IF EXISTS %s CASCADE`, database.Config.Schema),
 	}
 

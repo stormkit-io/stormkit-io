@@ -127,30 +127,19 @@ func Up(db *sql.DB, conf database.DBConf) bool {
 	var seedVersion int
 	var isDirty bool
 
-	_, err := db.Exec("CREATE TABLE public.migrations_lock ( )")
+	expo := 1
+	store := database.NewStore()
+
+	slog.Infof("acquiring lock for migrating database")
 
 	// If the table already exists, another instance is running migrations
-	if err != nil {
-		expo := 1
-
-		// We should wait until the lock table is dropped
-		for {
-			slog.Infof("another instance is running migrations, waiting for %d second(s)...", expo)
-			time.Sleep(time.Duration(expo) * time.Second)
-			expo *= 2
-
-			var count int
-
-			err := db.QueryRow("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'migrations_lock';").Scan(&count)
-
-			// Now check if the lock table still exists
-			if err == nil && count == 0 {
-				return false
-			}
-		}
+	for store.AdvisoryLock(0) != nil {
+		slog.Infof("another instance is running migrations, waiting for %d second(s)...", expo)
+		time.Sleep(time.Duration(expo) * time.Second)
+		expo *= 2
 	}
 
-	defer db.Exec("DROP TABLE public.migrations_lock")
+	defer store.AdvisoryUnlock(0)
 
 	_ = db.
 		QueryRow("SELECT migration_version, seed_version, dirty FROM public.migrations").
