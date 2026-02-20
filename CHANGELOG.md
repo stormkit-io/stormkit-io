@@ -1,5 +1,16 @@
 # Changelog
 
+## ...main
+
+
+### 🩹 Fixes
+
+- Failing spec ([02cf649](https://github.com/stormkit-io/stormkit-io/commit/02cf649))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v1.26.6...main
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v1.26.6...main)
