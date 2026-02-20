@@ -79,16 +79,20 @@ func (s *HandlerReferrersSuite) SetupSuite() {
 	// Daily table
 	_, err := s.conn.Exec(`
 		INSERT INTO
-			analytics_referrers (aggregate_date, referrer, request_path, visit_count, domain_id)
+			analytics_referrers (aggregate_date, referrer, request_path, visit_count, domain_id, referrer_hash, request_path_hash)
 		VALUES
 			-- Domain 1
-			($3, 'google.com',  '/',         1580, $1),
-			($4, 'yahoo.com',   '/vs-blog',  725,  $1),
-			($5, '',            '/vs-blog',  2500, $1),
-			($6, 'reddit.com',  '/vs-blog',  5200, $1),
-			($6, 'example.org', '/vs-blog',  5200, $1),
+			($3, 'google.com',  '/',         1580, $1, decode(md5('google.com'), 'hex'), decode(md5('/'), 'hex')),
+			($4, 'yahoo.com',   '/vs-blog',  725,  $1, decode(md5('yahoo.com'), 'hex'), decode(md5('/vs-blog'), 'hex')),
+			($5, '',            '/vs-blog',  2500, $1, decode(md5(''), 'hex'), decode(md5('/vs-blog'), 'hex')),
+			($6, 'reddit.com',  '/vs-blog',  5200, $1, decode(md5('reddit.com'), 'hex'), decode(md5('/vs-blog'), 'hex')),
+			($6, 'example.org', '/vs-blog',  5200, $1, decode(md5('example.org'), 'hex'), decode(md5('/vs-blog'), 'hex')),
 			-- Domain 2
-			($3, 'google.com',  '/',         4900, $2)
+			($3, 'google.com',  '/',         4900, $2, decode(md5('google.com'), 'hex'), decode(md5('/'), 'hex'))
+		ON CONFLICT
+			(aggregate_date, referrer_hash, request_path_hash, domain_id)
+		DO UPDATE SET
+			visit_count = EXCLUDED.visit_count
 	`, s.domainID, domain2.ID, s.t0DaysAgo, s.t5DaysAgo, s.t30DaysAgo, s.t45DaysAgo)
 
 	s.NoError(err)
