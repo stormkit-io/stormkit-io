@@ -34,15 +34,15 @@ export default function ImportURL() {
       provider = parsed.hostname.includes("github")
         ? "github"
         : parsed.hostname.includes("gitlab")
-        ? "gitlab"
-        : parsed.hostname.includes("bitbucket")
-        ? "bitbucket"
-        : undefined;
+          ? "gitlab"
+          : parsed.hostname.includes("bitbucket")
+            ? "bitbucket"
+            : undefined;
     } catch {}
 
     if (!provider || !repoName) {
       return setError(
-        "Make sure to import the repository from one these providers: GitLab, GitHub, Bitbucket."
+        "Make sure to import the repository from one these providers: GitLab, GitHub, Bitbucket.",
       );
     }
 
@@ -55,7 +55,7 @@ export default function ImportURL() {
       teamId: team?.id,
     })
       .then(app => {
-        navigate(`/apps/${app.id}/environments`);
+        navigate(`/apps/${app.id}`);
       })
       .catch(() => {
         setError("Something went wrong while importing the repository.");
