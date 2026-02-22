@@ -36,7 +36,9 @@ func (s *HandlerAppConfSuite) Test_Success() {
 	usr := s.MockUser()
 	app := s.MockApp(usr, map[string]any{"DisplayName": "sample-project"})
 	env := s.MockEnv(app)
-	key := s.MockAPIKey(app, nil)
+	key := s.MockAPIKey(app, env, map[string]any{
+		"UserID": usr.ID,
+	})
 	dep := s.MockDeployment(env, map[string]any{
 		"Published": deploy.PublishedInfo{
 			{EnvID: env.ID, Percentage: 100},
@@ -100,7 +102,9 @@ func (s *HandlerAppConfSuite) Test_Success() {
 func (s *HandlerAppConfSuite) Test_NoContent() {
 	usr := s.MockUser()
 	app := s.MockApp(usr, map[string]any{"DisplayName": "sample-project"})
-	key := s.MockAPIKey(app, nil)
+	key := s.MockAPIKey(app, nil, map[string]any{
+		"UserID": usr.ID,
+	})
 
 	response := shttptest.RequestWithHeaders(
 		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
