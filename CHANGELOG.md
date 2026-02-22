@@ -1,5 +1,16 @@
 # Changelog
 
+## ...main
+
+
+### 🏡 Chore
+
+- Improve test resilience ([d7b05cc](https://github.com/stormkit-io/stormkit-io/commit/d7b05cc))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v1.26.7...v1.26.8
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v1.26.7...v1.26.8)
