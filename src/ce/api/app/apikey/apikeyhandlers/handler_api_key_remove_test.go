@@ -61,12 +61,13 @@ func (s *HandlerAPIKeyRemoveSuite) Test_Success() {
 
 func (s *HandlerAPIKeyRemoveSuite) Test_Forbidden_ScopeTeam() {
 	usr := s.MockUser()
+	usr2 := s.MockUser()
 	app := s.MockApp(usr)
 	env := s.MockEnv(app)
 
 	key := s.MockAPIKey(app, env, map[string]any{
 		"UserID": types.ID(0),
-		"TeamID": types.ID(2),
+		"TeamID": usr2.DefaultTeamID,
 		"EnvID":  types.ID(0),
 		"AppID":  types.ID(0),
 		"Value":  "SK_N32UH0PyJX7K5mMn9RcfpV7BnDK3R00tbuO4T22na2vvrBGv6cs9JlcM3mxfd9",
