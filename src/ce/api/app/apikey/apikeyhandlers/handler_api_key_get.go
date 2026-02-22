@@ -41,6 +41,19 @@ func handlerAPIKeyGet(req *user.RequestContext) *shttp.Response {
 		}
 	}
 
+	if userId := req.Query().Get("userId"); userId != "" {
+		parsed, _ := strconv.ParseInt(userId, 10, 64)
+
+		if parsed != 0 {
+			scope = apikey.SCOPE_USER
+			id = types.ID(parsed)
+		}
+
+		if id != req.User.ID {
+			return shttp.Forbidden()
+		}
+	}
+
 	keys, err := apikey.NewStore().APIKeys(req.Context(), id, scope)
 
 	if err != nil {

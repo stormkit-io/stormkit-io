@@ -80,11 +80,12 @@ func (s *Store) APIKeys(ctx context.Context, id types.ID, scope string) ([]Token
 		"columns": apiKeyColumns,
 	}
 
-	if scope == SCOPE_TEAM {
+	switch scope {
+	case SCOPE_TEAM:
 		data["where"] = "team_id"
-	} else if scope == SCOPE_USER {
+	case SCOPE_USER:
 		data["where"] = "user_id"
-	} else {
+	default:
 		data["where"] = "env_id"
 	}
 
