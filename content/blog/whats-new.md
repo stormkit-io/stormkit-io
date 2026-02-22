@@ -5,6 +5,10 @@ description: Discover the latest changes and improvements to Stormkit. Stay up-t
 
 Follow the latest developments on Stormkit.
 
+## February 22nd, 2026
+
+Introducing **User Level API Keys**: Create API keys directly from your account settings that grant programmatic access to everything in your Stormkit account. Access them via **Profile** > **Account** > **API Keys**. Learn more in the [API Authentication documentation](/docs/api/authentication).
+
 ## December 24th, 2025
 
 Introducing **Database Integration**: Attach isolated PostgreSQL schemas to your environments with automatic migrations, secure credential management, and built-in permission controls. Write plain SQL migrations that execute in milliseconds. [Learn more](/docs/features/database).
