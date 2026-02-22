@@ -106,7 +106,9 @@ describe("~/pages/admin/System.tsx", () => {
       .reply(200, {});
 
     // Turn off auto-install
-    await fireEvent.click(wrapper.getByLabelText("Auto install"));
+    fireEvent.click(
+      await waitFor(() => wrapper.getByLabelText("Auto install")),
+    );
 
     // Find the save button in the runtimes section specifically
     const saveButtons = wrapper.getAllByText("Save");
