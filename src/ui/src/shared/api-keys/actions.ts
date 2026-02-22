@@ -5,6 +5,7 @@ interface FetchAPIKeyProps {
   appId?: string;
   envId?: string;
   teamId?: string;
+  userId?: string;
   refreshToken?: number;
 }
 
@@ -12,6 +13,7 @@ export const useFetchAPIKeys = ({
   appId = "",
   envId = "",
   teamId = "",
+  userId = "",
   refreshToken,
 }: FetchAPIKeyProps) => {
   const [loading, setLoading] = useState(true);
@@ -24,7 +26,7 @@ export const useFetchAPIKeys = ({
 
     api
       .fetch<{ keys: APIKey[] }>(
-        `/api-keys?appId=${appId}&envId=${envId}&teamId=${teamId}`
+        `/api-keys?appId=${appId}&envId=${envId}&teamId=${teamId}&userId=${userId}`,
       )
       .then(({ keys }) => {
         setKeys(keys);
@@ -35,7 +37,7 @@ export const useFetchAPIKeys = ({
       .finally(() => {
         setLoading(false);
       });
-  }, [appId, envId, refreshToken]);
+  }, [appId, envId, teamId, userId, refreshToken]);
 
   return { loading, error, keys, setKeys };
 };
@@ -48,6 +50,7 @@ interface GenerateNewAPIKeyProps {
   appId?: string;
   envId?: string;
   teamId?: string;
+  userId?: string;
   name: string;
   scope: string;
 }
@@ -58,11 +61,13 @@ export const generateNewAPIKey = ({
   appId,
   envId,
   teamId,
+  userId,
 }: GenerateNewAPIKeyProps) => {
   return api.post<APIKey>("/api-keys", {
     appId,
     envId,
     teamId,
+    userId,
     name,
     scope,
   });

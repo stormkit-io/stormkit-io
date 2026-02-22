@@ -1,9 +1,10 @@
 import { useContext } from "react";
 import Box from "@mui/material/Box";
 import { AuthContext } from "~/pages/auth/Auth.context";
+import Error404 from "~/components/Errors/Error404";
 import UserProfile from "./_components/UserProfile";
 import ConnectedAccounts from "./_components/ConnectedAccounts";
-import Error404 from "~/components/Errors/Error404";
+import APIKeys from "./_components/APIKeys";
 
 export default function Account() {
   const { user, accounts, metrics } = useContext(AuthContext);
@@ -16,6 +17,7 @@ export default function Account() {
     <Box sx={{ mx: "auto", mt: 2 }} maxWidth="lg">
       <UserProfile user={user} metrics={metrics} />
       <ConnectedAccounts accounts={accounts!} />
+      <APIKeys user={user} />
     </Box>
   );
 }

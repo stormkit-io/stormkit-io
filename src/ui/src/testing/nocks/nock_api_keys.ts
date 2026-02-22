@@ -7,6 +7,7 @@ interface MockFetchAPIKeysProps {
   appId?: string;
   envId?: string;
   teamId?: string;
+  userId?: string;
   status?: number;
   response?: { keys: APIKey[] };
 }
@@ -15,11 +16,14 @@ export const mockFetchAPIKeys = ({
   appId = "",
   envId = "",
   teamId = "",
+  userId = "",
   status = 200,
   response = data.mockAPIKeysResponse(),
 }: MockFetchAPIKeysProps) => {
   return nock(endpoint)
-    .get(`/api-keys?appId=${appId}&envId=${envId}&teamId=${teamId}`)
+    .get(
+      `/api-keys?appId=${appId}&envId=${envId}&teamId=${teamId}&userId=${userId}`,
+    )
     .reply(status, response);
 };
 
