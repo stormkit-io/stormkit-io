@@ -132,7 +132,7 @@ describe("~/pages/admin/AuthConfig/PendingUsers.tsx", () => {
       });
 
       // Get all checkboxes (including select all)
-      const checkboxes = wrapper.getAllByRole("checkbox");
+      const checkboxes = await waitFor(() => wrapper.getAllByRole("checkbox"));
 
       // Initially buttons should be disabled
       const approveButton = wrapper.getByText("Approve selected");
@@ -160,7 +160,7 @@ describe("~/pages/admin/AuthConfig/PendingUsers.tsx", () => {
         expect(scope.isDone()).toBe(true);
       });
 
-      const checkboxes = wrapper.getAllByRole("checkbox");
+      const checkboxes = await waitFor(() => wrapper.getAllByRole("checkbox"));
 
       // Select a user
       fireEvent.click(checkboxes[1]);
