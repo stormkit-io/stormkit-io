@@ -108,7 +108,7 @@ func handlerAPIKeyAdd(req *user.RequestContext) *shttp.Response {
 		}
 
 		// Make sure user has access to the application
-		if !team.NewStore().IsMember(req.Context(), app.ID, req.User.ID) {
+		if !team.NewStore().IsMember(req.Context(), req.User.ID, app.TeamID) {
 			return shttp.Forbidden()
 		}
 	}
