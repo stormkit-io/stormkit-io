@@ -70,7 +70,10 @@ func (s *AppSHTTPSuite) Test_WithAPIKey_AdminScope_Fail() {
 }
 
 func (s *AppSHTTPSuite) Test_WithAPIKey_AdminScope_Success() {
-	key := s.MockAPIKey(nil, nil)
+	usr := s.MockUser()
+	key := s.MockAPIKey(nil, nil, map[string]any{
+		"UserID": usr.ID,
+	})
 
 	s.conn.Exec("UPDATE users SET is_admin = TRUE WHERE user_id = $1", key.UserID)
 
@@ -94,29 +97,6 @@ func (s *AppSHTTPSuite) Test_WithAPIKey_AdminScope_Success() {
 	s.True(int64(0) < int64(key.ID))
 	s.Equal(http.StatusOK, res.Status)
 	s.Equal(key.AppID.String(), (res.Data.(map[string]string))["appId"])
-}
-
-func (s *AppSHTTPSuite) Test_WithAPIKey_FailPermission() {
-	key := s.MockAPIKey(nil, nil)
-
-	fn := app.WithAPIKey(func(rc *app.RequestContext) *shttp.Response {
-		return &shttp.Response{
-			Status: http.StatusOK,
-			Data: map[string]string{
-				"appId": rc.App.ID.String(),
-			},
-		}
-	})
-
-	res := fn(&shttp.RequestContext{
-		Request: &http.Request{
-			Header: http.Header{
-				"Authorization": []string{key.Value},
-			},
-		},
-	})
-
-	s.Equal(http.StatusForbidden, res.Status)
 }
 
 func (s *AppSHTTPSuite) Test_WithAPIKey_Success_EnvID() {
@@ -278,6 +258,88 @@ func (s *AppSHTTPSuite) Test_WithAPIKey_TeamAPIKey_ErrPermission() {
 		"EnvID":  types.ID(0),
 		"UserID": types.ID(0),
 		"Scope":  apikey.SCOPE_TEAM,
+	})
+
+	fn := app.WithAPIKey(func(rc *app.RequestContext) *shttp.Response {
+		return &shttp.Response{
+			Status: http.StatusOK,
+			Data: map[string]string{
+				"appId": rc.App.ID.String(),
+			},
+		}
+	})
+
+	body, err := json.Marshal(map[string]string{
+		"appId": appl.ID.String(),
+	})
+
+	s.NoError(err)
+
+	res := fn(&shttp.RequestContext{
+		Request: &http.Request{
+			Header: http.Header{
+				"Content-Type":  []string{"application/json"},
+				"Authorization": []string{key.Value},
+			},
+			Body: io.NopCloser(bytes.NewReader(body)),
+		},
+	})
+
+	s.True(int64(0) < int64(key.ID))
+	s.Equal(http.StatusForbidden, res.Status)
+}
+
+func (s *AppSHTTPSuite) Test_WithAPIKey_UserAPIKey_Success() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	key := s.MockAPIKey(nil, nil, map[string]any{
+		"TeamID": types.ID(0),
+		"AppID":  types.ID(0),
+		"EnvID":  types.ID(0),
+		"UserID": usr.ID,
+		"Scope":  apikey.SCOPE_USER,
+	})
+
+	fn := app.WithAPIKey(func(rc *app.RequestContext) *shttp.Response {
+		return &shttp.Response{
+			Status: http.StatusOK,
+			Data: map[string]string{
+				"appId": rc.App.ID.String(),
+			},
+		}
+	})
+
+	body, err := json.Marshal(map[string]string{
+		"appId": appl.ID.String(),
+	})
+
+	s.NoError(err)
+
+	res := fn(&shttp.RequestContext{
+		Request: &http.Request{
+			Header: http.Header{
+				"Content-Type":  []string{"application/json"},
+				"Authorization": []string{key.Value},
+			},
+			Body: io.NopCloser(bytes.NewReader(body)),
+		},
+	})
+
+	s.True(int64(0) < int64(key.ID))
+	s.Equal(http.StatusOK, res.Status)
+	s.Equal(appl.ID.String(), (res.Data.(map[string]string))["appId"])
+}
+
+func (s *AppSHTTPSuite) Test_WithAPIKey_UserAPIKey_ErrPermission() {
+	usr := s.MockUser()
+	usr2 := s.MockUser()
+	appl := s.MockApp(usr2)
+	key := s.MockAPIKey(nil, nil, map[string]any{
+		"TeamID": types.ID(0),
+		"AppID":  types.ID(0),
+		"EnvID":  types.ID(0),
+		"UserID": usr.ID,
+		"Scope":  apikey.SCOPE_USER,
 	})
 
 	fn := app.WithAPIKey(func(rc *app.RequestContext) *shttp.Response {

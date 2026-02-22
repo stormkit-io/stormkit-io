@@ -107,7 +107,7 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 					return shttp.Error(err)
 				}
 
-				if !usr.IsAdmin {
+				if usr == nil || !usr.IsAdmin {
 					return shttp.Forbidden()
 				}
 
