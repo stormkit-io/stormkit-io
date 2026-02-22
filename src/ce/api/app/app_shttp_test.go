@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gorilla/mux"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
@@ -44,7 +45,7 @@ func (s *AppSHTTPSuite) MockLicense() *admin.License {
 	}
 }
 
-func (s *AppSHTTPSuite) Test_WithAPIKey_AdminScopeFail() {
+func (s *AppSHTTPSuite) Test_WithAPIKey_AdminScope_Fail() {
 	key := s.MockAPIKey(nil, nil)
 
 	fn := app.WithAPIKey(func(rc *app.RequestContext) *shttp.Response {
@@ -68,7 +69,7 @@ func (s *AppSHTTPSuite) Test_WithAPIKey_AdminScopeFail() {
 	s.Equal(http.StatusForbidden, res.Status)
 }
 
-func (s *AppSHTTPSuite) Test_WithAPIKey_AdminScopeSuccess() {
+func (s *AppSHTTPSuite) Test_WithAPIKey_AdminScope_Success() {
 	key := s.MockAPIKey(nil, nil)
 
 	s.conn.Exec("UPDATE users SET is_admin = TRUE WHERE user_id = $1", key.UserID)
@@ -95,8 +96,36 @@ func (s *AppSHTTPSuite) Test_WithAPIKey_AdminScopeSuccess() {
 	s.Equal(key.AppID.String(), (res.Data.(map[string]string))["appId"])
 }
 
-func (s *AppSHTTPSuite) Test_WithAPIKey_AppAPIKey() {
+func (s *AppSHTTPSuite) Test_WithAPIKey_FailPermission() {
 	key := s.MockAPIKey(nil, nil)
+
+	fn := app.WithAPIKey(func(rc *app.RequestContext) *shttp.Response {
+		return &shttp.Response{
+			Status: http.StatusOK,
+			Data: map[string]string{
+				"appId": rc.App.ID.String(),
+			},
+		}
+	})
+
+	res := fn(&shttp.RequestContext{
+		Request: &http.Request{
+			Header: http.Header{
+				"Authorization": []string{key.Value},
+			},
+		},
+	})
+
+	s.Equal(http.StatusForbidden, res.Status)
+}
+
+func (s *AppSHTTPSuite) Test_WithAPIKey_Success_EnvID() {
+	usr := s.MockUser()
+	apl := s.MockApp(usr)
+	env := s.MockEnv(apl)
+	key := s.MockAPIKey(apl, env, map[string]any{
+		"UserID": usr.ID,
+	})
 
 	fn := app.WithAPIKey(func(rc *app.RequestContext) *shttp.Response {
 		return &shttp.Response{
@@ -278,6 +307,247 @@ func (s *AppSHTTPSuite) Test_WithAPIKey_TeamAPIKey_ErrPermission() {
 
 	s.True(int64(0) < int64(key.ID))
 	s.Equal(http.StatusForbidden, res.Status)
+}
+
+func (s *AppSHTTPSuite) Test_WithApp_Success() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+
+	fn := app.WithApp(func(rc *app.RequestContext) *shttp.Response {
+		return &shttp.Response{
+			Status: http.StatusOK,
+			Data: map[string]string{
+				"appId": rc.App.ID.String(),
+			},
+		}
+	})
+
+	jsonData := fmt.Sprintf(`{"appId":"%s"}`, appl.ID.String())
+
+	res := fn(&shttp.RequestContext{
+		Request: &http.Request{
+			Body: io.NopCloser(strings.NewReader(jsonData)),
+			Header: http.Header{
+				"Authorization": []string{usertest.Authorization(usr.ID)},
+			},
+		},
+	})
+
+	s.Equal(http.StatusOK, res.Status)
+	s.Equal(appl.ID.String(), (res.Data.(map[string]string))["appId"])
+}
+
+func (s *AppSHTTPSuite) Test_WithApp_WithEnvID() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	env := s.MockEnv(appl)
+
+	fn := app.WithApp(func(rc *app.RequestContext) *shttp.Response {
+		return &shttp.Response{
+			Status: http.StatusOK,
+			Data: map[string]string{
+				"appId": rc.App.ID.String(),
+				"envId": rc.EnvID.String(),
+			},
+		}
+	})
+
+	jsonData := fmt.Sprintf(`{"envId":"%s"}`, env.ID.String())
+
+	res := fn(&shttp.RequestContext{
+		Request: &http.Request{
+			Body: io.NopCloser(strings.NewReader(jsonData)),
+			Header: http.Header{
+				"Authorization": []string{usertest.Authorization(usr.ID)},
+			},
+		},
+	})
+
+	s.Equal(http.StatusOK, res.Status)
+	s.Equal(appl.ID.String(), (res.Data.(map[string]string))["appId"])
+	s.Equal(env.ID.String(), (res.Data.(map[string]string))["envId"])
+}
+
+func (s *AppSHTTPSuite) Test_WithApp_RequireEnv_Missing() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+
+	fn := app.WithApp(func(rc *app.RequestContext) *shttp.Response {
+		return &shttp.Response{
+			Status: http.StatusOK,
+			Data: map[string]string{
+				"appId": rc.App.ID.String(),
+			},
+		}
+	}, &app.Opts{Env: true})
+
+	jsonData := fmt.Sprintf(`{"appId":"%s"}`, appl.ID.String())
+
+	res := fn(&shttp.RequestContext{
+		Request: &http.Request{
+			Body: io.NopCloser(strings.NewReader(jsonData)),
+			Header: http.Header{
+				"Authorization": []string{usertest.Authorization(usr.ID)},
+			},
+		},
+	})
+
+	s.Equal(http.StatusBadRequest, res.Status)
+	s.Contains(res.Data.(map[string]string)["error"], "Missing environment ID")
+}
+
+func (s *AppSHTTPSuite) Test_WithApp_NotFound() {
+	usr := s.MockUser()
+
+	fn := app.WithApp(func(rc *app.RequestContext) *shttp.Response {
+		return &shttp.Response{
+			Status: http.StatusOK,
+			Data: map[string]string{
+				"appId": rc.App.ID.String(),
+			},
+		}
+	})
+
+	jsonData := `{"appId":"999999"}`
+
+	res := fn(&shttp.RequestContext{
+		Request: &http.Request{
+			Body: io.NopCloser(strings.NewReader(jsonData)),
+			Header: http.Header{
+				"Authorization": []string{usertest.Authorization(usr.ID)},
+			},
+		},
+	})
+
+	s.Equal(http.StatusNotFound, res.Status)
+}
+
+func (s *AppSHTTPSuite) Test_WithApp_MissingAppID() {
+	usr := s.MockUser()
+
+	fn := app.WithApp(func(rc *app.RequestContext) *shttp.Response {
+		return &shttp.Response{
+			Status: http.StatusOK,
+			Data: map[string]string{
+				"appId": rc.App.ID.String(),
+			},
+		}
+	})
+
+	res := fn(&shttp.RequestContext{
+		Request: &http.Request{
+			Body: io.NopCloser(strings.NewReader("{}")),
+			Header: http.Header{
+				"Authorization": []string{usertest.Authorization(usr.ID)},
+			},
+		},
+	})
+
+	s.Equal(http.StatusBadRequest, res.Status)
+}
+
+func (s *AppSHTTPSuite) Test_WithApp_NotTeamMember() {
+	usr := s.MockUser()
+	usr2 := s.MockUser()
+	appl := s.MockApp(usr2)
+
+	fn := app.WithApp(func(rc *app.RequestContext) *shttp.Response {
+		return &shttp.Response{
+			Status: http.StatusOK,
+			Data: map[string]string{
+				"appId": rc.App.ID.String(),
+			},
+		}
+	})
+
+	jsonData := fmt.Sprintf(`{"appId":"%s"}`, appl.ID.String())
+
+	res := fn(&shttp.RequestContext{
+		Request: &http.Request{
+			Body: io.NopCloser(strings.NewReader(jsonData)),
+			Header: http.Header{
+				"Authorization": []string{usertest.Authorization(usr.ID)},
+			},
+		},
+	})
+
+	s.Equal(http.StatusNotFound, res.Status)
+}
+
+func (s *AppSHTTPSuite) Test_WithAppNoAuth_Success() {
+	appl := s.MockApp(nil)
+
+	fn := app.WithAppNoAuth(func(rc *app.RequestContext) *shttp.Response {
+		return &shttp.Response{
+			Status: http.StatusOK,
+			Data: map[string]string{
+				"appId": rc.App.ID.String(),
+			},
+		}
+	})
+
+	req := &shttp.RequestContext{
+		Request: &http.Request{
+			Header: http.Header{},
+		},
+	}
+
+	// Mock the vars using mux.SetURLVars
+	req.Request = mux.SetURLVars(req.Request, map[string]string{
+		"did": appl.ID.String(),
+	})
+
+	res := fn(req)
+
+	s.Equal(http.StatusOK, res.Status)
+	s.Equal(appl.ID.String(), (res.Data.(map[string]string))["appId"])
+}
+
+func (s *AppSHTTPSuite) Test_WithAppNoAuth_MissingAppID() {
+	fn := app.WithAppNoAuth(func(rc *app.RequestContext) *shttp.Response {
+		return &shttp.Response{
+			Status: http.StatusOK,
+			Data: map[string]string{
+				"appId": rc.App.ID.String(),
+			},
+		}
+	})
+
+	req := &shttp.RequestContext{
+		Request: &http.Request{
+			Header: http.Header{},
+		},
+	}
+
+	res := fn(req)
+
+	s.Equal(http.StatusBadRequest, res.Status)
+	s.JSONEq(`{ "error": "Missing app ID in path parameters.", "hint": "Make sure to include the app ID in the path parameters. For example: /apps/{appId}" }`, res.String())
+}
+
+func (s *AppSHTTPSuite) Test_WithAppNoAuth_NotFound() {
+	fn := app.WithAppNoAuth(func(rc *app.RequestContext) *shttp.Response {
+		return &shttp.Response{
+			Status: http.StatusOK,
+			Data: map[string]string{
+				"appId": rc.App.ID.String(),
+			},
+		}
+	})
+
+	req := &shttp.RequestContext{
+		Request: &http.Request{
+			Header: http.Header{},
+		},
+	}
+
+	req.Request = mux.SetURLVars(req.Request, map[string]string{
+		"did": "999999",
+	})
+
+	res := fn(req)
+
+	s.Equal(http.StatusNotFound, res.Status)
 }
 
 func TestAppSHTTP(t *testing.T) {

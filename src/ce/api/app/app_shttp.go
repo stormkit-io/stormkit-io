@@ -1,7 +1,6 @@
 package app
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -97,6 +96,7 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 			}
 
 			request.Token = key
+			isAdmin := false
 
 			// Check if this is an admin scope. If yes, first thing
 			// let's verify user is an admin.
@@ -110,6 +110,8 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 				if !usr.IsAdmin {
 					return shttp.Forbidden()
 				}
+
+				isAdmin = true
 			}
 
 			var appID types.ID
@@ -123,6 +125,7 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 
 			if key.EnvID != 0 {
 				envID = key.EnvID
+				appID = key.AppID // In case of env level key, we can get the app id from the env id.
 			} else {
 				envID = envIDFromContext(req)
 			}
@@ -147,7 +150,7 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 
 			request.EnvID = envID
 
-			// Then let's fetch the app, if the key has access to app.
+			// Then let's fetch the app
 			if appID != 0 {
 				request.App, err = NewStore().AppByID(req.Context(), appID)
 			} else if envID != 0 {
@@ -158,8 +161,20 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 				return shttp.Error(err)
 			}
 
-			if request.App == nil || (key.TeamID != 0 && request.App.TeamID != key.TeamID) {
+			if request.App == nil {
 				return shttp.Forbidden()
+			}
+
+			// If this is a team level key, let's check if the app belongs to the team.
+			if key.TeamID != 0 && request.App.TeamID != key.TeamID {
+				return shttp.Forbidden()
+			}
+
+			// If this is a user level key, let's check if the user has access to the app.
+			if key.UserID != 0 && !isAdmin {
+				if !team.NewStore().IsMember(req.Context(), key.UserID, request.App.TeamID) {
+					return shttp.Forbidden()
+				}
 			}
 
 			return handler(request)
@@ -231,13 +246,19 @@ func WithAppNoAuth(handler func(*RequestContext) *shttp.Response) shttp.RequestF
 		did, ok := req.Vars()["did"]
 
 		if !ok {
-			return shttp.Error(errors.New("expecting application id"))
+			return shttp.BadRequest(map[string]any{
+				"error": "Missing app ID in path parameters.",
+				"hint":  "Make sure to include the app ID in the path parameters. For example: /apps/{appId}",
+			})
 		}
 
 		didInt, err := strconv.ParseInt(did, 10, 64)
 
 		if err != nil {
-			return shttp.Error(err)
+			return shttp.BadRequest(map[string]any{
+				"error": "Invalid app ID. App ID should be a number.",
+				"hint":  "Make sure the app ID in the path parameters is a valid number. For example: /apps/123",
+			})
 		}
 
 		appID := types.ID(didInt)
