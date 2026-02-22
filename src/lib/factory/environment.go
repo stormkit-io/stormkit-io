@@ -119,12 +119,11 @@ func (f *Factory) MockAPIKey(app *MockApp, env *MockEnv, overwrites ...map[strin
 	}
 
 	key := &apikey.Token{
-		AppID:  app.ID,
-		EnvID:  env.ID,
-		UserID: f.GetUser().ID,
-		Name:   "Default",
-		Scope:  apikey.SCOPE_ENV,
-		Value:  apikey.GenerateTokenValue(),
+		AppID: app.ID,
+		EnvID: env.ID,
+		Name:  "Default",
+		Scope: apikey.SCOPE_ENV,
+		Value: apikey.GenerateTokenValue(),
 	}
 
 	for _, o := range overwrites {
