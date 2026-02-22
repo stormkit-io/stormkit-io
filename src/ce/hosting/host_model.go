@@ -83,7 +83,7 @@ func FetchAppConf(hostName string) ([]*appconf.Config, error) {
 	configs, err := appconf.FetchConfig(hostName)
 
 	if err != nil {
-		slog.Errorf("Error fetching config %v", err)
+		slog.Errorf("Error fetching config %v for host %s", err, hostName)
 	}
 
 	cached := &CachedConfig{
