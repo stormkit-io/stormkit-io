@@ -278,10 +278,12 @@ func (s *Store) IsMember(ctx context.Context, userID types.ID, teamID types.ID) 
 	row, err := s.QueryRow(ctx, stmt.isTeamMember, userID, teamID)
 
 	if err != nil {
+		slog.Errorf("error while checking if user is a team member: %s", err.Error())
 		return false
 	}
 
 	if err = row.Scan(&count); err != nil {
+		slog.Errorf("error while scanning team member count: %s", err.Error())
 		return false
 	}
 
