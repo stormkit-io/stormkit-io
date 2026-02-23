@@ -1,5 +1,16 @@
 # Changelog
 
+## ...main
+
+
+### 🩹 Fixes
+
+- Typography ([d9bb705](https://github.com/stormkit-io/stormkit-io/commit/d9bb705))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v1.26.8...v1.26.9
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v1.26.8...v1.26.9)
