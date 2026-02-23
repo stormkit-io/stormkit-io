@@ -42,8 +42,10 @@ func handlerAPIKeyRemove(req *user.RequestContext) *shttp.Response {
 		if !team.NewStore().IsMember(req.Context(), req.User.ID, key.TeamID) {
 			return shttp.Forbidden()
 		}
-	} else {
-		return shttp.Forbidden()
+	} else if key.UserID != 0 {
+		if key.UserID != req.User.ID {
+			return shttp.Forbidden()
+		}
 	}
 
 	if err := apikey.NewStore().RemoveAPIKey(req.Context(), keyID); err != nil {

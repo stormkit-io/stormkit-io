@@ -59,6 +59,57 @@ func (s *HandlerAPIKeyRemoveSuite) Test_Success() {
 	s.Equal(http.StatusOK, response.Code)
 }
 
+func (s *HandlerAPIKeyRemoveSuite) Test_Success_UserID() {
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+	key := s.MockAPIKey(app, env, map[string]any{
+		"UserID": usr.ID,
+		"AppID":  types.ID(0),
+		"EnvID":  types.ID(0),
+		"TeamID": types.ID(0),
+		"Value":  "SK_N32UH0PyJX7K5mMn9RcfpV7BnDK3R00tbuO4T22na2vvrBGv6cs9JlcM3mxfd9",
+		"Scope":  apikey.SCOPE_USER,
+	})
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(apikeyhandlers.Services).Router().Handler(),
+		shttp.MethodDelete,
+		fmt.Sprintf("/api-keys?keyId=%s", key.ID.String()),
+		nil,
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+}
+
+func (s *HandlerAPIKeyRemoveSuite) Test_Forbidden_ScopeUser() {
+	usr1 := s.MockUser()
+	usr2 := s.MockUser()
+	key := s.MockAPIKey(nil, nil, map[string]any{
+		"UserID": usr2.ID,
+		"AppID":  types.ID(0),
+		"EnvID":  types.ID(0),
+		"TeamID": types.ID(0),
+		"Value":  "SK_N32UH0PyJX7K5mMn9RcfpV7BnDK3R00tbuO4T22na2vvrBGv6cs9JlcM3mxfd9",
+		"Scope":  apikey.SCOPE_USER,
+	})
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(apikeyhandlers.Services).Router().Handler(),
+		shttp.MethodDelete,
+		fmt.Sprintf("/api-keys?keyId=%s", key.ID.String()),
+		nil,
+		map[string]string{
+			"Authorization": usertest.Authorization(usr1.ID),
+		},
+	)
+
+	s.Equal(http.StatusForbidden, response.Code)
+}
+
 func (s *HandlerAPIKeyRemoveSuite) Test_Forbidden_ScopeTeam() {
 	usr := s.MockUser()
 	usr2 := s.MockUser()
