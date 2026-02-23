@@ -118,7 +118,7 @@ export default function TeamAPIKeys({ team }: Props) {
             ]}
           >
             <Typography>{apiKey.name}</Typography>
-            <Box
+            <Typography
               sx={{
                 textOverflow: "ellipsis",
                 overflow: "hidden",
@@ -126,7 +126,7 @@ export default function TeamAPIKeys({ team }: Props) {
               }}
             >
               {isVisible === apiKey.id ? apiKey.token : "*".repeat(32)}
-            </Box>
+            </Typography>
           </CardRow>
         ))}
       </Box>

@@ -129,7 +129,7 @@ export default function TabAPIKey({ app, environment: env }: Props) {
             >
               <Box>
                 <Typography>{apiKey.name}</Typography>
-                <Box
+                <Typography
                   sx={{
                     textOverflow: "ellipsis",
                     overflow: "hidden",
@@ -137,7 +137,7 @@ export default function TabAPIKey({ app, environment: env }: Props) {
                   }}
                 >
                   {isVisible === apiKey.id ? apiKey.token : "*".repeat(32)}
-                </Box>
+                </Typography>
               </Box>
             </Box>
           </CardRow>
