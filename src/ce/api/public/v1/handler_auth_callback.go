@@ -6,7 +6,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth/skauthhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
@@ -29,7 +28,7 @@ func HandlerAuthCallback(req *shttp.RequestContext) *shttp.Response {
 	env, err := buildconf.NewStore().EnvironmentByID(req.Context(), utils.StringToID(envID))
 
 	if err != nil {
-		return shttp.Error(err)
+		return shttp.Error(err, fmt.Sprintf("failed to get environment by ID %s", envID))
 	}
 
 	if env == nil || env.SchemaConf == nil {
@@ -39,7 +38,7 @@ func HandlerAuthCallback(req *shttp.RequestContext) *shttp.Response {
 	prv, err := skauth.NewStore().Provider(req.Context(), env.ID, provider)
 
 	if err != nil {
-		return shttp.Error(err)
+		return shttp.Error(err, fmt.Sprintf("failed to get provider for env %d and provider %s", env.ID, provider))
 	}
 
 	if prv == nil || !prv.Status {
@@ -48,30 +47,29 @@ func HandlerAuthCallback(req *shttp.RequestContext) *shttp.Response {
 
 	// Exchange authorization code for token
 	client := prv.Client()
-	config := client.Config()
 
-	if config == nil {
+	if client == nil {
 		return shttp.BadRequest(map[string]any{
 			"error": "Provider is not an OAuth2 provider",
 		})
 	}
 
-	token, err := skauthhandlers.Exchange(req.Context(), config, req.FormValue("code"))
+	token, err := client.Exchange(req.Context(), req.FormValue("code"))
 
 	if err != nil {
-		return shttp.Error(err)
+		return shttp.Error(err, fmt.Sprintf("failed to exchange authorization code for token: %s", err.Error()))
 	}
 
 	store, err := env.SchemaConf.Store(buildconf.SchemaAccessTypeAppUser)
 
 	if err != nil {
-		return shttp.Error(err)
+		return shttp.Error(err, fmt.Sprintf("failed to get store for environment: %s", err.Error()))
 	}
 
 	info, err := client.UserInfo(req.Context(), token)
 
 	if err != nil {
-		return shttp.Error(err)
+		return shttp.Error(err, fmt.Sprintf("failed to get user info: %s", err.Error()))
 	}
 
 	if info == nil {
@@ -95,7 +93,7 @@ func HandlerAuthCallback(req *shttp.RequestContext) *shttp.Response {
 	}
 
 	if err := store.InsertAuthUser(req.Context(), &oauth, &usr); err != nil {
-		return shttp.Error(err)
+		return shttp.Error(err, fmt.Sprintf("failed to insert auth user: %s", err.Error()))
 	}
 
 	var secret string
@@ -110,7 +108,7 @@ func HandlerAuthCallback(req *shttp.RequestContext) *shttp.Response {
 	}, secret)
 
 	if err != nil {
-		return shttp.Error(err)
+		return shttp.Error(err, fmt.Sprintf("failed to generate JWT: %s", err.Error()))
 	}
 
 	return &shttp.Response{

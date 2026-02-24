@@ -11,7 +11,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth/skauthhandlers"
 	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
@@ -33,12 +32,10 @@ type HandlerAuthCallbackSuite struct {
 	conn       databasetest.TestDB
 	app        *factory.MockApp
 	mockClient *mocks.Client
-	exchangeFn func(ctx context.Context, config *oauth2.Config, code string) (*oauth2.Token, error)
 }
 
 func (s *HandlerAuthCallbackSuite) BeforeTest(suiteName, _ string) {
 	s.mockClient = &mocks.Client{}
-	s.exchangeFn = skauthhandlers.Exchange
 	s.conn = databasetest.InitTx(suiteName)
 	s.Factory = factory.New(s.conn)
 	s.app = s.MockApp(s.MockUser(nil), nil)
@@ -49,7 +46,6 @@ func (s *HandlerAuthCallbackSuite) BeforeTest(suiteName, _ string) {
 func (s *HandlerAuthCallbackSuite) AfterTest(_, _ string) {
 	s.conn.CloseTx()
 	skauth.DefaultClient = nil
-	skauthhandlers.Exchange = s.exchangeFn
 	config.SetIsSelfHosted(false)
 }
 
@@ -103,11 +99,7 @@ func (s *HandlerAuthCallbackSuite) Test_Success() {
 
 	s.NoError(err)
 
-	skauthhandlers.Exchange = func(ctx context.Context, config *oauth2.Config, code string) (*oauth2.Token, error) {
-		return tkn, nil
-	}
-
-	s.mockClient.On("Config").Return(&oauth2.Config{}).Once()
+	s.mockClient.On("Exchange", mock.Anything, "test-code").Return(tkn, nil).Once()
 
 	s.mockClient.On("UserInfo", mock.Anything, tkn).Return(&skauth.UserInfo{
 		AccountID: "test-account-id",

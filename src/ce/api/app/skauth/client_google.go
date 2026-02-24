@@ -71,6 +71,10 @@ func (g *GoogleClient) UserInfo(ctx context.Context, token *oauth2.Token) (*User
 	}, nil
 }
 
-func (g *GoogleClient) Config() *oauth2.Config {
-	return g.oauth2Config
+func (g *GoogleClient) Exchange(ctx context.Context, code string) (*oauth2.Token, error) {
+	return g.oauth2Config.Exchange(ctx, code)
+}
+
+func (g *GoogleClient) AuthCodeURL(state string) string {
+	return g.oauth2Config.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.ApprovalForce)
 }

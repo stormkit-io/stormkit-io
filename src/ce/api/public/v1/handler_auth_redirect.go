@@ -9,7 +9,6 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
-	"golang.org/x/oauth2"
 )
 
 // HandlerAuthRedirect initiates the OAuth2 authentication process by redirecting the user to the provider's authorization URL.
@@ -49,7 +48,7 @@ func HandlerAuthRedirect(req *shttp.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	req.Redirect(prv.Client().Config().AuthCodeURL(state, oauth2.ApprovalForce, oauth2.AccessTypeOffline), http.StatusFound)
+	req.Redirect(prv.Client().AuthCodeURL(state), http.StatusFound)
 
 	return nil
 }

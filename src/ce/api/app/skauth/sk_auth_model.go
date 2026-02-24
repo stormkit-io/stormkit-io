@@ -80,7 +80,8 @@ func (p *Provider) Client() Client {
 
 type Client interface {
 	UserInfo(ctx context.Context, token *oauth2.Token) (*UserInfo, error)
-	Config() *oauth2.Config
+	AuthCodeURL(state string) string
+	Exchange(ctx context.Context, code string) (*oauth2.Token, error)
 }
 
 type OAuth struct {

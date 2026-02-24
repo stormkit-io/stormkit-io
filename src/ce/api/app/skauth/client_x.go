@@ -73,6 +73,16 @@ func (x *XClient) UserInfo(ctx context.Context, token *oauth2.Token) (*UserInfo,
 	}, nil
 }
 
-func (x *XClient) Config() *oauth2.Config {
-	return x.oauth2Config
+func (x *XClient) Exchange(ctx context.Context, code string) (*oauth2.Token, error) {
+	return x.oauth2Config.Exchange(ctx, code)
+}
+
+func (x *XClient) AuthCodeURL(state string) string {
+	return x.oauth2Config.AuthCodeURL(
+		state,
+		oauth2.AccessTypeOffline,
+		oauth2.SetAuthURLParam("code_challenge", "CHALLENGE"),
+		oauth2.SetAuthURLParam("code_challenge_method", "plain"),
+		oauth2.SetAuthURLParam("response_type", "code"),
+	)
 }

@@ -16,24 +16,52 @@ type Client struct {
 	mock.Mock
 }
 
-// Config provides a mock function with no fields
-func (_m *Client) Config() *oauth2.Config {
-	ret := _m.Called()
+// AuthCodeURL provides a mock function with given fields: state
+func (_m *Client) AuthCodeURL(state string) string {
+	ret := _m.Called(state)
 
 	if len(ret) == 0 {
-		panic("no return value specified for Config")
+		panic("no return value specified for AuthCodeURL")
 	}
 
-	var r0 *oauth2.Config
-	if rf, ok := ret.Get(0).(func() *oauth2.Config); ok {
-		r0 = rf()
+	var r0 string
+	if rf, ok := ret.Get(0).(func(string) string); ok {
+		r0 = rf(state)
 	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*oauth2.Config)
-		}
+		r0 = ret.Get(0).(string)
 	}
 
 	return r0
+}
+
+// Exchange provides a mock function with given fields: ctx, code
+func (_m *Client) Exchange(ctx context.Context, code string) (*oauth2.Token, error) {
+	ret := _m.Called(ctx, code)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Exchange")
+	}
+
+	var r0 *oauth2.Token
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*oauth2.Token, error)); ok {
+		return rf(ctx, code)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *oauth2.Token); ok {
+		r0 = rf(ctx, code)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*oauth2.Token)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, code)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // UserInfo provides a mock function with given fields: ctx, token
