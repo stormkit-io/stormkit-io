@@ -1,15 +1,16 @@
-package skauthhandlers
+package publicapiv1
 
 import (
 	"strings"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth/skauthhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
-func handlerSession(req *shttp.RequestContext) *shttp.Response {
+func HandlerSession(req *shttp.RequestContext) *shttp.Response {
 	bearer := user.ParseBearer(req.Header.Get("Authorization"))
 	pieces := strings.SplitN(bearer, ":", 2)
 	envID := utils.StringToID(pieces[0])
@@ -46,7 +47,7 @@ func handlerSession(req *shttp.RequestContext) *shttp.Response {
 		return shttp.NotAllowed()
 	}
 
-	user, err := AuthUser(req.Context(), env, utils.StringToID(userID))
+	user, err := skauthhandlers.AuthUser(req.Context(), env, utils.StringToID(userID))
 
 	if err != nil {
 		return shttp.Error(err)

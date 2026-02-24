@@ -1,4 +1,4 @@
-package skauthhandlers_test
+package publicapiv1_test
 
 import (
 	"context"
@@ -12,7 +12,9 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth/skauthhandlers"
+	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -41,12 +43,14 @@ func (s *HandlerAuthCallbackSuite) BeforeTest(suiteName, _ string) {
 	s.Factory = factory.New(s.conn)
 	s.app = s.MockApp(s.MockUser(nil), nil)
 	skauthhandlers.DefaultClient = s.mockClient
+	config.SetIsSelfHosted(true)
 }
 
 func (s *HandlerAuthCallbackSuite) AfterTest(_, _ string) {
 	s.conn.CloseTx()
 	skauthhandlers.DefaultClient = nil
 	skauthhandlers.Exchange = s.exchangeFn
+	config.SetIsSelfHosted(false)
 }
 
 func (s *HandlerAuthCallbackSuite) generateStateToken(envID types.ID, provider string) string {
@@ -106,9 +110,9 @@ func (s *HandlerAuthCallbackSuite) Test_Success() {
 	state := s.generateStateToken(env.ID, skauth.ProviderGoogle)
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodGet,
-		fmt.Sprintf("/auth/v1/callback?state=%s&code=test-code", state),
+		fmt.Sprintf("/v1/auth/callback?state=%s&code=test-code", state),
 		nil,
 		nil,
 	)
@@ -180,9 +184,9 @@ func (s *HandlerAuthCallbackSuite) Test_Provider_EmptyConfig() {
 	s.NoError(err)
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodGet,
-		fmt.Sprintf("/auth/v1/callback?state=%s&code=test-code", s.generateStateToken(env.ID, skauth.ProviderX)),
+		fmt.Sprintf("/v1/auth/callback?state=%s&code=test-code", s.generateStateToken(env.ID, skauth.ProviderX)),
 		nil,
 		nil,
 	)
@@ -193,9 +197,9 @@ func (s *HandlerAuthCallbackSuite) Test_Provider_EmptyConfig() {
 
 func (s *HandlerAuthCallbackSuite) Test_InvalidStateToken() {
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodGet,
-		"/auth/v1/callback?state=invalid-jwt-token&code=test-code",
+		"/v1/auth/callback?state=invalid-jwt-token&code=test-code",
 		nil,
 		nil,
 	)
@@ -209,9 +213,9 @@ func (s *HandlerAuthCallbackSuite) Test_EnvironmentNotFound() {
 	state := s.generateStateToken(1, skauth.ProviderGoogle)
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodGet,
-		fmt.Sprintf("/auth/v1/callback?state=%s&code=test-code", state),
+		fmt.Sprintf("/v1/auth/callback?state=%s&code=test-code", state),
 		nil,
 		nil,
 	)
@@ -225,9 +229,9 @@ func (s *HandlerAuthCallbackSuite) Test_EnvironmentWithoutSchemaConf() {
 	state := s.generateStateToken(envWithoutSchema.ID, skauth.ProviderGoogle)
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodGet,
-		fmt.Sprintf("/auth/v1/callback?state=%s&code=test-code", state),
+		fmt.Sprintf("/v1/auth/callback?state=%s&code=test-code", state),
 		nil,
 		nil,
 	)

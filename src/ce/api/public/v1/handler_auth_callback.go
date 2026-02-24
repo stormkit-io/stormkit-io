@@ -1,4 +1,4 @@
-package skauthhandlers
+package publicapiv1
 
 import (
 	"fmt"
@@ -6,12 +6,13 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth/skauthhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
-func handlerAuthCallback(req *shttp.RequestContext) *shttp.Response {
+func HandlerAuthCallback(req *shttp.RequestContext) *shttp.Response {
 	claims := user.ParseJWT(&user.ParseJWTArgs{
 		Bearer: req.FormValue("state"),
 	})
@@ -54,7 +55,7 @@ func handlerAuthCallback(req *shttp.RequestContext) *shttp.Response {
 		})
 	}
 
-	token, err := Exchange(req.Context(), config, req.FormValue("code"))
+	token, err := skauthhandlers.Exchange(req.Context(), config, req.FormValue("code"))
 
 	if err != nil {
 		return shttp.Error(err)
@@ -66,7 +67,7 @@ func handlerAuthCallback(req *shttp.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	info, err := GetProviderClient(provider, config.ClientID, config.ClientSecret).UserInfo(req.Context(), token)
+	info, err := skauthhandlers.GetProviderClient(provider, config.ClientID, config.ClientSecret).UserInfo(req.Context(), token)
 
 	if err != nil {
 		return shttp.Error(err)

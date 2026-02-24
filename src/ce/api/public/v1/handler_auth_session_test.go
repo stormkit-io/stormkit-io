@@ -1,4 +1,4 @@
-package skauthhandlers_test
+package publicapiv1_test
 
 import (
 	"context"
@@ -11,7 +11,9 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth/skauthhandlers"
+	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -56,11 +58,14 @@ func (s *HandlerSessionSuite) BeforeTest(suiteName, _ string) {
 			AppPassword:       s.conn.Cfg.Password,
 		},
 	})
+
+	config.SetIsSelfHosted(true)
 }
 
 func (s *HandlerSessionSuite) AfterTest(_, _ string) {
 	s.conn.CloseTx()
 	skauthhandlers.AuthUser = s.authUser
+	config.SetIsSelfHosted(false)
 }
 
 func (s *HandlerSessionSuite) generateJWT(userID, envID types.ID, secret string) string {
@@ -85,9 +90,9 @@ func (s *HandlerSessionSuite) Test_Success() {
 	}
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodGet,
-		"/auth/v1/session",
+		"/v1/auth/session",
 		nil,
 		map[string]string{
 			"Authorization": fmt.Sprintf("Bearer %s", s.generateJWT(user.ID, s.env.ID, s.secret)),
@@ -110,9 +115,9 @@ func (s *HandlerSessionSuite) Test_Success() {
 func (s *HandlerSessionSuite) Test_InvalidBearerFormat() {
 	// Missing colon separator
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodGet,
-		"/auth/v1/session",
+		"/v1/auth/session",
 		nil,
 		map[string]string{
 			"Authorization": "Bearer invalid-token-without-colon",
@@ -128,9 +133,9 @@ func (s *HandlerSessionSuite) Test_EnvironmentNotFound() {
 	bearer := s.generateJWT(s.usr.ID, 9999999, s.secret)
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodGet,
-		"/auth/v1/session",
+		"/v1/auth/session",
 		nil,
 		map[string]string{
 			"Authorization": fmt.Sprintf("Bearer %s", bearer),
@@ -146,9 +151,9 @@ func (s *HandlerSessionSuite) Test_EnvironmentWithoutAuthConf() {
 	tkn := s.generateJWT(s.usr.ID, env.ID, s.secret)
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodGet,
-		"/auth/v1/session",
+		"/v1/auth/session",
 		nil,
 		map[string]string{
 			"Authorization": fmt.Sprintf("Bearer %s", tkn),
@@ -164,9 +169,9 @@ func (s *HandlerSessionSuite) Test_EnvironmentWithoutSchemaConf() {
 	tkn := s.generateJWT(s.usr.ID, env.ID, s.secret)
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodGet,
-		"/auth/v1/session",
+		"/v1/auth/session",
 		nil,
 		map[string]string{
 			"Authorization": fmt.Sprintf("Bearer %s", tkn),
@@ -181,9 +186,9 @@ func (s *HandlerSessionSuite) Test_InvalidJWTSignature() {
 	bearer := s.generateJWT(s.usr.ID, s.env.ID, "wrong-secret-key")
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodGet,
-		"/auth/v1/session",
+		"/v1/auth/session",
 		nil,
 		map[string]string{
 			"Authorization": fmt.Sprintf("Bearer %s", bearer),
@@ -195,9 +200,9 @@ func (s *HandlerSessionSuite) Test_InvalidJWTSignature() {
 
 func (s *HandlerSessionSuite) Test_MissingAuthorizationHeader() {
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodGet,
-		"/auth/v1/session",
+		"/v1/auth/session",
 		nil,
 		map[string]string{},
 	)

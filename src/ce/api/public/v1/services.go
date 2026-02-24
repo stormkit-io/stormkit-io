@@ -45,6 +45,13 @@ func Services(r *shttp.Router) *shttp.Service {
 	s.NewEndpoint("/v1/mail").
 		Handler(shttp.MethodPost, "", app.WithAPIKey(mailerhandlers.HandlerMail, &app.Opts{Env: true}))
 
+	if config.IsSelfHosted() {
+		s.NewEndpoint("/v1/auth").
+			Handler(shttp.MethodGet, "", HandlerAuthRedirect).
+			Handler(shttp.MethodGet, "/session", HandlerSession).
+			Handler(shttp.MethodGet, "/callback", HandlerAuthCallback)
+	}
+
 	if config.IsStormkitCloud() {
 		s.NewEndpoint("/v1/license").
 			// Temporary solution until we migrate previous licenses

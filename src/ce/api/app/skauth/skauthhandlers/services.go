@@ -20,12 +20,6 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodPost, "", app.WithApp(handlerAuthUpsert, &app.Opts{Env: true})).
 		Handler(shttp.MethodGet, "/providers", app.WithApp(handlerAuths, &app.Opts{Env: true}))
 
-	// v1 public endpoints
-	s.NewEndpoint("/auth/v1").
-		Handler(shttp.MethodGet, "", handlerAuthRedirect).
-		Handler(shttp.MethodGet, "/session", handlerSession).
-		Handler(shttp.MethodGet, "/callback", handlerAuthCallback)
-
 	return s
 }
 

@@ -1,4 +1,4 @@
-package skauthhandlers
+package publicapiv1
 
 import (
 	"net/http"
@@ -12,9 +12,9 @@ import (
 	"golang.org/x/oauth2"
 )
 
-// handleAuthRedirect initiates the OAuth2 authentication process by redirecting the user to the provider's authorization URL.
-// Example request: GET /auth/v1?provider=google&envId=1
-func handlerAuthRedirect(req *shttp.RequestContext) *shttp.Response {
+// HandlerAuthRedirect initiates the OAuth2 authentication process by redirecting the user to the provider's authorization URL.
+// Example request: GET /v1/auth?provider=google&envId=1
+func HandlerAuthRedirect(req *shttp.RequestContext) *shttp.Response {
 	provider := req.Query().Get("provider")
 	envID := utils.StringToID(req.Query().Get("envId"))
 

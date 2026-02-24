@@ -1,4 +1,4 @@
-package skauthhandlers_test
+package publicapiv1_test
 
 import (
 	"context"
@@ -7,7 +7,8 @@ import (
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth/skauthhandlers"
+	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -30,17 +31,20 @@ func (s *HandlerAuthRedirectSuite) BeforeTest(suiteName, _ string) {
 	// Create test app and environment
 	s.app = s.MockApp(s.MockUser(nil), nil)
 	s.env = s.MockEnv(s.app)
+
+	config.SetIsSelfHosted(true)
 }
 
 func (s *HandlerAuthRedirectSuite) AfterTest(_, _ string) {
 	s.conn.CloseTx()
+	config.SetIsSelfHosted(false)
 }
 
 func (s *HandlerAuthRedirectSuite) Test_InvalidProvider() {
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodGet,
-		"/auth/v1?provider=invalid&envId=1",
+		"/v1/auth?provider=invalid&envId=1",
 		nil,
 		nil,
 	)
@@ -51,9 +55,9 @@ func (s *HandlerAuthRedirectSuite) Test_InvalidProvider() {
 
 func (s *HandlerAuthRedirectSuite) Test_InvalidEnvID() {
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodGet,
-		"/auth/v1?provider=google",
+		"/v1/auth?provider=google",
 		nil,
 		nil,
 	)
@@ -70,10 +74,10 @@ func (s *HandlerAuthRedirectSuite) Test_Success() {
 		Status: true,
 	}))
 
-	target := fmt.Sprintf("/auth/v1?provider=google&envId=%d", s.env.ID)
+	target := fmt.Sprintf("/v1/auth?provider=google&envId=%d", s.env.ID)
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodGet,
 		target,
 		nil,

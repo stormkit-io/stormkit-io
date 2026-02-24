@@ -98,5 +98,5 @@ type User struct {
 
 // RedirectURL returns the OAuth2 redirect URL.
 func RedirectURL() string {
-	return admin.MustConfig().ApiURL("/auth/v1/callback")
+	return admin.MustConfig().ApiURL("/v1/auth/callback")
 }

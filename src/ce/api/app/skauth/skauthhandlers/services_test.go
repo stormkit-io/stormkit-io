@@ -16,9 +16,6 @@ func (s *ServicesSuite) TestServices() {
 	services := shttp.NewRouter().RegisterService(skauthhandlers.Services)
 
 	handlers := []string{
-		"GET:/auth/v1",
-		"GET:/auth/v1/callback",
-		"GET:/auth/v1/session",
 		"GET:/skauth/providers",
 		"POST:/skauth",
 	}
