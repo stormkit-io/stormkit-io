@@ -72,7 +72,6 @@ func (s *AppConfStoreSuite) Test_NormalizeHeaders() {
 			Headers:  test.ExpectedHeaders,
 		})
 	}
-
 }
 
 func TestAppConfStoreSui(t *testing.T) {
