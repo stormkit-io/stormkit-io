@@ -35,12 +35,15 @@ const mockProvider: AuthProvider = {
 describe("~/pages/apps/[id]/environments/[env-id]/skauth/ProviderSettings.tsx", () => {
   let wrapper: RenderResult;
   let onClose: Mock;
+  let setRefreshToken: Mock;
 
   const createWrapper = (props: Partial<Props> = {}) => {
     onClose = vi.fn();
+    setRefreshToken = vi.fn();
     wrapper = render(
       <ProviderSettings
         envId="env-123"
+        setRefreshToken={setRefreshToken}
         isDrawerOpen={true}
         provider={mockProvider}
         onClose={onClose}
@@ -160,6 +163,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/ProviderSettings.tsx", 
 
       await waitFor(() => {
         expect(onClose).toHaveBeenCalled();
+        expect(setRefreshToken).toHaveBeenCalled();
       });
     });
 

@@ -17,6 +17,7 @@ interface Props {
   isDrawerOpen: boolean;
   provider: AuthProvider;
   onClose: () => void;
+  setRefreshToken: (value: number) => void;
 }
 
 export default function ProviderSettings({
@@ -24,6 +25,7 @@ export default function ProviderSettings({
   provider,
   envId,
   onClose,
+  setRefreshToken,
 }: Props) {
   const [isEnabled, setIsEnabled] = useState(!!provider.enabled);
   const [error, setError] = useState<string>();
@@ -58,6 +60,7 @@ export default function ProviderSettings({
             status: isEnabled,
           })
             .then(() => {
+              setRefreshToken(Date.now());
               onClose();
             })
             .catch(() => {

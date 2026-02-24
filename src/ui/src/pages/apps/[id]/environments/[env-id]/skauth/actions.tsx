@@ -105,6 +105,7 @@ const allProviders: AuthProvider[] = [
 
 interface FetchProvidersParams {
   envId: string;
+  refreshToken?: number;
 }
 
 interface ProviderData {
@@ -122,7 +123,10 @@ interface FetchProvidersResult {
   };
 }
 
-export const useFetchProviders = ({ envId }: FetchProvidersParams) => {
+export const useFetchProviders = ({
+  envId,
+  refreshToken,
+}: FetchProvidersParams) => {
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState<AuthProvider[]>([]);
@@ -163,7 +167,7 @@ export const useFetchProviders = ({ envId }: FetchProvidersParams) => {
       .finally(() => {
         setLoading(false);
       });
-  }, [envId]);
+  }, [envId, refreshToken]);
 
   return { providers, loading, error };
 };

@@ -66,9 +66,13 @@ export default function SkAuth() {
   const isCloud = details?.stormkit?.edition === "cloud";
   const { environment: env } = useContext(EnvironmentContext);
   const result = useFetchSchema({ envId: env.id!, isCloud });
-  const { providers, loading, error } = useFetchProviders({ envId: env.id! });
+  const [refreshToken, setRefreshToken] = useState<number>();
   const [success, setSuccess] = useState<string>();
   const [drawerOpen, setDrawerOpen] = useState<string>("");
+  const { providers, loading, error } = useFetchProviders({
+    envId: env.id!,
+    refreshToken,
+  });
 
   const hasSchema = !result.loading && !result.error && Boolean(result.schema);
 
@@ -142,6 +146,7 @@ export default function SkAuth() {
                 </Box>
                 <Drawer
                   isDrawerOpen={drawerOpen === p.id}
+                  setRefreshToken={setRefreshToken}
                   onClose={() => {
                     setDrawerOpen("");
                   }}
