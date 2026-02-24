@@ -1,10 +1,14 @@
 package appconf_test
 
 import (
+	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
@@ -89,6 +93,53 @@ func (s *ShttpSuite) Test_IsStormkitDevStrict() {
 	admin.MustConfig().DomainConfig.Dev = "http://stormkit:8888"
 	s.False(appconf.IsStormkitDevStrict("my-app--1868181.stormkit:8888"))
 	s.True(appconf.IsStormkitDevStrict("stormkit:8888"))
+}
+
+func (s *ShttpSuite) Test_FetchAppConf_ByDisplayName() {
+	admin.MustConfig().DomainConfig.Dev = "http://stormkit:8888"
+
+	usr := s.MockUser()
+	apl := s.MockApp(usr, map[string]any{"DisplayName": "my-app"})
+	env := s.MockEnv(apl, map[string]any{
+		"Data": &buildconf.BuildConf{
+			Vars: map[string]string{
+				"ENV_VAR": "value",
+			},
+		},
+	})
+
+	// Let's insert a deployment first
+	deployment := &deploy.Deployment{
+		AppID:        apl.ID,
+		EnvID:        env.ID,
+		Branch:       "main",
+		ConfigCopy:   []byte(""), // Let's say the config copy is empty, since we want to test it's able to unmarshal the request
+		IsAutoDeploy: false,
+	}
+
+	deploy.NewStore().InsertDeployment(context.Background(), deployment)
+
+	confs, err := appconf.FetchConfig(fmt.Sprintf("my-app--%d.stormkit:8888", deployment.ID))
+	s.NoError(err)
+	s.NotNil(confs)
+	s.Len(confs, 1)
+
+	conf := confs[0]
+
+	s.Equal(apl.ID, conf.AppID)
+	s.Equal(env.ID, conf.EnvID)
+	s.Equal(deployment.ID, conf.DeploymentID)
+	s.Equal(map[string]string{
+		"ENV_VAR":           "value",
+		"SK_APP_ID":         apl.ID.String(),
+		"SK_ENV_ID":         env.ID.String(),
+		"SK_ENV":            "production",
+		"SK_DEPLOYMENT_ID":  deployment.ID.String(),
+		"SK_DEPLOYMENT_URL": fmt.Sprintf("http://%s--%s.stormkit:8888", apl.DisplayName, deployment.ID),
+		"SK_ENV_URL":        fmt.Sprintf("http://%s.stormkit:8888", apl.DisplayName),
+		"STORMKIT":          "true",
+	}, conf.EnvVariables)
+
 }
 
 func TestShttpMethods(t *testing.T) {
