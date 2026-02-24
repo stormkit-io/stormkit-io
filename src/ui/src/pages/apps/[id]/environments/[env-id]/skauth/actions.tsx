@@ -93,7 +93,10 @@ const allProviders: AuthProvider[] = [
         </Link>{" "}
         and create a new project.
       </>,
-      "Enable OAuth 2.0 and set the callback URL to the Redirect URL above.",
+      "Click 'Set up' under 'User authentication settings' section.",
+      "Toggle 'Request email from users' on.",
+      "Select 'Web App, Automated App or Bot'",
+      "Set the Redirect URL as specified above.",
       "Copy the Client ID and Client Secret into the fields above.",
       "Save the settings and test the connection.",
     ],
