@@ -34,6 +34,7 @@ func handlerAuths(req *app.RequestContext) *shttp.Response {
 		Data: map[string]any{
 			"providers":   returnValue,
 			"redirectUrl": skauth.RedirectURL(),
+			"authUrl":     skauth.AuthURL(),
 		},
 	}
 }

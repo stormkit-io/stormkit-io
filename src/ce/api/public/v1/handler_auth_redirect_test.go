@@ -68,10 +68,16 @@ func (s *HandlerAuthRedirectSuite) Test_InvalidEnvID() {
 
 func (s *HandlerAuthRedirectSuite) Test_Success() {
 	s.NoError(skauth.NewStore().SaveProvider(context.Background(), skauth.SaveProviderArgs{
-		Client: skauth.NewGoogleClient("abc", "def"),
-		EnvID:  s.env.ID,
-		AppID:  s.env.AppID,
-		Status: true,
+		Provider: &skauth.Provider{
+			Status: true,
+			Name:   skauth.ProviderGoogle,
+			Data: skauth.ProviderData{
+				ClientID:     "abc",
+				ClientSecret: "def",
+			},
+		},
+		EnvID: s.env.ID,
+		AppID: s.env.AppID,
 	}))
 
 	target := fmt.Sprintf("/v1/auth?provider=google&envId=%d", s.env.ID)

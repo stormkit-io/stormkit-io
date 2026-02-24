@@ -49,7 +49,7 @@ func HandlerAuthRedirect(req *shttp.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	req.Redirect(prv.Config().AuthCodeURL(state, oauth2.ApprovalForce, oauth2.AccessTypeOffline), http.StatusFound)
+	req.Redirect(prv.Client().Config().AuthCodeURL(state, oauth2.ApprovalForce, oauth2.AccessTypeOffline), http.StatusFound)
 
 	return nil
 }

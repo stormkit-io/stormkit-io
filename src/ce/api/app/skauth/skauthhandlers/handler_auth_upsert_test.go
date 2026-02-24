@@ -85,20 +85,21 @@ func (s *HandlerAuthUpsertSuite) Test_Success() {
 	s.Equal(skauth.ProviderData{
 		ClientID:     "test-client-id",
 		ClientSecret: "test",
-		RedirectURL:  "http://api.stormkit:8888/v1/auth/callback",
-		Scopes: []string{
-			"https://www.googleapis.com/auth/userinfo.email",
-			"https://www.googleapis.com/auth/userinfo.profile",
-		},
 	}, provider.Data)
 }
 
 func (s *HandlerAuthUpsertSuite) Test_Update() {
 	err := skauth.NewStore().SaveProvider(context.Background(), skauth.SaveProviderArgs{
-		EnvID:  s.env.ID,
-		AppID:  s.app.ID,
-		Status: true,
-		Client: skauth.NewGoogleClient("my-client-id", "my-client-secret"),
+		EnvID: s.env.ID,
+		AppID: s.app.ID,
+		Provider: &skauth.Provider{
+			Name: skauth.ProviderGoogle,
+			Data: skauth.ProviderData{
+				ClientID:     "test-client-id",
+				ClientSecret: "my-client-secret",
+			},
+			Status: true,
+		},
 	})
 
 	s.NoError(err)
@@ -128,11 +129,6 @@ func (s *HandlerAuthUpsertSuite) Test_Update() {
 	s.Equal(skauth.ProviderData{
 		ClientID:     "test-client-id",
 		ClientSecret: "my-client-secret",
-		RedirectURL:  "http://api.stormkit:8888/v1/auth/callback",
-		Scopes: []string{
-			"https://www.googleapis.com/auth/userinfo.email",
-			"https://www.googleapis.com/auth/userinfo.profile",
-		},
 	}, provider.Data)
 }
 
@@ -214,11 +210,6 @@ func (s *HandlerAuthUpsertSuite) Test_Idempotent() {
 	s.Equal(skauth.ProviderData{
 		ClientID:     "my-client-id",
 		ClientSecret: "my-secret",
-		RedirectURL:  "http://api.stormkit:8888/v1/auth/callback",
-		Scopes: []string{
-			"https://www.googleapis.com/auth/userinfo.email",
-			"https://www.googleapis.com/auth/userinfo.profile",
-		},
 	}, provider.Data)
 }
 

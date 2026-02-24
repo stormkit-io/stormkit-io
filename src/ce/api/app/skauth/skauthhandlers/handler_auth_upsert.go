@@ -52,14 +52,6 @@ func handlerAuthUpsert(req *app.RequestContext) *shttp.Response {
 		}
 	}
 
-	provider := GetProviderClient(data.ProviderName, data.ClientID, data.ClientSecret)
-
-	if provider == nil {
-		return shttp.BadRequest(map[string]any{
-			"error": "Invalid provider",
-		})
-	}
-
 	if data.ClientID == "" {
 		return shttp.BadRequest(map[string]any{
 			"error": "Client ID is required",
@@ -85,11 +77,25 @@ func handlerAuthUpsert(req *app.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	err = skauth.NewStore().SaveProvider(ctx, skauth.SaveProviderArgs{
-		EnvID:  req.EnvID,
-		AppID:  req.App.ID,
+	provider := &skauth.Provider{
+		Name:   data.ProviderName,
 		Status: data.Status,
-		Client: provider,
+		Data: skauth.ProviderData{
+			ClientID:     data.ClientID,
+			ClientSecret: data.ClientSecret,
+		},
+	}
+
+	if provider.Client() == nil {
+		return shttp.BadRequest(map[string]any{
+			"error": "Invalid provider",
+		})
+	}
+
+	err = skauth.NewStore().SaveProvider(ctx, skauth.SaveProviderArgs{
+		EnvID:    req.EnvID,
+		AppID:    req.App.ID,
+		Provider: provider,
 	})
 
 	if err != nil {

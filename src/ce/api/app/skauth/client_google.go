@@ -34,21 +34,6 @@ func NewGoogleClient(clientID, secretKey string) Client {
 	}
 }
 
-// Name returns the name of the provider.
-func (g *GoogleClient) Name() string {
-	return ProviderGoogle
-}
-
-// Data returns the provider data.
-func (g *GoogleClient) Data() ProviderData {
-	return ProviderData{
-		ClientID:     g.oauth2Config.ClientID,
-		ClientSecret: g.oauth2Config.ClientSecret,
-		RedirectURL:  g.oauth2Config.RedirectURL,
-		Scopes:       g.oauth2Config.Scopes,
-	}
-}
-
 type GoogleUserInfo struct {
 	ID            string `json:"id"`
 	Email         string `json:"email"`

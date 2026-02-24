@@ -56,20 +56,28 @@ func (s *HandlerAuthsSuite) Test_NoProviders() {
 	res := struct {
 		Providers   map[string]any `json:"providers"`
 		RedirectURL string         `json:"redirectUrl"`
+		AuthURL     string         `json:"authUrl"`
 	}{}
 
 	s.NoError(json.Unmarshal(response.Byte(), &res))
 	s.Len(res.Providers, 0)
 	s.Equal("http://api.stormkit:8888/v1/auth/callback", res.RedirectURL)
+	s.Equal("http://api.stormkit:8888/v1/auth", res.AuthURL)
 }
 
 func (s *HandlerAuthsSuite) Test_ReturnsProviders() {
 	// Enable a provider via the enable endpoint
 	err := skauth.NewStore().SaveProvider(context.Background(), skauth.SaveProviderArgs{
-		EnvID:  s.env.ID,
-		AppID:  s.app.ID,
-		Status: true,
-		Client: skauth.NewGoogleClient("my-client-id", "my-client-secret"),
+		EnvID: s.env.ID,
+		AppID: s.app.ID,
+		Provider: &skauth.Provider{
+			Status: true,
+			Name:   skauth.ProviderGoogle,
+			Data: skauth.ProviderData{
+				ClientID:     "my-client-id",
+				ClientSecret: "my-client-secret",
+			},
+		},
 	})
 
 	s.NoError(err)
@@ -89,6 +97,7 @@ func (s *HandlerAuthsSuite) Test_ReturnsProviders() {
 
 	res := struct {
 		RedirectURL string `json:"redirectUrl"`
+		AuthURL     string `json:"authUrl"`
 		Providers   map[string]struct {
 			Status   bool
 			ClientID string
@@ -98,6 +107,7 @@ func (s *HandlerAuthsSuite) Test_ReturnsProviders() {
 	s.NoError(json.Unmarshal(response.Byte(), &res))
 	s.Len(res.Providers, 1)
 	s.Equal("http://api.stormkit:8888/v1/auth/callback", res.RedirectURL)
+	s.Equal("http://api.stormkit:8888/v1/auth", res.AuthURL)
 
 	google := res.Providers["google"]
 	s.Equal("my-client-id", google.ClientID)

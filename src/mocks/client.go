@@ -36,42 +36,6 @@ func (_m *Client) Config() *oauth2.Config {
 	return r0
 }
 
-// Data provides a mock function with no fields
-func (_m *Client) Data() skauth.ProviderData {
-	ret := _m.Called()
-
-	if len(ret) == 0 {
-		panic("no return value specified for Data")
-	}
-
-	var r0 skauth.ProviderData
-	if rf, ok := ret.Get(0).(func() skauth.ProviderData); ok {
-		r0 = rf()
-	} else {
-		r0 = ret.Get(0).(skauth.ProviderData)
-	}
-
-	return r0
-}
-
-// Name provides a mock function with no fields
-func (_m *Client) Name() string {
-	ret := _m.Called()
-
-	if len(ret) == 0 {
-		panic("no return value specified for Name")
-	}
-
-	var r0 string
-	if rf, ok := ret.Get(0).(func() string); ok {
-		r0 = rf()
-	} else {
-		r0 = ret.Get(0).(string)
-	}
-
-	return r0
-}
-
 // UserInfo provides a mock function with given fields: ctx, token
 func (_m *Client) UserInfo(ctx context.Context, token *oauth2.Token) (*skauth.UserInfo, error) {
 	ret := _m.Called(ctx, token)

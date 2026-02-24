@@ -38,20 +38,3 @@ var AuthUser = func(ctx context.Context, env *buildconf.Env, authID types.ID) (*
 var Exchange = func(ctx context.Context, config *oauth2.Config, code string) (*oauth2.Token, error) {
 	return config.Exchange(ctx, code)
 }
-
-var DefaultClient skauth.Client
-
-func GetProviderClient(providerName, clientID, clientSecret string) skauth.Client {
-	if DefaultClient != nil {
-		return DefaultClient
-	}
-
-	switch providerName {
-	case skauth.ProviderGoogle:
-		return skauth.NewGoogleClient(clientID, clientSecret)
-	case skauth.ProviderX:
-		return skauth.NewXClient(clientID, clientSecret)
-	default:
-		return nil
-	}
-}

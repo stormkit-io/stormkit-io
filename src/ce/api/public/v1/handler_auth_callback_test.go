@@ -42,13 +42,13 @@ func (s *HandlerAuthCallbackSuite) BeforeTest(suiteName, _ string) {
 	s.conn = databasetest.InitTx(suiteName)
 	s.Factory = factory.New(s.conn)
 	s.app = s.MockApp(s.MockUser(nil), nil)
-	skauthhandlers.DefaultClient = s.mockClient
+	skauth.DefaultClient = s.mockClient
 	config.SetIsSelfHosted(true)
 }
 
 func (s *HandlerAuthCallbackSuite) AfterTest(_, _ string) {
 	s.conn.CloseTx()
-	skauthhandlers.DefaultClient = nil
+	skauth.DefaultClient = nil
 	skauthhandlers.Exchange = s.exchangeFn
 	config.SetIsSelfHosted(false)
 }
@@ -86,11 +86,19 @@ func (s *HandlerAuthCallbackSuite) Test_Success() {
 
 	ctx := context.Background()
 	tkn := &oauth2.Token{}
-	err = skauth.NewStore().SaveProvider(ctx, skauth.SaveProviderArgs{
-		EnvID:  env.ID,
-		AppID:  s.app.ID,
+	prv := &skauth.Provider{
+		Name: skauth.ProviderGoogle,
+		Data: skauth.ProviderData{
+			ClientID:     "test-client-id",
+			ClientSecret: "test-client-secret",
+		},
 		Status: true,
-		Client: skauth.NewGoogleClient("test-client-id", "test-client-secret"),
+	}
+
+	err = skauth.NewStore().SaveProvider(ctx, skauth.SaveProviderArgs{
+		EnvID:    env.ID,
+		AppID:    s.app.ID,
+		Provider: prv,
 	})
 
 	s.NoError(err)
@@ -98,6 +106,8 @@ func (s *HandlerAuthCallbackSuite) Test_Success() {
 	skauthhandlers.Exchange = func(ctx context.Context, config *oauth2.Config, code string) (*oauth2.Token, error) {
 		return tkn, nil
 	}
+
+	s.mockClient.On("Config").Return(&oauth2.Config{}).Once()
 
 	s.mockClient.On("UserInfo", mock.Anything, tkn).Return(&skauth.UserInfo{
 		AccountID: "test-account-id",
@@ -168,20 +178,22 @@ func (s *HandlerAuthCallbackSuite) Test_Provider_EmptyConfig() {
 		},
 	})
 
-	mockClient := &mocks.Client{}
-	mockClient.On("Data").Once().Return(skauth.ProviderData{}) // used in SaveProvider method
-	mockClient.On("Name").Once().Return(skauth.ProviderX)
-	mockClient.On("Config").Once().Return(nil)
-
 	ctx := context.Background()
-	err := skauth.NewStore().SaveProvider(ctx, skauth.SaveProviderArgs{
-		EnvID:  env.ID,
-		AppID:  s.app.ID,
+	prv := &skauth.Provider{
+		Name:   skauth.ProviderX,
+		Data:   skauth.ProviderData{},
 		Status: true,
-		Client: mockClient,
+	}
+
+	err := skauth.NewStore().SaveProvider(ctx, skauth.SaveProviderArgs{
+		EnvID:    env.ID,
+		AppID:    s.app.ID,
+		Provider: prv,
 	})
 
 	s.NoError(err)
+
+	s.mockClient.On("Config").Return(nil).Once()
 
 	response := shttptest.RequestWithHeaders(
 		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),

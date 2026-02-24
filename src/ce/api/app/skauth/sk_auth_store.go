@@ -61,15 +61,14 @@ func NewStore() *Store {
 }
 
 type SaveProviderArgs struct {
-	Client Client
-	EnvID  types.ID
-	AppID  types.ID
-	Status bool
+	Provider *Provider
+	EnvID    types.ID
+	AppID    types.ID
 }
 
 // SaveProvider saves the OAuth2 provider configuration.
 func (s *Store) SaveProvider(ctx context.Context, args SaveProviderArgs) error {
-	providerData, err := utils.ByteaValue(args.Client.Data())
+	providerData, err := utils.ByteaValue(args.Provider.Data)
 
 	if err != nil {
 		return err
@@ -77,9 +76,9 @@ func (s *Store) SaveProvider(ctx context.Context, args SaveProviderArgs) error {
 
 	_, err = s.Exec(
 		ctx, stmt.saveOAuthConfig,
-		args.Client.Name(),
+		args.Provider.Name,
 		providerData,
-		args.Status,
+		args.Provider.Status,
 		args.EnvID,
 		args.AppID,
 	)

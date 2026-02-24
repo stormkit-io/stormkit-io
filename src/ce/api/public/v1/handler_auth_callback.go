@@ -47,7 +47,8 @@ func HandlerAuthCallback(req *shttp.RequestContext) *shttp.Response {
 	}
 
 	// Exchange authorization code for token
-	config := prv.Config()
+	client := prv.Client()
+	config := client.Config()
 
 	if config == nil {
 		return shttp.BadRequest(map[string]any{
@@ -67,7 +68,7 @@ func HandlerAuthCallback(req *shttp.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	info, err := skauthhandlers.GetProviderClient(provider, config.ClientID, config.ClientSecret).UserInfo(req.Context(), token)
+	info, err := client.UserInfo(req.Context(), token)
 
 	if err != nil {
 		return shttp.Error(err)

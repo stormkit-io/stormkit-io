@@ -45,7 +45,7 @@ func Services(r *shttp.Router) *shttp.Service {
 	s.NewEndpoint("/v1/mail").
 		Handler(shttp.MethodPost, "", app.WithAPIKey(mailerhandlers.HandlerMail, &app.Opts{Env: true}))
 
-	if config.IsSelfHosted() {
+	if config.IsDevelopment() || config.IsSelfHosted() {
 		s.NewEndpoint("/v1/auth").
 			Handler(shttp.MethodGet, "", HandlerAuthRedirect).
 			Handler(shttp.MethodGet, "/session", HandlerSession).

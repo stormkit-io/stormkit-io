@@ -49,30 +49,38 @@ type ProviderData struct {
 }
 
 type Provider struct {
-	ID     types.ID
-	Name   string
-	Data   ProviderData
-	Status bool
+	ID           types.ID
+	Name         string
+	Data         ProviderData
+	Status       bool
+	cachedClient Client
 }
 
-func (p *Provider) Config() *oauth2.Config {
-	if p.Data.ClientID == "" || p.Data.ClientSecret == "" {
-		return nil
+var DefaultClient Client
+
+// Client returns the OAuth client for the provider.
+func (p *Provider) Client() Client {
+	if DefaultClient != nil {
+		return DefaultClient
 	}
 
-	return &oauth2.Config{
-		ClientID:     p.Data.ClientID,
-		ClientSecret: p.Data.ClientSecret,
-		RedirectURL:  p.Data.RedirectURL,
-		Scopes:       p.Data.Scopes,
+	if p.cachedClient != nil {
+		return p.cachedClient
 	}
+
+	switch p.Name {
+	case ProviderGoogle:
+		p.cachedClient = NewGoogleClient(p.Data.ClientID, p.Data.ClientSecret)
+	case ProviderX:
+		p.cachedClient = NewXClient(p.Data.ClientID, p.Data.ClientSecret)
+	}
+
+	return p.cachedClient
 }
 
 type Client interface {
 	UserInfo(ctx context.Context, token *oauth2.Token) (*UserInfo, error)
 	Config() *oauth2.Config
-	Name() string
-	Data() ProviderData
 }
 
 type OAuth struct {
@@ -99,4 +107,9 @@ type User struct {
 // RedirectURL returns the OAuth2 redirect URL.
 func RedirectURL() string {
 	return admin.MustConfig().ApiURL("/v1/auth/callback")
+}
+
+// AuthURL returns the URL where the users can start the flow.
+func AuthURL() string {
+	return admin.MustConfig().ApiURL("/v1/auth")
 }

@@ -38,21 +38,6 @@ func NewXClient(clientID, secretKey string) Client {
 	}
 }
 
-// Name returns the name of the provider.
-func (x *XClient) Name() string {
-	return ProviderX
-}
-
-// Data returns the provider data.
-func (x *XClient) Data() ProviderData {
-	return ProviderData{
-		ClientID:     x.oauth2Config.ClientID,
-		ClientSecret: x.oauth2Config.ClientSecret,
-		RedirectURL:  x.oauth2Config.RedirectURL,
-		Scopes:       x.oauth2Config.Scopes,
-	}
-}
-
 type XUserInfo struct {
 	Data struct {
 		ID              string `json:"id"`
