@@ -36,7 +36,7 @@ func HandlerAuthRedirect(req *shttp.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	if prv == nil {
+	if prv == nil || !prv.Status {
 		return shttp.NotFound()
 	}
 

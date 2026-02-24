@@ -96,6 +96,33 @@ func (s *HandlerAuthRedirectSuite) Test_Success() {
 	s.Contains(loc, "access_type=offline")
 }
 
+func (s *HandlerAuthRedirectSuite) Test_Fail_DisabledProvider() {
+	s.NoError(skauth.NewStore().SaveProvider(context.Background(), skauth.SaveProviderArgs{
+		Provider: &skauth.Provider{
+			Status: false,
+			Name:   skauth.ProviderGoogle,
+			Data: skauth.ProviderData{
+				ClientID:     "abc",
+				ClientSecret: "def",
+			},
+		},
+		EnvID: s.env.ID,
+		AppID: s.env.AppID,
+	}))
+
+	target := fmt.Sprintf("/v1/auth?provider=google&envId=%d", s.env.ID)
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodGet,
+		target,
+		nil,
+		nil,
+	)
+
+	s.Equal(http.StatusNotFound, response.Code)
+}
+
 func TestHandlerAuthRedirect(t *testing.T) {
 	suite.Run(t, &HandlerAuthRedirectSuite{})
 }
