@@ -6,7 +6,7 @@ import StorageIcon from "@mui/icons-material/Storage";
 import TextSnippetIcon from "@mui/icons-material/TextSnippet";
 import InsertChartIcon from "@mui/icons-material/InsertChart";
 import MailIcon from "@mui/icons-material/Mail";
-// import GroupIcon from "@mui/icons-material/Group";
+import GroupIcon from "@mui/icons-material/Group";
 import DatabaseIcon from "@mui/icons-material/Inventory";
 
 export const appMenuItems = ({
@@ -94,12 +94,6 @@ export const envMenuItems = ({
       icon: Icon(DatabaseIcon),
       isActive: pathname.includes("/database"),
     },
-    // {
-    //   text: "Authentication",
-    //   path: `${envPath}/auth`,
-    //   icon: Icon(GroupIcon),
-    //   isActive: pathname.includes("/auth"),
-    // },
     {
       text: "Mailer",
       path: `${envPath}/mailer`,
@@ -107,6 +101,15 @@ export const envMenuItems = ({
       isActive: pathname.includes("/mailer"),
     },
   ];
+
+  if (env.build.vars["SK_AUTH_ENABLED"] === "true") {
+    items.push({
+      text: "Authentication",
+      path: `${envPath}/auth`,
+      icon: Icon(GroupIcon),
+      isActive: pathname.includes("/auth"),
+    });
+  }
 
   if (env.published?.length) {
     items.push({
