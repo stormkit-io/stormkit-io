@@ -233,8 +233,10 @@ func (s *Store) InsertDeployment(ctx context.Context, d *Deployment) error {
 		webhookEvent = nil
 	}
 
+	configCopy := null.NewString(string(d.ConfigCopy), string(d.ConfigCopy) != "")
+
 	params := []any{
-		d.AppID, d.ConfigCopy, branch, d.Env, d.EnvID,
+		d.AppID, configCopy, branch, d.Env, d.EnvID,
 		d.IsAutoDeploy, d.PullRequestNumber,
 		d.Commit.ID, d.IsFork, d.ShouldPublish, repo,
 		d.APIPathPrefix, webhookEvent, d.Commit.Author,
