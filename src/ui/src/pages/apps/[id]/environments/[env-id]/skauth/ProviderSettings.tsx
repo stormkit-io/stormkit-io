@@ -63,8 +63,16 @@ export default function ProviderSettings({
               setRefreshToken(Date.now());
               onClose();
             })
-            .catch(() => {
-              setError("Something went wrong while saving provider settings.");
+            .catch(res => {
+              if (res.status === 400) {
+                res.json().then(({ error }: { error: string }) => {
+                  setError(error);
+                });
+              } else {
+                setError(
+                  "Something went wrong while saving provider settings.",
+                );
+              }
             })
             .finally(() => {
               setLoading(false);
@@ -140,6 +148,29 @@ export default function ProviderSettings({
             </Typography>
           ))}
         </Box>
+
+        {provider.hasAuthUrl && (
+          <Box
+            sx={{
+              my: 2,
+              border: "1px solid",
+              p: 2,
+              borderRadius: 1,
+              bgcolor: "container.paper",
+              borderColor: "container.border",
+            }}
+          >
+            <CopyBox
+              fullWidth
+              label="Authorization URL"
+              variant="filled"
+              value={
+                provider.authUrl + `?envId=${envId}&provider=${provider.id}`
+              }
+              helperText="Redirect your users to this URL for starting the authentication flow."
+            />
+          </Box>
+        )}
         <CardFooter>
           <Button onClick={onClose} sx={{ mr: 2 }} variant="outlined">
             Cancel

@@ -23,6 +23,7 @@ interface MockFetchProvidersProps {
   envId: string;
   response?: {
     redirectUrl: string;
+    authUrl?: string;
     providers: {
       [key: string]: ProviderData;
     };
@@ -35,6 +36,7 @@ const mockFetchProviders = ({
   status = 200,
   response = {
     redirectUrl: "https://example.com/callback",
+    authUrl: "https://api.example.com/auth",
     providers: {},
   },
 }: MockFetchProvidersProps) => {
@@ -85,6 +87,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
       envId: currentEnv.id!,
       response: {
         redirectUrl: "https://example.com/callback",
+        authUrl: "https://api.example.com/auth",
         providers,
       },
     });
@@ -229,6 +232,28 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
 
       await waitFor(() => {
         expect(wrapper.getByText("Google OAuth Settings")).toBeTruthy();
+      });
+    });
+
+    it("should display Authorization URL in drawer", async () => {
+      await waitFor(() => {
+        expect(wrapper.getByText("Google")).toBeTruthy();
+      });
+
+      fireEvent.click(wrapper.getByText("Google"));
+
+      await waitFor(() => {
+        expect(wrapper.getByText("Authorization URL")).toBeTruthy();
+        expect(
+          wrapper.getByDisplayValue(
+            `https://api.example.com/auth?envId=${currentEnv.id}&provider=google`,
+          ),
+        ).toBeTruthy();
+        expect(
+          wrapper.getByText(
+            "Redirect your users to this URL for starting the authentication flow.",
+          ),
+        ).toBeTruthy();
       });
     });
   });

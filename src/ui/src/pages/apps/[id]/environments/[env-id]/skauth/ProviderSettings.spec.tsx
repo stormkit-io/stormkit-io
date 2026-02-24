@@ -24,6 +24,8 @@ const mockProvider: AuthProvider = {
   drawerDesc: "Sign in with Google OAuth 2.0.",
   hasRedirectUrl: true,
   redirectUrl: "https://example.com/callback",
+  hasAuthUrl: true,
+  authUrl: "https://api.example.com/auth",
   enabled: false,
   fields: [
     { name: "clientId", label: "Client ID", value: "test-client-id" },
@@ -80,6 +82,19 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/ProviderSettings.tsx", 
         wrapper.getByDisplayValue("https://example.com/callback"),
       ).toBeTruthy();
 
+      // Authorization URL
+      expect(wrapper.getByText("Authorization URL")).toBeTruthy();
+      expect(
+        wrapper.getByDisplayValue(
+          "https://api.example.com/auth?envId=env-123&provider=google",
+        ),
+      ).toBeTruthy();
+      expect(
+        wrapper.getByText(
+          "Redirect your users to this URL for starting the authentication flow.",
+        ),
+      ).toBeTruthy();
+
       // Setup steps
       expect(wrapper.getByText("1. Step 1: Do something")).toBeTruthy();
       expect(wrapper.getByText("2. Step 2: Do something else")).toBeTruthy();
@@ -105,6 +120,31 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/ProviderSettings.tsx", 
     it("should render the switch as checked", () => {
       const switchInput = wrapper.getByRole("switch") as HTMLInputElement;
       expect(switchInput.checked).toBe(true);
+    });
+  });
+
+  describe("when provider does not have auth URL", () => {
+    beforeEach(() => {
+      createWrapper({
+        provider: {
+          ...mockProvider,
+          hasAuthUrl: false,
+          authUrl: undefined,
+        },
+      });
+    });
+
+    it("should not render the Authorization URL section", () => {
+      expect(() => wrapper.getByText("Authorization URL")).toThrow();
+      expect(() =>
+        wrapper.getByText(
+          "Redirect your users to this URL for starting the authentication flow.",
+        ),
+      ).toThrow();
+    });
+
+    it("should still render the Callback URL", () => {
+      expect(wrapper.getByText("Callback URL")).toBeTruthy();
     });
   });
 

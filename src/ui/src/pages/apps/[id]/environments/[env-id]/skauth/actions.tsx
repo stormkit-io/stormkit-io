@@ -23,7 +23,9 @@ export interface AuthProvider {
   fields?: Field[];
   enabled?: boolean;
   redirectUrl?: string;
+  authUrl?: string;
   hasRedirectUrl?: boolean;
+  hasAuthUrl?: boolean;
   steps?: React.ReactNode[];
 }
 
@@ -46,6 +48,7 @@ const allProviders: AuthProvider[] = [
     drawerTitle: "Google OAuth Settings",
     drawerDesc: "Sign in with Google OAuth 2.0.",
     hasRedirectUrl: true,
+    hasAuthUrl: true,
     fields: [
       { name: "clientId", label: "Client ID", value: "" },
       { name: "clientSecret", label: "Client Secret", value: "" },
@@ -76,6 +79,7 @@ const allProviders: AuthProvider[] = [
     drawerTitle: "X / Twitter OAuth Settings",
     drawerDesc: "Sign in with X OAuth 2.0.",
     hasRedirectUrl: true,
+    hasAuthUrl: true,
     fields: [
       { name: "clientId", label: "Client ID", value: "" },
       { name: "clientSecret", label: "Client Secret", value: "" },
@@ -118,6 +122,7 @@ interface ProviderData {
 
 interface FetchProvidersResult {
   redirectUrl: string;
+  authUrl: string;
   providers: {
     [key: string]: ProviderData;
   };
@@ -137,13 +142,14 @@ export const useFetchProviders = ({
 
     api
       .fetch<FetchProvidersResult>(`/skauth/providers?envId=${envId}`)
-      .then(({ providers, redirectUrl }) => {
+      .then(({ providers, redirectUrl, authUrl }) => {
         const result: AuthProvider[] = [];
 
         allProviders
           .map(provider => ({
             ...provider,
             redirectUrl: provider.hasRedirectUrl ? redirectUrl : undefined,
+            authUrl: provider.hasAuthUrl ? authUrl : undefined,
           }))
           .forEach(provider => {
             result.push({
@@ -161,7 +167,7 @@ export const useFetchProviders = ({
 
         setProviders(result);
       })
-      .catch(e => {
+      .catch(() => {
         setError("Failed to fetch authentication providers");
       })
       .finally(() => {
