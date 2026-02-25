@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Drawer from "@mui/material/Drawer";
@@ -15,7 +15,7 @@ import type { AuthProvider } from "./actions";
 interface Props {
   envId: string;
   isDrawerOpen: boolean;
-  provider: AuthProvider;
+  provider?: AuthProvider;
   onClose: () => void;
   setRefreshToken: (value: number) => void;
 }
@@ -27,9 +27,13 @@ export default function ProviderSettings({
   onClose,
   setRefreshToken,
 }: Props) {
-  const [isEnabled, setIsEnabled] = useState(!!provider.enabled);
+  const [isEnabled, setIsEnabled] = useState(!!provider?.enabled);
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setIsEnabled(!!provider?.enabled);
+  }, [provider]);
 
   return (
     <Drawer
@@ -54,7 +58,7 @@ export default function ProviderSettings({
 
           Api.post(`/skauth`, {
             envId,
-            providerName: provider.id,
+            providerName: provider?.id,
             clientId: data.clientId,
             clientSecret: data.clientSecret,
             status: isEnabled,
@@ -80,11 +84,11 @@ export default function ProviderSettings({
         }}
       >
         <CardHeader
-          title={provider.drawerTitle}
-          subtitle={provider.drawerDesc}
+          title={provider?.drawerTitle}
+          subtitle={provider?.drawerDesc}
         />
         <Box>
-          {provider.fields?.map(field => (
+          {provider?.fields?.map(field => (
             <TextField
               variant="filled"
               autoComplete="off"
@@ -107,7 +111,7 @@ export default function ProviderSettings({
           />
         </Box>
 
-        {provider.hasRedirectUrl && (
+        {provider?.hasRedirectUrl && (
           <Box
             sx={{
               mt: 2,
@@ -122,7 +126,7 @@ export default function ProviderSettings({
               fullWidth
               label="Callback URL"
               variant="filled"
-              value={provider.redirectUrl}
+              value={provider?.redirectUrl}
               helperText="Set this URL as the Redirect URL in your OAuth provider settings."
             />
           </Box>
@@ -138,7 +142,7 @@ export default function ProviderSettings({
             borderColor: "container.border",
           }}
         >
-          {provider.steps?.map((step, index) => (
+          {provider?.steps?.map((step, index) => (
             <Typography
               component="li"
               key={index}
@@ -149,7 +153,7 @@ export default function ProviderSettings({
           ))}
         </Box>
 
-        {provider.hasAuthUrl && (
+        {provider?.hasAuthUrl && (
           <Box
             sx={{
               my: 2,

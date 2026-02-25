@@ -6,16 +6,19 @@ import AddIcon from "@mui/icons-material/Add";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import IconButton from "@mui/material/IconButton";
+import TextField from "@mui/material/TextField";
+import Link from "@mui/material/Link";
 import { EnvironmentContext } from "~/pages/apps/[id]/environments/Environment.context";
 import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
 import CardRow from "~/components/CardRow";
 import EmptyPage from "~/components/EmptyPage";
+import Help from "~/components/Help";
 import CardFooter from "~/components/CardFooter";
 import { RootContext } from "~/pages/Root.context";
 import Drawer from "./ProviderSettings";
 import { useFetchSchema } from "../database/actions";
-import { useFetchProviders } from "./actions";
+import { AuthProvider, useFetchProviders } from "./actions";
 
 interface EmptyViewProps {
   isCloud?: boolean;
@@ -61,6 +64,91 @@ function EmptyView({ isCloud, env }: EmptyViewProps) {
   );
 }
 
+interface ProvidersProps {
+  providers: AuthProvider[];
+  environment: Environment;
+  setRefreshToken: (token: number) => void;
+}
+
+function Providers({
+  providers,
+  environment: env,
+  setRefreshToken,
+}: ProvidersProps) {
+  const [drawerOpen, setDrawerOpen] = useState<AuthProvider>();
+
+  return (
+    <Card sx={{ mt: 2, width: "100%" }}>
+      <CardHeader
+        title="Providers"
+        subtitle="Manage your authentication providers"
+      />
+
+      <Drawer
+        isDrawerOpen={!!drawerOpen}
+        setRefreshToken={setRefreshToken}
+        onClose={() => {
+          setDrawerOpen(undefined);
+        }}
+        provider={drawerOpen}
+        envId={env.id!}
+      />
+
+      {providers.map((p, i) => {
+        const onClickHandler = () => {
+          setDrawerOpen(p);
+        };
+
+        return (
+          <CardRow
+            key={p.id}
+            sx={{
+              cursor: "pointer",
+              bgcolor: i % 2 ? "container.paper" : "transparent",
+              p: 1,
+              ":hover": {
+                bgcolor: "rgba(0, 0, 0, 0.4)",
+              },
+            }}
+            chipColor={p.enabled ? "success" : "info"}
+            chipLabel={p.enabled ? "Enabled" : "Disabled"}
+            tabIndex={0}
+            onClick={onClickHandler}
+            actions={
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <IconButton onClick={onClickHandler}>
+                  <ChevronRightIcon />
+                </IconButton>
+              </Box>
+            }
+          >
+            <Box
+              sx={{
+                display: "flex",
+                gap: 2,
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
+                {<p.icon />}
+                <Typography component="span" sx={{ ml: 2 }}>
+                  {p.name}
+                </Typography>
+              </Box>
+            </Box>
+          </CardRow>
+        );
+      })}
+    </Card>
+  );
+}
+
 export default function SkAuth() {
   const { details } = useContext(RootContext);
   const isCloud = details?.stormkit?.edition === "cloud";
@@ -68,8 +156,7 @@ export default function SkAuth() {
   const result = useFetchSchema({ envId: env.id!, isCloud });
   const [refreshToken, setRefreshToken] = useState<number>();
   const [success, setSuccess] = useState<string>();
-  const [drawerOpen, setDrawerOpen] = useState<string>("");
-  const { providers, loading, error } = useFetchProviders({
+  const { providers, loading, error, config } = useFetchProviders({
     envId: env.id!,
     refreshToken,
   });
@@ -77,89 +164,63 @@ export default function SkAuth() {
   const hasSchema = !result.loading && !result.error && Boolean(result.schema);
 
   return (
-    <Card
-      success={success}
-      successTitle={false}
-      onSuccessClose={() => setSuccess(undefined)}
-      error={result.error || error}
-      loading={result.loading || loading}
-      sx={{ width: "100%" }}
-    >
-      <CardHeader
-        title="Authentication"
-        subtitle="Enable authentication providers for this environment"
-      />
+    <>
+      <Card
+        success={success}
+        successTitle={false}
+        onSuccessClose={() => setSuccess(undefined)}
+        error={result.error || error}
+        loading={result.loading || loading}
+        component="form"
+        sx={{ width: "100%" }}
+      >
+        <CardHeader
+          title="Authentication"
+          subtitle="Enable authentication providers for this environment"
+        />
 
-      {!hasSchema ? (
-        <EmptyView isCloud={isCloud} env={env} />
-      ) : (
-        <>
-          {providers.map((p, i) => {
-            const onClickHandler = () => {
-              setDrawerOpen(p.id);
-            };
-
-            return (
-              <CardRow
-                key={p.id}
-                sx={{
-                  cursor: "pointer",
-                  bgcolor: i % 2 ? "container.paper" : "transparent",
-                  p: 1,
-                  ":hover": {
-                    bgcolor: "rgba(0, 0, 0, 0.4)",
+        {!hasSchema ? (
+          <EmptyView isCloud={isCloud} env={env} />
+        ) : (
+          <>
+            <Box sx={{ mb: 4 }}>
+              <TextField
+                label="Success callback URL"
+                name="successUrl"
+                placeholder="https://example.com/auth/success"
+                fullWidth
+                defaultValue={config?.successUrl || ""}
+                variant="filled"
+                autoComplete="off"
+                helperText={
+                  <>
+                    URL to redirect to after successful authentication.{" "}
+                    <Help
+                      title="Success Callback URL Help"
+                      buttonText="Learn more."
+                      buttonVariant="link"
+                    >
+                      <Typography></Typography>
+                    </Help>
+                  </>
+                }
+                slotProps={{
+                  inputLabel: {
+                    shrink: true,
                   },
                 }}
-                chipColor={p.enabled ? "success" : "info"}
-                chipLabel={p.enabled ? "Enabled" : "Disabled"}
-                actions={
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <IconButton onClick={onClickHandler}>
-                      <ChevronRightIcon />
-                    </IconButton>
-                  </Box>
-                }
-              >
-                <Box
-                  sx={{
-                    display: "flex",
-                    gap: 2,
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                  }}
-                  tabIndex={0}
-                  onClick={onClickHandler}
-                >
-                  <Box
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      cursor: "pointer",
-                    }}
-                    onClick={onClickHandler}
-                  >
-                    {<p.icon />}
-                    <Typography component="span" sx={{ ml: 2 }}>
-                      {p.name}
-                    </Typography>
-                  </Box>
-                </Box>
-                <Drawer
-                  isDrawerOpen={drawerOpen === p.id}
-                  setRefreshToken={setRefreshToken}
-                  onClose={() => {
-                    setDrawerOpen("");
-                  }}
-                  provider={p}
-                  envId={env.id!}
-                />
-              </CardRow>
-            );
-          })}
-
-          <CardFooter sx={{ mt: 4 }} />
-        </>
+              />
+            </Box>
+          </>
+        )}
+      </Card>
+      {hasSchema && (
+        <Providers
+          providers={providers}
+          environment={env}
+          setRefreshToken={setRefreshToken}
+        />
       )}
-    </Card>
+    </>
   );
 }

@@ -121,11 +121,17 @@ interface ProviderData {
 }
 
 interface FetchProvidersResult {
+  successUrl: string;
   redirectUrl: string;
   authUrl: string;
   providers: {
     [key: string]: ProviderData;
   };
+}
+
+interface AuthConfig {
+  sessionTtl?: number; // in minutes
+  successUrl?: string;
 }
 
 export const useFetchProviders = ({
@@ -135,6 +141,7 @@ export const useFetchProviders = ({
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState<AuthProvider[]>([]);
+  const [config, setConfig] = useState<AuthConfig>({});
 
   useEffect(() => {
     setLoading(true);
@@ -142,7 +149,7 @@ export const useFetchProviders = ({
 
     api
       .fetch<FetchProvidersResult>(`/skauth/providers?envId=${envId}`)
-      .then(({ providers, redirectUrl, authUrl }) => {
+      .then(({ providers, redirectUrl, authUrl, successUrl }) => {
         const result: AuthProvider[] = [];
 
         allProviders
@@ -166,6 +173,7 @@ export const useFetchProviders = ({
           });
 
         setProviders(result);
+        setConfig({ successUrl });
       })
       .catch(() => {
         setError("Failed to fetch authentication providers");
@@ -175,5 +183,5 @@ export const useFetchProviders = ({
       });
   }, [envId, refreshToken]);
 
-  return { providers, loading, error };
+  return { providers, loading, error, config };
 };
