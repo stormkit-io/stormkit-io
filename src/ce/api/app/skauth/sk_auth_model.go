@@ -3,7 +3,9 @@ package skauth
 import (
 	"context"
 
+	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
+	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"golang.org/x/oauth2"
@@ -78,10 +80,23 @@ func (p *Provider) Client() Client {
 	return p.cachedClient
 }
 
+type AuthCodeURLParams struct {
+	EnvID        types.ID
+	ProviderName string
+}
+
+// Claims returns the JWT claims for the authorization request, including environment ID and provider name.
+func (a AuthCodeURLParams) Claims() jwt.MapClaims {
+	return jwt.MapClaims{
+		"eid": a.EnvID,
+		"prv": a.ProviderName,
+	}
+}
+
 type Client interface {
 	UserInfo(ctx context.Context, token *oauth2.Token) (*UserInfo, error)
-	AuthCodeURL(state string) string
-	Exchange(ctx context.Context, code string) (*oauth2.Token, error)
+	AuthCodeURL(data AuthCodeURLParams) (string, error)
+	Exchange(ctx context.Context, req *shttp.RequestContext) (*oauth2.Token, error)
 }
 
 type OAuth struct {

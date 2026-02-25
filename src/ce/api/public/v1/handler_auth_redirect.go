@@ -3,10 +3,7 @@ package publicapiv1
 import (
 	"net/http"
 
-	"github.com/golang-jwt/jwt/v5"
-
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
@@ -39,16 +36,16 @@ func HandlerAuthRedirect(req *shttp.RequestContext) *shttp.Response {
 		return shttp.NotFound()
 	}
 
-	state, err := user.JWT(jwt.MapClaims{
-		"eid": envID,
-		"prv": provider,
+	url, err := prv.Client().AuthCodeURL(skauth.AuthCodeURLParams{
+		EnvID:        envID,
+		ProviderName: provider,
 	})
 
 	if err != nil {
 		return shttp.Error(err)
 	}
 
-	req.Redirect(prv.Client().AuthCodeURL(state), http.StatusFound)
+	req.Redirect(url, http.StatusFound)
 
 	return nil
 }

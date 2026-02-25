@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
+	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
@@ -71,10 +73,17 @@ func (g *GoogleClient) UserInfo(ctx context.Context, token *oauth2.Token) (*User
 	}, nil
 }
 
-func (g *GoogleClient) Exchange(ctx context.Context, code string) (*oauth2.Token, error) {
-	return g.oauth2Config.Exchange(ctx, code)
+func (g *GoogleClient) Exchange(ctx context.Context, req *shttp.RequestContext) (*oauth2.Token, error) {
+	return g.oauth2Config.Exchange(ctx, req.FormValue("code"))
 }
 
-func (g *GoogleClient) AuthCodeURL(state string) string {
-	return g.oauth2Config.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.ApprovalForce)
+func (g *GoogleClient) AuthCodeURL(params AuthCodeURLParams) (string, error) {
+	claims := params.Claims()
+	state, err := user.JWT(claims)
+
+	if err != nil {
+		return "", err
+	}
+
+	return g.oauth2Config.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.ApprovalForce), nil
 }

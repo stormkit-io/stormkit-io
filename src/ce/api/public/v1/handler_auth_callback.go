@@ -54,7 +54,7 @@ func HandlerAuthCallback(req *shttp.RequestContext) *shttp.Response {
 		})
 	}
 
-	token, err := client.Exchange(req.Context(), req.FormValue("code"))
+	token, err := client.Exchange(req.Context(), req)
 
 	if err != nil {
 		return shttp.Error(err, fmt.Sprintf("failed to exchange authorization code for token: %s", err.Error()))

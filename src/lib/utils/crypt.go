@@ -5,6 +5,7 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha1"
+	"crypto/sha256"
 	"database/sql/driver"
 	"encoding/base64"
 	"encoding/binary"
@@ -28,6 +29,13 @@ func Hash(text []byte) string {
 	hasher := sha1.New()
 	hasher.Write(text)
 	return base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+}
+
+// SHA256Hash hashes the given array of bytes using SHA256 and returns a string out of it.
+func SHA256Hash(b []byte) string {
+	h := sha256.New()
+	h.Write(b)
+	return base64.RawURLEncoding.EncodeToString(h.Sum(nil))
 }
 
 type EncryptToStringFunc = func(plaintext string, altKey ...[]byte) string

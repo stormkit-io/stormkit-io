@@ -8,6 +8,8 @@ import (
 	mock "github.com/stretchr/testify/mock"
 	oauth2 "golang.org/x/oauth2"
 
+	shttp "github.com/stormkit-io/stormkit-io/src/lib/shttp"
+
 	skauth "github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
 )
 
@@ -16,27 +18,37 @@ type Client struct {
 	mock.Mock
 }
 
-// AuthCodeURL provides a mock function with given fields: state
-func (_m *Client) AuthCodeURL(state string) string {
-	ret := _m.Called(state)
+// AuthCodeURL provides a mock function with given fields: data
+func (_m *Client) AuthCodeURL(data skauth.AuthCodeURLParams) (string, error) {
+	ret := _m.Called(data)
 
 	if len(ret) == 0 {
 		panic("no return value specified for AuthCodeURL")
 	}
 
 	var r0 string
-	if rf, ok := ret.Get(0).(func(string) string); ok {
-		r0 = rf(state)
+	var r1 error
+	if rf, ok := ret.Get(0).(func(skauth.AuthCodeURLParams) (string, error)); ok {
+		return rf(data)
+	}
+	if rf, ok := ret.Get(0).(func(skauth.AuthCodeURLParams) string); ok {
+		r0 = rf(data)
 	} else {
 		r0 = ret.Get(0).(string)
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(skauth.AuthCodeURLParams) error); ok {
+		r1 = rf(data)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
-// Exchange provides a mock function with given fields: ctx, code
-func (_m *Client) Exchange(ctx context.Context, code string) (*oauth2.Token, error) {
-	ret := _m.Called(ctx, code)
+// Exchange provides a mock function with given fields: ctx, req
+func (_m *Client) Exchange(ctx context.Context, req *shttp.RequestContext) (*oauth2.Token, error) {
+	ret := _m.Called(ctx, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Exchange")
@@ -44,19 +56,19 @@ func (_m *Client) Exchange(ctx context.Context, code string) (*oauth2.Token, err
 
 	var r0 *oauth2.Token
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (*oauth2.Token, error)); ok {
-		return rf(ctx, code)
+	if rf, ok := ret.Get(0).(func(context.Context, *shttp.RequestContext) (*oauth2.Token, error)); ok {
+		return rf(ctx, req)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) *oauth2.Token); ok {
-		r0 = rf(ctx, code)
+	if rf, ok := ret.Get(0).(func(context.Context, *shttp.RequestContext) *oauth2.Token); ok {
+		r0 = rf(ctx, req)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*oauth2.Token)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, code)
+	if rf, ok := ret.Get(1).(func(context.Context, *shttp.RequestContext) error); ok {
+		r1 = rf(ctx, req)
 	} else {
 		r1 = ret.Error(1)
 	}

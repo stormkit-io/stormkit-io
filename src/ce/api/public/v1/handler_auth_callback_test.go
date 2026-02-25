@@ -102,7 +102,9 @@ func (s *HandlerAuthCallbackSuite) Test_Success() {
 
 	s.NoError(err)
 
-	s.mockClient.On("Exchange", mock.Anything, "test-code").Return(tkn, nil).Once()
+	s.mockClient.On("Exchange", mock.Anything, mock.MatchedBy(func(req *shttp.RequestContext) bool {
+		return req.FormValue("code") == "test-code"
+	})).Return(tkn, nil).Once()
 
 	s.mockClient.On("UserInfo", mock.Anything, tkn).Return(&skauth.UserInfo{
 		AccountID: "test-account-id",

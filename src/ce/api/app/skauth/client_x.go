@@ -4,8 +4,15 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
+	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
+	"github.com/stormkit-io/stormkit-io/src/lib/slog"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"golang.org/x/oauth2"
 )
+
+var TwitterAPIBase = "https://api.twitter.com/2"
+var TwitterAuthBase = "https://twitter.com/i/oauth2/authorize"
 
 // Step 1: https://developer.x.com/en/portal/dashboard
 // Step 2: Create a new project and app with Elevated access (required for email)
@@ -23,8 +30,8 @@ func NewXClient(clientID, secretKey string) Client {
 		ClientSecret: secretKey,
 		RedirectURL:  RedirectURL(),
 		Endpoint: oauth2.Endpoint{
-			AuthURL:  "https://twitter.com/i/oauth2/authorize",
-			TokenURL: "https://api.twitter.com/2/oauth2/token",
+			AuthURL:  TwitterAuthBase,
+			TokenURL: TwitterAPIBase + "/oauth2/token",
 		},
 		Scopes: []string{
 			"tweet.read",
@@ -50,7 +57,7 @@ type XUserInfo struct {
 
 func (x *XClient) UserInfo(ctx context.Context, token *oauth2.Token) (*UserInfo, error) {
 	client := oauth2.NewClient(ctx, x.oauth2Config.TokenSource(ctx, token))
-	resp, err := client.Get("https://api.twitter.com/2/users/me?user.fields=profile_image_url,email")
+	resp, err := client.Get(TwitterAPIBase + "/users/me?user.fields=profile_image_url,email")
 
 	if err != nil {
 		return nil, err
@@ -73,16 +80,73 @@ func (x *XClient) UserInfo(ctx context.Context, token *oauth2.Token) (*UserInfo,
 	}, nil
 }
 
-func (x *XClient) Exchange(ctx context.Context, code string) (*oauth2.Token, error) {
+// Exchange exchanges the authorization code for an access token.
+// This method implements PKCE (Proof Key for Code Exchange) by:
+// 1. Extracting the encrypted PKCE verifier from the JWT state parameter
+// 2. Decrypting the verifier using AES-GCM encryption
+// 3. Passing the verifier to Twitter/X to complete the PKCE flow
+//
+// The PKCE verifier was originally generated during the authorization request,
+// encrypted and stored in the JWT state to protect it from being read by
+// potential interceptors while maintaining a stateless flow.
+//
+// If no verifier is found, falls back to a standard OAuth2 exchange (non-PKCE).
+func (x *XClient) Exchange(ctx context.Context, req *shttp.RequestContext) (*oauth2.Token, error) {
+	code := req.FormValue("code")
+
+	// Parse JWT claims from state parameter to extract encrypted PKCE verifier
+	claims := user.ParseJWT(&user.ParseJWTArgs{
+		Bearer: req.FormValue("state"),
+	})
+
+	// Extract and decrypt the PKCE verifier if present
+	if encryptedVerifier, ok := claims["pkce"].(string); ok && encryptedVerifier != "" {
+		verifier := utils.DecryptToString(encryptedVerifier)
+
+		if verifier != "" {
+			// Use the decrypted verifier for PKCE
+			return x.oauth2Config.Exchange(ctx, code, oauth2.VerifierOption(verifier))
+		}
+	}
+
+	slog.Infof("pkce missing - falling back to exchange without it")
+
+	// Fallback to exchange without PKCE if verifier not found
 	return x.oauth2Config.Exchange(ctx, code)
 }
 
-func (x *XClient) AuthCodeURL(state string) string {
+// AuthCodeURL implements PKCE (Proof Key for Code Exchange) verifier and
+// challenge handling:
+//
+// 1. Generates a random plaintext PKCE verifier.
+// 2. Encrypts the verifier and stores it in the JWT state claims under "pkce".
+// 3. Generates a SHA256 hash challenge: BASE64URL(SHA256(verifier)).
+// 4. Sends the challenge to Twitter/X with method "S256".
+//
+// By encrypting and embedding the verifier in the JWT state parameter here,
+// the verifier remains secret even though the authorization URL with the
+// public challenge is exposed to the user agent and intermediaries.
+func (x *XClient) AuthCodeURL(params AuthCodeURLParams) (string, error) {
+	token, err := utils.SecureRandomToken(64)
+
+	if err != nil {
+		slog.Errorf("failed to generate random state token (falling back to RandomToken): %v", err)
+		token = utils.RandomToken(64)
+	}
+
+	claims := params.Claims()
+	claims["pkce"] = utils.EncryptToString(token)
+
+	state, err := user.JWT(claims)
+
+	if err != nil {
+		return "", err
+	}
+
 	return x.oauth2Config.AuthCodeURL(
 		state,
 		oauth2.AccessTypeOffline,
-		oauth2.SetAuthURLParam("code_challenge", "CHALLENGE"),
-		oauth2.SetAuthURLParam("code_challenge_method", "plain"),
-		oauth2.SetAuthURLParam("response_type", "code"),
-	)
+		oauth2.SetAuthURLParam("code_challenge", utils.SHA256Hash([]byte(token))),
+		oauth2.SetAuthURLParam("code_challenge_method", "S256"),
+	), nil
 }

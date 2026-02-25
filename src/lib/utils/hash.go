@@ -1,6 +1,8 @@
 package utils
 
 import (
+	crand "crypto/rand"
+	"encoding/base64"
 	"math/rand"
 	"strconv"
 	"time"
@@ -15,8 +17,29 @@ const (
 	letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
 )
 
+// SecureRandomToken generates a cryptographically secure random token of the given byte length.
+// It uses crypto/rand for secure random generation, making it suitable for security-sensitive
+// applications like OAuth2 PKCE verifiers, session tokens, and API keys.
+// The output is base64 URL-encoded (without padding) and will be approximately 4/3 the length
+// of the input byte length.
+//
+// Example: SecureRandomToken(32) generates a 32-byte random value encoded as ~43 character string.
+func SecureRandomToken(byteLength int) (string, error) {
+	b := make([]byte, byteLength)
+
+	if _, err := crand.Read(b); err != nil {
+		return "", err
+	}
+
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
 // RandomToken returns a random token based on the given length. It builds the token
 // from lowercase, uppercase English characters and integers.
+//
+// WARNING: This function uses math/rand/v2 which is NOT cryptographically secure.
+// For security-sensitive applications (OAuth2 PKCE, session tokens, API keys),
+// use SecureRandomToken instead.
 func RandomToken(n int) string {
 	src := rand.NewSource(time.Now().UnixNano())
 
