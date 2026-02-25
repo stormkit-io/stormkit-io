@@ -26,13 +26,14 @@ type PublishedInfo struct {
 	CommitMessage null.String `json:"commitMessage"`
 }
 
-type AuthConf struct {
-	Secret string
-	TTL    int // in minutes
+type SKAuthConf struct {
+	Secret     string
+	SuccessURL string
+	TTL        int // in minutes
 }
 
 // Value implements the Sql Driver interface.
-func (ac *AuthConf) Value() (driver.Value, error) {
+func (ac *SKAuthConf) Value() (driver.Value, error) {
 	return utils.ByteaValue(ac)
 }
 
@@ -57,7 +58,7 @@ type Env struct {
 	SchemaConf *SchemaConf `json:"-"`
 
 	// AuthConf holds the configuration for authentication.
-	AuthConf *AuthConf `json:"authConf"`
+	AuthConf *SKAuthConf `json:"authConf"`
 
 	// MailerConf holds the configuration for sending transactional emails.
 	MailerConf *MailerConf `json:"mailer,omitempty"`

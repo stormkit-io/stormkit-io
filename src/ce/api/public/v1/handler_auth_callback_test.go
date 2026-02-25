@@ -64,7 +64,7 @@ func (s *HandlerAuthCallbackSuite) generateStateToken(envID types.ID, provider s
 func (s *HandlerAuthCallbackSuite) Test_Success() {
 	secret := "test-secret-key-for-jwt"
 	env := s.MockEnv(s.app, map[string]any{
-		"AuthConf": &buildconf.AuthConf{
+		"AuthConf": &buildconf.SKAuthConf{
 			Secret: secret,
 		},
 		"SchemaConf": &buildconf.SchemaConf{
@@ -162,7 +162,7 @@ func (s *HandlerAuthCallbackSuite) Test_Provider_EmptyConfig() {
 	skauth.Providers = []string{"invalid-provider"} // This should pass the first check, but fail when trying to get the provider configuration
 	secret := "test-secret-key-for-jwt"
 	env := s.MockEnv(s.app, map[string]any{
-		"AuthConf": &buildconf.AuthConf{
+		"AuthConf": &buildconf.SKAuthConf{
 			Secret: secret,
 		},
 		"SchemaConf": &buildconf.SchemaConf{

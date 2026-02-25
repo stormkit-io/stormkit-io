@@ -44,7 +44,7 @@ func (s *HandlerSessionSuite) BeforeTest(suiteName, _ string) {
 	s.secret = "test-secret-key-for-jwt"
 
 	s.env = s.MockEnv(s.app, map[string]any{
-		"AuthConf": &buildconf.AuthConf{
+		"AuthConf": &buildconf.SKAuthConf{
 			Secret: s.secret,
 		},
 		"SchemaConf": &buildconf.SchemaConf{
