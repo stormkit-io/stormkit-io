@@ -2,7 +2,6 @@ package buildconfhandlers_test
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -60,28 +59,6 @@ func (s *HandlerEnvInsertSuite) Test_BadRequestEnvMissing() {
 
 	s.Equal(http.StatusBadRequest, response.Code)
 	s.JSONEq(expected, response.String())
-}
-
-func (s *HandlerEnvInsertSuite) Test_BadRequestEnvBadEnvironmentName() {
-	app := s.MockApp(nil)
-
-	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(buildconfhandlers.Services).Router().Handler(),
-		shttp.MethodPost,
-		"/app/env",
-		map[string]any{
-			"appId":  app.ID.String(),
-			"env":    "production",
-			"branch": "some-branch",
-		},
-		map[string]string{
-			"Authorization": usertest.Authorization(app.UserID),
-		},
-	)
-
-	expected := fmt.Sprintf(`{"errors":{"env":"%s"}}`, buildconf.ErrProdEnvironmentInUse.Error())
-	s.Equal(expected, response.String())
-	s.Equal(response.Code, http.StatusBadRequest)
 }
 
 func (s *HandlerEnvInsertSuite) Test_Success() {

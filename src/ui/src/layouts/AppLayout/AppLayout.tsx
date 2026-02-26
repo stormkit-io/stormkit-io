@@ -10,13 +10,9 @@ import EnvMenu from "./EnvMenu";
 import { routes } from "./routes";
 
 export function AppLayout() {
-  const { app, environments } = useContext(AppContext);
+  const { app } = useContext(AppContext);
   const { teams } = useContext(AuthContext);
   const selectedTeam = useSelectedTeam({ teams, app });
-
-  if (environments.length === 0) {
-    return <></>;
-  }
 
   return (
     <Box

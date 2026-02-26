@@ -22,9 +22,7 @@ type InboundWebhooksSuite struct {
 
 func (s *InboundWebhooksSuite) BeforeTest(suiteName, _ string) {
 	myApp := &app.MyApp{
-		App: &app.App{
-			DefaultEnv: "development",
-		},
+		App: &app.App{},
 	}
 
 	s.list = []*app.DeployCandidate{
@@ -131,9 +129,7 @@ func (s *InboundWebhooksSuite) Test_FilterDeployCandidates_AutoDeploy() {
 
 func (s *InboundWebhooksSuite) Test_FilterDeployCandidates_AutoDeployBranchesConfig() {
 	myApp := &app.MyApp{
-		App: &app.App{
-			DefaultEnv: "development",
-		},
+		App: &app.App{},
 	}
 
 	list := []*app.DeployCandidate{
@@ -184,9 +180,7 @@ func (s *InboundWebhooksSuite) Test_FilterDeployCandidates_AutoDeployBranchesCon
 
 func (s *InboundWebhooksSuite) Test_FilterDeployCandidates_AutoDeployCommitsConfig() {
 	myApp := &app.MyApp{
-		App: &app.App{
-			DefaultEnv: "development",
-		},
+		App: &app.App{},
 	}
 
 	list := []*app.DeployCandidate{

@@ -40,7 +40,6 @@ var sqlTemplates = struct {
 			SELECT
 				a.app_id, COALESCE(a.repo, ''), a.created_at, a.user_id,
 				a.display_name, a.auto_deploy, a.team_id,
-				COALESCE(envs.env_name, 'production'),
 				COALESCE(envs.env_id, '0')
 			FROM
 				apps a
@@ -64,7 +63,6 @@ var stmt = &statement{
 		SELECT
 			a.app_id, COALESCE(a.repo, ''),
 			a.created_at, a.display_name,
-			a.default_env_name,
 			a.auto_deploy, COALESCE(a.runtime, ''),
 			a.user_id, a.team_id,
 			envs.env_name, envs.env_id, envs.auto_publish,
@@ -108,9 +106,8 @@ var stmt = &statement{
 			repo = $1,
 			display_name = $2,
 			auto_deploy = $3,
-			default_env_name = $4,
-			runtime = $5
-		WHERE app_id = $6;
+			runtime = $4
+		WHERE app_id = $5;
 	`, tableApps),
 
 	updatePrivateKey: fmt.Sprintf(`

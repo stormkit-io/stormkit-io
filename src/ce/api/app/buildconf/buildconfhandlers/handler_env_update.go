@@ -8,7 +8,6 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
-	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
@@ -36,10 +35,6 @@ func handlerEnvUpdate(req *app.RequestContext) *shttp.Response {
 
 	if env == nil {
 		return shttp.NotFound()
-	}
-
-	if env.Name == config.AppDefaultEnvironmentName && env.Name != cnf.Env {
-		return shttp.Error(buildconf.ErrCantRenameProd)
 	}
 
 	if cnf.Data.Headers != "" {

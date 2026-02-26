@@ -34,12 +34,13 @@ func (s *AppGetSuite) AfterTest(_, _ string) {
 
 func (s *AppGetSuite) Test_Success() {
 	user := s.MockUser()
-	appl := s.MockApp(user, map[string]any{"AutoDeploy": null.NewString("commit", true)})
+	apl := s.MockApp(user, map[string]any{"AutoDeploy": null.NewString("commit", true)})
+	env := s.MockEnv(apl)
 
 	response := shttptest.RequestWithHeaders(
 		shttp.NewRouter().RegisterService(apphandlers.Services).Router().Handler(),
 		shttp.MethodGet,
-		fmt.Sprintf("/app/%s", appl.ID.String()),
+		fmt.Sprintf("/app/%s", apl.ID.String()),
 		nil,
 		map[string]string{
 			"Authorization": usertest.Authorization(user.ID),
@@ -52,17 +53,17 @@ func (s *AppGetSuite) Test_Success() {
 		  "userId": "%s",
 		  "teamId": "%d",
 		  "createdAt": "1700489144",
-		  "defaultEnv": "production",
-		  "defaultEnvId": "0",
+		  "defaultEnvId": "%s",
 		  "displayName": "%s",
 		  "repo": "github/svedova/react-minimal",
 		  "isBare": false
 		}
 	  }`,
-		appl.ID.String(),
+		apl.ID.String(),
 		user.ID.String(),
 		user.DefaultTeamID,
-		appl.DisplayName,
+		env.ID.String(),
+		apl.DisplayName,
 	)
 
 	s.Equal(http.StatusOK, response.Code)

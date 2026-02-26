@@ -3,7 +3,6 @@ package publicapiv1
 import (
 	"net/http"
 	"regexp"
-	"strings"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
@@ -36,12 +35,6 @@ type EnvAddRequest struct {
 
 func validateEnv(env *buildconf.Env) []string {
 	errors := []string{}
-
-	// We have a default prod environment, don't even bother the database
-	// if someone passes prod as the environment name.
-	if strings.EqualFold(env.Name, "production") {
-		errors = append(errors, "Cannot create another production environment")
-	}
 
 	if env.Branch == "" {
 		errors = append(errors, "Branch is a required field")

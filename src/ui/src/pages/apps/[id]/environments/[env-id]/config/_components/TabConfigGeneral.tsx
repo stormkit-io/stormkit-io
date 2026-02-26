@@ -37,7 +37,7 @@ export default function TabConfigGeneral({
   const [autoPublish, setAutoPublish] = useState(env.autoPublish || false);
   const [previewLinks, setPreviewLinks] = useState(env.build.previewLinks);
   const [autoDeploy, setAutoDeploy] = useState<AutoDeployValues>(
-    computeAutoDeployValue(env)
+    computeAutoDeployValue(env),
   );
 
   const { submitHandler, error, isLoading, success } = useSubmitHandler({
@@ -58,7 +58,6 @@ export default function TabConfigGeneral({
     return <></>;
   }
 
-  const isProduction = env.name?.toLowerCase() === "production";
   const isAutoDeployEnabled = autoDeploy !== "disabled";
 
   return (
@@ -276,55 +275,44 @@ export default function TabConfigGeneral({
       <CardFooter
         sx={{
           display: "flex",
-          justifyContent: isProduction ? "flex-end" : "space-between",
+          justifyContent: "space-between",
         }}
       >
-        {!isProduction && (
-          <>
-            <Button
-              type="button"
-              variant="text"
-              aria-label={`Delete ${env.name} environment`}
-              sx={{
-                textTransform: "none",
-              }}
-              onClick={() => {
-                setIsDeleteModalOpen(true);
-              }}
-            >
-              <Box component="span">
-                Delete <b>{env.name}</b> environment
-              </Box>
-            </Button>
-            {isDeleteModalOpen && (
-              <ConfirmModal
-                onCancel={() => {
-                  setIsDeleteModalOpen(false);
-                }}
-                onConfirm={({ setLoading, setError }) => {
-                  setLoading(false);
+        <Button
+          type="button"
+          variant="text"
+          aria-label={`Delete ${env.name} environment`}
+          onClick={() => {
+            setIsDeleteModalOpen(true);
+          }}
+        >
+          Delete {env.name} environment
+        </Button>
+        {isDeleteModalOpen && (
+          <ConfirmModal
+            onCancel={() => {
+              setIsDeleteModalOpen(false);
+            }}
+            onConfirm={({ setLoading, setError }) => {
+              setLoading(false);
 
-                  deleteEnvironment({ app, environment: env })
-                    .then(() => {
-                      setLoading(false);
-                      navigate(`/apps/${app.id}/environments`);
-                      setRefreshToken?.(Date.now());
-                    })
-                    .catch(e => {
-                      console.error(e);
-                      setError(
-                        "Something went wrong while deleting environment. Check the console."
-                      );
-                    });
-                }}
-              >
-                <span className="block">
-                  This will completely delete the environment and associated
-                  deployments.
-                </span>
-              </ConfirmModal>
-            )}
-          </>
+              deleteEnvironment({ app, environment: env })
+                .then(() => {
+                  setLoading(false);
+                  navigate(`/apps/${app.id}/environments`);
+                  setRefreshToken?.(Date.now());
+                })
+                .catch(e => {
+                  console.error(e);
+                  setError(
+                    "Something went wrong while deleting environment. Check the console.",
+                  );
+                });
+            }}
+          >
+            This will completely delete the environment and associated
+            deployments.
+          </ConfirmModal>
         )}
         <Button
           type="submit"

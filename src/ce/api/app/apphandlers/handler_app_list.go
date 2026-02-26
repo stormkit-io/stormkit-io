@@ -1,6 +1,7 @@
 package apphandlers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -60,7 +61,7 @@ func handlerAppIndex(req *user.RequestContext) *shttp.Response {
 		teamID, err := teamStore.DefaultTeamID(req.Context(), req.User.ID)
 
 		if err != nil {
-			return shttp.Error(err)
+			return shttp.Error(err, fmt.Sprintf("failed to fetch default team for user id %d, err: %s", req.User.ID, err.Error()))
 		}
 
 		air.TeamID = teamID
@@ -76,7 +77,7 @@ func handlerAppIndex(req *user.RequestContext) *shttp.Response {
 	})
 
 	if err != nil {
-		return shttp.Error(err)
+		return shttp.Error(err, fmt.Sprintf("failed to fetch apps for team id %d, err: %s", air.TeamID, err.Error()))
 	}
 
 	hasNextPage := false

@@ -24,7 +24,11 @@ func handlerEnvs(req *app.RequestContext) *shttp.Response {
 	}
 
 	if confs == nil {
-		return shttp.NoContent()
+		return &shttp.Response{
+			Data: map[string]any{
+				"envs": []*buildconf.Env{},
+			},
+		}
 	}
 
 	cfg := admin.MustConfig()

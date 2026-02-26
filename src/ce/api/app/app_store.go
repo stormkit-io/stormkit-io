@@ -106,7 +106,6 @@ func (s *Store) UpdateApp(ctx context.Context, a *App) error {
 		repo,
 		a.DisplayName,
 		a.AutoDeploy.Ptr(),
-		a.DefaultEnv,
 		a.Runtime,
 		a.ID,
 	)
@@ -293,7 +292,6 @@ func (s *Store) DeployCandidates(ctx context.Context, repo string) ([]*DeployCan
 		var schemaConf []byte
 		var buildConf []byte
 		var mailerConf []byte
-		var defaultEnv null.String
 
 		ma := &DeployCandidate{
 			MyApp:       &MyApp{App: &App{}},
@@ -302,19 +300,12 @@ func (s *Store) DeployCandidates(ctx context.Context, repo string) ([]*DeployCan
 
 		err := rows.Scan(
 			&ma.ID, &ma.Repo, &ma.CreatedAt,
-			&ma.DisplayName, &defaultEnv,
-			&ma.AutoDeploy, &ma.Runtime,
+			&ma.DisplayName, &ma.AutoDeploy, &ma.Runtime,
 			&ma.UserID, &ma.TeamID, &ma.EnvName, &ma.EnvID,
 			&ma.ShouldPublish, &buildConf, &ma.EnvDefaultBranch,
 			&ma.AutoDeployBranches, &ma.AutoDeployCommits, &ma.EnvAutoDeploy,
 			&schemaConf, &mailerConf,
 		)
-
-		if defaultEnv.ValueOrZero() == "" {
-			defaultEnv = null.NewString(config.AppDefaultEnvironmentName, true)
-		}
-
-		ma.DefaultEnv = defaultEnv.ValueOrZero()
 
 		if buildConf != nil {
 			if err := json.Unmarshal(buildConf, ma.BuildConfig); err != nil {
@@ -383,15 +374,14 @@ func (s *Store) Apps(ctx context.Context, args AppsArgs) ([]*App, error) {
 		params = append(params, args.EnvID)
 		where = append(where, fmt.Sprintf("envs.env_id = $%d AND envs.deleted_at IS NULL", len(params)))
 	} else {
-		join = "apps_build_conf envs ON envs.app_id = a.app_id AND envs.env_name = $1 AND envs.deleted_at IS NULL"
-		params = append(params, config.AppDefaultEnvironmentName)
+		join = "apps_build_conf envs ON envs.env_id = (SELECT MIN(env_id) FROM apps_build_conf abc WHERE app_id = a.app_id AND abc.deleted_at IS NULL)"
 	}
 
 	if args.Filter != "" {
-		params = append(params, strings.ToLower(args.Filter), strings.ToLower(args.Filter))
+		params = append(params, strings.ToLower(args.Filter))
 		where = append(where, `(
-			LOWER(a.repo) LIKE '%' || $2 || '%' OR
-			LOWER(a.display_name) LIKE '%' || $3 || '%'
+			LOWER(a.repo) LIKE '%' || `+fmt.Sprintf("$%d", len(params))+` || '%' OR
+			LOWER(a.display_name) LIKE '%' || `+fmt.Sprintf("$%d", len(params))+` || '%'
 		)`)
 	}
 
@@ -450,7 +440,7 @@ func (s *Store) Apps(ctx context.Context, args AppsArgs) ([]*App, error) {
 		err := rows.Scan(
 			&ma.ID, &ma.Repo, &ma.CreatedAt,
 			&ma.UserID, &ma.DisplayName, &ma.AutoDeploy,
-			&ma.TeamID, &ma.DefaultEnv, &ma.DefaultEnvID,
+			&ma.TeamID, &ma.DefaultEnvID,
 		)
 
 		if err != nil {
