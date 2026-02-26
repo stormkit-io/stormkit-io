@@ -61,7 +61,7 @@ func (s *HandlerAdminAppDeleteSuite) TearDownSuite() {
 	config.Get().Reporting.DiscordProductionChannel = ""
 }
 
-func (s *HandlerAdminAppDeleteSuite) TestDeleteAppAndUser_Success() {
+func (s *HandlerAdminAppDeleteSuite) Test_DeleteAppAndUser_Success() {
 	headers := make(http.Header)
 	headers.Add("Content-Type", "application/json")
 

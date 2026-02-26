@@ -119,28 +119,6 @@ func (s *HandlerEnvDeleteSuite) Test_Success_WithEnvID() {
 	s.Nil(conf)
 }
 
-func (s *HandlerEnvDeleteSuite) Test_FailRemoveProduction() {
-	usr := s.MockUser()
-	app := s.MockApp(usr)
-	env := s.MockEnv(app)
-
-	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(buildconfhandlers.Services).Router().Handler(),
-		shttp.MethodDelete,
-		"/app/env",
-		map[string]interface{}{
-			"appId": app.ID.String(),
-			"env":   env.Name,
-		},
-		map[string]string{
-			"Authorization": usertest.Authorization(usr.ID),
-		},
-	)
-
-	s.Equal(http.StatusBadRequest, response.Code)
-	s.JSONEq(`{"errors":{"env":"Cannot remove production environments"}}`, response.String())
-}
-
 func TestHandlerEnvDelete(t *testing.T) {
 	suite.Run(t, &HandlerEnvDeleteSuite{})
 }

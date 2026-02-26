@@ -8,7 +8,6 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
-	"github.com/stormkit-io/stormkit-io/src/lib/shttp/shttperr"
 )
 
 // handlerEnvInsert inserts a build configuration for the given application.
@@ -23,14 +22,6 @@ func handlerEnvInsert(req *app.RequestContext) *shttp.Response {
 
 	cnf.AppID = req.App.ID
 	cnf.Name = cnf.Env
-
-	// We have a default prod environment, don't even bother the database
-	// if someone passes prod as the environment name.
-	if cnf.Env == "production" {
-		err := &shttperr.ValidationError{}
-		err.SetError("env", buildconf.ErrProdEnvironmentInUse.Error())
-		return shttp.Error(err)
-	}
 
 	if err := buildconf.NewStore().Insert(req.Context(), cnf); err != nil {
 		if strings.Contains(err.Error(), "duplicate key") {

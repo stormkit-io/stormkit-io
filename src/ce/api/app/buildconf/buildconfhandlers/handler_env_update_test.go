@@ -233,31 +233,6 @@ func (s *HandlerEnvUpdateSuite) TestFail_EnvIDInvalid() {
 	s.Equal(http.StatusNotFound, response.Code)
 }
 
-func (s *HandlerEnvUpdateSuite) TestFail_CannotRenameProd() {
-	usr := s.MockUser()
-	app := s.MockApp(usr)
-	env := s.MockEnv(app)
-
-	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(buildconfhandlers.Services).Router().Handler(),
-		shttp.MethodPut,
-		"/app/env",
-		map[string]interface{}{
-			"appId":  app.ID.String(),
-			"id":     env.ID.String(),
-			"branch": "my-branch",
-			"env":    "production-renamed",
-		},
-		map[string]string{
-			"Authorization": usertest.Authorization(usr.ID),
-		},
-	)
-
-	a := assert.New(s.T())
-	s.Equal(http.StatusBadRequest, response.Code)
-	a.Contains(response.String(), buildconf.ErrCantRenameProd.Error())
-}
-
 func (s *HandlerEnvUpdateSuite) TestFail_DoubleHyphens() {
 	usr := s.MockUser()
 	app := s.MockApp(usr)

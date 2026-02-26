@@ -2,6 +2,7 @@ package adminhandlers
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -17,10 +18,11 @@ import (
 )
 
 func handlerAdminAppDelete(req *user.RequestContext) *shttp.Response {
-	appl, err := app.NewStore().AppByID(req.Context(), utils.StringToID(req.Query().Get("appId")))
+	appID := utils.StringToID(req.Query().Get("appId"))
+	appl, err := app.NewStore().AppByID(req.Context(), appID)
 
 	if err != nil {
-		return shttp.Error(err)
+		return shttp.Error(err, fmt.Sprintf("failed to fetch app with id %s, err: %s", req.Query().Get("appId"), err.Error()))
 	}
 
 	if appl == nil {
@@ -31,13 +33,13 @@ func handlerAdminAppDelete(req *user.RequestContext) *shttp.Response {
 	usr, err := ustore.UserByID(appl.UserID)
 
 	if err != nil {
-		return shttp.Error(err)
+		return shttp.Error(err, fmt.Sprintf("cannot fetch user by id: %s, err: %s", appl.UserID, err.Error()))
 	}
 
 	err = ustore.MarkUserAsDeleted(req.Context(), appl.UserID)
 
 	if err != nil {
-		return shttp.Error(err)
+		return shttp.Error(err, fmt.Sprintf("failed to mark user as deleted: %s, err: %s", appl.UserID, err.Error()))
 	}
 
 	envStore := buildconf.NewStore()

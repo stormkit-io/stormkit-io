@@ -1,13 +1,9 @@
 package buildconfhandlers
 
 import (
-	"net/http"
-	"strings"
-
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
-	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 )
 
@@ -40,17 +36,6 @@ func handlerEnvDelete(req *app.RequestContext) *shttp.Response {
 
 	if env == nil {
 		return shttp.NotFound()
-	}
-
-	if strings.ToLower(env.Name) == config.AppDefaultEnvironmentName {
-		return &shttp.Response{
-			Status: http.StatusBadRequest,
-			Data: map[string]any{
-				"errors": map[string]string{
-					"env": buildconf.ErrCantRemoveProd.Error(),
-				},
-			},
-		}
 	}
 
 	deleted, err := buildconf.NewStore().MarkAsDeleted(req.Context(), env.ID)

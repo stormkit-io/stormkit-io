@@ -372,7 +372,6 @@ CREATE TABLE skitapi.apps (
     is_sample_project boolean DEFAULT false,
     deploy_trigger text,
     runtime text,
-    default_env_name text,
     proxy text,
     deleted_at timestamp without time zone,
     artifacts_deleted boolean DEFAULT false NOT NULL,

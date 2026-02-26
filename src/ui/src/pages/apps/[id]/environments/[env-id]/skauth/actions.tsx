@@ -162,6 +162,8 @@ export const useFetchProviders = ({
                     : "",
               })),
               enabled: providers[provider.id]?.status === true,
+              successCallbackUrl: providers[provider.id]?.successCallbackUrl || "",
+              sessionTtl: providers[provider.id]?.sessionTtl || 0,
             });
           });
 

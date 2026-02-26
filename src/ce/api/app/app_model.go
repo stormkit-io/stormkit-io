@@ -74,10 +74,6 @@ type App struct {
 	// CreatedAt represents the timestamp that the application was created.
 	CreatedAt utils.Unix `json:"createdAt,omitempty"`
 
-	// DefaultEnv is the name of the default environment which is used to
-	// deploy feature branches when auto deploy is enabled.
-	DefaultEnv string `json:"defaultEnv"`
-
 	// IsDefault specifies whether the app is a default project or not.
 	IsDefault bool `json:"-"`
 
@@ -128,7 +124,6 @@ func New(uid types.ID) *App {
 		ClientID:     utils.RandomToken(16),
 		ClientSecret: secret,
 		DisplayName:  GenerateDisplayName(),
-		DefaultEnv:   config.AppDefaultEnvironmentName,
 		Runtime:      config.DefaultNodeRuntime,
 		privateKey:   utils.NewPrivateKey(),
 	}
@@ -170,7 +165,6 @@ func (a *App) JSON() map[string]any {
 		"repo":         a.Repo,
 		"isBare":       a.Repo == "",
 		"displayName":  a.DisplayName,
-		"defaultEnv":   a.DefaultEnv,
 		"defaultEnvId": a.DefaultEnvID.String(),
 		"createdAt":    a.CreatedAt.UnixStr(),
 	}
