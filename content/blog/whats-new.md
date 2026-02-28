@@ -5,6 +5,10 @@ description: Discover the latest changes and improvements to Stormkit. Stay up-t
 
 Follow the latest developments on Stormkit.
 
+## February 28th, 2026
+
+We've migrated from Semantic Versioning (SemVer) to Calendar Versioning (CalVer) using the `YYYY.MM.DD.MICRO` format. Self-hosted users on the `latest` tag don't need to change anything. [Read the full announcement](/blog/why-we-are-migrating-from-semver-to-calver).
+
 ## February 22nd, 2026
 
 Introducing **User Level API Keys**: Create API keys directly from your account settings that grant programmatic access to everything in your Stormkit account. Access them via **Profile** > **Account** > **API Keys**. Learn more in the [API Authentication documentation](/docs/api/authentication).
