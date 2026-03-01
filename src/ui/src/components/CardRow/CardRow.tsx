@@ -9,9 +9,10 @@ import CardContext from "../Card/Card.context";
 interface Props extends BoxProps {
   menuItems?: Item[];
   menuLabel?: string;
-  chipLabel?: React.ReactNode;
   icon?: React.ReactNode;
+  chipLabel?: React.ReactNode;
   chipColor?: "success" | "info" | "warning";
+  chipSx?: BoxProps["sx"];
   actions?: React.ReactNode;
 }
 
@@ -24,6 +25,7 @@ export default function CardRow({
   chipColor,
   actions,
   icon,
+  chipSx,
   ...rest
 }: Props) {
   const { size } = useContext(CardContext);
@@ -56,7 +58,7 @@ export default function CardRow({
           color={chipColor}
           label={chipLabel}
           size="small"
-          sx={{ ml: 1, mr: menuItems ? 2 : 0 }}
+          sx={{ ml: 1, mr: menuItems ? 2 : 0, ...chipSx }}
         />
       )}
       {(menuItems || actions) && (
