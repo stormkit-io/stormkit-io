@@ -94,12 +94,6 @@ export const envMenuItems = ({
       icon: Icon(DatabaseIcon),
       isActive: pathname.includes("/database"),
     },
-    {
-      text: "Mailer",
-      path: `${envPath}/mailer`,
-      icon: Icon(MailIcon),
-      isActive: pathname.includes("/mailer"),
-    },
   ];
 
   if (env.build?.vars?.["SK_AUTH_ENABLED"] === "true") {
@@ -110,6 +104,13 @@ export const envMenuItems = ({
       isActive: pathname.includes("/auth"),
     });
   }
+
+  items.push({
+    text: "Mailer",
+    path: `${envPath}/mailer`,
+    icon: Icon(MailIcon),
+    isActive: pathname.includes("/mailer"),
+  });
 
   if (env.published?.length) {
     items.push({
