@@ -121,7 +121,8 @@ interface ProviderData {
 }
 
 interface FetchProvidersResult {
-  successUrl: string;
+  successUrl?: string;
+  tokenTtl?: number;
   redirectUrl: string;
   authUrl: string;
   providers: {
@@ -149,32 +150,40 @@ export const useFetchProviders = ({
 
     api
       .fetch<FetchProvidersResult>(`/skauth/providers?envId=${envId}`)
-      .then(({ providers, redirectUrl, authUrl, successUrl }) => {
-        const result: AuthProvider[] = [];
+      .then(
+        ({
+          providers,
+          redirectUrl,
+          authUrl,
+          successUrl,
+          tokenTtl: sessionTtl,
+        }) => {
+          const result: AuthProvider[] = [];
 
-        allProviders
-          .map(provider => ({
-            ...provider,
-            redirectUrl: provider.hasRedirectUrl ? redirectUrl : undefined,
-            authUrl: provider.hasAuthUrl ? authUrl : undefined,
-          }))
-          .forEach(provider => {
-            result.push({
+          allProviders
+            .map(provider => ({
               ...provider,
-              fields: provider.fields?.map(field => ({
-                ...field,
-                value:
-                  typeof providers[provider.id]?.[field.name] === "string"
-                    ? (providers[provider.id]?.[field.name] as string)
-                    : "",
-              })),
-              enabled: providers[provider.id]?.status === true,
+              redirectUrl: provider.hasRedirectUrl ? redirectUrl : undefined,
+              authUrl: provider.hasAuthUrl ? authUrl : undefined,
+            }))
+            .forEach(provider => {
+              result.push({
+                ...provider,
+                fields: provider.fields?.map(field => ({
+                  ...field,
+                  value:
+                    typeof providers[provider.id]?.[field.name] === "string"
+                      ? (providers[provider.id]?.[field.name] as string)
+                      : "",
+                })),
+                enabled: providers[provider.id]?.status === true,
+              });
             });
-          });
 
-        setProviders(result);
-        setConfig({ successUrl });
-      })
+          setProviders(result);
+          setConfig({ successUrl, sessionTtl });
+        },
+      )
       .catch(() => {
         setError("Failed to fetch authentication providers");
       })

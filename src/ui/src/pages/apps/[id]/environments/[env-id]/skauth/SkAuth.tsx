@@ -7,13 +7,11 @@ import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import IconButton from "@mui/material/IconButton";
 import TextField from "@mui/material/TextField";
-import Link from "@mui/material/Link";
 import { EnvironmentContext } from "~/pages/apps/[id]/environments/Environment.context";
 import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
 import CardRow from "~/components/CardRow";
 import EmptyPage from "~/components/EmptyPage";
-import Help from "~/components/Help";
 import CardFooter from "~/components/CardFooter";
 import { RootContext } from "~/pages/Root.context";
 import Drawer from "./ProviderSettings";
@@ -111,7 +109,8 @@ function Providers({
               },
             }}
             chipColor={p.enabled ? "success" : "info"}
-            chipLabel={p.enabled ? "Enabled" : "Disabled"}
+            chipLabel={p.enabled ? "enabled" : "disabled"}
+            chipSx={{ fontSize: 11, fontWeight: "normal" }}
             tabIndex={0}
             onClick={onClickHandler}
             actions={
@@ -162,6 +161,17 @@ export default function SkAuth() {
   });
 
   const hasSchema = !result.loading && !result.error && Boolean(result.schema);
+  const title = "Authentication";
+  const subtitle = "Enable authentication providers for this environment";
+
+  if (!hasSchema && !result.loading) {
+    return (
+      <Card>
+        <CardHeader title={title} subtitle={subtitle} />
+        <EmptyView isCloud={isCloud} env={env} />
+      </Card>
+    );
+  }
 
   return (
     <>
@@ -174,45 +184,59 @@ export default function SkAuth() {
         component="form"
         sx={{ width: "100%" }}
       >
-        <CardHeader
-          title="Authentication"
-          subtitle="Enable authentication providers for this environment"
-        />
+        <CardHeader title={title} subtitle={subtitle} />
 
-        {!hasSchema ? (
-          <EmptyView isCloud={isCloud} env={env} />
-        ) : (
-          <>
-            <Box sx={{ mb: 4 }}>
-              <TextField
-                label="Success callback URL"
-                name="successUrl"
-                placeholder="https://example.com/auth/success"
-                fullWidth
-                defaultValue={config?.successUrl || ""}
-                variant="filled"
-                autoComplete="off"
-                helperText={
-                  <>
-                    URL to redirect to after successful authentication.{" "}
-                    <Help
-                      title="Success Callback URL Help"
-                      buttonText="Learn more."
-                      buttonVariant="link"
-                    >
-                      <Typography></Typography>
-                    </Help>
-                  </>
-                }
-                slotProps={{
-                  inputLabel: {
-                    shrink: true,
-                  },
-                }}
-              />
-            </Box>
-          </>
-        )}
+        <Box sx={{ mb: 4 }}>
+          <TextField
+            label="Success callback URL"
+            name="successUrl"
+            placeholder="https://example.com/auth/success"
+            fullWidth
+            defaultValue={config?.successUrl || ""}
+            variant="filled"
+            autoComplete="off"
+            helperText="Relative URL to redirect to after successful authentication"
+            slotProps={{
+              inputLabel: {
+                shrink: true,
+              },
+            }}
+          />
+        </Box>
+
+        <Box sx={{ mb: 4 }}>
+          <TextField
+            label="Session TTL"
+            name="tokenTtl"
+            type="number"
+            placeholder="10"
+            fullWidth
+            defaultValue={config?.successUrl || ""}
+            variant="filled"
+            autoComplete="off"
+            helperText="Token lifetime in minutes"
+            slotProps={{
+              inputLabel: {
+                shrink: true,
+              },
+            }}
+          />
+        </Box>
+
+        <CardFooter>
+          <Button
+            type="submit"
+            variant="contained"
+            color="secondary"
+            disabled={result.loading || loading}
+            onClick={e => {
+              e.preventDefault();
+              setSuccess("Settings saved successfully");
+            }}
+          >
+            Save
+          </Button>
+        </CardFooter>
       </Card>
       {hasSchema && (
         <Providers

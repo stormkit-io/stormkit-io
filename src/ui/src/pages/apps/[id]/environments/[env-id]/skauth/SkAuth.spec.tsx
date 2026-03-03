@@ -213,13 +213,13 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
 
     it("should display correct status for enabled provider", async () => {
       await waitFor(() => {
-        expect(wrapper.getByText("Enabled")).toBeTruthy();
+        expect(wrapper.getByText("enabled")).toBeTruthy();
       });
     });
 
     it("should display correct status for disabled provider", async () => {
       await waitFor(() => {
-        expect(wrapper.getByText("Disabled")).toBeTruthy();
+        expect(wrapper.getByText("disabled")).toBeTruthy();
       });
     });
 
