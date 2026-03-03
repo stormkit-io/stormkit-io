@@ -43,6 +43,7 @@ func HandlerForward(req *RequestContext) *shttp.Response {
 	}
 
 	middlewares := []func(req *RequestContext) (*shttp.Response, error){
+		WithSKAuth,
 		WithAuthWall,
 		WithRedirect,
 	}

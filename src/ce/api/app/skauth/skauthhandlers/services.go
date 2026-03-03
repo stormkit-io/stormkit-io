@@ -14,10 +14,13 @@ import (
 func Services(r *shttp.Router) *shttp.Service {
 	s := r.NewService()
 
+	withEnv := &app.Opts{Env: true}
+
 	// api endpoints
 	s.NewEndpoint("/skauth").
-		Handler(shttp.MethodPost, "", app.WithApp(handlerAuthUpsert, &app.Opts{Env: true})).
-		Handler(shttp.MethodGet, "/providers", app.WithApp(handlerAuths, &app.Opts{Env: true}))
+		Handler(shttp.MethodPost, "", app.WithApp(handlerAuthUpsert, withEnv)).
+		Handler(shttp.MethodPost, "/config", app.WithApp(handlerAuthConfigUpdate, withEnv)).
+		Handler(shttp.MethodGet, "/providers", app.WithApp(handlerAuths, withEnv))
 
 	return s
 }

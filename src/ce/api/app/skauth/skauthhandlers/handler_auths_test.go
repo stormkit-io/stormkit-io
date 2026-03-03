@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth/skauthhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
@@ -66,6 +67,15 @@ func (s *HandlerAuthsSuite) Test_NoProviders() {
 }
 
 func (s *HandlerAuthsSuite) Test_ReturnsProviders() {
+	s.env = s.MockEnv(s.app, map[string]any{
+		"Name": "my-env",
+		"AuthConf": &buildconf.SKAuthConf{
+			Status:     true,
+			TTL:        5,
+			SuccessURL: "/success",
+		},
+	})
+
 	// Enable a provider via the enable endpoint
 	err := skauth.NewStore().SaveProvider(context.Background(), skauth.SaveProviderArgs{
 		EnvID: s.env.ID,
@@ -96,6 +106,8 @@ func (s *HandlerAuthsSuite) Test_ReturnsProviders() {
 	s.Equal(http.StatusOK, response.Code)
 
 	res := struct {
+		TTL         int    `json:"tokenTtl"`
+		SuccessURL  string `json:"successUrl"`
 		RedirectURL string `json:"redirectUrl"`
 		AuthURL     string `json:"authUrl"`
 		Providers   map[string]struct {
@@ -108,6 +120,8 @@ func (s *HandlerAuthsSuite) Test_ReturnsProviders() {
 	s.Len(res.Providers, 1)
 	s.Equal("http://api.stormkit:8888/v1/auth/callback", res.RedirectURL)
 	s.Equal("http://api.stormkit:8888/v1/auth", res.AuthURL)
+	s.Equal("/success", res.SuccessURL)
+	s.Equal(5, res.TTL)
 
 	google := res.Providers["google"]
 	s.Equal("my-client-id", google.ClientID)

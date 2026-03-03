@@ -86,6 +86,16 @@ func (s *HandlerAuthUpsertSuite) Test_Success() {
 		ClientID:     "test-client-id",
 		ClientSecret: "test",
 	}, provider.Data)
+
+	// Should also create a default auth config on the fly
+	env, err := buildconf.NewStore().EnvironmentByID(context.Background(), s.env.ID)
+	s.NoError(err)
+	s.NotNil(env)
+	s.NotNil(env.AuthConf)
+	s.Equal("/", env.AuthConf.SuccessURL)
+	s.Equal(10, env.AuthConf.TTL)
+	s.Len(env.AuthConf.Secret, 128)
+	s.True(env.AuthConf.Status)
 }
 
 func (s *HandlerAuthUpsertSuite) Test_Update() {

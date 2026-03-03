@@ -9,6 +9,7 @@ type statement struct {
 	updateConfig        string
 	isMember            string
 	saveSchemaConf      string
+	saveAuthConf        string
 }
 
 var stmt = &statement{
@@ -124,6 +125,15 @@ var stmt = &statement{
 			apps_build_conf
 		SET
 			schema_conf = $1
+		WHERE
+			env_id = $2;
+	`,
+
+	saveAuthConf: `
+		UPDATE
+			apps_build_conf
+		SET
+			auth_conf = $1
 		WHERE
 			env_id = $2;
 	`,

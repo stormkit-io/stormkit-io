@@ -83,6 +83,7 @@ func (p *Provider) Client() Client {
 type AuthCodeURLParams struct {
 	EnvID        types.ID
 	ProviderName string
+	Referrer     string
 }
 
 // Claims returns the JWT claims for the authorization request, including environment ID and provider name.
@@ -90,6 +91,7 @@ func (a AuthCodeURLParams) Claims() jwt.MapClaims {
 	return jwt.MapClaims{
 		"eid": a.EnvID,
 		"prv": a.ProviderName,
+		"ref": a.Referrer,
 	}
 }
 

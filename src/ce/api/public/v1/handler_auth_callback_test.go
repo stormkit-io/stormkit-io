@@ -2,10 +2,8 @@ package publicapiv1_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -19,7 +17,6 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp/shttptest"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
-	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"github.com/stormkit-io/stormkit-io/src/mocks"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
@@ -56,6 +53,7 @@ func (s *HandlerAuthCallbackSuite) generateStateToken(envID types.ID, provider s
 	token, err := user.JWT(jwt.MapClaims{
 		"eid": fmt.Sprintf("%d", envID),
 		"prv": provider,
+		"ref": "http://localhost:3000/login",
 	})
 	s.NoError(err)
 	return token
@@ -66,6 +64,7 @@ func (s *HandlerAuthCallbackSuite) Test_Success() {
 	env := s.MockEnv(s.app, map[string]any{
 		"AuthConf": &buildconf.SKAuthConf{
 			Secret: secret,
+			Status: true,
 		},
 		"SchemaConf": &buildconf.SchemaConf{
 			SchemaName:        s.conn.Cfg.Schema,
@@ -124,37 +123,24 @@ func (s *HandlerAuthCallbackSuite) Test_Success() {
 		nil,
 	)
 
-	// Test the response
-	body := struct {
-		Token string `json:"token"`
-	}{}
+	s.Equal(http.StatusFound, response.Code)
+	s.Equal("http://localhost:3000/_stormkit/auth", response.Header().Get("Location"))
+}
 
-	s.NoError(json.Unmarshal(response.Byte(), &body))
-	s.Equal(http.StatusOK, response.Code)
-	s.True(strings.HasPrefix(body.Token, fmt.Sprintf("%s:", env.ID)))
-	s.mockClient.AssertExpectations(s.T())
+func (s *HandlerAuthCallbackSuite) Test_AuthNotEnabled() {
+	env := s.MockEnv(s.app, nil) // Default is not enabled
+	state := s.generateStateToken(env.ID, skauth.ProviderGoogle)
 
-	// Parse the JWT token and grab user id
-	pieces := strings.SplitN(body.Token, ":", 2)
-	s.Len(pieces, 2)
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodGet,
+		fmt.Sprintf("/v1/auth/callback?state=%s&code=test-code", state),
+		nil,
+		nil,
+	)
 
-	claims := user.ParseJWT(&user.ParseJWTArgs{
-		Bearer: pieces[1],
-		Secret: secret,
-	})
-
-	userID := utils.StringToID(claims["uid"].(string))
-	s.NotZero(userID, "User ID should be set in JWT token")
-	s.Equal(skauth.ProviderGoogle, claims["prv"])
-
-	// Verify that the user is created in the database
-	usr, err := store.AuthUser(ctx, userID)
-	s.NoError(err)
-	s.NotNil(usr, "User should be created in the database")
-	s.Equal("test@stormkit.io", usr.Email)
-	s.Equal("Jane", usr.FirstName)
-	s.Equal("Doe", usr.LastName)
-	s.Equal("link-to-avatar", usr.Avatar)
+	s.Equal(http.StatusBadRequest, response.Code)
+	s.JSONEq(`{"error":"Stormkit Auth is not enabled for this environment"}`, response.String())
 }
 
 func (s *HandlerAuthCallbackSuite) Test_Provider_EmptyConfig() {
@@ -164,6 +150,7 @@ func (s *HandlerAuthCallbackSuite) Test_Provider_EmptyConfig() {
 	env := s.MockEnv(s.app, map[string]any{
 		"AuthConf": &buildconf.SKAuthConf{
 			Secret: secret,
+			Status: true,
 		},
 		"SchemaConf": &buildconf.SchemaConf{
 			SchemaName:        s.conn.Cfg.Schema,
@@ -220,22 +207,6 @@ func (s *HandlerAuthCallbackSuite) Test_InvalidStateToken() {
 func (s *HandlerAuthCallbackSuite) Test_EnvironmentNotFound() {
 	// Generate state token with non-existent environment
 	state := s.generateStateToken(1, skauth.ProviderGoogle)
-
-	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
-		shttp.MethodGet,
-		fmt.Sprintf("/v1/auth/callback?state=%s&code=test-code", state),
-		nil,
-		nil,
-	)
-
-	s.Equal(http.StatusNotFound, response.Code)
-}
-
-func (s *HandlerAuthCallbackSuite) Test_EnvironmentWithoutSchemaConf() {
-	// Create environment without schema configuration
-	envWithoutSchema := s.MockEnv(s.app, map[string]any{"Name": "no-schema-env"})
-	state := s.generateStateToken(envWithoutSchema.ID, skauth.ProviderGoogle)
 
 	response := shttptest.RequestWithHeaders(
 		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),

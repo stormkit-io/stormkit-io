@@ -284,3 +284,9 @@ func (s *Store) SaveSchemaConf(ctx context.Context, envID types.ID, conf *Schema
 	_, err := s.Exec(ctx, stmt.saveSchemaConf, conf, envID)
 	return err
 }
+
+// SaveAuthConf saves the auth configuration for the given environment.
+func (s *Store) SaveAuthConf(ctx context.Context, envID types.ID, conf *SKAuthConf) error {
+	_, err := s.Exec(ctx, stmt.saveAuthConf, conf, envID)
+	return err
+}

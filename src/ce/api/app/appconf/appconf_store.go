@@ -25,11 +25,36 @@ import (
 )
 
 type statement struct {
-	selectResetCacheArgs string
-	selectConfigs        string
+	selectDisplayNameByEnvID string
+	selectOwnsDomain         string
+	selectResetCacheArgs     string
+	selectConfigs            string
 }
 
 var stmt = &statement{
+	selectOwnsDomain: `
+		SELECT
+			COUNT(*)
+		FROM
+			domains
+		WHERE
+			env_id = $1 AND
+			domain_verified IS TRUE AND
+			LOWER(domain_name) = LOWER($2);
+	`,
+
+	selectDisplayNameByEnvID: `
+		SELECT
+			a.display_name,
+			e.env_name
+		FROM
+			apps a
+		INNER JOIN
+			apps_build_conf e ON a.app_id = e.app_id
+		WHERE
+			e.env_id = $1;
+	`,
+
 	selectResetCacheArgs: `
 		SELECT
 			COALESCE(d.domain_name, ''), a.display_name
@@ -57,6 +82,7 @@ var stmt = &statement{
 				e.updated_at							 			 as env_updated,
 				e.build_conf							 			 as build_conf,
 				e.auth_wall_conf						 			 as auth_wall_conf,
+				e.auth_conf											 as auth_conf,
 				coalesce(dp.percentage_released, 0)		 			 as percentage,
 				a.display_name,
 				coalesce(u.metadata->>'package', 'free') 			 as subscription_tier,
@@ -109,7 +135,7 @@ var stmt = &statement{
 			d.manifest, d.build_conf_snapshot, d.env_updated, d.build_conf, d.percentage,
 			coalesce(d.cert_value, '') as cert_value,
 			coalesce(d.cert_key, '') as cert_key,
-			d.domain_id, d.auth_wall_conf,
+			d.domain_id, d.auth_wall_conf, d.auth_conf,
 			(SELECT json_data FROM snippets) as snippets,
 			d.display_name, d.env_name, d.subscription_tier, d.billing_user_id
 		FROM deployment d
@@ -174,6 +200,51 @@ func (s *Store) queryWithEnvNameAndDisplayName(filters ConfigFilters) (string, [
 	return wr.String(), []any{"*.dev", filters.EnvName, filters.DisplayName, filters.HostName}, err
 }
 
+// BelongsToDeployment checks if the given parsed host belongs to the environment.
+func (s *Store) BelongsToEnv(ctx context.Context, envID types.ID, host *RequestContext) (bool, error) {
+	if host.DisplayName != "" {
+		var displayName, envName string
+
+		row, err := s.QueryRow(ctx, stmt.selectDisplayNameByEnvID, envID)
+
+		if err != nil {
+			return false, err
+		}
+
+		err = row.Scan(&displayName, &envName)
+
+		if err != nil {
+			return false, err
+		}
+
+		if host.EnvName != "" && !strings.EqualFold(envName, host.EnvName) {
+			return false, nil
+		}
+
+		return strings.EqualFold(displayName, host.DisplayName), nil
+	}
+
+	if host.DomainName != "" {
+		var count int
+
+		row, err := s.QueryRow(ctx, stmt.selectOwnsDomain, envID, host.DomainName)
+
+		if err != nil {
+			return false, err
+		}
+
+		err = row.Scan(&count)
+
+		if err != nil {
+			return false, err
+		}
+
+		return count > 0, nil
+	}
+
+	return false, nil
+}
+
 // ConfigsByDomain returns the hosting configurations for the given domain name.
 // A domain can have multiple configurations, but their sum of percentage
 // should always be 100.
@@ -229,6 +300,7 @@ func rowsToConfigs(rows *sql.Rows, err error) ([]*Config, error) {
 	defer rows.Close()
 
 	for rows.Next() {
+		var authConf []byte
 		var buildConf []byte         // The up-to-date build config
 		var buildConfSnapshot []byte // The build config when the deployment was created
 		var buildManifest *deploy.BuildManifest
@@ -245,7 +317,7 @@ func rowsToConfigs(rows *sql.Rows, err error) ([]*Config, error) {
 			&cnf.APILocation, &cnf.APIPathPrefix,
 			&buildManifest, &buildConfSnapshot, &cnf.UpdatedAt, &buildConf,
 			&cnf.Percentage, &certVal, &certKey, &cnf.DomainID,
-			&authwall, &cnf.Snippets, &displayName, &envName, &tier,
+			&authwall, &authConf, &cnf.Snippets, &displayName, &envName, &tier,
 			&cnf.BillingUserID,
 		)
 
@@ -332,6 +404,14 @@ func rowsToConfigs(rows *sql.Rows, err error) ([]*Config, error) {
 
 		if authwall.Status != "" {
 			cnf.AuthWall = authwall.Status
+		}
+
+		if authConf != nil {
+			cnf.SKAuth = &buildconf.SKAuthConf{}
+
+			if err := utils.ByteaScan(authConf, cnf.SKAuth); err != nil {
+				return nil, err
+			}
 		}
 
 		for _, sn := range cnf.Snippets {

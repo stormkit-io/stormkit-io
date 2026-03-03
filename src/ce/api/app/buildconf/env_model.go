@@ -29,7 +29,8 @@ type PublishedInfo struct {
 type SKAuthConf struct {
 	Secret     string
 	SuccessURL string
-	TTL        int // in minutes
+	Status     bool // Whether the authentication is enabled or not.
+	TTL        int  // in minutes
 }
 
 // Value implements the Sql Driver interface.

@@ -2,11 +2,15 @@ package publicapiv1
 
 import (
 	"fmt"
+	"net/http"
+	"net/url"
+	"time"
 
-	"github.com/golang-jwt/jwt/v5"
+	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
+	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
@@ -18,8 +22,9 @@ func HandlerAuthCallback(req *shttp.RequestContext) *shttp.Response {
 
 	provider, ok := claims["prv"].(string)
 	envID, envOK := claims["eid"].(string)
+	refer, refOK := claims["ref"].(string)
 
-	if !envOK || !ok || !utils.InSliceString(skauth.Providers, provider) {
+	if !refOK || !envOK || !ok || !utils.InSliceString(skauth.Providers, provider) {
 		return shttp.BadRequest(map[string]any{
 			"error": "invalid state parameter",
 		})
@@ -31,8 +36,14 @@ func HandlerAuthCallback(req *shttp.RequestContext) *shttp.Response {
 		return shttp.Error(err, fmt.Sprintf("failed to get environment by ID %s", envID))
 	}
 
-	if env == nil || env.SchemaConf == nil {
+	if env == nil {
 		return shttp.NotFound()
+	}
+
+	if env.SchemaConf == nil || env.AuthConf == nil || !env.AuthConf.Status {
+		return shttp.BadRequest(map[string]any{
+			"error": "Stormkit Auth is not enabled for this environment",
+		})
 	}
 
 	prv, err := skauth.NewStore().Provider(req.Context(), env.ID, provider)
@@ -104,6 +115,7 @@ func HandlerAuthCallback(req *shttp.RequestContext) *shttp.Response {
 
 	sessionToken, err := user.JWT(jwt.MapClaims{
 		"uid": usr.ID,
+		"eid": envID,
 		"prv": provider,
 	}, secret)
 
@@ -111,9 +123,20 @@ func HandlerAuthCallback(req *shttp.RequestContext) *shttp.Response {
 		return shttp.Error(err, fmt.Sprintf("failed to generate JWT: %s", err.Error()))
 	}
 
-	return &shttp.Response{
-		Data: map[string]any{
-			"token": fmt.Sprintf("%s:%s", env.ID, sessionToken),
-		},
+	code := utils.RandomToken(64)
+
+	if err := rediscache.Client().Set(req.Context(), code, sessionToken, time.Minute*2).Err(); err != nil {
+		return shttp.Error(err, fmt.Sprintf("failed saving random token: %s", err.Error()))
 	}
+
+	parsed, err := url.ParseRequestURI(refer)
+
+	if err != nil {
+		return shttp.BadRequest(map[string]any{
+			"error": "Referrer URL is not a valid format",
+		})
+	}
+
+	req.Redirect(fmt.Sprintf("%s://%s/_stormkit/auth", utils.GetString(parsed.Scheme, "https"), parsed.Host), http.StatusFound)
+	return nil
 }
