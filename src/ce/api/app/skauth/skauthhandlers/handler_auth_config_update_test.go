@@ -70,7 +70,7 @@ func (s *HandlerAuthConfigUpdateSuite) Test_Update_Existing() {
 		Secret:     utils.RandomToken(128),
 		SuccessURL: "/old-success",
 		TTL:        5,
-		Status:     false,
+		Status:     true,
 	}
 
 	s.NoError(buildconf.NewStore().SaveAuthConf(context.Background(), s.env.ID, authConf))
@@ -83,7 +83,7 @@ func (s *HandlerAuthConfigUpdateSuite) Test_Update_Existing() {
 			"envId":      s.env.ID,
 			"successUrl": "/success",
 			"tokenTtl":   10,
-			"status":     true,
+			"status":     false,
 		},
 		map[string]string{
 			"Authorization": usertest.Authorization(s.usr.ID),
@@ -97,7 +97,7 @@ func (s *HandlerAuthConfigUpdateSuite) Test_Update_Existing() {
 	s.Equal("/success", env.AuthConf.SuccessURL)
 	s.Equal(10, env.AuthConf.TTL)
 	s.Equal(env.AuthConf.Secret, authConf.Secret) // Secret should remain unchanged
-	s.True(env.AuthConf.Status)
+	s.False(env.AuthConf.Status)
 	s.Len(env.AuthConf.Secret, 128)
 }
 
