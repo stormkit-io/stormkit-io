@@ -182,7 +182,6 @@ func (s *HandlerAuthRedirectSuite) Test_Fail_InvalidReferrer() {
 
 func (s *HandlerAuthRedirectSuite) Test_Fail_ReferrerDoesNotBelong() {
 	s.saveProvider(true)
-	s.mockAuthCodeURL("https://example.com")
 
 	response := shttptest.RequestWithHeaders(
 		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
