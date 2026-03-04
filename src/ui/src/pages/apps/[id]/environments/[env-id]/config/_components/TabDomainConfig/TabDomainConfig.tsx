@@ -57,11 +57,9 @@ export default function TabDomainConfig({ app, environment }: Props) {
       />
       {!selfHosted && (
         <Alert color="info" sx={{ px: 4 }}>
-          Use following A Records to point your domains:
+          Use the following A Record to point your domains:
           <Box sx={{ mt: 1 }}>
-            <ArrowRightIcon /> 54.93.169.167
-            <br />
-            <ArrowRightIcon /> 3.64.188.62
+            <ArrowRightIcon /> 91.98.218.209
           </Box>
         </Alert>
       )}
@@ -107,8 +105,8 @@ export default function TabDomainConfig({ app, environment }: Props) {
                           domain.lastPing?.status?.toString()[0] == "2"
                             ? "success"
                             : domain.lastPing?.status
-                            ? "error"
-                            : "warning"
+                              ? "error"
+                              : "warning"
                         }
                         sx={{ fontSize: 14 }}
                       />
@@ -128,11 +126,11 @@ export default function TabDomainConfig({ app, environment }: Props) {
                   title={`${
                     domain.lastPing
                       ? `Last ping ${formattedDate(
-                          domain.lastPing.lastPingAt!
+                          domain.lastPing.lastPingAt!,
                         ).toLowerCase()}`
                       : domain.verified
-                      ? "Domain health is checked every 5 minutes. Refresh to see the latest status."
-                      : ""
+                        ? "Domain health is checked every 5 minutes. Refresh to see the latest status."
+                        : ""
                   }`}
                 >
                   <Box
@@ -144,8 +142,8 @@ export default function TabDomainConfig({ app, environment }: Props) {
                       {domain.lastPing?.status
                         ? domain.lastPing.status
                         : domain.verified
-                        ? "not yet pinged"
-                        : "not yet verified"}
+                          ? "not yet pinged"
+                          : "not yet verified"}
                     </Span>
                   </Box>
                 </Tooltip>
@@ -206,8 +204,8 @@ export default function TabDomainConfig({ app, environment }: Props) {
                   res.status === 400
                     ? "Please provide a valid domain name."
                     : res.status === 429
-                    ? "You have issued too many requests. Please wait a while before retrying."
-                    : "Something went wrong while setting up the domain. Make sure it is a valid domain."
+                      ? "You have issued too many requests. Please wait a while before retrying."
+                      : "Something went wrong while setting up the domain. Make sure it is a valid domain.",
                 );
               })
               .finally(() => {
