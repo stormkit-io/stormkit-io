@@ -35,7 +35,7 @@ type Config struct {
 	CertValue        string                `json:"certValue,omitempty"`
 	DomainID         types.ID              `json:"domainId,omitempty"`
 	StaticFiles      StaticFileConfig      `json:"staticFiles,omitempty"`
-	SKAuth           *buildconf.SKAuthConf `json:"authConf,omitempty"`
+	SKAuth           *buildconf.SKAuthConf `json:"-"`
 	AuthWall         string                `json:"authWall,omitempty"`     // Whether to display an auth wall or not. Possible values: dev | all
 	IsEnterprise     bool                  `json:"isEnterprise,omitempty"` // Whether the app is running in enterprise mode
 }
