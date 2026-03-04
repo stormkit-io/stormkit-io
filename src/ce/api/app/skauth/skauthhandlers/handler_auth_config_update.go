@@ -58,7 +58,7 @@ func handlerAuthConfigUpdate(req *app.RequestContext) *shttp.Response {
 	env.AuthConf.TTL = data.TTL
 	env.AuthConf.Status = data.Status
 
-	err = buildconf.NewStore().SaveAuthConf(req.Context(), req.EnvID, env.AuthConf)
+	err = store.SaveAuthConf(req.Context(), req.EnvID, env.AuthConf)
 
 	if err != nil {
 		return shttp.Error(err, fmt.Sprintf("error while saving auth conf for env: %s, err=%s", req.EnvID.String(), err.Error()))
