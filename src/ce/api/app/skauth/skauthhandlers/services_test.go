@@ -12,12 +12,13 @@ type ServicesSuite struct {
 	suite.Suite
 }
 
-func (s *ServicesSuite) TestServices() {
+func (s *ServicesSuite) Test_Services() {
 	services := shttp.NewRouter().RegisterService(skauthhandlers.Services)
 
 	handlers := []string{
 		"GET:/skauth/providers",
 		"POST:/skauth",
+		"POST:/skauth/config",
 	}
 
 	s.Equal(handlers, services.HandlerKeys())
