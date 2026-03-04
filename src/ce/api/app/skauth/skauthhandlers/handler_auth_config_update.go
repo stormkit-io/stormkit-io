@@ -7,11 +7,13 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
 type AuthConfigUpdateRequest struct {
 	SuccessURL string `json:"successUrl"`
 	TTL        int    `json:"tokenTtl"`
+	Status     bool   `json:"status"`
 }
 
 func handlerAuthConfigUpdate(req *app.RequestContext) *shttp.Response {
@@ -39,10 +41,24 @@ func handlerAuthConfigUpdate(req *app.RequestContext) *shttp.Response {
 		}
 	}
 
-	err := buildconf.NewStore().SaveAuthConf(req.Context(), req.EnvID, &buildconf.SKAuthConf{
-		SuccessURL: data.SuccessURL,
-		TTL:        data.TTL,
-	})
+	store := buildconf.NewStore()
+	env, err := store.EnvironmentByID(req.Context(), req.EnvID)
+
+	if err != nil {
+		return shttp.Error(err, fmt.Sprintf("error while fetching environment for auth config update: %s, envId: %s", err.Error(), req.EnvID.String()))
+	}
+
+	if env.AuthConf == nil {
+		env.AuthConf = &buildconf.SKAuthConf{
+			Secret: utils.RandomToken(128),
+		}
+	}
+
+	env.AuthConf.SuccessURL = data.SuccessURL
+	env.AuthConf.TTL = data.TTL
+	env.AuthConf.Status = data.Status
+
+	err = buildconf.NewStore().SaveAuthConf(req.Context(), req.EnvID, env.AuthConf)
 
 	if err != nil {
 		return shttp.Error(err, fmt.Sprintf("error while saving auth conf for env: %s, err=%s", req.EnvID.String(), err.Error()))

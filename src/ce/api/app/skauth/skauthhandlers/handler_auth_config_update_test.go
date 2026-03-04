@@ -12,6 +12,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp/shttptest"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -47,6 +48,7 @@ func (s *HandlerAuthConfigUpdateSuite) Test_Update() {
 			"envId":      s.env.ID,
 			"successUrl": "/success",
 			"tokenTtl":   10,
+			"status":     true,
 		},
 		map[string]string{
 			"Authorization": usertest.Authorization(s.usr.ID),
@@ -57,10 +59,46 @@ func (s *HandlerAuthConfigUpdateSuite) Test_Update() {
 
 	env, err := buildconf.NewStore().EnvironmentByID(context.Background(), s.env.ID)
 	s.NoError(err)
-	s.Equal(&buildconf.SKAuthConf{
-		SuccessURL: "/success",
-		TTL:        10,
-	}, env.AuthConf)
+	s.Equal("/success", env.AuthConf.SuccessURL)
+	s.Equal(10, env.AuthConf.TTL)
+	s.True(env.AuthConf.Status)
+	s.Len(env.AuthConf.Secret, 128)
+}
+
+func (s *HandlerAuthConfigUpdateSuite) Test_Update_Existing() {
+	authConf := &buildconf.SKAuthConf{
+		Secret:     utils.RandomToken(128),
+		SuccessURL: "/old-success",
+		TTL:        5,
+		Status:     false,
+	}
+
+	s.NoError(buildconf.NewStore().SaveAuthConf(context.Background(), s.env.ID, authConf))
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/skauth/config",
+		map[string]any{
+			"envId":      s.env.ID,
+			"successUrl": "/success",
+			"tokenTtl":   10,
+			"status":     true,
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(s.usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+
+	env, err := buildconf.NewStore().EnvironmentByID(context.Background(), s.env.ID)
+	s.NoError(err)
+	s.Equal("/success", env.AuthConf.SuccessURL)
+	s.Equal(10, env.AuthConf.TTL)
+	s.Equal(env.AuthConf.Secret, authConf.Secret) // Secret should remain unchanged
+	s.True(env.AuthConf.Status)
+	s.Len(env.AuthConf.Secret, 128)
 }
 
 func (s *HandlerAuthConfigUpdateSuite) Test_InvalidURL() {

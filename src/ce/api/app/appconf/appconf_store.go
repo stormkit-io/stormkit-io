@@ -200,7 +200,7 @@ func (s *Store) queryWithEnvNameAndDisplayName(filters ConfigFilters) (string, [
 	return wr.String(), []any{"*.dev", filters.EnvName, filters.DisplayName, filters.HostName}, err
 }
 
-// BelongsToDeployment checks if the given parsed host belongs to the environment.
+// BelongsToEnv checks if the given parsed host belongs to the environment.
 func (s *Store) BelongsToEnv(ctx context.Context, envID types.ID, host *RequestContext) (bool, error) {
 	if host.DisplayName != "" {
 		var displayName, envName string

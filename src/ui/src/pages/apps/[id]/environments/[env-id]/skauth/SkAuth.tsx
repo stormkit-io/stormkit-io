@@ -190,7 +190,7 @@ export default function SkAuth() {
           <TextField
             label="Success callback URL"
             name="successUrl"
-            placeholder="https://example.com/auth/success"
+            placeholder="/auth/success"
             fullWidth
             defaultValue={config?.successUrl || ""}
             variant="filled"
@@ -211,7 +211,7 @@ export default function SkAuth() {
             type="number"
             placeholder="10"
             fullWidth
-            defaultValue={config?.successUrl || ""}
+            defaultValue={config?.sessionTtl || ""}
             variant="filled"
             autoComplete="off"
             helperText="Token lifetime in minutes"

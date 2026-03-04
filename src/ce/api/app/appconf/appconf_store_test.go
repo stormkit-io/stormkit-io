@@ -120,7 +120,7 @@ func (s *AppConfStoreSuite) Test_BelongsToEnv() {
 	s.NoError(err)
 	s.True(belongs)
 
-	// Unverified domain should belong to the environment
+	// Unverified domain should not belong to the environment
 	belongs, err = store.BelongsToEnv(ctx, env.ID, &appconf.RequestContext{DomainName: "unverified.example.org"})
 	s.NoError(err)
 	s.False(belongs)

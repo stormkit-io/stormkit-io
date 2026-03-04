@@ -28,11 +28,7 @@ func WithSKAuth(req *RequestContext) (*shttp.Response, error) {
 	if code == "" {
 		status = http.StatusBadRequest
 		content = "code is missing"
-	}
-
-	sessionToken := rediscache.Client().Get(req.Context(), code).Val()
-
-	if sessionToken != "" {
+	} else if sessionToken := rediscache.Client().Get(req.Context(), code).Val(); sessionToken != "" {
 		head = fmt.Sprintf(
 			`<script>localStorage.setItem('skauth', JSON.stringify('%s'));window.location.href="%s";</script>`,
 			sessionToken,

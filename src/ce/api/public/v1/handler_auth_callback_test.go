@@ -124,7 +124,7 @@ func (s *HandlerAuthCallbackSuite) Test_Success() {
 	)
 
 	s.Equal(http.StatusFound, response.Code)
-	s.Equal("http://localhost:3000/_stormkit/auth", response.Header().Get("Location"))
+	s.Contains(response.Header().Get("Location"), "http://localhost:3000/_stormkit/auth?code=")
 }
 
 func (s *HandlerAuthCallbackSuite) Test_AuthNotEnabled() {

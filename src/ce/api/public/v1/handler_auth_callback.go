@@ -137,6 +137,11 @@ func HandlerAuthCallback(req *shttp.RequestContext) *shttp.Response {
 		})
 	}
 
-	req.Redirect(fmt.Sprintf("%s://%s/_stormkit/auth", utils.GetString(parsed.Scheme, "https"), parsed.Host), http.StatusFound)
+	req.Redirect(
+		fmt.Sprintf("%s://%s/_stormkit/auth?code=%s",
+			utils.GetString(parsed.Scheme, "https"),
+			parsed.Host,
+			code), http.StatusFound)
+
 	return nil
 }

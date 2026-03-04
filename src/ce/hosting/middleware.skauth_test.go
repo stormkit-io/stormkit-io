@@ -97,7 +97,7 @@ func (s *WithSKAuthSuite) Test_MissingCode() {
 	s.NotNil(res)
 	s.Equal(http.StatusBadRequest, res.Status)
 	s.Equal("text/html", res.Headers.Get("Content-Type"))
-	s.Contains(string(res.Data.([]byte)), "invalid session")
+	s.Contains(string(res.Data.([]byte)), "code is missing")
 }
 
 // Test_InvalidCode checks that the middleware returns 200 with an "invalid session"
