@@ -154,6 +154,9 @@ export default (mode: "dark" | "light") => {
               color: "#ffffff",
             },
           },
+          message: {
+            flex: 1,
+          },
           standardInfo: {
             backgroundColor: isDark ? "#0f4c64" : blue[200],
             border: isDark ? "" : "1px solid #0f4c64",
@@ -208,6 +211,15 @@ export default (mode: "dark" | "light") => {
             style: { color: isDark ? primaryColor : "white" },
           },
         ],
+      },
+      MuiOutlinedInput: {
+        styleOverrides: {
+          root: {
+            "&:hover .MuiOutlinedInput-notchedOutline": {
+              borderColor: "rgba(0,0,0,0.5)",
+            },
+          },
+        },
       },
       MuiFilledInput: {
         styleOverrides: {

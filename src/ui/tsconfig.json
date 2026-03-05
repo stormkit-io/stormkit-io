@@ -15,7 +15,7 @@
     "strict": true,
     "newLine": "lf",
     "jsx": "react-jsx",
-    "types": ["react", "node"],
+    "types": ["react", "node", "vitest/globals"],
     "paths": {
       "~/*": ["./src/*"],
     }

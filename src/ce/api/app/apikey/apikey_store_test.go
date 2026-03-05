@@ -2,6 +2,7 @@ package apikey_test
 
 import (
 	"context"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
@@ -9,6 +10,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
 type StoreSuite struct {
@@ -56,6 +58,60 @@ func (s *StoreSuite) TestAddAPIKey_InvalidScope() {
 
 	s.Error(err)
 	s.Equal("scope is invalid", err.Error())
+}
+
+func (s *StoreSuite) Test_APIKey_ByID() {
+	keys := make([]*apikey.Token, 0, 5)
+
+	for i := range 5 {
+		key := &apikey.Token{
+			Name:  "Something - " + strconv.Itoa(i),
+			Scope: apikey.SCOPE_ENV,
+			AppID: s.app.ID,
+			EnvID: s.env.ID,
+			Value: utils.RandomToken(128),
+		}
+
+		err := apikey.NewStore().AddAPIKey(context.Background(), key)
+		s.NoError(err)
+		keys = append(keys, key)
+	}
+
+	fetchedKey, err := apikey.NewStore().APIKeyByID(context.Background(), keys[3].ID)
+	s.NoError(err)
+	s.Equal(keys[3].ID, fetchedKey.ID)
+	s.Equal(keys[3].Name, fetchedKey.Name)
+	s.Equal(keys[3].Scope, fetchedKey.Scope)
+	s.Equal(keys[3].AppID, fetchedKey.AppID)
+	s.Equal(keys[3].EnvID, fetchedKey.EnvID)
+}
+
+func (s *StoreSuite) Test_APIKey_ByToken() {
+	tkn := "SK_" + utils.RandomToken(128)
+	key := &apikey.Token{
+		Name:  "API Key",
+		Scope: apikey.SCOPE_ENV,
+		AppID: s.app.ID,
+		EnvID: s.env.ID,
+		Value: tkn,
+	}
+
+	err := apikey.NewStore().AddAPIKey(context.Background(), key)
+	s.NoError(err)
+
+	// Legacy approach with raw value
+	fetchedKey, err := apikey.NewStore().APIKey(context.Background(), tkn)
+	s.NoError(err)
+	s.Equal(key.ID, fetchedKey.ID)
+	s.Equal(key.Name, fetchedKey.Name)
+	s.Equal(key.Scope, fetchedKey.Scope)
+	s.Equal(key.AppID, fetchedKey.AppID)
+	s.Equal(key.EnvID, fetchedKey.EnvID)
+
+	// Make sure it's not possible to fetch a key by it's hashed value
+	fetchedKey, err = apikey.NewStore().APIKey(context.Background(), utils.SHA256Hash([]byte(tkn)))
+	s.NoError(err)
+	s.Nil(fetchedKey)
 }
 
 func TestStoreSuite(t *testing.T) {

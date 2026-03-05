@@ -31,6 +31,8 @@ This API Key will grant access to all applications owned by the team.
 
 This API Key will grant access to the specified environment.
 
+> **Important:** The API key token is displayed **only once** immediately after creation. Make sure to copy it before closing the dialog — it cannot be retrieved afterwards. If you lose the key, delete it and create a new one.
+
 ## Authenticating
 
 Once the API Key is obtained, add an `Authorization` header and use the API key. For example:

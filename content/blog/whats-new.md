@@ -5,6 +5,10 @@ description: Discover the latest changes and improvements to Stormkit. Stay up-t
 
 Follow the latest developments on Stormkit.
 
+## March 5th, 2026
+
+**API Key security hardening**: API keys are now stored as SHA-256 hashes in the database instead of plain text. The raw token is shown **only once** immediately after creation — make sure to copy it before dismissing the dialog. Existing keys continue to work without any migration required.
+
 ## February 28th, 2026
 
 We've migrated from Semantic Versioning (SemVer) to Calendar Versioning (CalVer) using the `YYYY.MM.DD.MICRO` format. Self-hosted users on the `latest` tag don't need to change anything. [Read the full announcement](/blog/why-we-are-migrating-from-semver-to-calver).

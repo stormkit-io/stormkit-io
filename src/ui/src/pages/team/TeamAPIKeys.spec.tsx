@@ -52,7 +52,7 @@ describe("~/pages/team/TeamAPIKeys.tsx", () => {
       expect(wrapper.getByText("CI")).toBeTruthy();
     });
 
-    await fireEvent.click(wrapper.getByLabelText("CI menu"));
+    await fireEvent.click(wrapper.getByLabelText("expand-9868814106"));
     fireEvent.click(wrapper.getByText("Delete"));
 
     await waitFor(() => {

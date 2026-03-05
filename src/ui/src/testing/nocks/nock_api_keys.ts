@@ -27,6 +27,46 @@ export const mockFetchAPIKeys = ({
     .reply(status, response);
 };
 
+interface MockGenerateAPIKeyProps {
+  name: string;
+  scope: string;
+  appId?: string;
+  envId?: string;
+  teamId?: string;
+  userId?: string;
+  status?: number;
+  response?: APIKey;
+}
+
+export const mockGenerateAPIKey = ({
+  name,
+  scope,
+  appId,
+  envId,
+  teamId,
+  userId,
+  status = 201,
+  response = {
+    id: "1234567890",
+    name,
+    scope: scope as APIKey["scope"],
+    appId: appId || "",
+    envId: envId || "",
+    token:
+      "SK_newtoken1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdefghij",
+  },
+}: MockGenerateAPIKeyProps) => {
+  // JSON.stringify drops undefined values, so only include defined fields in
+  // the body matcher to avoid nock mismatches.
+  const body: Record<string, string> = { name, scope };
+  if (appId !== undefined) body.appId = appId;
+  if (envId !== undefined) body.envId = envId;
+  if (teamId !== undefined) body.teamId = teamId;
+  if (userId !== undefined) body.userId = userId;
+
+  return nock(endpoint).post("/api-keys", body).reply(status, response);
+};
+
 interface MockDeleteAPIKeyProps {
   keyId: string;
   status?: number;

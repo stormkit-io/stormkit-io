@@ -59,8 +59,7 @@ func (s *HandlerAPIKeyGetSuite) Test_Success_ScopeEnv() {
 			"teamId": "",
 			"id":"1",
 			"scope":"env",
-			"name": "Default",
-			"token":"SK_N32UH0PyJX7K5mMn9RcfpV7BnDK3R00tbuO4T22na2vvrBGv6cs9JlcM3mxfd9"
+			"name": "Default"
 		}]}`
 
 	s.Equal(http.StatusOK, response.Code)
@@ -71,7 +70,7 @@ func (s *HandlerAPIKeyGetSuite) Test_Success_ScopeTeam() {
 	usr := s.MockUser()
 	app := s.MockApp(usr)
 	env := s.MockEnv(app)
-	key := s.MockAPIKey(app, env, map[string]any{
+	s.MockAPIKey(app, env, map[string]any{
 		"UserID": types.ID(0),
 		"EnvID":  types.ID(0),
 		"AppID":  types.ID(0),
@@ -97,11 +96,9 @@ func (s *HandlerAPIKeyGetSuite) Test_Success_ScopeTeam() {
 			"appId":"",
 			"teamId":"%d",
 			"scope":"team",
-			"name": "Default",
-			"token":"%s"
+			"name": "Default"
 		}]}`,
 		usr.DefaultTeamID,
-		key.Value,
 	)
 
 	s.Equal(http.StatusOK, response.Code)

@@ -1,6 +1,7 @@
 package apikeyhandlers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -57,7 +58,7 @@ func handlerAPIKeyGet(req *user.RequestContext) *shttp.Response {
 	keys, err := apikey.NewStore().APIKeys(req.Context(), id, scope)
 
 	if err != nil {
-		return shttp.Error(err)
+		return shttp.Error(err, fmt.Sprintf("Failed to retrieve API keys for %s with ID %d, err: %s", scope, id, err.Error()))
 	}
 
 	keysJson := []map[string]any{}
@@ -75,7 +76,6 @@ func handlerAPIKeyGet(req *user.RequestContext) *shttp.Response {
 			"envId":  key.EnvID,
 			"teamId": teamID,
 			"name":   key.Name,
-			"token":  key.Value,
 			"scope":  key.Scope,
 		})
 	}
