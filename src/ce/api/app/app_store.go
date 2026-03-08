@@ -353,13 +353,16 @@ func (s *Store) savePrivateKey(ctx context.Context, a *App) error {
 }
 
 type AppsArgs struct {
-	From        int
-	Limit       int
-	AppID       types.ID
-	TeamID      types.ID
-	EnvID       types.ID
+	From   int
+	Limit  int
+	AppID  types.ID
+	TeamID types.ID
+	EnvID  types.ID
+	// Filter performs a case-insensitive substring match across both the repo
+	// and display name fields. Use Repo or DisplayName for exact matches.
 	Filter      string
 	DisplayName string
+	Repo        string
 	DomainName  string
 }
 
@@ -393,6 +396,11 @@ func (s *Store) Apps(ctx context.Context, args AppsArgs) ([]*App, error) {
 	if args.DisplayName != "" {
 		params = append(params, args.DisplayName)
 		where = append(where, fmt.Sprintf("LOWER(a.display_name) = LOWER($%d)", len(params)))
+	}
+
+	if args.Repo != "" {
+		params = append(params, args.Repo)
+		where = append(where, fmt.Sprintf("LOWER(a.repo) = LOWER($%d)", len(params)))
 	}
 
 	if args.AppID != 0 {

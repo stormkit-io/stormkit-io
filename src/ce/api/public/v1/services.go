@@ -14,6 +14,9 @@ import (
 func Services(r *shttp.Router) *shttp.Service {
 	s := r.NewService()
 
+	s.NewEndpoint("/v1/apps").
+		Handler(shttp.MethodGet, "", user.WithAPIKey(handlerAppList))
+
 	s.NewEndpoint("/v1/env").
 		Handler(shttp.MethodPost, "", app.WithAPIKey(handlerEnvAdd)).
 		Handler(shttp.MethodDelete, "", app.WithAPIKey(handlerEnvDel, &app.Opts{Env: true})).
