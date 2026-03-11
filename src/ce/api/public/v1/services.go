@@ -2,6 +2,7 @@ package publicapiv1
 
 import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/domainhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/mailerhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/snippetshandlers"
@@ -15,7 +16,8 @@ func Services(r *shttp.Router) *shttp.Service {
 	s := r.NewService()
 
 	s.NewEndpoint("/v1/apps").
-		Handler(shttp.MethodGet, "", user.WithAPIKey(handlerAppList))
+		Handler(shttp.MethodGet, "", WithAPIKey(handlerAppList, &Opts{MinimumScope: apikey.SCOPE_TEAM})).
+		Handler(shttp.MethodGet, "/{appId}", WithAPIKey(handlerAppGet, &Opts{MinimumScope: apikey.SCOPE_TEAM}))
 
 	s.NewEndpoint("/v1/env").
 		Handler(shttp.MethodPost, "", app.WithAPIKey(handlerEnvAdd)).

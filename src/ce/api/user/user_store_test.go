@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/team"
@@ -49,10 +48,6 @@ func (s *UserStoreSuite) Test_MustUser() {
 	s.Len(teams, 1)
 	s.Equal("owner", teams[0].CurrentUserRole)
 	s.Equal(team.DEFAULT_TEAM_NAME, teams[0].Name)
-
-	apiKeys, err := apikey.NewStore().APIKeys(ctx, user.ID, apikey.SCOPE_USER)
-	s.NoError(err)
-	s.Len(apiKeys, 1)
 }
 
 func (s *UserStoreSuite) Test_MustUser_Approval() {
@@ -130,10 +125,6 @@ func (s *UserStoreSuite) Test_MustUser_IsAdmin() {
 	s.Len(teams, 1)
 	s.Equal("owner", teams[0].CurrentUserRole)
 	s.Equal(team.DEFAULT_TEAM_NAME, teams[0].Name)
-
-	apiKeys, err := apikey.NewStore().APIKeys(ctx, user.ID, apikey.SCOPE_USER)
-	s.NoError(err)
-	s.Len(apiKeys, 1)
 }
 
 func (s *UserStoreSuite) Test_InsertEmails() {

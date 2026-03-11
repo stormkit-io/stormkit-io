@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/team"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
@@ -30,7 +29,7 @@ const appListLimit = 20
 //	apps        - Array of application objects.
 //	hasNextPage - Whether more results are available. When true, increment
 //	              "from" by the number of items returned to get the next page.
-func handlerAppList(req *user.RequestContext) *shttp.Response {
+func handlerAppList(req *RequestContext) *shttp.Response {
 	q := req.Query()
 	v := &Validators{}
 
@@ -42,11 +41,24 @@ func handlerAppList(req *user.RequestContext) *shttp.Response {
 		})
 	}
 
-	teamIdInt, err := v.ToInt(q.Get("teamId"), "teamId")
+	teamID := req.Token.TeamID
 
-	if err != nil {
+	// Fallback to accepting teamId as a query parameter to allow user level API key.
+	if teamID == 0 {
+		teamIdInt, err := v.ToInt(q.Get("teamId"), "teamId")
+
+		if err != nil {
+			return shttp.BadRequest(map[string]any{
+				"error": err.Error(),
+			})
+		}
+
+		teamID = types.ID(teamIdInt)
+	}
+
+	if teamID == 0 {
 		return shttp.BadRequest(map[string]any{
-			"error": err.Error(),
+			"error": "The 'teamId' parameter is required",
 		})
 	}
 
@@ -59,16 +71,9 @@ func handlerAppList(req *user.RequestContext) *shttp.Response {
 	}
 
 	displayName := q.Get("displayName")
-	teamID := types.ID(teamIdInt)
-
-	if teamID == 0 {
-		return shttp.BadRequest(map[string]any{
-			"error": "The 'teamId' parameter is required",
-		})
-	}
 
 	// Check if the user is a member of the specified team.
-	isMember := team.NewStore().IsMember(req.Context(), req.User.ID, teamID)
+	isMember := team.NewStore().IsMember(req.Context(), req.Token.UserID, teamID)
 
 	if !isMember {
 		return shttp.Forbidden()

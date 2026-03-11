@@ -16,7 +16,6 @@ import (
 	"github.com/gosimple/slug"
 	"github.com/lib/pq"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/team"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
@@ -569,10 +568,6 @@ func (s *Store) MustUser(authUser *oauth.User) (*User, error) {
 		if _, err = s.insertUser(user); err != nil {
 			return nil, err
 		}
-
-		if _, err := s.createAPIKey(ctx, user.ID); err != nil {
-			return nil, err
-		}
 	}
 
 	return user, err
@@ -581,23 +576,6 @@ func (s *Store) MustUser(authUser *oauth.User) (*User, error) {
 func (s *Store) UpdateLastLogin(ctx context.Context, userID types.ID) error {
 	_, err := s.Exec(ctx, ustmt.updateLastLogin, userID)
 	return err
-}
-
-// createAPIKey creates an API key for the user which is going to be used
-// for interacting with the API for generic routes.
-func (s *Store) createAPIKey(ctx context.Context, userID types.ID) (*apikey.Token, error) {
-	token := &apikey.Token{
-		UserID: userID,
-		Name:   "default",
-		Scope:  apikey.SCOPE_USER,
-		Value:  apikey.GenerateTokenValue(),
-	}
-
-	if err := apikey.NewStore().AddAPIKey(ctx, token); err != nil {
-		return nil, err
-	}
-
-	return token, nil
 }
 
 // SelectTotalUsers returns the total number of users in the instance.
