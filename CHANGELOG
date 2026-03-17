@@ -1,0 +1,55 @@
+# Changelog
+
+
+## v1.26.15...v2026.03.17.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v1.26.15...v2026.03.17.1)
+
+### 🚀 Enhancements
+
+- Implement pcke verification for x auth ([7b3d330](https://github.com/stormkit-io/stormkit-io/commit/7b3d330))
+- Allow deleting production environments ([d8162c8](https://github.com/stormkit-io/stormkit-io/commit/d8162c8))
+- Handle redirect and session flow ([6d83558](https://github.com/stormkit-io/stormkit-io/commit/6d83558))
+- **api-keys:** Hash stored keys with SHA-256 and extract shared UI component ([5b4bb12](https://github.com/stormkit-io/stormkit-io/commit/5b4bb12))
+- Api endpoint for retrieving apps ([4ad0bbb](https://github.com/stormkit-io/stormkit-io/commit/4ad0bbb))
+- **public/v1:** Add WithAPIKey middleware and GET /v1/apps/{appId} endpoint ([e4cf28e](https://github.com/stormkit-io/stormkit-io/commit/e4cf28e))
+
+### 🩹 Fixes
+
+- Optional chaining ([b757bd6](https://github.com/stormkit-io/stormkit-io/commit/b757bd6))
+- Import vitest utils ([dfed853](https://github.com/stormkit-io/stormkit-io/commit/dfed853))
+- Failing specs ([b0d5364](https://github.com/stormkit-io/stormkit-io/commit/b0d5364))
+- Host name ([bc9e065](https://github.com/stormkit-io/stormkit-io/commit/bc9e065))
+
+### 📖 Documentation
+
+- V1.26.15 ([746ce70](https://github.com/stormkit-io/stormkit-io/commit/746ce70))
+- V1.26.16 ([ed77c08](https://github.com/stormkit-io/stormkit-io/commit/ed77c08))
+- Announce calver ([0ea25cd](https://github.com/stormkit-io/stormkit-io/commit/0ea25cd))
+- V2026.03.10.1 ([b054380](https://github.com/stormkit-io/stormkit-io/commit/b054380))
+- Announce arm support ([ca5b5a5](https://github.com/stormkit-io/stormkit-io/commit/ca5b5a5))
+
+### 🏡 Chore
+
+- Remove unused file ([674099c](https://github.com/stormkit-io/stormkit-io/commit/674099c))
+- Rename object ([7eda680](https://github.com/stormkit-io/stormkit-io/commit/7eda680))
+- Allow specifying success url callback ([49c24d8](https://github.com/stormkit-io/stormkit-io/commit/49c24d8))
+- Reorder items ([4fda639](https://github.com/stormkit-io/stormkit-io/commit/4fda639))
+- Allow modifying chip sx ([ed75c1a](https://github.com/stormkit-io/stormkit-io/commit/ed75c1a))
+- Minor ui changes ([5bdba7f](https://github.com/stormkit-io/stormkit-io/commit/5bdba7f))
+- Do not expose authconf ([18327c0](https://github.com/stormkit-io/stormkit-io/commit/18327c0))
+- Update ip address ([e09c33d](https://github.com/stormkit-io/stormkit-io/commit/e09c33d))
+- Improve code ([805c7b6](https://github.com/stormkit-io/stormkit-io/commit/805c7b6))
+- Reuse store ([80b04bd](https://github.com/stormkit-io/stormkit-io/commit/80b04bd))
+- Invert test case ([ae782bb](https://github.com/stormkit-io/stormkit-io/commit/ae782bb))
+- Remove redundant mock ([cce8d5f](https://github.com/stormkit-io/stormkit-io/commit/cce8d5f))
+- Improve logging ([2b13fbb](https://github.com/stormkit-io/stormkit-io/commit/2b13fbb))
+- Additional logs ([afb990c](https://github.com/stormkit-io/stormkit-io/commit/afb990c))
+- Additional logs ([20e0a98](https://github.com/stormkit-io/stormkit-io/commit/20e0a98))
+- Additional logs ([e3facba](https://github.com/stormkit-io/stormkit-io/commit/e3facba))
+- Improve debugging ([3a489d2](https://github.com/stormkit-io/stormkit-io/commit/3a489d2))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
