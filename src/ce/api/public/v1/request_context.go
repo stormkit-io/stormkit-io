@@ -5,11 +5,15 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
+	"github.com/stormkit-io/stormkit-io/src/lib/types"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
 type RequestContext struct {
 	*shttp.RequestContext
 	Token *apikey.Token
+	EnvID types.ID
+	AppID types.ID
 }
 
 type Opts struct {
@@ -71,6 +75,46 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 			}
 		}
 
+		// Fill in the EnvID and AppID from the query parameters or request body
+		// if they are not present in the token.
+		if req.Method == shttp.MethodGet || req.Method == shttp.MethodDelete {
+			query := req.Query()
+			request.EnvID = getID(key.EnvID, utils.StringToID(query.Get("envId")))
+			request.AppID = getID(key.AppID, utils.StringToID(query.Get("appId")))
+		} else {
+			data := struct {
+				EnvID types.ID `json:"envId,string"`
+				AppID types.ID `json:"appId,string"`
+			}{}
+
+			if req.Method != shttp.MethodGet {
+				if isMultipart(req) {
+					data.AppID = utils.StringToID(req.FormValue("appId"))
+					data.EnvID = utils.StringToID(req.FormValue("envId"))
+				} else {
+					_ = req.Post(&data)
+				}
+			}
+
+			request.EnvID = getID(key.EnvID, data.EnvID)
+			request.AppID = getID(key.AppID, data.AppID)
+		}
+
 		return handler(request)
 	}
+}
+
+// getID returns the first non-zero ID from the provided list of IDs. If all IDs are zero, it returns zero.
+func getID(ids ...types.ID) types.ID {
+	for _, id := range ids {
+		if id != 0 {
+			return id
+		}
+	}
+
+	return 0
+}
+
+func isMultipart(req *shttp.RequestContext) bool {
+	return strings.HasPrefix(req.Header.Get("content-type"), "multipart/form-data")
 }

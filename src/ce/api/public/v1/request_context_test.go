@@ -1,8 +1,12 @@
 package publicapiv1_test
 
 import (
+	"bytes"
+	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
@@ -39,6 +43,34 @@ func (s *WithAPIKeySuite) invoke(token string, opts ...*publicapiv1.Opts) *shttp
 	r.Header.Set("Authorization", "Bearer "+token)
 
 	return fn(shttp.NewRequestContext(r))
+}
+
+func (s *WithAPIKeySuite) invokeAndCapture(method, url, body, contentType, token string) *publicapiv1.RequestContext {
+	var captured *publicapiv1.RequestContext
+
+	fn := publicapiv1.WithAPIKey(func(req *publicapiv1.RequestContext) *shttp.Response {
+		captured = req
+		return shttp.OK()
+	})
+
+	var bodyReader *strings.Reader
+
+	if body != "" {
+		bodyReader = strings.NewReader(body)
+	} else {
+		bodyReader = strings.NewReader("")
+	}
+
+	r := httptest.NewRequest(method, url, bodyReader)
+	r.Header.Set("Authorization", "Bearer "+token)
+
+	if contentType != "" {
+		r.Header.Set("Content-Type", contentType)
+	}
+
+	fn(shttp.NewRequestContext(r))
+
+	return captured
 }
 
 // Test_EmptyToken verifies that an empty Authorization header is rejected.
@@ -180,8 +212,113 @@ func (s *WithAPIKeySuite) Test_TokenSetOnContext() {
 	resp := fn(shttp.NewRequestContext(r))
 
 	s.Equal(http.StatusOK, resp.Status)
-	s.Require().NotNil(capturedToken)
+	s.NotNil(capturedToken)
 	s.Equal(key.ID, capturedToken.ID)
+}
+
+// Test_IDResolution_GET_FromQueryParams verifies that for GET requests the EnvID and AppID
+// are populated from query parameters when the token carries no IDs of its own.
+func (s *WithAPIKeySuite) Test_IDResolution_GET_FromQueryParams() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	env := s.MockEnv(appl)
+	key := s.MockAPIKey(appl, env, map[string]any{
+		"EnvID":  types.ID(0),
+		"AppID":  types.ID(0),
+		"Scope":  apikey.SCOPE_USER,
+		"UserID": usr.ID,
+	})
+
+	url := fmt.Sprintf("/?envId=%s&appId=%s", env.ID, appl.ID)
+	ctx := s.invokeAndCapture(http.MethodGet, url, "", "", key.Value)
+
+	s.NotNil(ctx)
+	s.Equal(env.ID, ctx.EnvID)
+	s.Equal(appl.ID, ctx.AppID)
+}
+
+// Test_IDResolution_DELETE_FromQueryParams verifies that DELETE requests also read
+// EnvID and AppID from query parameters.
+func (s *WithAPIKeySuite) Test_IDResolution_DELETE_FromQueryParams() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	env := s.MockEnv(appl)
+	key := s.MockAPIKey(appl, env, map[string]any{
+		"EnvID":  types.ID(0),
+		"AppID":  types.ID(0),
+		"Scope":  apikey.SCOPE_USER,
+		"UserID": usr.ID,
+	})
+
+	url := fmt.Sprintf("/?envId=%s&appId=%s", env.ID, appl.ID)
+	ctx := s.invokeAndCapture(http.MethodDelete, url, "", "", key.Value)
+
+	s.NotNil(ctx)
+	s.Equal(env.ID, ctx.EnvID)
+	s.Equal(appl.ID, ctx.AppID)
+}
+
+// Test_IDResolution_POST_FromJSONBody verifies that for POST requests the EnvID and AppID
+// are parsed from the JSON request body when the token carries no IDs.
+func (s *WithAPIKeySuite) Test_IDResolution_POST_FromJSONBody() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	env := s.MockEnv(appl)
+	key := s.MockAPIKey(appl, env, map[string]any{
+		"EnvID":  types.ID(0),
+		"AppID":  types.ID(0),
+		"Scope":  apikey.SCOPE_USER,
+		"UserID": usr.ID,
+	})
+
+	body := fmt.Sprintf(`{"envId":"%s","appId":"%s"}`, env.ID, appl.ID)
+	ctx := s.invokeAndCapture(http.MethodPost, "/", body, "application/json", key.Value)
+
+	s.NotNil(ctx)
+	s.Equal(env.ID, ctx.EnvID)
+	s.Equal(appl.ID, ctx.AppID)
+}
+
+// Test_IDResolution_POST_Multipart_FromFormValues verifies that multipart POST requests
+// read EnvID and AppID from form fields rather than the JSON body.
+func (s *WithAPIKeySuite) Test_IDResolution_POST_Multipart_FromFormValues() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	env := s.MockEnv(appl)
+	key := s.MockAPIKey(appl, env, map[string]any{
+		"EnvID":  types.ID(0),
+		"AppID":  types.ID(0),
+		"Scope":  apikey.SCOPE_USER,
+		"UserID": usr.ID,
+	})
+
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	_ = w.WriteField("envId", env.ID.String())
+	_ = w.WriteField("appId", appl.ID.String())
+	w.Close()
+
+	ctx := s.invokeAndCapture(http.MethodPost, "/", buf.String(), w.FormDataContentType(), key.Value)
+
+	s.NotNil(ctx)
+	s.Equal(env.ID, ctx.EnvID)
+	s.Equal(appl.ID, ctx.AppID)
+}
+
+// Test_IDResolution_TokenIDTakesPriority verifies that the IDs embedded in the token
+// take precedence over IDs supplied in query parameters.
+func (s *WithAPIKeySuite) Test_IDResolution_TokenIDTakesPriority() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	env := s.MockEnv(appl)
+	key := s.MockAPIKey(appl, env) // token carries env.ID and appl.ID
+
+	url := fmt.Sprintf("/?envId=9999&appId=9999")
+	ctx := s.invokeAndCapture(http.MethodGet, url, "", "", key.Value)
+
+	s.NotNil(ctx)
+	s.Equal(env.ID, ctx.EnvID)
+	s.Equal(appl.ID, ctx.AppID)
 }
 
 func TestWithAPIKey(t *testing.T) {
