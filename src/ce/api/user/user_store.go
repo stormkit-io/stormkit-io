@@ -157,8 +157,7 @@ func (s *Store) UpdateApprovalStatus(ctx context.Context, userIDs []types.ID, ap
 	return err
 }
 
-// TeamOwner returns the owner user of a team.
-func (s *Store) TeamOwner(teamID types.ID) (*User, error) {
+func (s *Store) AppOwner(ctx context.Context, appID types.ID) (*User, error) {
 	var wr bytes.Buffer
 
 	data := map[string]any{
@@ -166,10 +165,13 @@ func (s *Store) TeamOwner(teamID types.ID) (*User, error) {
 			SELECT
 				tm.user_id
 			FROM
-				team_members tm
+				apps a
+			LEFT JOIN
+				team_members tm ON tm.team_id = a.team_id
 			WHERE
+				a.app_id = $1 AND
 				tm.member_role = 'owner' AND
-				tm.team_id = $1
+				tm.team_id = a.team_id
 		)`,
 		"limit": 1,
 	}
@@ -178,7 +180,73 @@ func (s *Store) TeamOwner(teamID types.ID) (*User, error) {
 		return nil, err
 	}
 
-	users, err := s.selectUsers(context.TODO(), wr.String(), teamID)
+	users, err := s.selectUsers(ctx, wr.String(), appID)
+
+	if err != nil || len(users) == 0 {
+		return nil, err
+	}
+
+	return users[0], nil
+}
+
+// EnvOwner returns the owner user of an environment.
+// The environment owner is the owner of the team that the environment's app belongs to.
+func (s *Store) EnvOwner(ctx context.Context, envID types.ID) (*User, error) {
+	var wr bytes.Buffer
+
+	data := map[string]any{
+		"where": `u.deleted_at IS NULL AND u.user_id IN (
+			SELECT
+				tm.user_id
+			FROM
+				apps_build_conf abc
+			LEFT JOIN
+				apps a ON a.app_id = abc.app_id
+			LEFT JOIN
+				team_members tm ON tm.team_id = a.team_id
+			WHERE
+				abc.env_id = $1 AND
+				tm.member_role = 'owner' AND
+				tm.team_id = a.team_id
+		)`,
+		"limit": 1,
+	}
+
+	if err := s.selectTmpl.Execute(&wr, data); err != nil {
+		return nil, err
+	}
+
+	users, err := s.selectUsers(ctx, wr.String(), envID)
+
+	if err != nil || len(users) == 0 {
+		return nil, err
+	}
+
+	return users[0], nil
+}
+
+// TeamOwner returns the owner user of a team.
+func (s *Store) TeamOwner(ctx context.Context, teamID types.ID) (*User, error) {
+	var wr bytes.Buffer
+
+	data := map[string]any{
+		"where": `u.deleted_at IS NULL AND u.user_id IN (
+				SELECT
+					tm.user_id
+				FROM
+					team_members tm
+				WHERE
+					tm.member_role = 'owner' AND
+					tm.team_id = $1
+			)`,
+		"limit": 1,
+	}
+
+	if err := s.selectTmpl.Execute(&wr, data); err != nil {
+		return nil, err
+	}
+
+	users, err := s.selectUsers(ctx, wr.String(), teamID)
 
 	if err != nil || len(users) == 0 {
 		return nil, err

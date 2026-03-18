@@ -5,6 +5,10 @@ description: Discover the latest changes and improvements to Stormkit. Stay up-t
 
 Follow the latest developments on Stormkit.
 
+## March 18th, 2026
+
+New public API endpoint to [trigger deployments](/docs/api/deployments) programmatically. Use at least an environment-level API key to kick off a build from any CI/CD pipeline, script, or agent — with optional branch and publish overrides. This is the first step towards making Stormkit fully agent-friendly.
+
 ## March 17th, 2026
 
 Stormkit now provides **ARM-compatible Docker images** for self-hosted customers. No additional configuration is required — Docker automatically selects the right image for your platform, making Stormkit fully compatible with ARM-based machines such as AWS Graviton, Apple Silicon (M-series), and other ARM64 hosts.

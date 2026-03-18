@@ -16,13 +16,19 @@ func Services(r *shttp.Router) *shttp.Service {
 	s := r.NewService()
 
 	s.NewEndpoint("/v1/apps").
-		Handler(shttp.MethodGet, "", WithAPIKey(handlerAppList, &Opts{MinimumScope: apikey.SCOPE_TEAM})).
-		Handler(shttp.MethodGet, "/{appId}", WithAPIKey(handlerAppGet, &Opts{MinimumScope: apikey.SCOPE_TEAM}))
+		Handler(shttp.MethodGet, "", WithAPIKey(handlerAppList, &Opts{MinimumScope: apikey.SCOPE_TEAM}))
+
+	s.NewEndpoint("/v1/app").
+		Handler(shttp.MethodGet, "", WithAPIKey(handlerAppGet, &Opts{MinimumScope: apikey.SCOPE_APP})).
+		Handler(shttp.MethodGet, "/config", WithAPIKey(handlerAppConf, &Opts{MinimumScope: apikey.SCOPE_APP}))
+
+	s.NewEndpoint("/v1/deploy").
+		Handler(shttp.MethodPost, "", WithAPIKey(handlerDeploymentCreate, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	s.NewEndpoint("/v1/env").
-		Handler(shttp.MethodPost, "", app.WithAPIKey(handlerEnvAdd)).
-		Handler(shttp.MethodDelete, "", app.WithAPIKey(handlerEnvDel, &app.Opts{Env: true})).
-		Handler(shttp.MethodGet, "/pull", app.WithAPIKey(handlerEnvPull, &app.Opts{Env: true}))
+		Handler(shttp.MethodPost, "", WithAPIKey(handlerEnvAdd, &Opts{MinimumScope: apikey.SCOPE_APP})).
+		Handler(shttp.MethodDelete, "", WithAPIKey(handlerEnvDel, &Opts{MinimumScope: apikey.SCOPE_ENV})).
+		Handler(shttp.MethodGet, "/pull", WithAPIKey(handlerEnvPull, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	s.NewEndpoint("/v1/snippets").
 		Handler(shttp.MethodGet, "", app.WithAPIKey(snippetshandlers.HandlerSnippetsGet, &app.Opts{Env: true})).
@@ -43,9 +49,6 @@ func Services(r *shttp.Router) *shttp.Service {
 		Middleware(user.WithEE).
 		Handler(shttp.MethodPut, "/cert", app.WithAPIKey(domainhandlers.HandlerCertPut, &app.Opts{Env: true})).
 		Handler(shttp.MethodDelete, "/cert", app.WithAPIKey(domainhandlers.HandlerCertDelete, &app.Opts{Env: true}))
-
-	s.NewEndpoint("/v1/app").
-		Handler(shttp.MethodGet, "/config", app.WithAPIKey(handlerAppConf, &app.Opts{App: true}))
 
 	s.NewEndpoint("/v1/mail").
 		Handler(shttp.MethodPost, "", app.WithAPIKey(mailerhandlers.HandlerMail, &app.Opts{Env: true}))

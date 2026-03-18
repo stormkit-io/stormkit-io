@@ -2,7 +2,6 @@ package publicapiv1_test
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"testing"
 
@@ -50,12 +49,26 @@ func (s *HandlerAppGetSuite) userKey() (string, *factory.MockApp) {
 	return key.Value, a
 }
 
+func (s *HandlerAppGetSuite) appKey() (string, *factory.MockApp) {
+	usr := s.MockUser()
+	a := s.MockApp(usr)
+	key := s.MockAPIKey(nil, nil, map[string]any{
+		"AppID":  a.ID,
+		"UserID": types.ID(0),
+		"EnvID":  types.ID(0),
+		"TeamID": types.ID(0),
+		"Scope":  apikey.SCOPE_APP,
+	})
+
+	return key.Value, a
+}
+
 // Test_Forbidden verifies that requests without a valid API key are rejected with 403.
 func (s *HandlerAppGetSuite) Test_Forbidden() {
 	response := shttptest.RequestWithHeaders(
 		s.handler(),
 		shttp.MethodGet,
-		"/v1/apps/1",
+		"/v1/app",
 		nil,
 		map[string]string{
 			"Authorization": "SK_invalid-key",
@@ -65,96 +78,45 @@ func (s *HandlerAppGetSuite) Test_Forbidden() {
 	s.Equal(http.StatusForbidden, response.Code)
 }
 
-// Test_NotFound verifies that requesting a non-existent app returns 404.
-func (s *HandlerAppGetSuite) Test_NotFound() {
-	keyValue, _ := s.userKey()
-
-	response := shttptest.RequestWithHeaders(
-		s.handler(),
-		shttp.MethodGet,
-		"/v1/apps/999999999",
-		nil,
-		map[string]string{
-			"Authorization": keyValue,
-		},
-	)
-
-	s.Equal(http.StatusNotFound, response.Code)
-}
-
-// Test_Forbidden_OtherTeam verifies that a user cannot retrieve an app belonging
-// to a team they are not a member of.
-func (s *HandlerAppGetSuite) Test_Forbidden_OtherTeam() {
-	// Create the app owned by one user.
-	_, a := s.userKey()
-
-	// Create a second unrelated user who has no access to that app.
-	usr2 := s.MockUser()
-	key2 := s.MockAPIKey(nil, nil, map[string]any{
-		"UserID": usr2.ID,
-		"AppID":  types.ID(0),
-		"EnvID":  types.ID(0),
-		"TeamID": types.ID(0),
-		"Scope":  apikey.SCOPE_USER,
-	})
-
-	response := shttptest.RequestWithHeaders(
-		s.handler(),
-		shttp.MethodGet,
-		fmt.Sprintf("/v1/apps/%s", a.ID.String()),
-		nil,
-		map[string]string{
-			"Authorization": key2.Value,
-		},
-	)
-
-	s.Equal(http.StatusForbidden, response.Code)
-}
-
 // Test_Success verifies that an authenticated member can retrieve their app by ID.
 func (s *HandlerAppGetSuite) Test_Success() {
-	keyValue, a := s.userKey()
+	keyValueUser, app1 := s.userKey()
+	keyValueApp, app2 := s.appKey()
 
-	response := shttptest.RequestWithHeaders(
-		s.handler(),
-		shttp.MethodGet,
-		fmt.Sprintf("/v1/apps/%s", a.ID.String()),
-		nil,
-		map[string]string{
-			"Authorization": keyValue,
-		},
-	)
+	params := []struct {
+		token string
+		query string
+		app   *factory.MockApp
+	}{
+		{token: keyValueUser, query: app1.ID.String(), app: app1},
+		{token: keyValueApp, app: app2},
+	}
 
-	s.Equal(http.StatusOK, response.Code)
+	for _, p := range params {
+		response := shttptest.RequestWithHeaders(
+			s.handler(),
+			shttp.MethodGet,
+			"/v1/app?appId="+p.query,
+			nil,
+			map[string]string{
+				"Authorization": p.token,
+			},
+		)
 
-	var body map[string]any
-	s.NoError(json.Unmarshal([]byte(response.String()), &body))
+		s.Equal(http.StatusOK, response.Code)
 
-	got, ok := body["app"].(map[string]any)
-	s.True(ok)
-	s.Equal(a.ID.String(), got["id"])
-	s.Equal(a.DisplayName, got["displayName"])
-	s.Equal(a.Repo, got["repo"])
-	s.Equal(a.Repo == "", got["isBare"])
-	s.Equal(a.UserID.String(), got["userId"])
-	s.Equal(a.TeamID.String(), got["teamId"])
-}
+		var body map[string]any
+		s.NoError(json.Unmarshal([]byte(response.String()), &body))
 
-// Test_InvalidAppId_NonInteger verifies that a non-integer appId path param is rejected.
-func (s *HandlerAppGetSuite) Test_InvalidAppId_NonInteger() {
-	keyValue, _ := s.userKey()
-
-	response := shttptest.RequestWithHeaders(
-		s.handler(),
-		shttp.MethodGet,
-		"/v1/apps/not-an-id",
-		nil,
-		map[string]string{
-			"Authorization": keyValue,
-		},
-	)
-
-	s.Equal(http.StatusBadRequest, response.Code)
+		got, ok := body["app"].(map[string]any)
+		s.True(ok)
+		s.Equal(p.app.ID.String(), got["id"])
+		s.Equal(p.app.DisplayName, got["displayName"])
+		s.Equal(p.app.Repo, got["repo"])
+		s.Equal(p.app.Repo == "", got["isBare"])
+		s.Equal(p.app.UserID.String(), got["userId"])
+		s.Equal(p.app.TeamID.String(), got["teamId"])
+	}
 }
 
 func TestHandlerAppGet(t *testing.T) {

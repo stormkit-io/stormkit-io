@@ -5,83 +5,166 @@ description: API Documentation for managing environments through Stormkit API.
 
 # Environments API
 
-<details>
+## Overview
 
-<summary>
-  <span>POST </span><span>/v1/env</span>
-</summary>
+The Environments API lets you create and delete environments, and pull environment variable values programmatically.
 
-Create an environment. An application or team level API key is required to use this endpoint.
+---
 
-```typescript
-interface StatusCheck {
-  name: string
-  cmd: string
-  description: string
-}
+## POST /v1/env
 
-interface Request {
-  apiFolder?: string // The folder within the repository which contains API functions
-  autoDeploy: boolean // Whether to auto deploy or not
-  autoDeployBranches?: string // A regexp/glob pattern to filter which branches to automatically deploy
-  autoDeployCommits?: string // A regexp/glob pattern to filter which commits to automatically deploy
-  autoPublish: boolean // Whether auto publish is turned on for new deployments
-  branch: string // The default branch name of this environment
-  buildCmd?: string // The command to build your application
-  distFolder?: string // The output folder where build assets are located
-  envVars?: Record<string, string> // The environment variables
-  errorFile?: string // The error file that will be served in case of an error. This file must be inside your "distFolder".
-  headersFile?: string // The location to the custom headers file
-  name: string // The environment name
-  previewLinks?: boolean // Whether Stormkit should leave a preview link on the pull/merge requests or not
-  redirects?: Redirect[] // The redirects for this environment. See Redirects and Path Rewrites for more information.
-  redirectsFile?: string // The file that contains custom redirects
-  serverCmd?: string // The command to run your application. This is available only to self-hosted users.
-  statusChecks?: StatusCheck[] // The commands to run post-deployment
-}
+Creates a new environment for an application.
 
-interface Response {
-  envId: string
-}
-```
+**Base URL:** `https://api.stormkit.io`
+
+**Authentication:** API key with at least environment-level scope. Environment-, app-, team-, or user-level keys are accepted as long as they have access to the app that owns the environment and a valid `envId` is provided.
+
+### Request body
+
+| Field                | Type                    | Required | Description                                                                                                 |
+| -------------------- | ----------------------- | -------- | ----------------------------------------------------------------------------------------------------------- |
+| `name`               | string                  | **Yes**  | Environment name. Only alphanumeric characters and hyphens are allowed. Double hyphens (`--`) are reserved. |
+| `branch`             | string                  | **Yes**  | Default git branch for this environment.                                                                    |
+| `apiFolder`          | string                  | No       | Repository folder containing serverless API functions.                                                      |
+| `autoDeploy`         | boolean                 | No       | Whether to trigger automatic deployments.                                                                   |
+| `autoDeployBranches` | string                  | No       | Glob/regex pattern to filter which branches trigger auto-deploys. Setting this enables `autoDeploy`.        |
+| `autoDeployCommits`  | string                  | No       | Glob/regex pattern to filter which commit messages trigger auto-deploys. Setting this enables `autoDeploy`. |
+| `autoPublish`        | boolean                 | No       | Whether to automatically publish successful deployments.                                                    |
+| `buildCmd`           | string                  | No       | Command to build the application.                                                                           |
+| `distFolder`         | string                  | No       | Output folder containing the build artifacts.                                                               |
+| `envVars`            | `Record<string,string>` | No       | Environment variables to inject into deployments.                                                           |
+| `errorFile`          | string                  | No       | File served on errors. Must be inside `distFolder`.                                                         |
+| `headersFile`        | string                  | No       | Path to the custom HTTP headers file.                                                                       |
+| `previewLinks`       | boolean                 | No       | Whether Stormkit posts a preview URL on pull/merge requests.                                                |
+| `redirects`          | `Redirect[]`            | No       | Inline redirect/rewrite rules. See the Redirects API for the `Redirect` object shape.                       |
+| `redirectsFile`      | string                  | No       | Path to a file containing redirect/rewrite rules.                                                           |
+| `serverCmd`          | string                  | No       | Command to start the server (self-hosted only).                                                             |
+| `statusChecks`       | `StatusCheck[]`         | No       | Post-deployment commands to run. See `StatusCheck` object below.                                            |
+
+**`StatusCheck` object:**
+
+| Field         | Type   | Description                             |
+| ------------- | ------ | --------------------------------------- |
+| `name`        | string | Human-readable name of the check.       |
+| `cmd`         | string | Shell command to execute.               |
+| `description` | string | Description of what the check verifies. |
+
+### Response — 201 Created
+
+| Field   | Type   | Description                          |
+| ------- | ------ | ------------------------------------ |
+| `envId` | string | ID of the newly created environment. |
+
+### Error responses
+
+| Status | Condition                                            |
+| ------ | ---------------------------------------------------- |
+| `400`  | Missing or invalid fields (see `errors` array).      |
+| `403`  | Missing/invalid API key or insufficient permissions. |
+| `409`  | An environment with the same name already exists.    |
+| `500`  | Internal server error.                               |
+
+### Example
 
 ```bash
-# Example
-
 curl -X POST \
      -H 'Authorization: <api_key>' \
-     -H 'Content-Type: application/javascript' \
-     'https://api.stormkit.io/v1/env' \
-     -d '{ "appId": 1510, "branch": "my-branch", "name": "development": "envVars": { "NODE_ENV": "development" } }'
+     -H 'Content-Type: application/json' \
+     -d '{"appId":"1510","branch":"main","name":"staging","envVars":{"NODE_ENV":"staging"}}' \
+     'https://api.stormkit.io/v1/env'
 ```
 
-</details>
-
-<details>
-
-<summary>
-  <span>DELETE </span><span>/v1/env</span>
-</summary>
-
-Delete Environment with the given id.
-
-```typescript
-interface QueryString {
-  id: string
+```json
+// Example response
+{
+  "envId": "305"
 }
+```
 
-interface Response {
-  ok: boolean
+---
+
+## DELETE /v1/env
+
+Deletes an environment by its ID.
+
+**Base URL:** `https://api.stormkit.io`
+
+**Authentication:** App-level API key (the key must be scoped to the app that owns the environment).
+
+### Query parameters
+
+| Parameter | Type   | Required | Description                                                               |
+| --------- | ------ | -------- | ------------------------------------------------------------------------- |
+| `envId`   | number | **Yes**  | The ID of the environment to delete. Alternatively `id` is also accepted. |
+
+### Response — 200 OK
+
+| Field | Type    | Description                     |
+| ----- | ------- | ------------------------------- |
+| `ok`  | boolean | `true` when deletion succeeded. |
+
+### Error responses
+
+| Status | Condition                                            |
+| ------ | ---------------------------------------------------- |
+| `403`  | Missing/invalid API key or insufficient permissions. |
+| `404`  | No environment found with the given ID.              |
+| `500`  | Internal server error.                               |
+
+### Example
+
+```bash
+curl -X DELETE \
+     -H 'Authorization: <api_key>' \
+     'https://api.stormkit.io/v1/env?envId=305'
+```
+
+---
+
+## GET /v1/env/pull
+
+Returns all environment variables for the specified environment. The response is a flat JSON object where each key is a variable name and each value is the variable's value.
+
+**Base URL:** `https://api.stormkit.io`
+
+**Authentication:** Environment-level API key passed as the `Authorization` header. To generate one: **Your App** → **Your Environment** → **Config** → **Other** → **API Keys**. When using an app or higher-level key, `envId` must be provided as a query parameter.
+
+### Query parameters
+
+| Parameter | Type   | Required                                            | Description                                                                                                                                          |
+| --------- | ------ | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `envId`   | number | **Yes** (unless using an environment-level API key) | The ID of the environment whose variables to retrieve. Not required when using an environment-level key — the environment is derived from the token. |
+
+### Response — 200 OK
+
+A flat JSON object of environment variable key/value pairs.
+
+```json
+{
+  "NODE_ENV": "production",
+  "API_URL": "https://api.my-app.com"
 }
+```
+
+### Error responses
+
+| Status | Condition                                            |
+| ------ | ---------------------------------------------------- |
+| `403`  | Missing/invalid API key or insufficient permissions. |
+| `500`  | Internal server error.                               |
+
+### Examples
+
+```bash
+# Using an environment-level key (envId derived from token)
+curl -X GET \
+     -H 'Authorization: <env_api_key>' \
+     'https://api.stormkit.io/v1/env/pull'
 ```
 
 ```bash
-# Example
-
-curl -X DELETE \
+# Using an app or higher-level key (envId required as query parameter)
+curl -X GET \
      -H 'Authorization: <api_key>' \
-     -H 'Content-Type: application/javascript' \
-     'https://api.stormkit.io/v1/env?id=5061'
+     'https://api.stormkit.io/v1/env/pull?envId=305'
 ```
-
-</details>

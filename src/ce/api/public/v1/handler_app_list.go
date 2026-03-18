@@ -5,9 +5,7 @@ import (
 	"net/http"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
-	"github.com/stormkit-io/stormkit-io/src/ee/api/team"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
-	"github.com/stormkit-io/stormkit-io/src/lib/types"
 )
 
 // appListLimit is the maximum number of apps returned per page.
@@ -41,27 +39,6 @@ func handlerAppList(req *RequestContext) *shttp.Response {
 		})
 	}
 
-	teamID := req.Token.TeamID
-
-	// Fallback to accepting teamId as a query parameter to allow user level API key.
-	if teamID == 0 {
-		teamIdInt, err := v.ToInt(q.Get("teamId"), "teamId")
-
-		if err != nil {
-			return shttp.BadRequest(map[string]any{
-				"error": err.Error(),
-			})
-		}
-
-		teamID = types.ID(teamIdInt)
-	}
-
-	if teamID == 0 {
-		return shttp.BadRequest(map[string]any{
-			"error": "The 'teamId' parameter is required",
-		})
-	}
-
 	repo, repoValid := v.NormalizeRepo(q.Get("repo"))
 
 	if !repoValid {
@@ -72,23 +49,16 @@ func handlerAppList(req *RequestContext) *shttp.Response {
 
 	displayName := q.Get("displayName")
 
-	// Check if the user is a member of the specified team.
-	isMember := team.NewStore().IsMember(req.Context(), req.Token.UserID, teamID)
-
-	if !isMember {
-		return shttp.Forbidden()
-	}
-
 	myApps, err := app.NewStore().Apps(req.Context(), app.AppsArgs{
 		Repo:        repo,
 		DisplayName: displayName,
-		TeamID:      teamID,
+		TeamID:      req.TeamID,
 		From:        from,
 		Limit:       appListLimit + 1,
 	})
 
 	if err != nil {
-		return shttp.Error(err, fmt.Sprintf("failed to fetch apps for team id %d: %s", teamID, err.Error()))
+		return shttp.Error(err, fmt.Sprintf("failed to fetch apps for team id %d: %s", req.TeamID, err.Error()))
 	}
 
 	hasNextPage := false

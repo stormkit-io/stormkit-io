@@ -117,19 +117,19 @@ curl -X GET \
 
 ---
 
-## GET /v1/apps/{appId}
+## GET /v1/app
 
-Returns a single application by its ID.
+Returns a single application.
 
 **Base URL:** `https://api.stormkit.io`
 
-**Authentication:** User-level or team-level API key passed as the `Authorization` header. The authenticated principal must be a member of the team that owns the application.
+**Authentication:** App-level, user-level, or team-level API key passed as the `Authorization` header. When using a user or team-level key, `appId` must be provided as a query parameter and the authenticated principal must be a member of the team that owns the application.
 
-### Path parameters
+### Query parameters
 
-| Parameter | Type   | Required | Description                         |
-| --------- | ------ | -------- | ----------------------------------- |
-| `appId`   | number | **Yes**  | The ID of the application to fetch. |
+| Parameter | Type   | Required                                    | Description                                                                                                       |
+| --------- | ------ | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `appId`   | number | **Yes** (unless using an app-level API key) | The ID of the application to fetch. Not required when using an app-level key — the app is derived from the token. |
 
 ### Response — 200 OK
 
@@ -154,7 +154,6 @@ Returns a single application by its ID.
 
 | Status | Condition                                                                     |
 | ------ | ----------------------------------------------------------------------------- |
-| `400`  | `appId` is missing, zero, or not a valid integer.                             |
 | `403`  | Missing/invalid API key, or the authenticated principal is not a team member. |
 | `404`  | No application found with the given ID.                                       |
 | `500`  | Internal server error.                                                        |
@@ -162,9 +161,17 @@ Returns a single application by its ID.
 ### Examples
 
 ```bash
+# Using an app-level key (appId is derived from the token)
 curl -X GET \
-     -H 'Authorization: <api_key>' \
-     'https://api.stormkit.io/v1/apps/1510'
+     -H 'Authorization: <app_api_key>' \
+     'https://api.stormkit.io/v1/app'
+```
+
+```bash
+# Using a user or team-level key (appId must be provided as a query parameter)
+curl -X GET \
+     -H 'Authorization: <user_or_team_api_key>' \
+     'https://api.stormkit.io/v1/app?appId=1510'
 ```
 
 ```json
@@ -180,5 +187,89 @@ curl -X GET \
     "defaultEnvId": "305",
     "createdAt": "1700489144"
   }
+}
+```
+
+---
+
+## GET /v1/app/config
+
+Returns the runtime configuration for published deployment matching a given hostname. This endpoint is primarily used to debug the application config.
+
+**Base URL:** `https://api.stormkit.io`
+
+**Authentication:** App-level API key passed as the `Authorization` header. To generate one: **Your App** → **Your Environment** → **Config** → **Other** → **API Keys** (app scope).
+
+### Query parameters
+
+| Parameter  | Type   | Required | Description                                                           |
+| ---------- | ------ | -------- | --------------------------------------------------------------------- |
+| `hostName` | string | **Yes**  | The hostname of the deployed application (e.g. `my-app.stormkit.io`). |
+
+### Response — 200 OK
+
+Returns an array of configuration objects for all matching published deployments.
+
+| Field     | Type       | Description                             |
+| --------- | ---------- | --------------------------------------- |
+| `configs` | `Config[]` | Array of runtime configuration objects. |
+
+**`Config` object:**
+
+| Field           | Type       | Description                                                                    |
+| --------------- | ---------- | ------------------------------------------------------------------------------ |
+| `deploymentId`  | string     | ID of the published deployment.                                                |
+| `appId`         | string     | ID of the application.                                                         |
+| `envId`         | string     | ID of the environment.                                                         |
+| `percentage`    | number     | Traffic percentage routed to this deployment (0–100).                          |
+| `apiPathPrefix` | string     | URL path prefix under which serverless API functions are served.               |
+| `domains`       | `string[]` | Custom domains associated with this deployment. `null` if none are configured. |
+| `staticFiles`   | object     | Map of URL paths to static file metadata.                                      |
+| `envVariables`  | object     | Map of environment variable names to their values injected at runtime.         |
+| `updatedAt`     | string     | Unix timestamp (seconds) of the last configuration update. `null` if not set.  |
+
+### Error responses
+
+| Status | Condition                                       |
+| ------ | ----------------------------------------------- |
+| `204`  | No published deployment found for the hostname. |
+| `403`  | Missing or invalid API key.                     |
+| `500`  | Internal server error.                          |
+
+### Example
+
+```bash
+curl -X GET \
+     -H 'Authorization: <app_api_key>' \
+     'https://api.stormkit.io/v1/app/config?hostName=my-app.stormkit.io'
+```
+
+```json
+// Example response
+{
+  "configs": [
+    {
+      "deploymentId": "8241",
+      "appId": "1510",
+      "envId": "305",
+      "percentage": 100,
+      "apiPathPrefix": "/api",
+      "domains": null,
+      "staticFiles": {
+        "/index": {
+          "fileName": "index",
+          "headers": {
+            "content-type": "text/html; charset=utf-8"
+          }
+        }
+      },
+      "envVariables": {
+        "NODE_ENV": "production",
+        "SK_APP_ID": "1510",
+        "SK_ENV": "production"
+      },
+      "updatedAt": null
+    }
+  ]
 }
 ```

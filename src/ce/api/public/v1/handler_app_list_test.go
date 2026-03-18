@@ -68,12 +68,12 @@ func (s *HandlerAppListSuite) Test_Forbidden() {
 
 // Test_InvalidFrom verifies that a negative 'from' value is rejected.
 func (s *HandlerAppListSuite) Test_InvalidFrom() {
-	keyValue, _ := s.userKey()
+	keyValue, a := s.userKey()
 
 	response := shttptest.RequestWithHeaders(
 		s.handler(),
 		shttp.MethodGet,
-		"/v1/apps?from=-1",
+		fmt.Sprintf("/v1/apps?from=-1&teamId=%s", a.TeamID.String()),
 		nil,
 		map[string]string{
 			"Authorization": keyValue,
@@ -85,12 +85,12 @@ func (s *HandlerAppListSuite) Test_InvalidFrom() {
 
 // Test_InvalidFrom_NonInteger verifies that a non-integer 'from' value is rejected.
 func (s *HandlerAppListSuite) Test_InvalidFrom_NonInteger() {
-	keyValue, _ := s.userKey()
+	keyValue, a := s.userKey()
 
 	response := shttptest.RequestWithHeaders(
 		s.handler(),
 		shttp.MethodGet,
-		"/v1/apps?from=abc",
+		fmt.Sprintf("/v1/apps?from=abc&teamId=%s", a.TeamID.String()),
 		nil,
 		map[string]string{
 			"Authorization": keyValue,
@@ -114,7 +114,7 @@ func (s *HandlerAppListSuite) Test_MissingTeamId() {
 		},
 	)
 
-	s.Equal(http.StatusBadRequest, response.Code)
+	s.Equal(http.StatusForbidden, response.Code)
 }
 
 // Test_Success verifies that an authenticated user can retrieve their apps.
@@ -212,34 +212,17 @@ func (s *HandlerAppListSuite) Test_InvalidTeamId_NonInteger() {
 		},
 	)
 
-	s.Equal(http.StatusBadRequest, response.Code)
-}
-
-// Test_InvalidTeamId_Negative verifies that a negative teamId is rejected.
-func (s *HandlerAppListSuite) Test_InvalidTeamId_Negative() {
-	keyValue, _ := s.userKey()
-
-	response := shttptest.RequestWithHeaders(
-		s.handler(),
-		shttp.MethodGet,
-		"/v1/apps?teamId=-1",
-		nil,
-		map[string]string{
-			"Authorization": keyValue,
-		},
-	)
-
-	s.Equal(http.StatusBadRequest, response.Code)
+	s.Equal(http.StatusForbidden, response.Code)
 }
 
 // Test_InvalidRepo_Format verifies that a repo without a valid vcs prefix is rejected.
 func (s *HandlerAppListSuite) Test_InvalidRepo_Format() {
-	keyValue, _ := s.userKey()
+	keyValue, a := s.userKey()
 
 	response := shttptest.RequestWithHeaders(
 		s.handler(),
 		shttp.MethodGet,
-		"/v1/apps?repo=not-a-valid-repo",
+		fmt.Sprintf("/v1/apps?repo=not-a-valid-repo&teamId=%s", a.TeamID.String()),
 		nil,
 		map[string]string{
 			"Authorization": keyValue,

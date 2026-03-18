@@ -17,6 +17,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp/shttptest"
+	"github.com/stormkit-io/stormkit-io/src/lib/types"
 )
 
 type HandlerEnvDelSuite struct {
@@ -39,7 +40,12 @@ func (s *HandlerEnvDelSuite) Test_Success() {
 	now := time.Now()
 	usr := s.MockUser()
 	app := s.MockApp(usr)
-	key := s.MockAPIKey(app, nil)
+	key := s.MockAPIKey(nil, nil, map[string]any{
+		"EnvID":  types.ID(0),
+		"TeamID": types.ID(0),
+		"UserID": types.ID(0),
+		"AppID":  app.ID,
+	})
 	env := s.MockEnv(app, map[string]any{
 		"Name": "development",
 	})

@@ -9,8 +9,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
+	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -18,309 +24,337 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type WithAPIKeySuite struct {
+type RequestContextSuite struct {
 	suite.Suite
 	*factory.Factory
 
 	conn databasetest.TestDB
 }
 
-func (s *WithAPIKeySuite) BeforeTest(suiteName, _ string) {
+func (s *RequestContextSuite) BeforeTest(suiteName, _ string) {
 	s.conn = databasetest.InitTx(suiteName)
 	s.Factory = factory.New(s.conn)
 }
 
-func (s *WithAPIKeySuite) AfterTest(_, _ string) {
+func (s *RequestContextSuite) AfterTest(_, _ string) {
 	s.conn.CloseTx()
 }
 
-func (s *WithAPIKeySuite) invoke(token string, opts ...*publicapiv1.Opts) *shttp.Response {
+func (s *RequestContextSuite) invoke(method, target, body, contentType, token string, opts ...*publicapiv1.Opts) *shttp.Response {
 	fn := publicapiv1.WithAPIKey(func(req *publicapiv1.RequestContext) *shttp.Response {
 		return shttp.OK()
 	}, opts...)
 
-	r := httptest.NewRequest(http.MethodGet, "/", nil)
-	r.Header.Set("Authorization", "Bearer "+token)
-
-	return fn(shttp.NewRequestContext(r))
-}
-
-func (s *WithAPIKeySuite) invokeAndCapture(method, url, body, contentType, token string) *publicapiv1.RequestContext {
-	var captured *publicapiv1.RequestContext
-
-	fn := publicapiv1.WithAPIKey(func(req *publicapiv1.RequestContext) *shttp.Response {
-		captured = req
-		return shttp.OK()
-	})
-
-	var bodyReader *strings.Reader
-
-	if body != "" {
-		bodyReader = strings.NewReader(body)
-	} else {
-		bodyReader = strings.NewReader("")
-	}
-
-	r := httptest.NewRequest(method, url, bodyReader)
+	r := httptest.NewRequest(method, target, strings.NewReader(body))
 	r.Header.Set("Authorization", "Bearer "+token)
 
 	if contentType != "" {
 		r.Header.Set("Content-Type", contentType)
 	}
 
-	fn(shttp.NewRequestContext(r))
-
-	return captured
+	return fn(shttp.NewRequestContext(r))
 }
 
-// Test_EmptyToken verifies that an empty Authorization header is rejected.
-func (s *WithAPIKeySuite) Test_EmptyToken() {
-	resp := s.invoke("")
-	s.Equal(http.StatusForbidden, resp.Status)
-}
-
-// Test_NoSKPrefix verifies that a token without the "SK_" prefix is immediately rejected,
-// without hitting the database.
-func (s *WithAPIKeySuite) Test_NoSKPrefix() {
-	resp := s.invoke("not-a-valid-token")
-	s.Equal(http.StatusForbidden, resp.Status)
-}
-
-// Test_KeyNotFound verifies that a properly prefixed token that doesn't exist in the
-// database is rejected.
-func (s *WithAPIKeySuite) Test_KeyNotFound() {
-	resp := s.invoke("SK_doesnotexist")
-	s.Equal(http.StatusForbidden, resp.Status)
-}
-
-// Test_KeyWithNoIDs verifies that a token with no associated user, app, or team is rejected.
-func (s *WithAPIKeySuite) Test_KeyWithNoIDs() {
-	key := s.MockAPIKey(nil, nil, map[string]any{
-		"UserID": types.ID(0),
-		"AppID":  types.ID(0),
-		"EnvID":  types.ID(0),
-		"TeamID": types.ID(0),
-		"Scope":  apikey.SCOPE_APP,
-	})
-
-	resp := s.invoke(key.Value)
-	s.Equal(http.StatusForbidden, resp.Status)
-}
-
-// Test_ScopeUser_WithoutUserID verifies that an app-scoped key is rejected for a
-// SCOPE_USER endpoint.
-func (s *WithAPIKeySuite) Test_ScopeUser_WithoutUserID() {
-	key := s.MockAPIKey(nil, nil, map[string]any{
-		"UserID": types.ID(0),
-		"TeamID": types.ID(0),
-		"Scope":  apikey.SCOPE_APP,
-	})
-
-	resp := s.invoke(key.Value, &publicapiv1.Opts{MinimumScope: apikey.SCOPE_USER})
-	s.Equal(http.StatusForbidden, resp.Status)
-}
-
-// Test_ScopeUser_WithUserID verifies that a user-scoped key passes a SCOPE_USER endpoint.
-func (s *WithAPIKeySuite) Test_ScopeUser_WithUserID() {
+func (s *RequestContextSuite) Test_ForbiddenOrNotFound() {
 	usr := s.MockUser()
-	key := s.MockAPIKey(nil, nil, map[string]any{
-		"UserID": usr.ID,
-		"AppID":  types.ID(0),
-		"EnvID":  types.ID(0),
-		"TeamID": types.ID(0),
-		"Scope":  apikey.SCOPE_USER,
-	})
+	appOnlyKey := s.MockAPIKey(nil, nil, map[string]any{"EnvID": types.ID(0)})
+	userOnlyKey := s.MockAPIKey(nil, nil, map[string]any{"UserID": usr.ID, "AppID": types.ID(0), "EnvID": types.ID(0)})
 
-	resp := s.invoke(key.Value, &publicapiv1.Opts{MinimumScope: apikey.SCOPE_USER})
-	s.Equal(http.StatusOK, resp.Status)
+	tests := []struct {
+		name   string
+		token  string
+		status int
+		opts   *publicapiv1.Opts
+	}{
+		{"empty token", "", http.StatusForbidden, nil},
+		{"token without SK_ prefix", "not-a-valid-token", http.StatusForbidden, nil},
+		{"unknown SK_ token", "SK_unknowntoken", http.StatusForbidden, nil},
+		{"SCOPE_USER key has no UserID", appOnlyKey.Value, http.StatusForbidden, &publicapiv1.Opts{MinimumScope: apikey.SCOPE_USER}},
+		{"SCOPE_TEAM key has no TeamID and no teamId in request", appOnlyKey.Value, http.StatusForbidden, &publicapiv1.Opts{MinimumScope: apikey.SCOPE_TEAM}},
+		{"SCOPE_APP key has no AppID", userOnlyKey.Value, http.StatusNotFound, &publicapiv1.Opts{MinimumScope: apikey.SCOPE_APP}},
+		{"SCOPE_ENV key has no EnvID and no envId in request", appOnlyKey.Value, http.StatusNotFound, &publicapiv1.Opts{MinimumScope: apikey.SCOPE_ENV}},
+	}
+
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			var opts []*publicapiv1.Opts
+			if tt.opts != nil {
+				opts = append(opts, tt.opts)
+			}
+			resp := s.invoke(http.MethodGet, "/", "", "", tt.token, opts...)
+			s.Equal(tt.status, resp.Status)
+		})
+	}
 }
 
-// Test_ScopeTeam_WithoutTeamOrUserID verifies that an app-only key is rejected for
-// a SCOPE_TEAM endpoint.
-func (s *WithAPIKeySuite) Test_ScopeTeam_WithoutTeamOrUserID() {
-	key := s.MockAPIKey(nil, nil, map[string]any{
-		"UserID": types.ID(0),
-		"TeamID": types.ID(0),
-		"Scope":  apikey.SCOPE_APP,
-	})
-
-	resp := s.invoke(key.Value, &publicapiv1.Opts{MinimumScope: apikey.SCOPE_TEAM})
-	s.Equal(http.StatusForbidden, resp.Status)
-}
-
-// Test_ScopeTeam_WithUserID verifies that a user-scoped key satisfies a SCOPE_TEAM endpoint.
-func (s *WithAPIKeySuite) Test_ScopeTeam_WithUserID() {
+func (s *RequestContextSuite) Test_Success_WithTokenScope() {
 	usr := s.MockUser()
-	key := s.MockAPIKey(nil, nil, map[string]any{
-		"UserID": usr.ID,
-		"AppID":  types.ID(0),
-		"EnvID":  types.ID(0),
-		"TeamID": types.ID(0),
-		"Scope":  apikey.SCOPE_USER,
-	})
+	envKey := s.MockAPIKey(nil, nil)
+	appKey := s.MockAPIKey(nil, nil)
+	userKey := s.MockAPIKey(nil, nil, map[string]any{"UserID": usr.ID, "AppID": types.ID(0), "EnvID": types.ID(0)})
+	teamKey := s.MockAPIKey(nil, nil, map[string]any{"TeamID": usr.DefaultTeamID, "AppID": types.ID(0), "EnvID": types.ID(0)})
 
-	resp := s.invoke(key.Value, &publicapiv1.Opts{MinimumScope: apikey.SCOPE_TEAM})
-	s.Equal(http.StatusOK, resp.Status)
+	tests := []struct {
+		name  string
+		token string
+		opts  *publicapiv1.Opts
+	}{
+		{"no scope", envKey.Value, nil},
+		{"SCOPE_ENV satisfied by key", envKey.Value, &publicapiv1.Opts{MinimumScope: apikey.SCOPE_ENV}},
+		{"SCOPE_APP satisfied by key", appKey.Value, &publicapiv1.Opts{MinimumScope: apikey.SCOPE_APP}},
+		{"SCOPE_USER satisfied by key", userKey.Value, &publicapiv1.Opts{MinimumScope: apikey.SCOPE_USER}},
+		{"SCOPE_TEAM satisfied by key", teamKey.Value, &publicapiv1.Opts{MinimumScope: apikey.SCOPE_TEAM}},
+	}
+
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			resp := s.invoke(http.MethodGet, "/", "", "", tt.token, tt.opts)
+			s.Equal(http.StatusOK, resp.Status)
+		})
+	}
 }
 
-// Test_ScopeApp_Passes verifies that an app-scoped key passes a SCOPE_APP endpoint.
-func (s *WithAPIKeySuite) Test_ScopeApp_Passes() {
-	key := s.MockAPIKey(nil, nil, map[string]any{
-		"UserID": types.ID(0),
-		"TeamID": types.ID(0),
-		"Scope":  apikey.SCOPE_APP,
-	})
-
-	resp := s.invoke(key.Value, &publicapiv1.Opts{MinimumScope: apikey.SCOPE_APP})
-	s.Equal(http.StatusOK, resp.Status)
-}
-
-// Test_ScopeEnv_Passes verifies that an env-scoped key passes a SCOPE_ENV endpoint.
-func (s *WithAPIKeySuite) Test_ScopeEnv_Passes() {
-	key := s.MockAPIKey(nil, nil, map[string]any{
-		"UserID": types.ID(0),
-		"TeamID": types.ID(0),
-		"Scope":  apikey.SCOPE_ENV,
-	})
-
-	resp := s.invoke(key.Value, &publicapiv1.Opts{MinimumScope: apikey.SCOPE_ENV})
-	s.Equal(http.StatusOK, resp.Status)
-}
-
-// Test_TokenSetOnContext verifies that the resolved API token is attached to the
-// RequestContext and forwarded to the handler.
-func (s *WithAPIKeySuite) Test_TokenSetOnContext() {
+func (s *RequestContextSuite) Test_Success_WithQueryParams() {
 	usr := s.MockUser()
-	key := s.MockAPIKey(nil, nil, map[string]any{
-		"UserID": usr.ID,
-		"AppID":  types.ID(0),
-		"EnvID":  types.ID(0),
-		"TeamID": types.ID(0),
-		"Scope":  apikey.SCOPE_USER,
-	})
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+	key := s.MockAPIKey(nil, nil, map[string]any{"UserID": usr.ID, "AppID": types.ID(0), "EnvID": types.ID(0)})
 
-	var capturedToken *apikey.Token
+	tests := []struct {
+		name   string
+		target string
+		opts   *publicapiv1.Opts
+	}{
+		{"SCOPE_ENV from envId query param", fmt.Sprintf("/?envId=%d", env.ID), &publicapiv1.Opts{MinimumScope: apikey.SCOPE_ENV}},
+		{"SCOPE_APP from appId query param", fmt.Sprintf("/?appId=%d", app.ID), &publicapiv1.Opts{MinimumScope: apikey.SCOPE_APP}},
+		{"SCOPE_TEAM from teamId query param", fmt.Sprintf("/?teamId=%d", usr.DefaultTeamID), &publicapiv1.Opts{MinimumScope: apikey.SCOPE_TEAM}},
+	}
 
-	fn := publicapiv1.WithAPIKey(func(req *publicapiv1.RequestContext) *shttp.Response {
-		capturedToken = req.Token
-		return shttp.OK()
-	})
-
-	r := httptest.NewRequest(http.MethodGet, "/", nil)
-	r.Header.Set("Authorization", "Bearer "+key.Value)
-
-	resp := fn(shttp.NewRequestContext(r))
-
-	s.Equal(http.StatusOK, resp.Status)
-	s.NotNil(capturedToken)
-	s.Equal(key.ID, capturedToken.ID)
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			resp := s.invoke(http.MethodGet, tt.target, "", "", key.Value, tt.opts)
+			s.Equal(http.StatusOK, resp.Status)
+		})
+	}
 }
 
-// Test_IDResolution_GET_FromQueryParams verifies that for GET requests the EnvID and AppID
-// are populated from query parameters when the token carries no IDs of its own.
-func (s *WithAPIKeySuite) Test_IDResolution_GET_FromQueryParams() {
+func (s *RequestContextSuite) Test_Success_WithMultipartForm() {
 	usr := s.MockUser()
-	appl := s.MockApp(usr)
-	env := s.MockEnv(appl)
-	key := s.MockAPIKey(appl, env, map[string]any{
-		"EnvID":  types.ID(0),
-		"AppID":  types.ID(0),
-		"Scope":  apikey.SCOPE_USER,
-		"UserID": usr.ID,
-	})
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+	key := s.MockAPIKey(nil, nil, map[string]any{"UserID": usr.ID, "AppID": types.ID(0), "EnvID": types.ID(0)})
 
-	url := fmt.Sprintf("/?envId=%s&appId=%s", env.ID, appl.ID)
-	ctx := s.invokeAndCapture(http.MethodGet, url, "", "", key.Value)
+	tests := []struct {
+		name  string
+		field string
+		value string
+		opts  *publicapiv1.Opts
+	}{
+		{"SCOPE_ENV from envId multipart field", "envId", fmt.Sprintf("%d", env.ID), &publicapiv1.Opts{MinimumScope: apikey.SCOPE_ENV}},
+		{"SCOPE_APP from appId multipart field", "appId", fmt.Sprintf("%d", app.ID), &publicapiv1.Opts{MinimumScope: apikey.SCOPE_APP}},
+		{"SCOPE_TEAM from teamId multipart field", "teamId", fmt.Sprintf("%d", usr.DefaultTeamID), &publicapiv1.Opts{MinimumScope: apikey.SCOPE_TEAM}},
+	}
 
-	s.NotNil(ctx)
-	s.Equal(env.ID, ctx.EnvID)
-	s.Equal(appl.ID, ctx.AppID)
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			fn := publicapiv1.WithAPIKey(func(req *publicapiv1.RequestContext) *shttp.Response {
+				return shttp.OK()
+			}, tt.opts)
+
+			buf := &bytes.Buffer{}
+			mw := multipart.NewWriter(buf)
+			_ = mw.WriteField(tt.field, tt.value)
+			_ = mw.Close()
+
+			r := httptest.NewRequest(http.MethodPost, "/", buf)
+			r.Header.Set("Authorization", "Bearer "+key.Value)
+			r.Header.Set("Content-Type", mw.FormDataContentType())
+
+			resp := fn(shttp.NewRequestContext(r))
+			s.Equal(http.StatusOK, resp.Status)
+		})
+	}
 }
 
-// Test_IDResolution_DELETE_FromQueryParams verifies that DELETE requests also read
-// EnvID and AppID from query parameters.
-func (s *WithAPIKeySuite) Test_IDResolution_DELETE_FromQueryParams() {
+func (s *RequestContextSuite) Test_Success_WithRequestBody() {
 	usr := s.MockUser()
-	appl := s.MockApp(usr)
-	env := s.MockEnv(appl)
-	key := s.MockAPIKey(appl, env, map[string]any{
-		"EnvID":  types.ID(0),
-		"AppID":  types.ID(0),
-		"Scope":  apikey.SCOPE_USER,
-		"UserID": usr.ID,
-	})
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+	key := s.MockAPIKey(nil, nil, map[string]any{"UserID": usr.ID, "AppID": types.ID(0), "EnvID": types.ID(0)})
 
-	url := fmt.Sprintf("/?envId=%s&appId=%s", env.ID, appl.ID)
-	ctx := s.invokeAndCapture(http.MethodDelete, url, "", "", key.Value)
+	tests := []struct {
+		name string
+		body string
+		opts *publicapiv1.Opts
+	}{
+		{"SCOPE_ENV from envId body field", fmt.Sprintf(`{"envId":"%d"}`, env.ID), &publicapiv1.Opts{MinimumScope: apikey.SCOPE_ENV}},
+		{"SCOPE_APP from appId body field", fmt.Sprintf(`{"appId":"%d"}`, app.ID), &publicapiv1.Opts{MinimumScope: apikey.SCOPE_APP}},
+		{"SCOPE_TEAM from teamId body field", fmt.Sprintf(`{"teamId":"%d"}`, usr.DefaultTeamID), &publicapiv1.Opts{MinimumScope: apikey.SCOPE_TEAM}},
+	}
 
-	s.NotNil(ctx)
-	s.Equal(env.ID, ctx.EnvID)
-	s.Equal(appl.ID, ctx.AppID)
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			resp := s.invoke(http.MethodPost, "/", tt.body, "application/json", key.Value, tt.opts)
+			s.Equal(http.StatusOK, resp.Status)
+		})
+	}
 }
 
-// Test_IDResolution_POST_FromJSONBody verifies that for POST requests the EnvID and AppID
-// are parsed from the JSON request body when the token carries no IDs.
-func (s *WithAPIKeySuite) Test_IDResolution_POST_FromJSONBody() {
-	usr := s.MockUser()
-	appl := s.MockApp(usr)
-	env := s.MockEnv(appl)
-	key := s.MockAPIKey(appl, env, map[string]any{
-		"EnvID":  types.ID(0),
-		"AppID":  types.ID(0),
-		"Scope":  apikey.SCOPE_USER,
-		"UserID": usr.ID,
-	})
+func (s *RequestContextSuite) Test_License() {
+	config.SetIsSelfHosted(false)
 
-	body := fmt.Sprintf(`{"envId":"%s","appId":"%s"}`, env.ID, appl.ID)
-	ctx := s.invokeAndCapture(http.MethodPost, "/", body, "application/json", key.Value)
+	usr := s.MockUser(map[string]any{"Metadata": user.UserMeta{
+		SeatsPurchased: 10,
+		PackageName:    config.PackageUltimate,
+	}})
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+	tkn := &apikey.Token{Name: "Default", EnvID: env.ID}
 
-	s.NotNil(ctx)
-	s.Equal(env.ID, ctx.EnvID)
-	s.Equal(appl.ID, ctx.AppID)
+	// Should return the license from the environment
+	req := &publicapiv1.RequestContext{
+		RequestContext: &shttp.RequestContext{
+			Request: &http.Request{},
+		},
+		Token: tkn,
+	}
+
+	licenseFromEnv := req.License()
+
+	s.NotNil(licenseFromEnv)
+	s.True(licenseFromEnv.Ultimate)
+	s.Equal(10, licenseFromEnv.Seats)
+
+	// Let's check based on AppID
+	req.Token.EnvID = 0
+	req.Token.AppID = app.ID
+
+	licenseFromApp := req.License()
+	s.Equal(licenseFromEnv, licenseFromApp)
+
+	// Let's check based on TeamID
+	req.Token.AppID = 0
+	req.Token.TeamID = usr.DefaultTeamID
+
+	licenseFromTeam := req.License()
+	s.Equal(licenseFromEnv, licenseFromTeam)
+
+	// Let's check based on user
+	req.Token.TeamID = 0
+	req.Token.UserID = usr.ID
+
+	licenseFromUser := req.License()
+	s.Equal(licenseFromEnv, licenseFromUser)
+
+	// Let's mock the license to imitate self-hosted
+	admin.SetMockLicense()
+	licenseFromSelfHosted := req.License()
+
+	s.NotNil(licenseFromSelfHosted)
+	s.NotEqual(licenseFromTeam, licenseFromSelfHosted)
+
+	admin.ResetMockLicense()
+	config.SetIsSelfHosted(false)
+
+	// Let's now test nil cases
+	req.Token = nil
+	s.Nil(req.License())
 }
 
-// Test_IDResolution_POST_Multipart_FromFormValues verifies that multipart POST requests
-// read EnvID and AppID from form fields rather than the JSON body.
-func (s *WithAPIKeySuite) Test_IDResolution_POST_Multipart_FromFormValues() {
-	usr := s.MockUser()
-	appl := s.MockApp(usr)
-	env := s.MockEnv(appl)
-	key := s.MockAPIKey(appl, env, map[string]any{
-		"EnvID":  types.ID(0),
-		"AppID":  types.ID(0),
-		"Scope":  apikey.SCOPE_USER,
-		"UserID": usr.ID,
-	})
+func (s *RequestContextSuite) Test_GetAuditData() {
+	baseReq := shttp.NewRequestContext(httptest.NewRequest(http.MethodGet, "/", nil))
+	appID := types.ID(10)
+	appTeamID := types.ID(20)
+	envID := types.ID(30)
+	directTeamID := types.ID(40)
 
-	var buf bytes.Buffer
-	w := multipart.NewWriter(&buf)
-	_ = w.WriteField("envId", env.ID.String())
-	_ = w.WriteField("appId", appl.ID.String())
-	w.Close()
+	tests := []struct {
+		name     string
+		req      *publicapiv1.RequestContext
+		expected audit.AuditData
+	}{
+		{
+			name: "empty request — only ctx set",
+			req: &publicapiv1.RequestContext{
+				RequestContext: baseReq,
+			},
+			expected: audit.AuditData{
+				Ctx: baseReq.Context(),
+			},
+		},
+		{
+			name: "token name populated",
+			req: &publicapiv1.RequestContext{
+				RequestContext: baseReq,
+				Token:          &apikey.Token{Name: "ci-token"},
+			},
+			expected: audit.AuditData{
+				Ctx:       baseReq.Context(),
+				TokenName: "ci-token",
+			},
+		},
+		{
+			name: "app ID and team ID populated",
+			req: &publicapiv1.RequestContext{
+				RequestContext: baseReq,
+				App:            &app.App{ID: appID, TeamID: appTeamID},
+			},
+			expected: audit.AuditData{
+				Ctx:    baseReq.Context(),
+				AppID:  appID,
+				TeamID: appTeamID,
+			},
+		},
+		{
+			name: "direct TeamID overrides app TeamID",
+			req: &publicapiv1.RequestContext{
+				RequestContext: baseReq,
+				App:            &app.App{ID: appID, TeamID: appTeamID},
+				TeamID:         directTeamID,
+			},
+			expected: audit.AuditData{
+				Ctx:    baseReq.Context(),
+				AppID:  appID,
+				TeamID: directTeamID,
+			},
+		},
+		{
+			name: "env ID populated",
+			req: &publicapiv1.RequestContext{
+				RequestContext: baseReq,
+				Env:            &buildconf.Env{ID: envID},
+			},
+			expected: audit.AuditData{
+				Ctx:   baseReq.Context(),
+				EnvID: envID,
+			},
+		},
+		{
+			name: "all fields set",
+			req: &publicapiv1.RequestContext{
+				RequestContext: baseReq,
+				Token:          &apikey.Token{Name: "ci-token"},
+				App:            &app.App{ID: appID, TeamID: appTeamID},
+				Env:            &buildconf.Env{ID: envID, AppID: appID},
+				TeamID:         directTeamID,
+			},
+			expected: audit.AuditData{
+				Ctx:       baseReq.Context(),
+				TokenName: "ci-token",
+				AppID:     appID,
+				TeamID:    directTeamID,
+				EnvID:     envID,
+			},
+		},
+	}
 
-	ctx := s.invokeAndCapture(http.MethodPost, "/", buf.String(), w.FormDataContentType(), key.Value)
-
-	s.NotNil(ctx)
-	s.Equal(env.ID, ctx.EnvID)
-	s.Equal(appl.ID, ctx.AppID)
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			s.Equal(tt.expected, tt.req.GetAuditData())
+		})
+	}
 }
 
-// Test_IDResolution_TokenIDTakesPriority verifies that the IDs embedded in the token
-// take precedence over IDs supplied in query parameters.
-func (s *WithAPIKeySuite) Test_IDResolution_TokenIDTakesPriority() {
-	usr := s.MockUser()
-	appl := s.MockApp(usr)
-	env := s.MockEnv(appl)
-	key := s.MockAPIKey(appl, env) // token carries env.ID and appl.ID
-
-	url := fmt.Sprintf("/?envId=9999&appId=9999")
-	ctx := s.invokeAndCapture(http.MethodGet, url, "", "", key.Value)
-
-	s.NotNil(ctx)
-	s.Equal(env.ID, ctx.EnvID)
-	s.Equal(appl.ID, ctx.AppID)
-}
-
-func TestWithAPIKey(t *testing.T) {
-	suite.Run(t, new(WithAPIKeySuite))
+func TestRequestContext(t *testing.T) {
+	suite.Run(t, new(RequestContextSuite))
 }

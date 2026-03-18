@@ -3,12 +3,11 @@ package publicapiv1
 import (
 	"net/http"
 
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 )
 
-func handlerAppConf(req *app.RequestContext) *shttp.Response {
+func handlerAppConf(req *RequestContext) *shttp.Response {
 	hostName := req.Query().Get("hostName")
 	configs, err := appconf.FetchConfig(hostName)
 

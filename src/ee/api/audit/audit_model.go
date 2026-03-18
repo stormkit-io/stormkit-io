@@ -31,6 +31,24 @@ const (
 	TypeSchema   string = "SCHEMA"
 )
 
+// AuditData is the data extracted from a request context for auditing.
+type AuditData struct {
+	UserID      types.ID
+	TeamID      types.ID
+	AppID       types.ID
+	EnvID       types.ID
+	UserDisplay string
+	TokenName   string
+	Ctx         context.Context
+}
+
+// AuditContext can be implemented by any request context that cannot be
+// directly imported here (e.g. to break import cycles). Go's structural typing
+// means the implementor does not need to import this package explicitly.
+type AuditContext interface {
+	GetAuditData() AuditData
+}
+
 type DiffFields struct {
 	AppName                  string                 `json:"appName,omitempty"`
 	AppRepo                  string                 `json:"appRepo,omitempty"`
@@ -136,6 +154,10 @@ func FromRequestContext(req any) *Audit {
 		ctx = r.Context()
 	case *shttp.RequestContext:
 		ctx = r.Context()
+	case AuditContext:
+		d := r.GetAuditData()
+		userID, teamID, appID, envID = d.UserID, d.TeamID, d.AppID, d.EnvID
+		userDisplay, tokenName, ctx = d.UserDisplay, d.TokenName, d.Ctx
 	default:
 		break
 	}
@@ -163,6 +185,11 @@ func (a *Audit) WithAppID(appID types.ID) *Audit {
 
 func (a *Audit) WithTeamID(teamID types.ID) *Audit {
 	a.TeamID = teamID
+	return a
+}
+
+func (a *Audit) WithTokenName(tokenName string) *Audit {
+	a.TokenName = tokenName
 	return a
 }
 

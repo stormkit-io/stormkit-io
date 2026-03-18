@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"regexp"
 
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/redirects"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
@@ -60,7 +59,7 @@ func validateEnv(env *buildconf.Env) []string {
 	return errors
 }
 
-func handlerEnvAdd(req *app.RequestContext) *shttp.Response {
+func handlerEnvAdd(req *RequestContext) *shttp.Response {
 	data := &EnvAddRequest{}
 
 	if err := req.Post(data); err != nil {

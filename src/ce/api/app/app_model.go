@@ -334,7 +334,7 @@ func (a *App) Secret() string {
 // the owner of the application.
 func (a *App) User() *user.User {
 	if a.user == nil {
-		user, err := user.NewStore().TeamOwner(a.TeamID)
+		user, err := user.NewStore().TeamOwner(context.TODO(), a.TeamID)
 
 		if err != nil {
 			slog.Errorf("error while fetching user by team: %v, teamId=%s", err, a.TeamID)

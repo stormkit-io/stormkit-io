@@ -67,8 +67,12 @@ func (s *HandlerEnvAddSuite) Test_BadRequest() {
 
 func (s *HandlerEnvAddSuite) Test_Success() {
 	app := s.MockApp(nil)
-	key := s.MockAPIKey(app, nil, map[string]any{"Scope": apikey.SCOPE_APP, "EnvID": types.ID(0), "AppID": app.ID})
 	now := time.Now()
+	key := s.MockAPIKey(app, nil, map[string]any{
+		"Scope": apikey.SCOPE_APP,
+		"EnvID": types.ID(0),
+		"AppID": app.ID,
+	})
 
 	// Required for audits
 	admin.SetMockLicense()
