@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.03.19.1...v2026.03.19.2
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.03.19.1...v2026.03.19.2)
+
+### 🚀 Enhancements
+
+- Public api for uploading files ([f4acafa](https://github.com/stormkit-io/stormkit-io/commit/f4acafa))
+
+### 📖 Documentation
+
+- V2026.03.19.1 ([21339dc](https://github.com/stormkit-io/stormkit-io/commit/21339dc))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.03.17.1...v2026.03.19.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.03.17.1...v2026.03.19.1)
