@@ -6,6 +6,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/domainhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/mailerhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/snippetshandlers"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/volumes"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -52,6 +53,10 @@ func Services(r *shttp.Router) *shttp.Service {
 
 	s.NewEndpoint("/v1/mail").
 		Handler(shttp.MethodPost, "", app.WithAPIKey(mailerhandlers.HandlerMail, &app.Opts{Env: true}))
+
+	s.NewEndpoint("/v1/volumes").
+		Middleware(volumes.LimitRequestBody()).
+		Handler(shttp.MethodPost, "", WithAPIKey(handlerVolumesPost, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	if config.IsDevelopment() || config.IsSelfHosted() {
 		s.NewEndpoint("/v1/auth").

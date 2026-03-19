@@ -40,6 +40,7 @@ func (s *ServicesSuite) Test_Services_SelfHosted() {
 		"POST:/v1/mail",
 		"POST:/v1/redirects",
 		"POST:/v1/snippets",
+		"POST:/v1/volumes",
 		"PUT:/v1/domains/cert",
 		"PUT:/v1/snippets",
 	}
@@ -72,6 +73,7 @@ func (s *ServicesSuite) Test_Services_StormkitCloud() {
 		"POST:/v1/mail",
 		"POST:/v1/redirects",
 		"POST:/v1/snippets",
+		"POST:/v1/volumes",
 		"PUT:/v1/domains/cert",
 		"PUT:/v1/snippets",
 	}
@@ -99,6 +101,7 @@ func (s *ServicesSuite) Test_EE() {
 		"DELETE:/v1/domains/cert": http.StatusPaymentRequired,
 		"GET:/v1/license":         http.StatusOK,
 		"GET:/v1/license/check":   http.StatusBadRequest,
+		"POST:/v1/volumes":        http.StatusForbidden,
 	}
 
 	for k, fn := range services.HandlerFuncs() {

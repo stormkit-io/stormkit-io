@@ -4,7 +4,7 @@ import (
 	"io"
 	"mime/multipart"
 	"os"
-	"path"
+	"path/filepath"
 	"sync"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
@@ -52,15 +52,23 @@ func (fs *vmFileSys) download(file *File) (io.ReadSeeker, error) {
 	return f, nil
 }
 
+// upload a file to the destination specified by args.MountType.
+// This function assumes that the file has already been sanitized and validated by the caller.
 func (fs *vmFileSys) upload(args uploadArgs) (*File, error) {
-	destination := path.Join(fs.RootPath, args.dstFilePath, path.Dir(args.dstFileName))
+	destination, err := filepath.Abs(
+		filepath.Join(fs.RootPath, args.dstFilePath, filepath.Dir(args.dstFileName)),
+	)
+
+	if err != nil {
+		return nil, err
+	}
 
 	// Make sure that the folder exists
 	if err := os.MkdirAll(destination, 0775); err != nil {
 		return nil, err
 	}
 
-	dst, err := os.Create(path.Join(destination, path.Base(args.dstFileName)))
+	dst, err := os.Create(filepath.Join(destination, filepath.Base(args.dstFileName)))
 
 	if err != nil {
 		return nil, err

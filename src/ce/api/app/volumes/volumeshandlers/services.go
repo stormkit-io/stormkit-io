@@ -16,6 +16,7 @@ func Services(r *shttp.Router) *shttp.Service {
 	appOpts := &app.Opts{Env: true}
 
 	s.NewEndpoint("/volumes").
+		Middleware(volumes.LimitRequestBody()).
 		Handler(shttp.MethodGet, "", app.WithApp(HandlerVolumesGet, appOpts)).
 		Handler(shttp.MethodPost, "", app.WithApp(HandlerVolumesPost, appOpts)).
 		Handler(shttp.MethodDelete, "", app.WithApp(HandlerVolumesDel, appOpts)).
