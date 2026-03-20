@@ -55,7 +55,7 @@ func AutoPublishIfNecessary(ctx context.Context, d *Deployment) error {
 		license = admin.CurrentLicense()
 	}
 
-	if license != nil && license.IsEnterprise() {
+	if license.IsEnterprise() {
 		apl, err := app.NewStore().AppByID(ctx, d.AppID)
 
 		if err != nil {

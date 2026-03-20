@@ -203,6 +203,11 @@ func (l *License) Token() string {
 	return fmt.Sprintf("%s:%s", l.UserID.String(), l.Key)
 }
 
+// IsEmpty returns true if the license is empty (i.e. has no key and zero seats).
+func (l *License) IsEmpty() bool {
+	return l.Key == "" && l.Seats == 0
+}
+
 // IsEnterprise returns true if the license is an enterprise license.
 func (l *License) IsEnterprise() bool {
 	if config.IsStormkitCloud() {

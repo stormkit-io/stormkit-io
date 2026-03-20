@@ -127,11 +127,6 @@ func (s *HandlerVersionSuite) Test_Success_Cloud_NotLoggedIn() {
 		},
 		"auth": {
 			"github": "my-stormkit-app"
-		},
-		"license": {
-			"seats": 0,
-			"remaining": 0,
-			"edition": "enterprise"
 		}
 	}`, response.String())
 }

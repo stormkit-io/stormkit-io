@@ -151,16 +151,15 @@ func (u User) JSON() map[string]any {
 	seats := utils.GetInt(u.Metadata.SeatsPurchased, 1)
 
 	if config.IsSelfHosted() {
-		if license := admin.CurrentLicense(); license != nil {
-			seats = utils.GetInt(license.Seats, 1)
+		license := admin.CurrentLicense()
+		seats = utils.GetInt(license.Seats, 1)
 
-			if license.Premium {
-				packageName = config.PackagePremium
-			} else if license.Ultimate {
-				packageName = config.PackageUltimate
-			} else {
-				packageName = config.PackageFree
-			}
+		if license.Premium {
+			packageName = config.PackagePremium
+		} else if license.Ultimate {
+			packageName = config.PackageUltimate
+		} else {
+			packageName = config.PackageFree
 		}
 	}
 

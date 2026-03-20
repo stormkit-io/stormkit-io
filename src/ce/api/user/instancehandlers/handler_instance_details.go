@@ -36,7 +36,7 @@ func handlerInstanceDetails(req *shttp.RequestContext) *shttp.Response {
 	var totalUsers int64
 	var err error
 
-	if license != nil && license.Seats > 0 && config.IsSelfHosted() {
+	if !license.IsEmpty() && config.IsSelfHosted() {
 		totalUsers, err = user.NewStore().SelectTotalUsers(req.Context())
 	} else if usr != nil {
 		totalUsers, err = user.NewStore().SelectTotalUsersCloud(req.Context(), usr.ID)
@@ -71,7 +71,7 @@ func handlerInstanceDetails(req *shttp.RequestContext) *shttp.Response {
 		},
 	}
 
-	if license != nil {
+	if !license.IsEmpty() {
 		data["license"] = map[string]any{
 			"seats":     license.Seats,
 			"edition":   license.Edition(),
