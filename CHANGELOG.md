@@ -1,5 +1,25 @@
 # Changelog
 
+## v2026.03.19.2...v2026.03.20.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.03.19.2...v2026.03.20.1)
+
+### 🚀 Enhancements
+
+- Add GET /v1/deployments/{id} public API endpoint ([3fef53d](https://github.com/stormkit-io/stormkit-io/commit/3fef53d))
+
+### 📖 Documentation
+
+- Announce volumes api ([bb89f19](https://github.com/stormkit-io/stormkit-io/commit/bb89f19))
+
+### 🏡 Chore
+
+- Update changelog for v2026.03.19.2 ([ff6e2fe](https://github.com/stormkit-io/stormkit-io/commit/ff6e2fe))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.03.19.1...v2026.03.19.2
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.03.19.1...v2026.03.19.2)
