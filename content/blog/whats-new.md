@@ -7,7 +7,7 @@ Follow the latest developments on Stormkit.
 
 ## March 20th, 2026
 
-New public API endpoint to [publish a deployment](/docs/api/deployments). Use an environment-level API key to make any successful deployment live — with an optional `percentage` field for gradual traffic rollouts.
+New public API endpoint to [publish a deployment](/docs/api/deployments). Use an environment-level API key to make any successful deployment live.
 
 New public API endpoint to [retrieve a deployment by ID](/docs/api/deployments). Use an environment-level API key to fetch the full details of any deployment in your environment — including status, logs, status checks, publish info, and upload sizes.
 
