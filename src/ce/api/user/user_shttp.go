@@ -29,8 +29,8 @@ func (r *RequestContext) JWT(values jwt.MapClaims) (string, error) {
 }
 
 // License returns the license associated with the user in the request context.
-// If the user is nil, it returns a nil license.
 // For self-hosted instances, it returns the instance license.
+// This function never returns nil. If there is no user or license, it returns an empty license struct.
 func (r *RequestContext) License() *admin.License {
 	return License(r.User)
 }
