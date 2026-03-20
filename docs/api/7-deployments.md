@@ -277,3 +277,47 @@ curl -H 'Authorization: <api_key>' \
   }
 }
 ```
+
+---
+
+## POST /v1/deployments/{id}/publish
+
+Makes a deployment live for the environment associated with the API key.
+
+**Base URL:** `https://api.stormkit.io`
+
+**Authentication:** At least an environment-level API key passed as the `Authorization` header.
+
+### Path parameters
+
+| Parameter | Type   | Description        |
+| --------- | ------ | ------------------ |
+| `id`      | string | The deployment ID. |
+
+### Response — 200 OK
+
+| Field | Type    | Description               |
+| ----- | ------- | ------------------------- |
+| `ok`  | boolean | Always `true` on success. |
+
+### Error responses
+
+| Status | Condition                                                                               |
+| ------ | --------------------------------------------------------------------------------------- |
+| `403`  | Missing/invalid API key, or token does not have access to the deployment's environment. |
+| `404`  | Deployment not found, or it does not belong to the environment of the API key.          |
+| `500`  | Internal server error.                                                                  |
+
+### Examples
+
+```bash
+# Publish a deployment at 100%
+curl -X POST \
+     -H 'Authorization: <api_key>' \
+     'https://api.stormkit.io/v1/deployments/8241/publish'
+```
+
+```json
+// Example response
+{ "ok": true }
+```
