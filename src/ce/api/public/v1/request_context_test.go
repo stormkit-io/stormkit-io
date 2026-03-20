@@ -258,7 +258,8 @@ func (s *RequestContextSuite) Test_License() {
 
 	// Let's now test nil cases
 	req.Token = nil
-	s.Nil(req.License())
+	s.NotNil(req.License())
+	s.False(req.License().IsEnterprise())
 }
 
 func (s *RequestContextSuite) Test_GetAuditData() {
