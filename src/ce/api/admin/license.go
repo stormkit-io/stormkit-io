@@ -210,16 +210,12 @@ func (l *License) IsEmpty() bool {
 
 // IsEnterprise returns true if the license is an enterprise license.
 func (l *License) IsEnterprise() bool {
-	if config.IsStormkitCloud() {
-		return true
-	}
-
 	return l.Premium || l.Ultimate
 }
 
 // Edition returns the edition of the license: "community" or "enterprise".
 func (l *License) Edition() string {
-	if config.IsStormkitCloud() || l.IsEnterprise() {
+	if l.IsEnterprise() {
 		return "enterprise"
 	}
 
