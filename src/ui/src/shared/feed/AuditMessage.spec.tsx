@@ -88,41 +88,50 @@ describe("~/shared/feed/AuditMessage.tsx", () => {
       },
       new: {},
     },
+    "UPDATE:DEPLOYMENT": {
+      old: {},
+      new: { deploymentId: "8241" },
+    },
   };
 
   it.each`
-    action               | expected
-    ${"CREATE:DOMAIN"}   | ${"Added app.stormkit.io domain to production environment"}
-    ${"UPDATE:DOMAIN"}   | ${"Added custom certificate to app.stormkit.io"}
-    ${"DELETE:DOMAIN"}   | ${"Removed app.stormkit.io domain from production environment"}
-    ${"CREATE:ENV"}      | ${"Created the staging environment"}
-    ${"UPDATE:ENV"}      | ${"Updated the staging environment"}
-    ${"DELETE:ENV"}      | ${"Removed the staging environment"}
-    ${"CREATE:APP"}      | ${"Created the sample-project application"}
-    ${"UPDATE:APP"}      | ${"Updated the sample-project application"}
-    ${"DELETE:APP"}      | ${"Deleted the sample-project application"}
-    ${"CREATE:SNIPPET"}  | ${"Created 2 new snippets in production environment"}
-    ${"UPDATE:SNIPPET"}  | ${"Updated 1 snippet in production environment"}
-    ${"DELETE:SNIPPET"}  | ${"Deleted 2 snippets in production environment"}
-    ${"UPDATE:AUTHWALL"} | ${"Enabled auth wall in production environment"}
-    ${"CREATE:AUTHWALL"} | ${"Created new auth login for production environment"}
-    ${"DELETE:AUTHWALL"} | ${"Deleted auth login from production environment"}
-    ${"CREATE:SCHEMA"}   | ${"Created schema for production environment"}
-    ${"DELETE:SCHEMA"}   | ${"Deleted schema from production environment"}
-  `("displays the correct message for $action", ({ action, expected }) => {
-    const audit: Audit = {
-      id: "1",
-      action,
-      appId: "1",
-      envId: "1",
-      envName: "production",
-      userDisplay: "jdoe",
-      timestamp: 1723501214,
-      diff: diffs[action],
-    };
+    action                 | expected                                                          | diff
+    ${"CREATE:DOMAIN"}     | ${"Added app.stormkit.io domain to production environment"}       | ${null}
+    ${"UPDATE:DOMAIN"}     | ${"Added custom certificate to app.stormkit.io"}                  | ${null}
+    ${"DELETE:DOMAIN"}     | ${"Removed app.stormkit.io domain from production environment"}   | ${null}
+    ${"CREATE:ENV"}        | ${"Created the staging environment"}                              | ${null}
+    ${"UPDATE:ENV"}        | ${"Updated the staging environment"}                              | ${null}
+    ${"DELETE:ENV"}        | ${"Removed the staging environment"}                              | ${null}
+    ${"CREATE:APP"}        | ${"Created the sample-project application"}                       | ${null}
+    ${"UPDATE:APP"}        | ${"Updated the sample-project application"}                       | ${null}
+    ${"DELETE:APP"}        | ${"Deleted the sample-project application"}                       | ${null}
+    ${"CREATE:SNIPPET"}    | ${"Created 2 new snippets in production environment"}             | ${null}
+    ${"UPDATE:SNIPPET"}    | ${"Updated 1 snippet in production environment"}                  | ${null}
+    ${"DELETE:SNIPPET"}    | ${"Deleted 2 snippets in production environment"}                 | ${null}
+    ${"UPDATE:AUTHWALL"}   | ${"Enabled auth wall in production environment"}                  | ${null}
+    ${"CREATE:AUTHWALL"}   | ${"Created new auth login for production environment"}            | ${null}
+    ${"DELETE:AUTHWALL"}   | ${"Deleted auth login from production environment"}               | ${null}
+    ${"CREATE:SCHEMA"}     | ${"Created schema for production environment"}                    | ${null}
+    ${"DELETE:SCHEMA"}     | ${"Deleted schema from production environment"}                   | ${null}
+    ${"UPDATE:DEPLOYMENT"} | ${"Manually published deployment 8241 to production environment"} | ${null}
+    ${"UPDATE:DEPLOYMENT"} | ${"Auto-published deployment 8241 to production environment"}     | ${{ old: {}, new: { deploymentId: "8241", autoPublished: true } }}
+  `(
+    "displays the correct message for $action",
+    ({ action, expected, diff }) => {
+      const audit: Audit = {
+        id: "1",
+        action,
+        appId: "1",
+        envId: "1",
+        envName: "production",
+        userDisplay: "jdoe",
+        timestamp: 1723501214,
+        diff: diff || diffs[action],
+      };
 
-    createWrapper({ audit });
+      createWrapper({ audit });
 
-    expect(wrapper.container.textContent).toContain(expected);
-  });
+      expect(wrapper.container.textContent).toContain(expected);
+    },
+  );
 });

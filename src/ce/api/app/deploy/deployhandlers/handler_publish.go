@@ -4,6 +4,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
+	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
 	"github.com/stormkit-io/stormkit-io/src/lib/model"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp/shttperr"
@@ -95,6 +96,20 @@ func handlerPublish(req *app.RequestContext) *shttp.Response {
 
 	if err := Publish(req.Context(), settings); err != nil {
 		return shttp.Error(err)
+	}
+
+	if req.License().IsEnterprise() {
+		for _, publishDetails := range data.Publish {
+			err := audit.FromRequestContext(req).
+				WithAction(audit.UpdateAction, audit.TypeDeployment).
+				WithEnvID(env.ID).
+				WithDiff(&audit.Diff{New: audit.DiffFields{DeploymentID: publishDetails.DeploymentID.String()}}).
+				Insert()
+
+			if err != nil {
+				return shttp.Error(err)
+			}
+		}
 	}
 
 	var publishConfig []any

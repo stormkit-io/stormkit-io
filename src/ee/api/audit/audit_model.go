@@ -21,14 +21,15 @@ const (
 )
 
 const (
-	TypeUser     string = "USER"
-	TypeApp      string = "APP"
-	TypeEnv      string = "ENV"
-	TypeTeam     string = "TEAM"
-	TypeDomain   string = "DOMAIN"
-	TypeSnippet  string = "SNIPPET"
-	TypeAuthWall string = "AUTHWALL"
-	TypeSchema   string = "SCHEMA"
+	TypeUser       string = "USER"
+	TypeApp        string = "APP"
+	TypeEnv        string = "ENV"
+	TypeTeam       string = "TEAM"
+	TypeDomain     string = "DOMAIN"
+	TypeSnippet    string = "SNIPPET"
+	TypeAuthWall   string = "AUTHWALL"
+	TypeSchema     string = "SCHEMA"
+	TypeDeployment string = "DEPLOYMENT"
 )
 
 // AuditData is the data extracted from a request context for auditing.
@@ -75,6 +76,8 @@ type DiffFields struct {
 	AuthWallCreateLoginID    string                 `json:"authWallCreateLoginId,omitempty"`
 	AuthWallDeleteLoginIDs   string                 `json:"authWallDeleteLoginIds,omitempty"`
 	SchemaName               string                 `json:"schemaName,omitempty"`
+	DeploymentID             string                 `json:"deploymentId,omitempty"`
+	AutoPublished            *bool                  `json:"autoPublished,omitempty"`
 }
 
 type Diff struct {
@@ -112,6 +115,12 @@ type Audit struct {
 // Bool returns the the pointer to the boolean value.
 func Bool(b bool) *bool {
 	return &b
+}
+
+// New creates a new Audit with the given context. Use this when there is no
+// request context available (e.g. background jobs or auto-publish flows).
+func New(ctx context.Context) *Audit {
+	return &Audit{ctx: ctx}
 }
 
 func FromRequestContext(req any) *Audit {

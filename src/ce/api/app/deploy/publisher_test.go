@@ -7,9 +7,12 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appcache"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
+	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -189,6 +192,66 @@ func (s *PublisherSuite) Test_AutoPublish() {
 	s.NoError(err)
 	s.Len(depls, 1)
 	s.Equal(depl.ID, depls[0].ID)
+}
+
+func (s *PublisherSuite) Test_AutoPublish_Audit_SelfHosted() {
+	appl := s.MockApp(nil)
+	env := s.MockEnv(appl, nil)
+	depl := s.MockDeployment(env, map[string]any{
+		"ExitCode":          null.NewInt(0, true),
+		"PullRequestNumber": null.NewInt(0, true),
+		"ShouldPublish":     true,
+	})
+
+	admin.SetMockLicense()
+	defer func() { admin.ResetMockLicense() }()
+
+	s.mockCacheService.On("Reset", env.ID).Return(nil).Once()
+
+	err := deploy.AutoPublishIfNecessary(context.Background(), depl.Deployment)
+	s.NoError(err)
+
+	audits, err := audit.NewStore().SelectAudits(context.Background(), audit.AuditFilters{
+		AppID: appl.ID,
+	})
+
+	s.NoError(err)
+	s.Len(audits, 1)
+	s.Equal("UPDATE:DEPLOYMENT", audits[0].Action)
+	s.Equal(appl.ID, audits[0].AppID)
+	s.Equal(env.ID, audits[0].EnvID)
+	s.Equal(depl.ID.String(), audits[0].Diff.New.DeploymentID)
+	s.True(*audits[0].Diff.New.AutoPublished)
+}
+
+func (s *PublisherSuite) Test_AutoPublish_Audit_Cloud() {
+	appl := s.MockApp(nil)
+	env := s.MockEnv(appl, nil)
+	depl := s.MockDeployment(env, map[string]any{
+		"ExitCode":          null.NewInt(0, true),
+		"PullRequestNumber": null.NewInt(0, true),
+		"ShouldPublish":     true,
+	})
+
+	config.SetIsStormkitCloud(true)
+	defer config.SetIsStormkitCloud(false)
+
+	s.mockCacheService.On("Reset", env.ID).Return(nil).Once()
+
+	err := deploy.AutoPublishIfNecessary(context.Background(), depl.Deployment)
+	s.NoError(err)
+
+	audits, err := audit.NewStore().SelectAudits(context.Background(), audit.AuditFilters{
+		AppID: appl.ID,
+	})
+
+	s.NoError(err)
+	s.Len(audits, 1)
+	s.Equal("UPDATE:DEPLOYMENT", audits[0].Action)
+	s.Equal(appl.ID, audits[0].AppID)
+	s.Equal(env.ID, audits[0].EnvID)
+	s.Equal(depl.ID.String(), audits[0].Diff.New.DeploymentID)
+	s.True(*audits[0].Diff.New.AutoPublished)
 }
 
 func TestPublisher(t *testing.T) {

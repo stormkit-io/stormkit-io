@@ -78,7 +78,9 @@ function AuditRow({ audit, children, forceDiff }: Props) {
       <Typography component="div" sx={{ display: "block" }}>
         {children}
         <Box sx={{ fontSize: 11.5, color: "text.secondary", mt: 0.5 }}>
-          by {audit.userDisplay || `${audit.tokenName} api key`}
+          by{" "}
+          {audit.userDisplay ||
+            (audit.tokenName ? `${audit.tokenName} api key` : "Stormkit")}
           <Dot />
           {formattedDate(audit.timestamp).toLocaleLowerCase()}
         </Box>
@@ -190,7 +192,7 @@ export default function AuditMessage({ audit }: Props) {
           {plural(
             "new snippet",
             "new snippets",
-            audit.diff.new.snippets?.length
+            audit.diff.new.snippets?.length,
           )}{" "}
           in <EnvLink audit={audit} /> environment
         </AuditRow>
@@ -210,7 +212,8 @@ export default function AuditMessage({ audit }: Props) {
           {plural(
             "snippet",
             "snippets",
-            audit.diff.new?.snippets?.length || audit.diff.old?.snippets?.length // Backwards compatibility. It should be old.snippets.
+            audit.diff.new?.snippets?.length ||
+              audit.diff.old?.snippets?.length, // Backwards compatibility. It should be old.snippets.
           )}{" "}
           in <EnvLink audit={audit} /> environment
         </AuditRow>
@@ -249,6 +252,17 @@ export default function AuditMessage({ audit }: Props) {
       return (
         <AuditRow audit={audit} forceDiff>
           Deleted schema from <EnvLink audit={audit} /> environment
+        </AuditRow>
+      );
+
+    case "UPDATE:DEPLOYMENT":
+      return (
+        <AuditRow audit={audit}>
+          {audit.diff.new.autoPublished
+            ? "Auto-published"
+            : "Manually published"}{" "}
+          deployment {audit.diff.new.deploymentId} to{" "}
+          <EnvLink audit={audit} hash="#deployments" /> environment
         </AuditRow>
       );
   }

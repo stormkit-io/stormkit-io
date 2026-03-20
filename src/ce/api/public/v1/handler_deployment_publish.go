@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
+	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
@@ -29,14 +30,27 @@ func handlerDeploymentPublish(req *RequestContext) *shttp.Response {
 		return shttp.NotFound()
 	}
 
-	if err := deploy.Publish(req.Context(), []*deploy.PublishSettings{
+	err = deploy.Publish(req.Context(), []*deploy.PublishSettings{
 		{
 			EnvID:        req.Env.ID,
 			DeploymentID: id,
 			Percentage:   100,
 		},
-	}); err != nil {
+	})
+
+	if err != nil {
 		return shttp.Error(err)
+	}
+
+	if req.License().IsEnterprise() {
+		err := audit.FromRequestContext(req).
+			WithAction(audit.UpdateAction, audit.TypeDeployment).
+			WithDiff(&audit.Diff{New: audit.DiffFields{DeploymentID: id.String()}}).
+			Insert()
+
+		if err != nil {
+			return shttp.Error(err)
+		}
 	}
 
 	return &shttp.Response{

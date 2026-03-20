@@ -22,6 +22,8 @@ declare interface DiffFields {
   authWallCreateLoginEmail?: string;
   authWallCreateLoginID?: string;
   authWallDeleteLoginIDs?: string;
+  deploymentId?: string;
+  autoPublished?: boolean;
 }
 
 declare interface Diff {
