@@ -73,6 +73,6 @@ func handlerDeploymentCreate(req *RequestContext) *shttp.Response {
 
 	return &shttp.Response{
 		Status: http.StatusCreated,
-		Data:   depl,
+		Data:   depl.JSON(false),
 	}
 }

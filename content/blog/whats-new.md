@@ -5,6 +5,10 @@ description: Discover the latest changes and improvements to Stormkit. Stay up-t
 
 Follow the latest developments on Stormkit.
 
+## March 20th, 2026
+
+New public API endpoint to [retrieve a deployment by ID](/docs/api/deployments). Use an environment-level API key to fetch the full details of any deployment in your environment — including status, logs, status checks, publish info, and upload sizes.
+
 ## March 19th, 2026
 
 New public API endpoint to [upload files to Volumes](/docs/api/volumes) programmatically. Use an environment-level API key to upload one or more files to your environment's configured file storage (filesystem or S3-compatible). Supports custom filenames and directory structure via the `Content-Disposition` header, per-file error reporting, and configurable upload size limits.

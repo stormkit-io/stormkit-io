@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
@@ -143,6 +144,7 @@ func New(a *app.App) *Deployment {
 		AppID:        a.ID,
 		CheckoutRepo: a.Repo,
 		Branch:       a.DefaultBranch(),
+		DisplayName:  a.DisplayName,
 	}
 
 	return d
@@ -538,7 +540,7 @@ func (d *Deployment) deploymentsResult(startTimestamp int64) *Log {
 		return log
 	}
 
-	if d.ExitCode.ValueOrZero() == -1 {
+	if d.ExitCode.ValueOrZero() == ExitCodeStopped {
 		log.Message = "Deployment has been stopped manually."
 		return log
 	}
@@ -615,4 +617,92 @@ func byteCountDecimal(b int64) string {
 // LogStep formats a deployment step log.
 func LogStep(title string) string {
 	return fmt.Sprintf("[sk-step] %s [ts:%d]\n", title, time.Now().Unix())
+}
+
+// JSON returns a serialisable map representation of the deployment.
+// When withLogs is true, the logs and status-checks fields are populated.
+func (d *Deployment) JSON(withLogs bool) map[string]any {
+	appID := d.AppID.String()
+	envID := d.EnvID.String()
+	depID := d.ID.String()
+
+	var deploymentLogs []*Log
+	var statusChecksLogs []*Log
+
+	if withLogs {
+		deploymentLogs = d.PrepareLogs(d.Logs.ValueOrZero(), false)
+		statusChecksLogs = d.PrepareLogs(d.StatusChecks.ValueOrZero(), true)
+	}
+
+	var stoppedAt any
+
+	if s := d.StoppedAt.UnixStr(); s != "" {
+		stoppedAt = s
+	}
+
+	var uploadResult any
+
+	if d.UploadResult != nil {
+		uploadResult = map[string]any{
+			"clientBytes":     d.UploadResult.ClientBytes,
+			"serverBytes":     d.UploadResult.ServerBytes,
+			"serverlessBytes": d.UploadResult.ServerlessBytes,
+		}
+	}
+
+	jsonMap := map[string]any{
+		"id":                 depID,
+		"appId":              appID,
+		"envId":              envID,
+		"envName":            d.Env,
+		"displayName":        d.DisplayName,
+		"repo":               d.CheckoutRepo,
+		"logs":               deploymentLogs,
+		"branch":             d.Branch,
+		"createdAt":          d.CreatedAt.UnixStr(),
+		"stoppedAt":          stoppedAt,
+		"stoppedManually":    d.ExitCode.ValueOrZero() == -1,
+		"status":             d.Status(),
+		"snapshot":           d.Snapshot(),
+		"error":              d.Error.ValueOrZero(),
+		"isAutoDeploy":       d.IsAutoDeploy,
+		"isAutoPublish":      d.ShouldPublish,
+		"previewUrl":         admin.MustConfig().PreviewURL(d.DisplayName, d.ID.String()),
+		"detailsUrl":         fmt.Sprintf("/apps/%s/environments/%s/deployments/%s", appID, envID, depID),
+		"apiPathPrefix":      d.APIPathPrefix.ValueOrZero(),
+		"statusChecks":       statusChecksLogs,
+		"statusChecksPassed": d.StatusChecksPassed,
+		"duration":           calculateDuration(d.CreatedAt, d.StoppedAt),
+		"published":          []map[string]any{},
+		"uploadResult":       uploadResult,
+		"commit": map[string]any{
+			"sha":     d.Commit.ID.Ptr(),
+			"author":  d.Commit.Author.Ptr(),
+			"message": d.Commit.Message.Ptr(),
+		},
+	}
+
+	if d.Published != nil {
+		for _, p := range d.Published {
+			jsonMap["published"] = append(jsonMap["published"].([]map[string]any), map[string]any{
+				"envId":      p.EnvID.String(),
+				"percentage": p.Percentage,
+			})
+		}
+	}
+
+	if !withLogs {
+		jsonMap["logs"] = nil
+		jsonMap["statusChecks"] = nil
+	}
+
+	return jsonMap
+}
+
+func calculateDuration(createdAt, stoppedAt utils.Unix) int64 {
+	if stoppedAt.IsZero() {
+		return 0
+	}
+
+	return stoppedAt.Unix() - createdAt.Unix()
 }

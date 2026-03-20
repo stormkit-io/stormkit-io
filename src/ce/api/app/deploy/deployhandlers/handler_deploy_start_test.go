@@ -241,8 +241,8 @@ func (s *DeployStartTestSuite) Test_Zip() {
 	  "status": "success",
 	  "commit": {
 		"author": "David Lorenzo",
-		"message": "",
-		"sha": ""
+		"message": null,
+		"sha": null
 	  },
 	  "branch": "",
 	  "logs": [

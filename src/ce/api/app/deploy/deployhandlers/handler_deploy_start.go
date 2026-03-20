@@ -212,7 +212,7 @@ func deployZip(req *app.RequestContext) *shttp.Response {
 	}
 
 	return &shttp.Response{
-		Data:  jsonResponse(d, true),
+		Data:  d.JSON(true),
 		Error: err,
 	}
 }

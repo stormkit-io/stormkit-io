@@ -106,6 +106,174 @@ curl -X POST \
 
 ### Notes
 
-- Deployments run **asynchronously**. The `201` response confirms the deployment was queued — it does not mean the build has completed. Poll the deployment status using the deployment `id` once a GET endpoint is available.
+- Deployments run **asynchronously**. The `201` response confirms the deployment was queued — it does not mean the build has completed. Poll the deployment status using `GET /v1/deployments/{id}`.
 - When using an **environment-level key**, the `envId` field in the request body has no effect — the environment is always the one the key was issued for. To target a different environment, use that environment's own key.
 - When using an **app, team, or user-level key**, `envId` is required. The request will return `404` if the environment does not exist or is not accessible to the key.
+
+---
+
+## GET /v1/deployments/{id}
+
+Retrieves a single deployment by its ID. The deployment must belong to the environment associated with the API key.
+
+**Base URL:** `https://api.stormkit.io`
+
+**Authentication:** At least an environment-level API key passed as the `Authorization` header.
+
+### Path parameters
+
+| Parameter | Type   | Description        |
+| --------- | ------ | ------------------ |
+| `id`      | string | The deployment ID. |
+
+### Query parameters
+
+| Parameter | Type    | Required    | Default | Description                                                                                                                                                                                      |
+| --------- | ------- | ----------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `envId`   | string  | Conditional | —       | Required when using an app, team, or user-level API key to identify the target environment.                                                                                                      |
+| `logs`    | boolean | No          | `false` | When `true`, includes the `logs` and `statusChecks` arrays in the response. Omit or set to `false` when polling for deployment status to avoid transferring large log payloads on every request. |
+
+### Response — 200 OK
+
+Returns the deployment object wrapped in a `deployment` key.
+
+| Field                | Type         | Description                                                                               |
+| -------------------- | ------------ | ----------------------------------------------------------------------------------------- |
+| `id`                 | string       | Unique deployment ID.                                                                     |
+| `appId`              | string       | ID of the application.                                                                    |
+| `envId`              | string       | ID of the environment.                                                                    |
+| `envName`            | string       | Name of the environment.                                                                  |
+| `displayName`        | string       | Display name of the application.                                                          |
+| `repo`               | string       | Repository that was checked out (e.g. `github/org/repo`).                                 |
+| `branch`             | string       | Git branch that was deployed.                                                             |
+| `status`             | string       | Current status: `running`, `success`, `failed`, or `stopped`.                             |
+| `error`              | string       | Error message if the deployment failed. Empty string otherwise.                           |
+| `isAutoDeploy`       | boolean      | `true` when triggered automatically (e.g. via webhook).                                   |
+| `isAutoPublish`      | boolean      | Whether this deployment was configured to publish automatically on success.               |
+| `stoppedManually`    | boolean      | `true` when the deployment was stopped by a user action.                                  |
+| `statusChecksPassed` | boolean      | `true` when all configured status checks passed.                                          |
+| `apiPathPrefix`      | string       | API path prefix, if configured.                                                           |
+| `previewUrl`         | string       | Preview URL for this specific deployment.                                                 |
+| `detailsUrl`         | string       | Dashboard path to the deployment details page.                                            |
+| `duration`           | number       | Build duration in seconds. `0` while still running.                                       |
+| `createdAt`          | string       | Unix timestamp (seconds) when the deployment was created.                                 |
+| `stoppedAt`          | string       | Unix timestamp when the deployment stopped. `null` while still running.                   |
+| `commit`             | object       | Commit metadata — see **`Commit` object** below.                                          |
+| `snapshot`           | object       | Snapshot of the environment configuration used for this deployment.                       |
+| `logs`               | array\|null  | Array of log entries — see **`Log` object** below. `null` unless `?logs=true` is passed.  |
+| `statusChecks`       | array\|null  | Array of status-check log entries. `null` unless `?logs=true` is passed.                  |
+| `published`          | array        | Environments where this deployment is currently live — see **`Published` object** below.  |
+| `uploadResult`       | object\|null | Upload size breakdown — see **`UploadResult` object** below. `null` if not yet available. |
+
+**`Commit` object:**
+
+| Field     | Type   | Description                                     |
+| --------- | ------ | ----------------------------------------------- |
+| `author`  | string | Name of the commit author. `null` if unknown.   |
+| `message` | string | Commit message. `null` if unknown.              |
+| `sha`     | string | Full commit SHA. `null` until the build starts. |
+
+**`Log` object:**
+
+| Field      | Type    | Description                    |
+| ---------- | ------- | ------------------------------ |
+| `title`    | string  | Step title.                    |
+| `message`  | string  | Log output for this step.      |
+| `status`   | boolean | `true` if this step succeeded. |
+| `duration` | number  | Step duration in seconds.      |
+
+**`Published` object:**
+
+| Field        | Type   | Description                                           |
+| ------------ | ------ | ----------------------------------------------------- |
+| `envId`      | string | Environment ID where this deployment is published.    |
+| `percentage` | number | Traffic percentage routed to this deployment (0–100). |
+
+**`UploadResult` object:**
+
+| Field             | Type   | Description                           |
+| ----------------- | ------ | ------------------------------------- |
+| `clientBytes`     | number | Size of client-side assets in bytes.  |
+| `serverBytes`     | number | Size of server-side assets in bytes.  |
+| `serverlessBytes` | number | Size of serverless function in bytes. |
+
+### Error responses
+
+| Status | Condition                                                                               |
+| ------ | --------------------------------------------------------------------------------------- |
+| `403`  | Missing/invalid API key, team token does not own the app, or user is not a team member. |
+| `404`  | Deployment not found, or it does not belong to the environment of the API key.          |
+| `500`  | Internal server error.                                                                  |
+
+### Examples
+
+```bash
+# Poll deployment status (no logs)
+curl -H 'Authorization: <api_key>' \
+     'https://api.stormkit.io/v1/deployments/8241'
+```
+
+```json
+// Example response (logs omitted by default)
+{
+  "deployment": {
+    "id": "8241",
+    "appId": "1510",
+    "envId": "305",
+    "envName": "production",
+    "displayName": "my-app",
+    "repo": "github/acme/my-app",
+    "branch": "release/2.0",
+    "status": "success",
+    "error": "",
+    "isAutoDeploy": false,
+    "isAutoPublish": true,
+    "stoppedManually": false,
+    "statusChecksPassed": true,
+    "apiPathPrefix": "",
+    "previewUrl": "https://8241--my-app.stormkit.dev",
+    "detailsUrl": "/apps/1510/environments/305/deployments/8241",
+    "duration": 42,
+    "createdAt": "1742300400",
+    "stoppedAt": "1742300442",
+    "commit": {
+      "author": "Jane Doe",
+      "message": "fix: improve performance",
+      "sha": "16ab41e8"
+    },
+    "logs": null,
+    "statusChecks": null,
+    "published": [{ "envId": "305", "percentage": 100 }],
+    "uploadResult": {
+      "clientBytes": 204800,
+      "serverBytes": 0,
+      "serverlessBytes": 0
+    }
+  }
+}
+```
+
+```bash
+# Fetch deployment with build logs
+curl -H 'Authorization: <api_key>' \
+     'https://api.stormkit.io/v1/deployments/8241?logs=true'
+```
+
+```json
+// Example response (with logs)
+{
+  "deployment": {
+    "id": "8241",
+    "...": "...",
+    "logs": [
+      {
+        "title": "Install dependencies",
+        "message": "...",
+        "status": true,
+        "duration": 12
+      }
+    ],
+    "statusChecks": []
+  }
+}
+```

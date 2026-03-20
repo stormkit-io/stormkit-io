@@ -46,6 +46,7 @@ func (s *HandlerMyDeploymentsSuite) responseTemplate() (*template.Template, erro
 			{{ range $i, $record := .records }}
 				{
 					"id": "{{ index $record "deploymentId" }}",
+					"apiPathPrefix": "",
 					"appId": "{{ index $record "appId" }}",
 					"branch": "main",
 					"commit": {
@@ -82,9 +83,9 @@ func (s *HandlerMyDeploymentsSuite) responseTemplate() (*template.Template, erro
 					"detailsUrl": "/apps/{{ index $record "appId" }}/environments/{{ index $record "envId" }}/deployments/{{ index $record "deploymentId" }}",
 					"previewUrl": "http://{{ index $record "displayName" }}--{{ index $record "deploymentId" }}.stormkit:8888",
 					"status": "running",
-					"stoppedAt": "",
+					"stoppedAt": null,
 					"stoppedManually": false,
-					"apiPathPrefix": "",
+					"uploadResult": null,
 					"published": [],
 					"statusChecksPassed": null,
 					"statusChecks": null,
