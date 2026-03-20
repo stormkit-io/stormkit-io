@@ -43,7 +43,7 @@ func License(user *User) *admin.License {
 	}
 
 	if user == nil {
-		return nil
+		return &admin.License{}
 	}
 
 	return &admin.License{

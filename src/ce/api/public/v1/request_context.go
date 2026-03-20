@@ -32,7 +32,7 @@ func (req *RequestContext) License() *admin.License {
 	}
 
 	if req.Token == nil {
-		return nil
+		return &admin.License{}
 	}
 
 	var usr *user.User
@@ -50,11 +50,11 @@ func (req *RequestContext) License() *admin.License {
 
 	if err != nil {
 		slog.Errorf("error fetching user for license check: %s", err.Error())
-		return nil
+		return &admin.License{}
 	}
 
 	if usr == nil {
-		return nil
+		return &admin.License{}
 	}
 
 	return user.License(usr)
