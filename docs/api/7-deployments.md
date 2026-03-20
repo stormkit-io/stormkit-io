@@ -304,6 +304,7 @@ Makes a deployment live for the environment associated with the API key.
 
 | Status | Condition                                                                               |
 | ------ | --------------------------------------------------------------------------------------- |
+| `400`  | Deployment does not have a successful build and cannot be published.                    |
 | `403`  | Missing/invalid API key, or token does not have access to the deployment's environment. |
 | `404`  | Deployment not found, or it does not belong to the environment of the API key.          |
 | `500`  | Internal server error.                                                                  |

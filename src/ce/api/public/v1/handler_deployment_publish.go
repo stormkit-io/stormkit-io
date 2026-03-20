@@ -30,6 +30,12 @@ func handlerDeploymentPublish(req *RequestContext) *shttp.Response {
 		return shttp.NotFound()
 	}
 
+	if depl.ExitCode.ValueOrZero() != deploy.ExitCodeSuccess {
+		return shttp.BadRequest(map[string]any{
+			"error": "Deployment must have a successful build before it can be published",
+		})
+	}
+
 	err = deploy.Publish(req.Context(), []*deploy.PublishSettings{
 		{
 			EnvID:        req.Env.ID,

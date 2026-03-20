@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"testing"
 
+	null "gopkg.in/guregu/null.v3"
+
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
 	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
@@ -190,6 +192,30 @@ func (s *HandlerDeploymentPublishSuite) Test_Forbidden_UserNotMember() {
 	)
 
 	s.Equal(http.StatusForbidden, response.Code)
+}
+
+// Test_BadRequest_FailedDeployment verifies that attempting to publish a deployment
+// with a non-zero exit code returns 400 with an appropriate error message.
+func (s *HandlerDeploymentPublishSuite) Test_BadRequest_FailedDeployment() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	env := s.MockEnv(appl)
+	depl := s.MockDeployment(env, map[string]any{"ExitCode": null.IntFrom(1)})
+	key := s.MockAPIKey(appl, env)
+
+	response := shttptest.RequestWithHeaders(
+		s.handler(),
+		shttp.MethodPost,
+		s.publishURL(depl.ID),
+		nil,
+		map[string]string{"Authorization": key.Value},
+	)
+
+	s.Equal(http.StatusBadRequest, response.Code)
+
+	var body map[string]any
+	s.NoError(json.Unmarshal([]byte(response.String()), &body))
+	s.Equal("Deployment must have a successful build before it can be published", body["error"])
 }
 
 func TestHandlerDeploymentPublish(t *testing.T) {
