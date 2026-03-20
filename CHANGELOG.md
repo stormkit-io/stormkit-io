@@ -1,5 +1,37 @@
 # Changelog
 
+## v2026.03.20.1...v2026.03.20.2
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.03.20.1...v2026.03.20.2)
+
+### 🚀 Enhancements
+
+- Add public API endpoint to publish a deployment ([ec05fd2](https://github.com/stormkit-io/stormkit-io/commit/ec05fd2))
+- Audit deployment publish actions ([bff13ba](https://github.com/stormkit-io/stormkit-io/commit/bff13ba))
+
+### 🩹 Fixes
+
+- Failing spec regarding nil license ([bdbefff](https://github.com/stormkit-io/stormkit-io/commit/bdbefff))
+- Failing spec ([6e4a7a7](https://github.com/stormkit-io/stormkit-io/commit/6e4a7a7))
+
+### 💅 Refactors
+
+- Replace nil license checks with IsEmpty method ([69c621c](https://github.com/stormkit-io/stormkit-io/commit/69c621c))
+
+### 🏡 Chore
+
+- Update changelog for v2026.03.20.1 ([cbd3b6a](https://github.com/stormkit-io/stormkit-io/commit/cbd3b6a))
+- Remove reference to percentage field ([341f0fd](https://github.com/stormkit-io/stormkit-io/commit/341f0fd))
+- Use shorthand syntax ([3a93302](https://github.com/stormkit-io/stormkit-io/commit/3a93302))
+- Do not return nil for license ([56e6ae2](https://github.com/stormkit-io/stormkit-io/commit/56e6ae2))
+- Allow only successful deployments to be published ([38d86d0](https://github.com/stormkit-io/stormkit-io/commit/38d86d0))
+- Update docs ([ea82c20](https://github.com/stormkit-io/stormkit-io/commit/ea82c20))
+- Remove cloud check ([5efb724](https://github.com/stormkit-io/stormkit-io/commit/5efb724))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.03.19.2...v2026.03.20.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.03.19.2...v2026.03.20.1)
