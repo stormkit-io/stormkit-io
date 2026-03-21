@@ -14,7 +14,7 @@ var (
 
 	// Legacy errors
 	ErrMissingEnv          = shttperr.New(http.StatusBadRequest, "Environment is missing", "env-missing")
-	ErrInvalidEnv          = shttperr.New(http.StatusBadRequest, "Environment can only contain alphanumeric characters and hypens.", "env-invalid")
+	ErrInvalidEnv          = shttperr.New(http.StatusBadRequest, "Environment can only contain alphanumeric characters and hyphens.", "env-invalid")
 	ErrInvalidBranch       = shttperr.New(http.StatusBadRequest, "Branch name is required and can only contain following characters: alphanumeric, -, +, /, ., and =", "branch-invalid") // See https://wincent.com/wiki/Legal_Git_branch_names for more details.
 	ErrDomainInvalidFormat = shttperr.New(http.StatusBadRequest, "Domain format is not correct", "invalid-domain")
 	ErrDomainInvalidToken  = shttperr.New(http.StatusBadRequest, "The verification token is not found. Please start the verification process by setting a domain first.", "invalid-token")

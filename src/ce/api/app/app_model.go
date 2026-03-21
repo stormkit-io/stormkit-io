@@ -305,7 +305,7 @@ func (a *App) Validate() *shttperr.ValidationError {
 	}
 
 	if match, _ := regexp.MatchString("--", a.DisplayName); match {
-		err.SetError("displayName", ErrDoubleHypenDisplayName.Error())
+		err.SetError("displayName", ErrDoubleHyphenDisplayName.Error())
 	}
 
 	if a.DisplayName == "api" || a.DisplayName == "stormkit" {

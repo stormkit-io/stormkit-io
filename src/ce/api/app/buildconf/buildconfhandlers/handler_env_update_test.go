@@ -257,7 +257,7 @@ func (s *HandlerEnvUpdateSuite) TestFail_DoubleHyphens() {
 
 	a := assert.New(s.T())
 	s.Equal(http.StatusBadRequest, response.Code)
-	a.Contains(response.String(), "Double hypens (--) are not allowed as they are reserved for Stormkit")
+	a.Contains(response.String(), "Double hyphens (--) are not allowed as they are reserved for Stormkit")
 }
 
 func (s *HandlerEnvUpdateSuite) TestFail_AutoDeployBranchesInvalid() {

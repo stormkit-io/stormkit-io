@@ -38,7 +38,7 @@ func (s *EnvModelSuite) Test_Config_Validation() {
 	config.Branch = "Valid-Env-1015+=/z"
 
 	s.Equal([]string{
-		"Environment name can only contain alphanumeric characters and hypens",
+		"Environment name can only contain alphanumeric characters and hyphens",
 	}, buildconf.Validate(config))
 
 	config.Name = "Some-Valid-Env-Name"

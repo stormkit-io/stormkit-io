@@ -291,11 +291,11 @@ func Validate(env *Env) []string {
 	if env.Name == "" {
 		errors = append(errors, "Name is a required field")
 	} else if match, _ := regexp.MatchString("^[a-zA-Z-0-9]+$", env.Name); !match {
-		errors = append(errors, "Environment name can only contain alphanumeric characters and hypens")
+		errors = append(errors, "Environment name can only contain alphanumeric characters and hyphens")
 	}
 
 	if match, _ := regexp.MatchString("--", env.Name); match {
-		errors = append(errors, "Double hypens (--) are not allowed as they are reserved for Stormkit")
+		errors = append(errors, "Double hyphens (--) are not allowed as they are reserved for Stormkit")
 	}
 
 	if env.AutoDeployBranches.ValueOrZero() != "" {
