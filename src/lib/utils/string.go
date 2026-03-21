@@ -56,8 +56,13 @@ func IsValidEmail(email string) bool {
 }
 
 // TrimPath cleans up the path by removing leading ./, /, and trimming spaces.
+// If path is empty, it returns an empty string. If path is just ".", it returns "/".
 func TrimPath(path string) string {
 	path = strings.TrimSpace(path)
+
+	if path == "" {
+		return ""
+	}
 
 	// Remove initial ./
 	path = strings.TrimPrefix(path, "./")

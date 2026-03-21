@@ -2,7 +2,6 @@ package publicapiv1
 
 import (
 	"net/http"
-	"regexp"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
@@ -38,33 +37,6 @@ type EnvAddRequest struct {
 	StatusChecks       []buildconf.StatusCheck `json:"statusChecks,omitempty"`
 }
 
-func validateEnv(env *buildconf.Env) []string {
-	errors := []string{}
-
-	if env.Branch == "" {
-		errors = append(errors, "Branch is a required field")
-	} else if match, _ := regexp.MatchString(`^[a-zA-Z0-9-/+=\.]+$`, env.Branch); !match {
-		// See https://wincent.com/wiki/Legal_Git_branch_names for more details.
-		errors = append(errors, "Branch name can only contain following characters: alphanumeric, -, +, /, ., and =")
-	}
-
-	if env.Name == "" {
-		errors = append(errors, "Name is a required field")
-	} else if match, _ := regexp.MatchString("^[a-zA-Z-0-9]+$", env.Name); !match {
-		errors = append(errors, "Environment can only contain alphanumeric characters and hypens.")
-	}
-
-	if match, _ := regexp.MatchString("--", env.Name); match {
-		errors = append(errors, "Double hypens (--) are not allowed as they are reserved for Stormkit.")
-	}
-
-	if len(errors) == 0 {
-		return nil
-	}
-
-	return errors
-}
-
 func handlerEnvAdd(req *RequestContext) *shttp.Response {
 	data := &EnvAddRequest{}
 
@@ -82,17 +54,17 @@ func handlerEnvAdd(req *RequestContext) *shttp.Response {
 		Data: &buildconf.BuildConf{
 			APIFolder:     utils.TrimPath(data.APIFolder),
 			APIPathPrefix: utils.TrimPath(data.APIPathPrefix),
-			BuildCmd:      data.BuildCmd,
-			DistFolder:    data.DistFolder,
-			ErrorFile:     data.ErrorFile,
+			DistFolder:    utils.TrimPath(data.DistFolder),
+			ErrorFile:     utils.TrimPath(data.ErrorFile),
+			HeadersFile:   utils.TrimPath(data.HeadersFile),
+			ServerFolder:  utils.TrimPath(data.ServerFolder),
+			RedirectsFile: utils.TrimPath(data.RedirectsFile),
 			Headers:       data.Headers,
-			HeadersFile:   data.HeadersFile,
+			BuildCmd:      data.BuildCmd,
 			InstallCmd:    data.InstallCmd,
 			PreviewLinks:  data.PreviewLinks,
 			ServerCmd:     data.ServerCmd,
-			ServerFolder:  data.ServerFolder,
 			Redirects:     data.Redirects,
-			RedirectsFile: data.RedirectsFile,
 			Vars:          data.EnvVars,
 			StatusChecks:  data.StatusChecks,
 		},
@@ -111,7 +83,7 @@ func handlerEnvAdd(req *RequestContext) *shttp.Response {
 
 	cnf.AutoDeploy = cnf.AutoDeploy || data.AutoDeployBranches.Valid || data.AutoDeployCommits.Valid
 
-	if err := validateEnv(cnf); err != nil {
+	if err := buildconf.Validate(cnf); err != nil {
 		return &shttp.Response{
 			Status: http.StatusBadRequest,
 			Data: map[string][]string{

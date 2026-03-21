@@ -22,7 +22,8 @@ func (s *StringSuite) Test_TrimPath() {
 	s.Equal("/path/to/resource", utils.TrimPath("/path/to/resource"))
 	s.Equal("/path/to/resource", utils.TrimPath("path/to/resource"))
 	s.Equal("/", utils.TrimPath("/"))
-	s.Equal("/", utils.TrimPath(""))
+	s.Equal("", utils.TrimPath(""))
+	s.Equal("", utils.TrimPath("   "))
 }
 
 func (s *StringSuite) Test_ParseSemver() {

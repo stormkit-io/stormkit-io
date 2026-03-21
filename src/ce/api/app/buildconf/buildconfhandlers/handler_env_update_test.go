@@ -60,7 +60,7 @@ func (s *HandlerEnvUpdateSuite) Test_Success() {
 			"appId":       app.ID.String(),
 			"id":          env.ID.String(),
 			"branch":      "live",
-			"env":         "production",
+			"name":        "production",
 			"autoPublish": false,
 			"autoDeploy":  true,
 			"build": map[string]any{
@@ -213,7 +213,7 @@ func (s *HandlerEnvUpdateSuite) TestFail_EnvIDInvalid() {
 		shttp.NewRouter().RegisterService(buildconfhandlers.Services).Router().Handler(),
 		shttp.MethodPut,
 		"/app/env",
-		map[string]interface{}{
+		map[string]any{
 			"appId":       appl.ID.String(),
 			"id":          "14141",
 			"branch":      "live",
@@ -244,7 +244,7 @@ func (s *HandlerEnvUpdateSuite) TestFail_DoubleHyphens() {
 		shttp.NewRouter().RegisterService(buildconfhandlers.Services).Router().Handler(),
 		shttp.MethodPut,
 		"/app/env",
-		map[string]interface{}{
+		map[string]any{
 			"appId":  app.ID.String(),
 			"id":     env.ID.String(),
 			"branch": "my-branch",
@@ -257,7 +257,7 @@ func (s *HandlerEnvUpdateSuite) TestFail_DoubleHyphens() {
 
 	a := assert.New(s.T())
 	s.Equal(http.StatusBadRequest, response.Code)
-	a.Contains(response.String(), buildconf.ErrInvalidEnvDoubleHypens.Error())
+	a.Contains(response.String(), "Double hypens (--) are not allowed as they are reserved for Stormkit")
 }
 
 func (s *HandlerEnvUpdateSuite) TestFail_AutoDeployBranchesInvalid() {
@@ -271,7 +271,7 @@ func (s *HandlerEnvUpdateSuite) TestFail_AutoDeployBranchesInvalid() {
 		shttp.NewRouter().RegisterService(buildconfhandlers.Services).Router().Handler(),
 		shttp.MethodPut,
 		"/app/env",
-		map[string]interface{}{
+		map[string]any{
 			"appId":              app.ID.String(),
 			"id":                 env.ID.String(),
 			"branch":             "my-branch",
@@ -284,7 +284,7 @@ func (s *HandlerEnvUpdateSuite) TestFail_AutoDeployBranchesInvalid() {
 	)
 
 	s.Equal(http.StatusBadRequest, response.Code)
-	s.Contains(response.String(), "error parsing regexp: missing closing ) in `(invalid-regex`\"}}")
+	s.Contains(response.String(), "parsing regexp: missing closing ) in `(invalid-regex`\"")
 }
 
 func TestHandlerEnvUpdate(t *testing.T) {

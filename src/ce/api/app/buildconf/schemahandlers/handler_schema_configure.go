@@ -34,12 +34,7 @@ func handlerSchemaConfigure(req *app.RequestContext) *shttp.Response {
 
 	env.SchemaConf.MigrationsEnabled = data.MigrationsEnabled
 	env.SchemaConf.InjectEnvVars = data.InjectEnvVars
-	
-	if data.MigrationsFolder == "" {
-		env.SchemaConf.MigrationsFolder = ""
-	} else {
-		env.SchemaConf.MigrationsFolder = utils.TrimPath(data.MigrationsFolder)
-	}
+	env.SchemaConf.MigrationsFolder = utils.TrimPath(data.MigrationsFolder)
 
 	err = buildconf.NewStore().SaveSchemaConf(req.Context(), req.EnvID, env.SchemaConf)
 

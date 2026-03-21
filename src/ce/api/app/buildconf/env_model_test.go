@@ -1,14 +1,13 @@
 package buildconf_test
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
-	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stretchr/testify/suite"
+	"gopkg.in/guregu/null.v3"
 )
 
 type EnvModelSuite struct {
@@ -27,24 +26,34 @@ func (s *EnvModelSuite) AfterTest(_, _ string) {
 	s.conn.CloseTx()
 }
 
-func (s *EnvModelSuite) TestConfig_Validation() {
+func (s *EnvModelSuite) Test_Config_Validation() {
 	config := &buildconf.Env{}
 
-	res := shttp.Error(config.Validate())
-	exp := fmt.Sprintf(`{"errors":{"branch":"%s","env":"Environment is missing"}}`, buildconf.ErrInvalidBranch.Error())
-	s.Equal(res.String(), exp)
+	s.Equal([]string{
+		"Branch is a required field",
+		"Name is a required field",
+	}, buildconf.Validate(config))
 
-	config.Env = "Some invalid env"
+	config.Name = "Some invalid env"
 	config.Branch = "Valid-Env-1015+=/z"
-	res = shttp.Error(config.Validate())
-	exp = fmt.Sprintf(`{"errors":{"env":"%s"}}`, buildconf.ErrInvalidEnv.Error())
-	s.Equal(res.String(), exp)
 
-	config.Env = "Some-Valid-Env-Name"
+	s.Equal([]string{
+		"Environment name can only contain alphanumeric characters and hypens",
+	}, buildconf.Validate(config))
+
+	config.Name = "Some-Valid-Env-Name"
 	config.Branch = "I'm invalid"
-	res = shttp.Error(config.Validate())
-	exp = fmt.Sprintf(`{"errors":{"branch":"%s"}}`, buildconf.ErrInvalidBranch.Error())
-	s.Equal(res.String(), exp)
+
+	s.Equal([]string{
+		"Branch name can only contain following characters: alphanumeric, -, +, /, ., and =",
+	}, buildconf.Validate(config))
+
+	config.Branch = "valid-branch"
+	config.AutoDeployBranches = null.StringFrom("(invalid-regex")
+
+	s.Equal([]string{
+		"Auto deploy branches regex is invalid: error parsing regexp: missing closing ) in `(invalid-regex`",
+	}, buildconf.Validate(config))
 }
 
 func TestEnvModelSuite(t *testing.T) {

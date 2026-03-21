@@ -94,7 +94,7 @@ func (s *HandlerEnvUpdateSuite) Test_Success() {
 	s.Equal("production", updated.Name)
 	s.Equal("release", updated.Branch)
 	s.Equal("npm run build:prod", updated.Data.BuildCmd)
-	s.Equal("dist", updated.Data.DistFolder)
+	s.Equal("/dist", updated.Data.DistFolder)
 	s.True(updated.AutoPublish)
 	s.True(updated.Data.PreviewLinks.ValueOrZero())
 	s.Equal("staging", updated.Data.Vars["NODE_ENV"])

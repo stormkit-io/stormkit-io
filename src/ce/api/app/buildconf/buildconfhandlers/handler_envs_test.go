@@ -59,6 +59,7 @@ func (s *HandlerEnvsGetSuite) Test_Success() {
 	expected := fmt.Sprintf(`{
 		"envs": [
 		  {
+			"name": "production",
 			"env": "production",
 			"branch": "main",
 			"build": {

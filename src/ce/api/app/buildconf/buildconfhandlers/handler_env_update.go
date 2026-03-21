@@ -26,6 +26,13 @@ func handlerEnvUpdate(req *app.RequestContext) *shttp.Response {
 		return shttp.NotFound()
 	}
 
+	cnf.Env = utils.GetString(cnf.Env, cnf.Name)  // Name is the new field, but we still want to support Env for a while
+	cnf.Name = utils.GetString(cnf.Name, cnf.Env) // Env is deprecated, but we still want to support it for a while
+
+	if errs := buildconf.Validate(cnf); len(errs) > 0 {
+		return shttp.BadRequest(map[string]any{"errors": errs})
+	}
+
 	store := buildconf.NewStore()
 	env, err := store.EnvironmentByID(req.Context(), cnf.ID)
 
@@ -47,8 +54,14 @@ func handlerEnvUpdate(req *app.RequestContext) *shttp.Response {
 		}
 	}
 
+	// Normalize paths
 	cnf.Data.APIFolder = utils.TrimPath(cnf.Data.APIFolder)
 	cnf.Data.APIPathPrefix = utils.TrimPath(cnf.Data.APIPathPrefix)
+	cnf.Data.ServerFolder = utils.TrimPath(cnf.Data.ServerFolder)
+	cnf.Data.DistFolder = utils.TrimPath(cnf.Data.DistFolder)
+	cnf.Data.ErrorFile = utils.TrimPath(cnf.Data.ErrorFile)
+	cnf.Data.HeadersFile = utils.TrimPath(cnf.Data.HeadersFile)
+	cnf.Data.RedirectsFile = utils.TrimPath(cnf.Data.RedirectsFile)
 
 	if err := store.Update(req.Context(), cnf); err != nil {
 		if strings.Contains(err.Error(), "duplicate key") {

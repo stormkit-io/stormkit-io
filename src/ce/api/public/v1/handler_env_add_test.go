@@ -129,9 +129,9 @@ func (s *HandlerEnvAddSuite) Test_Success() {
 	s.Equal("/functions", env.Data.APIFolder)
 	s.Equal("npm run build:prod", env.Data.BuildCmd)
 	s.Equal("npm run start", env.Data.ServerCmd)
-	s.Equal("./output/apps/my-app", env.Data.DistFolder)
-	s.Equal("error.html", env.Data.ErrorFile)
-	s.Equal("headers.json", env.Data.HeadersFile)
+	s.Equal("/output/apps/my-app", env.Data.DistFolder)
+	s.Equal("/error.html", env.Data.ErrorFile)
+	s.Equal("/headers.json", env.Data.HeadersFile)
 	s.Equal("production", env.Data.Vars["NODE_ENV"])
 
 	audits, err := audit.NewStore().SelectAudits(context.Background(), audit.AuditFilters{

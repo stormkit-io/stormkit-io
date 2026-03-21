@@ -51,10 +51,10 @@ func (s *HandlerEnvInsertSuite) Test_BadRequestEnvMissing() {
 	)
 
 	expected := `{
-		"errors": {
-			"branch": "Branch name is required and can only contain following characters: alphanumeric, -, +, /, ., and =",
-			"env": "Environment is missing"
-		}
+		"errors": [
+			"Branch is a required field",
+			"Name is a required field"
+		]
 	}`
 
 	s.Equal(http.StatusBadRequest, response.Code)
@@ -86,7 +86,7 @@ func (s *HandlerEnvInsertSuite) Test_Success() {
 		shttp.MethodPost,
 		"/app/env",
 		map[string]any{
-			"env":         conf.Env,
+			"name":        conf.Env,
 			"branch":      conf.Branch,
 			"autoPublish": false,
 			"appId":       app.ID.String(),
@@ -144,7 +144,7 @@ func (s *HandlerEnvInsertSuite) Test_SuccessWithSameBranch() {
 		shttp.MethodPost,
 		"/app/env",
 		map[string]any{
-			"env":         conf.Env,
+			"name":        conf.Env,
 			"branch":      conf.Branch,
 			"autoPublish": false,
 			"appId":       app.ID.String(),

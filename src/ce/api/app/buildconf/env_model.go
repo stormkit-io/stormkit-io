@@ -3,6 +3,7 @@ package buildconf
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -10,8 +11,6 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/redirects"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
-	"github.com/stormkit-io/stormkit-io/src/lib/model"
-	"github.com/stormkit-io/stormkit-io/src/lib/shttp/shttperr"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	null "gopkg.in/guregu/null.v3"
@@ -40,8 +39,6 @@ func (ac *SKAuthConf) Value() (driver.Value, error) {
 
 // Env represents an application's environment.
 type Env struct {
-	model.Model `json:"-"`
-
 	// ID represents the environment id.
 	ID types.ID `json:"id,omitempty,string" db:"env_id"`
 
@@ -50,7 +47,7 @@ type Env struct {
 
 	// Name is the name of the environment.
 	// TODO: Return this one instead of Env field above.
-	Name string `json:"-" db:"env_name"`
+	Name string `json:"name" db:"env_name"`
 
 	// Data is the build configuration data.
 	Data *BuildConf `json:"build" db:"build_conf"`
@@ -177,45 +174,6 @@ func (env Env) MarshalJSON() ([]byte, error) {
 	return json.Marshal(ret)
 }
 
-// Validate implements the model.Validate interface.
-func (env *Env) Validate() *shttperr.ValidationError {
-	err := &shttperr.ValidationError{}
-	env.Env = strings.ToLower(strings.TrimSpace(env.Env))
-
-	// TODO: Backward compability. env.Env will be deprecated.
-	if env.Env == "" {
-		env.Env = strings.ToLower(strings.TrimSpace(env.Name))
-	}
-
-	if match, _ := regexp.MatchString("^[a-zA-Z-0-9]+$", env.Env); !match {
-		err.SetError("env", ErrInvalidEnv.Error())
-	}
-
-	if match, _ := regexp.MatchString("--", env.Env); match {
-		err.SetError("env", ErrInvalidEnvDoubleHypens.Error())
-	}
-
-	if env.Env == "" {
-		err.SetError("env", ErrMissingEnv.Error())
-	}
-
-	if match, _ := regexp.MatchString(`^[a-zA-Z0-9-/+=\.]+$`, env.Branch); !match {
-		err.SetError("branch", ErrInvalidBranch.Error())
-	}
-
-	if env.Env == "" {
-		err.SetError("env", ErrMissingEnv.Error())
-	}
-
-	if env.AutoDeployBranches.ValueOrZero() != "" {
-		if _, rerr := regexp2.Compile(env.AutoDeployBranches.ValueOrZero(), regexp2.IgnoreCase); rerr != nil {
-			err.SetError("autoDeployBranches", rerr.Error())
-		}
-	}
-
-	return err.ToError()
-}
-
 type StatusCheck struct {
 	Name        string `json:"name"`
 	Cmd         string `json:"cmd"`
@@ -316,4 +274,39 @@ func DefaultConfig(appID types.ID) *Env {
 	}
 
 	return env
+}
+
+func Validate(env *Env) []string {
+	errors := []string{}
+
+	if env.Branch == "" {
+		errors = append(errors, "Branch is a required field")
+	} else if match, _ := regexp.MatchString(`^[a-zA-Z0-9-/+=\.]+$`, env.Branch); !match {
+		// See https://wincent.com/wiki/Legal_Git_branch_names for more details.
+		errors = append(errors, "Branch name can only contain following characters: alphanumeric, -, +, /, ., and =")
+	}
+
+	env.Name = utils.GetString(env.Name, env.Env) // Env is deprecated, but we still want to support it for a while
+
+	if env.Name == "" {
+		errors = append(errors, "Name is a required field")
+	} else if match, _ := regexp.MatchString("^[a-zA-Z-0-9]+$", env.Name); !match {
+		errors = append(errors, "Environment name can only contain alphanumeric characters and hypens")
+	}
+
+	if match, _ := regexp.MatchString("--", env.Name); match {
+		errors = append(errors, "Double hypens (--) are not allowed as they are reserved for Stormkit")
+	}
+
+	if env.AutoDeployBranches.ValueOrZero() != "" {
+		if _, rerr := regexp2.Compile(env.AutoDeployBranches.ValueOrZero(), regexp2.IgnoreCase); rerr != nil {
+			errors = append(errors, fmt.Sprintf("Auto deploy branches regex is invalid: %s", rerr.Error()))
+		}
+	}
+
+	if len(errors) == 0 {
+		return nil
+	}
+
+	return errors
 }

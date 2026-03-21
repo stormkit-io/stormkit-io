@@ -53,6 +53,7 @@ func (s *HandlerEnvGetSuite) Test_Success() {
 
 	exp := `{
 		"config":{
+		   "name":"production",
 		   "env":"production",
 		   "branch":"main",
 		   "build":{

@@ -90,11 +90,11 @@ func handlerEnvUpdate(req *RequestContext) *shttp.Response {
 	}
 
 	if data.DistFolder != nil {
-		env.Data.DistFolder = *data.DistFolder
+		env.Data.DistFolder = utils.TrimPath(*data.DistFolder)
 	}
 
 	if data.ErrorFile != nil {
-		env.Data.ErrorFile = *data.ErrorFile
+		env.Data.ErrorFile = utils.TrimPath(*data.ErrorFile)
 	}
 
 	if data.Headers != nil {
@@ -106,7 +106,7 @@ func handlerEnvUpdate(req *RequestContext) *shttp.Response {
 	}
 
 	if data.HeadersFile != nil {
-		env.Data.HeadersFile = *data.HeadersFile
+		env.Data.HeadersFile = utils.TrimPath(*data.HeadersFile)
 	}
 
 	if data.InstallCmd != nil {
@@ -118,7 +118,7 @@ func handlerEnvUpdate(req *RequestContext) *shttp.Response {
 	}
 
 	if data.RedirectsFile != nil {
-		env.Data.RedirectsFile = *data.RedirectsFile
+		env.Data.RedirectsFile = utils.TrimPath(*data.RedirectsFile)
 	}
 
 	if data.ServerCmd != nil {
@@ -126,7 +126,7 @@ func handlerEnvUpdate(req *RequestContext) *shttp.Response {
 	}
 
 	if data.ServerFolder != nil {
-		env.Data.ServerFolder = *data.ServerFolder
+		env.Data.ServerFolder = utils.TrimPath(*data.ServerFolder)
 	}
 
 	if data.Redirects != nil {
@@ -141,7 +141,7 @@ func handlerEnvUpdate(req *RequestContext) *shttp.Response {
 		env.Data.Vars = data.EnvVars
 	}
 
-	if errs := validateEnv(env); len(errs) > 0 {
+	if errs := buildconf.Validate(env); len(errs) > 0 {
 		return shttp.BadRequest(map[string]any{"errors": errs})
 	}
 
