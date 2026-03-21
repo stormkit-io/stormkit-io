@@ -7,7 +7,7 @@ description: API Documentation for managing environments through Stormkit API.
 
 ## Overview
 
-The Environments API lets you create and delete environments, and pull environment variable values programmatically.
+The Environments API lets you create, update, and delete environments, and pull environment variable values programmatically.
 
 ---
 
@@ -79,6 +79,74 @@ curl -X POST \
 {
   "envId": "305"
 }
+```
+
+---
+
+## PUT /v1/env
+
+Updates the configuration of an existing environment. Only the fields provided in the request body are changed — all other fields retain their current values.
+
+**Base URL:** `https://api.stormkit.io`
+
+**Authentication:** Environment-level API key. When using an app- or higher-level key, `envId` must be provided as a query parameter.
+
+### Query parameters
+
+| Parameter | Type   | Required                                            | Description                          |
+| --------- | ------ | --------------------------------------------------- | ------------------------------------ |
+| `envId`   | number | **Yes** (unless using an environment-level API key) | The ID of the environment to update. |
+
+### Request body
+
+All fields are **optional**. Only the fields you include will be updated.
+
+| Field                | Type                    | Description                                                                                                 |
+| -------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `name`               | string                  | Environment name. Only alphanumeric characters and hyphens are allowed. Double hyphens (`--`) are reserved. |
+| `branch`             | string                  | Default git branch for this environment.                                                                    |
+| `apiFolder`          | string                  | Repository folder containing serverless API functions.                                                      |
+| `apiPathPrefix`      | string                  | URL path prefix for API calls (default: `/api`).                                                            |
+| `autoDeploy`         | boolean                 | Whether to trigger automatic deployments.                                                                   |
+| `autoDeployBranches` | string                  | Glob/regex pattern to filter which branches trigger auto-deploys. Setting this enables `autoDeploy`.        |
+| `autoDeployCommits`  | string                  | Glob/regex pattern to filter which commit messages trigger auto-deploys. Setting this enables `autoDeploy`. |
+| `autoPublish`        | boolean                 | Whether to automatically publish successful deployments.                                                    |
+| `buildCmd`           | string                  | Command to build the application.                                                                           |
+| `distFolder`         | string                  | Output folder containing the build artifacts.                                                               |
+| `envVars`            | `Record<string,string>` | Environment variables to inject into deployments. Replaces all existing variables.                          |
+| `errorFile`          | string                  | File served on errors. Must be inside `distFolder`.                                                         |
+| `headers`            | string                  | Inline custom HTTP response headers.                                                                        |
+| `headersFile`        | string                  | Path to the custom HTTP headers file.                                                                       |
+| `installCmd`         | string                  | Command to install dependencies.                                                                            |
+| `previewLinks`       | boolean                 | Whether Stormkit posts a preview URL on pull/merge requests.                                                |
+| `redirectsFile`      | string                  | Path to a file containing redirect/rewrite rules.                                                           |
+| `serverCmd`          | string                  | Command to start the server (self-hosted only).                                                             |
+| `serverFolder`       | string                  | Server-side upload folder.                                                                                  |
+| `statusChecks`       | `StatusCheck[]`         | Post-deployment commands to run. Replaces all existing checks. See `StatusCheck` in `POST /v1/env`.         |
+
+### Response — 200 OK
+
+| Field | Type    | Description                   |
+| ----- | ------- | ----------------------------- |
+| `ok`  | boolean | `true` when update succeeded. |
+
+### Error responses
+
+| Status | Condition                                                      |
+| ------ | -------------------------------------------------------------- |
+| `400`  | Invalid field values (e.g. malformed headers, duplicate name). |
+| `403`  | Missing/invalid API key or insufficient permissions.           |
+| `404`  | Environment not found.                                         |
+| `500`  | Internal server error.                                         |
+
+### Example
+
+```bash
+curl -X PUT \
+     -H 'Authorization: <api_key>' \
+     -H 'Content-Type: application/json' \
+     -d '{"buildCmd":"npm run build:prod","distFolder":"dist","autoPublish":true}' \
+     'https://api.stormkit.io/v1/env?envId=305'
 ```
 
 ---

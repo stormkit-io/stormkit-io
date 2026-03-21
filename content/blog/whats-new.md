@@ -5,6 +5,10 @@ description: Discover the latest changes and improvements to Stormkit. Stay up-t
 
 Follow the latest developments on Stormkit.
 
+## March 21st, 2026
+
+New public API endpoint to [update environment configuration](/docs/api/environments). Use an environment-level API key to partially update build settings, branch, auto-deploy rules, environment variables, and more — only the fields you provide are changed.
+
 ## March 20th, 2026
 
 New public API endpoint to [publish a deployment](/docs/api/deployments). Use an environment-level API key to make any successful deployment live.

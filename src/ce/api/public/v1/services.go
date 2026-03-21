@@ -32,6 +32,7 @@ func Services(r *shttp.Router) *shttp.Service {
 
 	s.NewEndpoint("/v1/env").
 		Handler(shttp.MethodPost, "", WithAPIKey(handlerEnvAdd, &Opts{MinimumScope: apikey.SCOPE_APP})).
+		Handler(shttp.MethodPut, "", WithAPIKey(handlerEnvUpdate, &Opts{MinimumScope: apikey.SCOPE_ENV})).
 		Handler(shttp.MethodDelete, "", WithAPIKey(handlerEnvDel, &Opts{MinimumScope: apikey.SCOPE_ENV})).
 		Handler(shttp.MethodGet, "/pull", WithAPIKey(handlerEnvPull, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
