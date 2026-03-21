@@ -18,6 +18,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp/shttptest"
+	"github.com/stormkit-io/stormkit-io/src/lib/types"
 )
 
 type HandlerEnvUpdateSuite struct {
@@ -167,6 +168,44 @@ func (s *HandlerEnvUpdateSuite) Test_BadRequest_InvalidHeaders() {
 	)
 
 	s.Equal(http.StatusBadRequest, response.Code)
+}
+
+func (s *HandlerEnvUpdateSuite) Test_Success_AppScopedKey() {
+	app := s.MockApp(nil)
+	env := s.MockEnv(app, map[string]any{
+		"Name":   "production",
+		"Branch": "main",
+	})
+	key := s.MockAPIKey(app, nil, map[string]any{
+		"Scope": apikey.SCOPE_APP,
+		"EnvID": types.ID(0),
+		"AppID": app.ID,
+	})
+
+	admin.SetMockLicense()
+
+	defer func() { admin.ResetMockLicense() }()
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodPut,
+		"/v1/env",
+		map[string]any{
+			"envId":    env.ID.String(),
+			"buildCmd": "npm run build:prod",
+		},
+		map[string]string{
+			"Authorization": key.Value,
+		},
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+
+	updated, err := buildconf.NewStore().EnvironmentByID(context.Background(), env.ID)
+
+	s.NoError(err)
+	s.NotNil(updated)
+	s.Equal("npm run build:prod", updated.Data.BuildCmd)
 }
 
 func TestHandlerEnvUpdate(t *testing.T) {

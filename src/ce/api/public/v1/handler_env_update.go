@@ -1,15 +1,15 @@
 package publicapiv1
 
 import (
-	"strings"
-
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appcache"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/redirects"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
+	"github.com/stormkit-io/stormkit-io/src/lib/database"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"gopkg.in/guregu/null.v3"
 )
 
@@ -78,11 +78,11 @@ func handlerEnvUpdate(req *RequestContext) *shttp.Response {
 	}
 
 	if data.APIFolder != nil {
-		env.Data.APIFolder = strings.TrimPrefix(*data.APIFolder, "/")
+		env.Data.APIFolder = utils.TrimPath(*data.APIFolder)
 	}
 
 	if data.APIPathPrefix != nil {
-		env.Data.APIPathPrefix = strings.TrimPrefix(*data.APIPathPrefix, "/")
+		env.Data.APIPathPrefix = utils.TrimPath(*data.APIPathPrefix)
 	}
 
 	if data.BuildCmd != nil {
@@ -141,10 +141,14 @@ func handlerEnvUpdate(req *RequestContext) *shttp.Response {
 		env.Data.Vars = data.EnvVars
 	}
 
+	if errs := validateEnv(env); len(errs) > 0 {
+		return shttp.BadRequest(map[string]any{"errors": errs})
+	}
+
 	store := buildconf.NewStore()
 
 	if err := store.Update(req.Context(), env); err != nil {
-		if strings.Contains(err.Error(), "duplicate key") {
+		if database.IsDuplicate(err) {
 			return shttp.Error(buildconf.ErrDuplicateEnvName)
 		}
 
@@ -168,6 +172,7 @@ func handlerEnvUpdate(req *RequestContext) *shttp.Response {
 				EnvAutoPublish:        audit.Bool(env.AutoPublish),
 				EnvAutoDeploy:         audit.Bool(env.AutoDeploy),
 				EnvAutoDeployBranches: env.AutoDeployBranches.ValueOrZero(),
+				EnvAutoDeployCommits:  env.AutoDeployCommits.ValueOrZero(),
 				EnvBuildConfig:        env.Data,
 			},
 		}

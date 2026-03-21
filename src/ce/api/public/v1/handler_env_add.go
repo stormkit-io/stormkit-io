@@ -3,7 +3,6 @@ package publicapiv1
 import (
 	"net/http"
 	"regexp"
-	"strings"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
@@ -11,6 +10,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
 	"github.com/stormkit-io/stormkit-io/src/lib/database"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"gopkg.in/guregu/null.v3"
 )
 
@@ -80,8 +80,8 @@ func handlerEnvAdd(req *RequestContext) *shttp.Response {
 
 	cnf := &buildconf.Env{
 		Data: &buildconf.BuildConf{
-			APIFolder:     strings.TrimPrefix(data.APIFolder, "/"),
-			APIPathPrefix: strings.TrimPrefix(data.APIPathPrefix, "/"),
+			APIFolder:     utils.TrimPath(data.APIFolder),
+			APIPathPrefix: utils.TrimPath(data.APIPathPrefix),
 			BuildCmd:      data.BuildCmd,
 			DistFolder:    data.DistFolder,
 			ErrorFile:     data.ErrorFile,

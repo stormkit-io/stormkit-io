@@ -44,6 +44,7 @@ func (s *ServicesSuite) Test_Services_SelfHosted() {
 		"POST:/v1/snippets",
 		"POST:/v1/volumes",
 		"PUT:/v1/domains/cert",
+		"PUT:/v1/env",
 		"PUT:/v1/snippets",
 	}
 
@@ -79,6 +80,7 @@ func (s *ServicesSuite) Test_Services_StormkitCloud() {
 		"POST:/v1/snippets",
 		"POST:/v1/volumes",
 		"PUT:/v1/domains/cert",
+		"PUT:/v1/env",
 		"PUT:/v1/snippets",
 	}
 
