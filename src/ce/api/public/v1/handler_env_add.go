@@ -3,8 +3,10 @@ package publicapiv1
 import (
 	"net/http"
 	"regexp"
+	"strings"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/redirects"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
 	"github.com/stormkit-io/stormkit-io/src/lib/database"
@@ -14,6 +16,7 @@ import (
 
 type EnvAddRequest struct {
 	APIFolder          string                  `json:"apiFolder,omitempty"`
+	APIPathPrefix      string                  `json:"apiPathPrefix,omitempty"`
 	AutoDeploy         bool                    `json:"autoDeploy"`
 	AutoDeployBranches null.String             `json:"autoDeployBranches,omitempty"`
 	AutoDeployCommits  null.String             `json:"autoDeployCommits,omitempty"`
@@ -23,12 +26,15 @@ type EnvAddRequest struct {
 	DistFolder         string                  `json:"distFolder,omitempty"`
 	EnvVars            map[string]string       `json:"envVars,omitempty"`
 	ErrorFile          string                  `json:"errorFile,omitempty"`
+	Headers            string                  `json:"headers,omitempty"`
 	HeadersFile        string                  `json:"headersFile,omitempty"`
+	InstallCmd         string                  `json:"installCmd,omitempty"`
 	Name               string                  `json:"name"`
 	PreviewLinks       null.Bool               `json:"previewLinks,omitempty"`
 	Redirects          []redirects.Redirect    `json:"redirects,omitempty"`
 	RedirectsFile      string                  `json:"redirectsFile,omitempty"`
 	ServerCmd          string                  `json:"serverCmd,omitempty"`
+	ServerFolder       string                  `json:"serverFolder,omitempty"`
 	StatusChecks       []buildconf.StatusCheck `json:"statusChecks,omitempty"`
 }
 
@@ -66,18 +72,29 @@ func handlerEnvAdd(req *RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
+	if data.Headers != "" {
+		if _, err := deploy.ParseHeaders(data.Headers); err != nil {
+			return shttp.BadRequest(map[string]any{"error": err.Error()})
+		}
+	}
+
 	cnf := &buildconf.Env{
 		Data: &buildconf.BuildConf{
-			APIFolder:     data.APIFolder,
+			APIFolder:     strings.TrimPrefix(data.APIFolder, "/"),
+			APIPathPrefix: strings.TrimPrefix(data.APIPathPrefix, "/"),
 			BuildCmd:      data.BuildCmd,
 			DistFolder:    data.DistFolder,
 			ErrorFile:     data.ErrorFile,
+			Headers:       data.Headers,
 			HeadersFile:   data.HeadersFile,
+			InstallCmd:    data.InstallCmd,
 			PreviewLinks:  data.PreviewLinks,
 			ServerCmd:     data.ServerCmd,
+			ServerFolder:  data.ServerFolder,
 			Redirects:     data.Redirects,
 			RedirectsFile: data.RedirectsFile,
 			Vars:          data.EnvVars,
+			StatusChecks:  data.StatusChecks,
 		},
 		Name:        data.Name,
 		AppID:       req.App.ID,

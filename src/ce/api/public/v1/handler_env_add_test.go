@@ -126,7 +126,7 @@ func (s *HandlerEnvAddSuite) Test_Success() {
 	s.Equal("", env.AutoDeployCommits.ValueOrZero())
 	s.True(env.AutoDeploy)
 	s.True(env.Data.PreviewLinks.ValueOrZero())
-	s.Equal("/functions", env.Data.APIFolder)
+	s.Equal("functions", env.Data.APIFolder)
 	s.Equal("npm run build:prod", env.Data.BuildCmd)
 	s.Equal("npm run start", env.Data.ServerCmd)
 	s.Equal("./output/apps/my-app", env.Data.DistFolder)

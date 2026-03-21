@@ -97,6 +97,7 @@ func (s *ServicesSuite) Test_EE() {
 		"POST:/v1/deployments/{id:[0-9]+}/publish": http.StatusForbidden,
 		"POST:/v1/deploy":                          http.StatusForbidden,
 		"POST:/v1/env":                             http.StatusForbidden,
+		"PUT:/v1/env":                              http.StatusForbidden,
 		"GET:/v1/env/pull":                         http.StatusForbidden,
 		"GET:/v1/env":                              http.StatusForbidden,
 		"DELETE:/v1/env":                           http.StatusForbidden,

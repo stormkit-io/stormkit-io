@@ -26,6 +26,7 @@ Creates a new environment for an application.
 | `name`               | string                  | **Yes**  | Environment name. Only alphanumeric characters and hyphens are allowed. Double hyphens (`--`) are reserved. |
 | `branch`             | string                  | **Yes**  | Default git branch for this environment.                                                                    |
 | `apiFolder`          | string                  | No       | Repository folder containing serverless API functions.                                                      |
+| `apiPathPrefix`      | string                  | No       | URL path prefix for API calls (default: `/api`).                                                            |
 | `autoDeploy`         | boolean                 | No       | Whether to trigger automatic deployments.                                                                   |
 | `autoDeployBranches` | string                  | No       | Glob/regex pattern to filter which branches trigger auto-deploys. Setting this enables `autoDeploy`.        |
 | `autoDeployCommits`  | string                  | No       | Glob/regex pattern to filter which commit messages trigger auto-deploys. Setting this enables `autoDeploy`. |
@@ -34,11 +35,14 @@ Creates a new environment for an application.
 | `distFolder`         | string                  | No       | Output folder containing the build artifacts.                                                               |
 | `envVars`            | `Record<string,string>` | No       | Environment variables to inject into deployments.                                                           |
 | `errorFile`          | string                  | No       | File served on errors. Must be inside `distFolder`.                                                         |
+| `headers`            | string                  | No       | Inline custom HTTP response headers.                                                                        |
 | `headersFile`        | string                  | No       | Path to the custom HTTP headers file.                                                                       |
+| `installCmd`         | string                  | No       | Command to install dependencies.                                                                            |
 | `previewLinks`       | boolean                 | No       | Whether Stormkit posts a preview URL on pull/merge requests.                                                |
 | `redirects`          | `Redirect[]`            | No       | Inline redirect/rewrite rules. See the Redirects API for the `Redirect` object shape.                       |
 | `redirectsFile`      | string                  | No       | Path to a file containing redirect/rewrite rules.                                                           |
 | `serverCmd`          | string                  | No       | Command to start the server (self-hosted only).                                                             |
+| `serverFolder`       | string                  | No       | Server-side upload folder.                                                                                  |
 | `statusChecks`       | `StatusCheck[]`         | No       | Post-deployment commands to run. See `StatusCheck` object below.                                            |
 
 **`StatusCheck` object:**
@@ -101,28 +105,29 @@ Updates the configuration of an existing environment. Only the fields provided i
 
 All fields are **optional**. Only the fields you include will be updated.
 
-| Field                | Type                    | Description                                                                                                 |
-| -------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `name`               | string                  | Environment name. Only alphanumeric characters and hyphens are allowed. Double hyphens (`--`) are reserved. |
-| `branch`             | string                  | Default git branch for this environment.                                                                    |
-| `apiFolder`          | string                  | Repository folder containing serverless API functions.                                                      |
-| `apiPathPrefix`      | string                  | URL path prefix for API calls (default: `/api`).                                                            |
-| `autoDeploy`         | boolean                 | Whether to trigger automatic deployments.                                                                   |
-| `autoDeployBranches` | string                  | Glob/regex pattern to filter which branches trigger auto-deploys. Setting this enables `autoDeploy`.        |
-| `autoDeployCommits`  | string                  | Glob/regex pattern to filter which commit messages trigger auto-deploys. Setting this enables `autoDeploy`. |
-| `autoPublish`        | boolean                 | Whether to automatically publish successful deployments.                                                    |
-| `buildCmd`           | string                  | Command to build the application.                                                                           |
-| `distFolder`         | string                  | Output folder containing the build artifacts.                                                               |
-| `envVars`            | `Record<string,string>` | Environment variables to inject into deployments. Replaces all existing variables.                          |
-| `errorFile`          | string                  | File served on errors. Must be inside `distFolder`.                                                         |
-| `headers`            | string                  | Inline custom HTTP response headers.                                                                        |
-| `headersFile`        | string                  | Path to the custom HTTP headers file.                                                                       |
-| `installCmd`         | string                  | Command to install dependencies.                                                                            |
-| `previewLinks`       | boolean                 | Whether Stormkit posts a preview URL on pull/merge requests.                                                |
-| `redirectsFile`      | string                  | Path to a file containing redirect/rewrite rules.                                                           |
-| `serverCmd`          | string                  | Command to start the server (self-hosted only).                                                             |
-| `serverFolder`       | string                  | Server-side upload folder.                                                                                  |
-| `statusChecks`       | `StatusCheck[]`         | Post-deployment commands to run. Replaces all existing checks. See `StatusCheck` in `POST /v1/env`.         |
+| Field                | Type                    | Description                                                                                                               |
+| -------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `name`               | string                  | Environment name. Only alphanumeric characters and hyphens are allowed. Double hyphens (`--`) are reserved.               |
+| `branch`             | string                  | Default git branch for this environment.                                                                                  |
+| `apiFolder`          | string                  | Repository folder containing serverless API functions.                                                                    |
+| `apiPathPrefix`      | string                  | URL path prefix for API calls (default: `/api`).                                                                          |
+| `autoDeploy`         | boolean                 | Whether to trigger automatic deployments.                                                                                 |
+| `autoDeployBranches` | string                  | Glob/regex pattern to filter which branches trigger auto-deploys. Setting this enables `autoDeploy`.                      |
+| `autoDeployCommits`  | string                  | Glob/regex pattern to filter which commit messages trigger auto-deploys. Setting this enables `autoDeploy`.               |
+| `autoPublish`        | boolean                 | Whether to automatically publish successful deployments.                                                                  |
+| `buildCmd`           | string                  | Command to build the application.                                                                                         |
+| `distFolder`         | string                  | Output folder containing the build artifacts.                                                                             |
+| `envVars`            | `Record<string,string>` | Environment variables to inject into deployments. Replaces all existing variables.                                        |
+| `errorFile`          | string                  | File served on errors. Must be inside `distFolder`.                                                                       |
+| `headers`            | string                  | Inline custom HTTP response headers.                                                                                      |
+| `headersFile`        | string                  | Path to the custom HTTP headers file.                                                                                     |
+| `installCmd`         | string                  | Command to install dependencies.                                                                                          |
+| `previewLinks`       | boolean                 | Whether Stormkit posts a preview URL on pull/merge requests.                                                              |
+| `redirects`          | `Redirect[]`            | Inline redirect/rewrite rules. Replaces all existing inline rules. See the Redirects API for the `Redirect` object shape. |
+| `redirectsFile`      | string                  | Path to a file containing redirect/rewrite rules.                                                                         |
+| `serverCmd`          | string                  | Command to start the server (self-hosted only).                                                                           |
+| `serverFolder`       | string                  | Server-side upload folder.                                                                                                |
+| `statusChecks`       | `StatusCheck[]`         | Post-deployment commands to run. Replaces all existing checks. See `StatusCheck` in `POST /v1/env`.                       |
 
 ### Response — 200 OK
 

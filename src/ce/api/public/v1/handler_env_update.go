@@ -7,6 +7,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appcache"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/redirects"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"gopkg.in/guregu/null.v3"
@@ -28,6 +29,7 @@ type EnvUpdateRequest struct {
 	HeadersFile        *string                 `json:"headersFile,omitempty"`
 	InstallCmd         *string                 `json:"installCmd,omitempty"`
 	PreviewLinks       *bool                   `json:"previewLinks,omitempty"`
+	Redirects          []redirects.Redirect    `json:"redirects,omitempty"`
 	RedirectsFile      *string                 `json:"redirectsFile,omitempty"`
 	ServerCmd          *string                 `json:"serverCmd,omitempty"`
 	ServerFolder       *string                 `json:"serverFolder,omitempty"`
@@ -125,6 +127,10 @@ func handlerEnvUpdate(req *RequestContext) *shttp.Response {
 
 	if data.ServerFolder != nil {
 		env.Data.ServerFolder = *data.ServerFolder
+	}
+
+	if data.Redirects != nil {
+		env.Data.Redirects = data.Redirects
 	}
 
 	if data.StatusChecks != nil {
