@@ -1,5 +1,28 @@
 # Changelog
 
+## v2026.03.20.2...v2026.03.22.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.03.20.2...v2026.03.22.1)
+
+### 🚀 Enhancements
+
+- Public api endpoint to update env ([bba25d2](https://github.com/stormkit-io/stormkit-io/commit/bba25d2))
+
+### 🩹 Fixes
+
+- Typo ([7f585e5](https://github.com/stormkit-io/stormkit-io/commit/7f585e5))
+
+### 🏡 Chore
+
+- Update changelog for v2026.03.20.2 ([a8bfa9c](https://github.com/stormkit-io/stormkit-io/commit/a8bfa9c))
+- Bring feature parity to post and put methods ([8de914e](https://github.com/stormkit-io/stormkit-io/commit/8de914e))
+- Minor adjustments ([42dc7a0](https://github.com/stormkit-io/stormkit-io/commit/42dc7a0))
+- Standardize path behaviours ([2189600](https://github.com/stormkit-io/stormkit-io/commit/2189600))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.03.20.1...v2026.03.20.2
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.03.20.1...v2026.03.20.2)
