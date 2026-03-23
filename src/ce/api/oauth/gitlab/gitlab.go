@@ -105,6 +105,11 @@ func oauth2Config() *oauth2.Config {
 		ClientID:     cnf.AuthConfig.Gitlab.ClientID,
 		ClientSecret: cnf.AuthConfig.Gitlab.ClientSecret,
 		Endpoint:     gl.Endpoint,
+		Scopes: []string{
+			"read_user",
+			"read_repository",
+			"write_repository",
+		},
 	}
 }
 
