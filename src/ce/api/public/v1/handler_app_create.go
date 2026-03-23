@@ -46,11 +46,12 @@ func handlerAppCreate(req *RequestContext) *shttp.Response {
 	myApp.TeamID = req.TeamID
 
 	if data.Repo != "" {
-		myApp.Repo = fmt.Sprintf("%s/%s", strings.ToLower(data.Provider), data.Repo)
+		myApp.Repo = fmt.Sprintf("%s/%s", strings.ToLower(strings.TrimSpace(data.Provider)), strings.TrimSpace(data.Repo))
 	}
 
-	if data.DisplayName != "" {
-		myApp.DisplayName = strings.TrimSpace(data.DisplayName)
+	if trimmed := strings.TrimSpace(data.DisplayName); trimmed != "" {
+		// If a non-empty display name is provided, trim it and use it. Otherwise, it will use the default set by app.New().
+		myApp.DisplayName = trimmed
 	}
 
 	if errs := app.Validate(myApp); len(errs) > 0 {

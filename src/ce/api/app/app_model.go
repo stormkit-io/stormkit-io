@@ -351,12 +351,27 @@ func Validate(a *App) []string {
 	errs := []string{}
 
 	if a.Repo != "" {
-		isBitbucket := strings.HasPrefix(a.Repo, "bitbucket/")
-		isGithub := strings.HasPrefix(a.Repo, "github/")
-		isGitlab := strings.HasPrefix(a.Repo, "gitlab/")
 
-		if !isBitbucket && !isGithub && !isGitlab {
+		// Strip the provider prefix and validate the remaining owner/slug.
+		var rest string
+
+		switch {
+		case strings.HasPrefix(a.Repo, "github/"):
+			rest = strings.TrimPrefix(a.Repo, "github/")
+		case strings.HasPrefix(a.Repo, "gitlab/"):
+			rest = strings.TrimPrefix(a.Repo, "gitlab/")
+		case strings.HasPrefix(a.Repo, "bitbucket/"):
+			rest = strings.TrimPrefix(a.Repo, "bitbucket/")
+		default:
 			errs = append(errs, "Provider is not supported. Supported providers are Github, Bitbucket and Gitlab.")
+		}
+
+		if rest != "" {
+			parts := strings.SplitN(rest, "/", 2)
+
+			if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
+				errs = append(errs, "Repo is invalid. It must be in \"owner/slug\" format.")
+			}
 		}
 	}
 
