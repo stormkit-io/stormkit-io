@@ -378,7 +378,7 @@ func Validate(a *App) []string {
 	matched, _ := regexp.MatchString(`^[\w0-9-]+$`, a.DisplayName)
 
 	if !matched {
-		errs = append(errs, "Display name is invalid. It must only contain alphanumeric characters and hyphens.")
+		errs = append(errs, "Display name is invalid. It must only contain alphanumeric characters, hyphens, and underscores.")
 	}
 
 	if strings.Contains(a.DisplayName, "--") {
