@@ -21,6 +21,18 @@ func (r *Response) String() string {
 	return strings.TrimSpace(string(b))
 }
 
+// Map returns the response as a map of string to any.
+// This is useful when the response is expected to be a JSON object.
+func (r *Response) Map() map[string]any {
+	var m map[string]any
+
+	if err := json.Unmarshal(r.Byte(), &m); err != nil {
+		panic("Was expecting to unmarshal response data but could not")
+	}
+
+	return m
+}
+
 // String returns the response as an array of bytes.
 func (r *Response) Byte() []byte {
 	b, err := io.ReadAll(r.Body)
