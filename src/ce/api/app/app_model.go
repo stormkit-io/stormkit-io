@@ -346,3 +346,33 @@ func (a *App) User() *user.User {
 
 	return a.user
 }
+
+func Validate(a *App) []string {
+	errs := []string{}
+
+	if a.Repo != "" {
+		isBitbucket := strings.HasPrefix(a.Repo, "bitbucket/")
+		isGithub := strings.HasPrefix(a.Repo, "github/")
+		isGitlab := strings.HasPrefix(a.Repo, "gitlab/")
+
+		if !isBitbucket && !isGithub && !isGitlab {
+			errs = append(errs, "Provider is not supported. Supported providers are Github, Bitbucket and Gitlab.")
+		}
+	}
+
+	matched, _ := regexp.MatchString(`^[\w0-9-]+$`, a.DisplayName)
+
+	if !matched {
+		errs = append(errs, "Display name is invalid. It must only contain alphanumeric characters and hyphens.")
+	}
+
+	if strings.Contains(a.DisplayName, "--") {
+		errs = append(errs, "Display name cannot contain consecutive hyphens.")
+	}
+
+	if a.DisplayName == "api" || a.DisplayName == "stormkit" {
+		errs = append(errs, "Display name is not allowed")
+	}
+
+	return errs
+}

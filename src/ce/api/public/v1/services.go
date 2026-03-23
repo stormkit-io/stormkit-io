@@ -20,6 +20,7 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodGet, "", WithAPIKey(handlerAppList, &Opts{MinimumScope: apikey.SCOPE_TEAM}))
 
 	s.NewEndpoint("/v1/app").
+		Handler(shttp.MethodPost, "", WithAPIKey(handlerAppCreate, &Opts{MinimumScope: apikey.SCOPE_TEAM})).
 		Handler(shttp.MethodGet, "", WithAPIKey(handlerAppGet, &Opts{MinimumScope: apikey.SCOPE_APP})).
 		Handler(shttp.MethodGet, "/config", WithAPIKey(handlerAppConf, &Opts{MinimumScope: apikey.SCOPE_APP}))
 

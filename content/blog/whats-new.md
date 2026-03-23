@@ -5,6 +5,10 @@ description: Discover the latest changes and improvements to Stormkit. Stay up-t
 
 Follow the latest developments on Stormkit.
 
+## March 23rd, 2026
+
+New public API endpoint to [create an application](/docs/api/apps). Use a team-level API key to provision a new app linked to a GitHub, GitLab, or Bitbucket repository — or create a bare application with no repository attached. Combined with the existing environments and deployments endpoints, the full app lifecycle can now be managed programmatically.
+
 ## March 21st, 2026
 
 New public API endpoint to [update environment configuration](/docs/api/environments). Use an environment-level API key to partially update build settings, branch, auto-deploy rules, environment variables, and more — only the fields you provide are changed.

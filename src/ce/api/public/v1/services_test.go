@@ -27,6 +27,7 @@ func (s *ServicesSuite) Test_Services_SelfHosted() {
 		"GET:/v1/app",
 		"GET:/v1/app/config",
 		"GET:/v1/apps",
+		"POST:/v1/app",
 		"GET:/v1/auth",
 		"GET:/v1/auth/callback",
 		"GET:/v1/auth/session",
@@ -64,6 +65,7 @@ func (s *ServicesSuite) Test_Services_StormkitCloud() {
 		"GET:/v1/app",
 		"GET:/v1/app/config",
 		"GET:/v1/apps",
+		"POST:/v1/app",
 		"GET:/v1/deployments/{id:[0-9]+}",
 		"GET:/v1/domains",
 		"GET:/v1/env/pull",
@@ -94,6 +96,7 @@ func (s *ServicesSuite) Test_EE() {
 	statusMap := map[string]int{
 		"GET:/v1/apps":                             http.StatusForbidden,
 		"GET:/v1/app":                              http.StatusForbidden,
+		"POST:/v1/app":                             http.StatusForbidden,
 		"GET:/v1/app/config":                       http.StatusForbidden,
 		"GET:/v1/deployments/{id:[0-9]+}":          http.StatusForbidden,
 		"POST:/v1/deployments/{id:[0-9]+}/publish": http.StatusForbidden,

@@ -1,13 +1,101 @@
 ---
 title: Apps API
-description: Retrieve the list of applications that belong to your Stormkit account using the Apps API.
+description: Create applications and retrieve the list of applications that belong to your Stormkit account using the Apps API.
 ---
 
 # Apps API
 
 ## Overview
 
-The Apps API lets you list applications in your Stormkit account. It is useful for discovering `appId` values that are required by other API endpoints.
+The Apps API lets you create and list applications in your Stormkit account. It is useful for automating app provisioning and for discovering `appId` values that are required by other API endpoints.
+
+---
+
+## POST /v1/app
+
+Creates a new application and links it to a source-code repository.
+
+**Base URL:** `https://api.stormkit.io`
+
+**Authentication:** Team-level or user-level API key passed as the `Authorization` header. To generate one: Profile → Account → API Keys or Team → Settings. When using a user-level key, include `teamId` in the request body to specify which team the application belongs to.
+
+### Request body
+
+| Field         | Type   | Required | Description                                                                                                                                       |
+| ------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `teamId`      | string | No       | ID of the team to create the application under. Required when using a user-level API key; ignored when using a team-level key (the team is derived from the key). |
+| `repo`        | string | No       | Repository path in `owner/slug` format (e.g. `acme/my-app`). Omit to create a bare application.                                                   |
+| `provider`    | string | No       | Source-code provider. One of `github`, `gitlab`, `bitbucket`. Required when `repo` is set.                                                        |
+| `displayName` | string | No       | Human-readable application name. Must contain only alphanumeric characters, hyphens, and underscores, with no consecutive hyphens. Auto-generated when omitted. |
+
+### Response — 200 OK
+
+| Field | Type  | Description                    |
+| ----- | ----- | ------------------------------ |
+| `app` | `App` | The newly created application. |
+
+**`App` object:**
+
+| Field          | Type    | Description                                                                         |
+| -------------- | ------- | ----------------------------------------------------------------------------------- |
+| `id`           | string  | Unique application ID.                                                              |
+| `displayName`  | string  | Human-readable name of the application.                                             |
+| `repo`         | string  | Repository path (e.g. `github/acme/my-app`). Empty when `isBare` is `true`.         |
+| `isBare`       | boolean | `true` when no repository is linked.                                                |
+| `userId`       | string  | ID of the user who owns the application.                                            |
+| `teamId`       | string  | ID of the team the application belongs to.                                          |
+| `defaultEnvId` | string  | ID of the default environment. Use this as `envId` in environment-scoped endpoints. |
+| `createdAt`    | string  | Unix timestamp (seconds) when the application was created.                          |
+
+### Error responses
+
+| Status | Condition                                                                         |
+| ------ | --------------------------------------------------------------------------------- |
+| `400`  | Invalid `displayName` (regex mismatch or reserved word), or unsupported provider. |
+| `403`  | Missing/invalid API key, or the key scope is below team level.                    |
+| `500`  | Internal server error.                                                            |
+
+### Examples
+
+```bash
+# Create an app linked to a GitHub repository
+curl -X POST \
+     -H 'Authorization: <team_api_key>' \
+     -H 'Content-Type: application/json' \
+     -d '{"repo":"acme/my-app","provider":"github"}' \
+     'https://api.stormkit.io/v1/app'
+```
+
+```bash
+# Create a bare application (no repository) with a custom display name
+curl -X POST \
+     -H 'Authorization: <team_api_key>' \
+     -H 'Content-Type: application/json' \
+     -d '{"displayName":"my-bare-app"}' \
+     'https://api.stormkit.io/v1/app'
+```
+
+```json
+// Example response
+{
+  "app": {
+    "id": "1510",
+    "displayName": "my-app",
+    "repo": "github/acme/my-app",
+    "isBare": false,
+    "userId": "42",
+    "teamId": "7",
+    "defaultEnvId": "305",
+    "createdAt": "1742723400"
+  }
+}
+```
+
+### Notes
+
+- After creating the app, use `GET /v1/app` with the returned `id` to poll for the `defaultEnvId` once the first environment has been provisioned.
+- For **GitHub**, the GitHub App must be installed on the target account/organisation before deployments can access the repository. If the repository does not appear when deploying, go to **Home → Create New App → Import From GitHub → Connect more repositories** to grant Stormkit access to additional repos.
+- For **GitLab** and **Bitbucket**, an OAuth token for the account must be connected via the Stormkit UI before deployments can clone the repository.
 
 ---
 

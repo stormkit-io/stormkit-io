@@ -295,12 +295,10 @@ func getTeamIDFromRequest(req *shttp.RequestContext) types.ID {
 		TeamID types.ID `json:"teamId,string"`
 	}{}
 
-	if req.Method != shttp.MethodGet {
-		if isMultipart(req) {
-			data.TeamID = utils.StringToID(req.FormValue("teamId"))
-		} else {
-			_ = req.Post(&data)
-		}
+	if isMultipart(req) {
+		data.TeamID = utils.StringToID(req.FormValue("teamId"))
+	} else {
+		_ = req.Post(&data)
 	}
 
 	return data.TeamID
