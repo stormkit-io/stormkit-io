@@ -1,5 +1,25 @@
 # Changelog
 
+## v2026.03.24.1...v2026.03.24.2
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.03.24.1...v2026.03.24.2)
+
+### 🚀 Enhancements
+
+- New endpoint to poll deployment status ([bc5ba61](https://github.com/stormkit-io/stormkit-io/commit/bc5ba61))
+
+### 🩹 Fixes
+
+- Replace what's new iframe with local changelog api endpoint ([3806466](https://github.com/stormkit-io/stormkit-io/commit/3806466))
+
+### 🏡 Chore
+
+- Update changelog for v2026.03.24.1 ([ed1df17](https://github.com/stormkit-io/stormkit-io/commit/ed1df17))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.03.22.1...v2026.03.24.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.03.22.1...v2026.03.24.1)
