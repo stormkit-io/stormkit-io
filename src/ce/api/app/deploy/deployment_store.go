@@ -56,6 +56,30 @@ func (s *Store) DeploymentByID(ctx context.Context, id types.ID) (*Deployment, e
 	})
 }
 
+// DeploymentStatus returns a lightweight deployment record containing only the fields
+// needed to compute Status(): exit_code, config_snapshot, and status_checks_passed.
+// Returns nil (no error) when no matching deployment exists.
+func (s *Store) DeploymentStatus(ctx context.Context, id, envID types.ID) (*Deployment, error) {
+	row, err := s.QueryRow(ctx, stmt.selectDeploymentStatus, id, envID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	d := &Deployment{}
+	err = row.Scan(&d.ID, &d.EnvID, &d.ExitCode, &d.ConfigCopy, &d.StatusChecksPassed)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return d, nil
+}
+
 // DeploymentsQueryFilters defines the filters that are
 // accepted for the Deployments query.
 type DeploymentsQueryFilters struct {
@@ -330,29 +354,6 @@ func (s *Store) StopDeployment(ctx context.Context, deploymentID types.ID) error
 func (s *Store) StopStatusChecks(ctx context.Context, deploymentID types.ID) error {
 	_, err := s.Exec(ctx, stmt.stopStatusChecks, deploymentID)
 	return err
-}
-
-// IsDeploymentStopped checks whether a deployment is already stopped or not.
-func (s *Store) IsDeploymentStopped(ctx context.Context, deploymentID types.ID) (bool, error) {
-	var exitCode null.Int
-
-	row, err := s.QueryRow(ctx, stmt.selectExitCode, deploymentID)
-
-	if err != nil {
-		return false, err
-	}
-
-	err = row.Scan(&exitCode)
-
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return false, nil
-		}
-
-		return false, err
-	}
-
-	return exitCode.ValueOrZero() == ExitCodeStopped, nil
 }
 
 // UpdateGithubRunID updates the run id associated with the deployment. This value

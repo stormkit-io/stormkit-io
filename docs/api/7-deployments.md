@@ -7,7 +7,7 @@ description: Trigger new deployments programmatically using the Stormkit Deploym
 
 ## Overview
 
-The Deployments API lets you trigger new deployments from any CI/CD pipeline, script, or agent. At minimum an environment-level API key is required. App, team, and user-level keys are also accepted provided an `envId` is supplied in the request body.
+The Deployments API lets you trigger new deployments, poll their status, and publish them — all from any CI/CD pipeline, script, or agent. At minimum an environment-level API key is required. App, team, and user-level keys are also accepted provided an `envId` is supplied in the request body.
 
 ---
 
@@ -106,7 +106,7 @@ curl -X POST \
 
 ### Notes
 
-- Deployments run **asynchronously**. The `201` response confirms the deployment was queued — it does not mean the build has completed. Poll the deployment status using `GET /v1/deployments/{id}`.
+- Deployments run **asynchronously**. The `201` response confirms the deployment was queued — it does not mean the build has completed. Use `GET /v1/deployments/{id}/poll` for an efficient status check, or `GET /v1/deployments/{id}` to fetch the full deployment object.
 - When using an **environment-level key**, the `envId` field in the request body has no effect — the environment is always the one the key was issued for. To target a different environment, use that environment's own key.
 - When using an **app, team, or user-level key**, `envId` is required. The request will return `404` if the environment does not exist or is not accessible to the key.
 
@@ -276,6 +276,61 @@ curl -H 'Authorization: <api_key>' \
     "statusChecks": []
   }
 }
+```
+
+---
+
+## GET /v1/deployments/{id}/poll
+
+Returns only the current status of a deployment. Use this for lightweight polling loops — it avoids fetching the full deployment object on every tick.
+
+**Base URL:** `https://api.stormkit.io`
+
+**Authentication:** At least an environment-level API key passed as the `Authorization` header.
+
+### Path parameters
+
+| Parameter | Type   | Description        |
+| --------- | ------ | ------------------ |
+| `id`      | string | The deployment ID. |
+
+### Query parameters
+
+| Parameter | Type   | Required    | Description                                                                                                                                                         |
+| --------- | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `envId`   | string | Conditional | Required when using an app, team, or user-level API key. Identifies the environment that owns the deployment. Environment-level keys do not require this parameter. |
+
+### Response — 200 OK
+
+| Field    | Type   | Description                                        |
+| -------- | ------ | -------------------------------------------------- |
+| `status` | string | Current status: `running`, `success`, or `failed`. |
+
+### Error responses
+
+| Status | Condition                                                                               |
+| ------ | --------------------------------------------------------------------------------------- |
+| `403`  | Missing/invalid API key, or token does not have access to the deployment's environment. |
+| `404`  | Deployment not found, or it does not belong to the environment of the API key.          |
+| `500`  | Internal server error.                                                                  |
+
+### Example
+
+```bash
+# Poll until the deployment is no longer running
+while true; do
+  STATUS=$(curl -s -H 'Authorization: <api_key>' \
+    'https://api.stormkit.io/v1/deployments/8241/poll' \
+    | jq -r '.status')
+  echo "Status: $STATUS"
+  [ "$STATUS" != "running" ] && break
+  sleep 5
+done
+```
+
+```json
+// Example response
+{ "status": "running" }
 ```
 
 ---

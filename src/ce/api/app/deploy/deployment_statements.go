@@ -11,6 +11,7 @@ var (
 type statement struct {
 	selectDeploymentsV2      string
 	selectBuildManifest      string
+	selectDeploymentStatus   string
 	insertDeployment         string
 	restartDeployment        string
 	updateExitCode           string
@@ -22,7 +23,6 @@ type statement struct {
 	isDeploymentAlreadyBuilt string
 	stopDeployment           string
 	stopStatusChecks         string
-	selectExitCode           string
 	updateGithubRunID        string
 	updateDeploymentResult   string
 	markArtifactsAsDeleted   string
@@ -175,9 +175,15 @@ var stmt = &statement{
 			status_checks_passed IS NULL;
 	`,
 
-	selectExitCode: fmt.Sprintf(`
-		SELECT exit_code FROM %s WHERE deployment_id = $1;
-	`, tableDeploys),
+	selectDeploymentStatus: `
+		SELECT
+			deployment_id, env_id, exit_code, config_snapshot, status_checks_passed
+		FROM deployments
+		WHERE
+			deployment_id = $1 AND
+			env_id = $2 AND
+			deleted_at IS NULL;
+	`,
 
 	updateGithubRunID: fmt.Sprintf(`
 		UPDATE %s SET github_run_id = $1 WHERE deployment_id = $2 AND github_run_id IS NULL;

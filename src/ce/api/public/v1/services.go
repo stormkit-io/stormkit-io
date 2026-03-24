@@ -29,6 +29,7 @@ func Services(r *shttp.Router) *shttp.Service {
 
 	s.NewEndpoint("/v1/deployments/{id:[0-9]+}").
 		Handler(shttp.MethodGet, "", WithAPIKey(handlerDeploymentGet, &Opts{MinimumScope: apikey.SCOPE_ENV})).
+		Handler(shttp.MethodGet, "/poll", WithAPIKey(handlerDeploymentPoll, &Opts{MinimumScope: apikey.SCOPE_ENV})).
 		Handler(shttp.MethodPost, "/publish", WithAPIKey(handlerDeploymentPublish, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	s.NewEndpoint("/v1/env").
