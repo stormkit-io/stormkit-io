@@ -15,6 +15,9 @@
     "prettier": "prettier \"**/*.{ts,js,tsx,md}\" --write"
   },
   "dependencies": {
+    "@types/dompurify": "^3.0.5",
+    "dompurify": "^3.3.3",
+    "marked": "^17.0.5",
     "p-limit": "^6.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

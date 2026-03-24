@@ -20,6 +20,7 @@ func (ss *ServicesSuite) Test_Services() {
 
 	handlers := []string{
 		"GET:/instance",
+		"GET:/changelog",
 	}
 
 	ss.Equal(handlers, s.Handlers())

@@ -11,5 +11,8 @@ func Services(r *shttp.Router) *shttp.Service {
 	s.NewEndpoint("/instance").
 		Handler(shttp.MethodGet, "", handlerInstanceDetails)
 
+	s.NewEndpoint("/changelog").
+		Handler(shttp.MethodGet, "", handlerChangelog)
+
 	return s
 }
