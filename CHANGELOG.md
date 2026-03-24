@@ -1,5 +1,29 @@
 # Changelog
 
+## v2026.03.22.1...v2026.03.24.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.03.22.1...v2026.03.24.1)
+
+### 🚀 Enhancements
+
+- Public api endpoint to create apps ([3d5267a](https://github.com/stormkit-io/stormkit-io/commit/3d5267a))
+
+### 🩹 Fixes
+
+- Route order ([a6f941a](https://github.com/stormkit-io/stormkit-io/commit/a6f941a))
+
+### 🏡 Chore
+
+- Update changelog for v2026.03.22.1 ([7f09943](https://github.com/stormkit-io/stormkit-io/commit/7f09943))
+- Include scopes for newly created gitlab apps ([571c64d](https://github.com/stormkit-io/stormkit-io/commit/571c64d))
+- Helper function to read response into a map ([a425860](https://github.com/stormkit-io/stormkit-io/commit/a425860))
+- Improve validation logic ([897e491](https://github.com/stormkit-io/stormkit-io/commit/897e491))
+- Align error message with actual implementation ([715724d](https://github.com/stormkit-io/stormkit-io/commit/715724d))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.03.20.2...v2026.03.22.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.03.20.2...v2026.03.22.1)
