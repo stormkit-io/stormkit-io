@@ -98,7 +98,8 @@ var stmt = &statement{
 			logs = NULL,
 			status_checks = NULL,
 			status_checks_passed = NULL,
-			is_immutable = false
+			is_immutable = false,
+			error = NULL
 		WHERE
 			deployment_id = $1;
 	`,

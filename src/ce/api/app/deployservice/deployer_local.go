@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils/file"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/sys"
 	"go.uber.org/zap"
 )
@@ -55,7 +57,16 @@ func (ls *localService) prepareTempDir(deploymentID string) error {
 	slog.Infof("preparing folders: %s, tmp dir: %s", strings.Join(subdirs, ", "), tmpDir)
 
 	for _, subdir := range subdirs {
-		if err := os.MkdirAll(path.Join(tmpDir, subdir), 0776); err != nil {
+		dir := filepath.Join(tmpDir, subdir)
+
+		// If the directory already exists, remove it and create a new one
+		if file.Exists(dir) {
+			if err := os.RemoveAll(dir); err != nil {
+				return err
+			}
+		}
+
+		if err := os.MkdirAll(dir, 0776); err != nil {
 			return err
 		}
 	}

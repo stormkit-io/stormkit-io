@@ -467,6 +467,7 @@ func (s *Store) Restart(ctx context.Context, d *Deployment) error {
 	d.IsRestart = true
 	d.ExitCode = null.NewInt(0, false)
 	d.IsImmutable = null.NewBool(false, false)
+	d.Error = null.NewString("", false)
 	_, err := s.Exec(ctx, stmt.restartDeployment, d.ID)
 	return err
 }

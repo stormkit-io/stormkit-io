@@ -56,6 +56,11 @@ func (dd *DefaultDeployer) Deploy(ctx context.Context, a *app.App, d *deploy.Dep
 	}
 
 	d.ConfigCopy, _ = d.MarshalConfigSnapshot()
+
+	if d.BuildConfig == nil {
+		d.BuildConfig = &buildconf.BuildConf{}
+	}
+
 	d.APIPathPrefix = null.NewString(
 		utils.TrimPath(
 			utils.GetString(

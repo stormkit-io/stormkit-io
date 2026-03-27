@@ -473,11 +473,11 @@ func (d *Deployment) PrepareLogs(rawLogs string, isStatusChecks bool) []*Log {
 	if !isStatusChecks {
 		isSuccess := d.ExitCode.ValueOrZero() == ExitCodeSuccess && d.ExitCode.Valid
 
-		if d.ExitCode.ValueOrZero() == ExitCodeMigrationsFailed {
+		if d.ExitCode.ValueOrZero() == ExitCodeMigrationsFailed && lastStep != nil {
 			lastStep.Status = false
 		} else if buildingFinished || isSuccess {
 			logs = append(logs, d.deploymentsResult(lastStepTimestamp))
-		} else if !deploymentComplete {
+		} else if !deploymentComplete && lastStep != nil {
 			// Let's sync the last step
 			lastStep.Status = isSuccess
 		}
