@@ -3,7 +3,6 @@ package publicapiv1
 import (
 	"net/http"
 
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appcache"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/redirects"
@@ -14,7 +13,7 @@ type RedirectsSetRequest struct {
 	Redirects []redirects.Redirect `json:"redirects"`
 }
 
-func handlerRedirectsSet(req *app.RequestContext) *shttp.Response {
+func handlerRedirectsSet(req *RequestContext) *shttp.Response {
 	data := RedirectsSetRequest{}
 
 	if err := req.Post(&data); err != nil {
@@ -22,30 +21,20 @@ func handlerRedirectsSet(req *app.RequestContext) *shttp.Response {
 	}
 
 	store := buildconf.NewStore()
-	env, err := store.EnvironmentByID(req.Context(), req.EnvID)
+	req.Env.Data.Redirects = data.Redirects
 
-	if err != nil {
+	if err := store.Update(req.Context(), req.Env); err != nil {
 		return shttp.Error(err)
 	}
 
-	if env == nil {
-		return shttp.NotFound()
-	}
-
-	env.Data.Redirects = data.Redirects
-
-	if err := store.Update(req.Context(), env); err != nil {
-		return shttp.Error(err)
-	}
-
-	if err := appcache.Service().Reset(req.EnvID); err != nil {
+	if err := appcache.Service().Reset(req.Env.ID); err != nil {
 		return shttp.Error(err)
 	}
 
 	return &shttp.Response{
 		Status: http.StatusOK,
 		Data: map[string]any{
-			"redirects": env.Data.Redirects,
+			"redirects": req.Env.Data.Redirects,
 		},
 	}
 }

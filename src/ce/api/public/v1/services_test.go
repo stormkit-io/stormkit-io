@@ -114,6 +114,8 @@ func (s *ServicesSuite) Test_EE() {
 		"GET:/v1/auth/callback":                    http.StatusBadRequest,
 		"PUT:/v1/domains/cert":                     http.StatusPaymentRequired,
 		"DELETE:/v1/domains/cert":                  http.StatusPaymentRequired,
+		"GET:/v1/redirects":                        http.StatusForbidden,
+		"POST:/v1/redirects":                       http.StatusForbidden,
 		"GET:/v1/license":                          http.StatusOK,
 		"GET:/v1/license/check":                    http.StatusBadRequest,
 		"POST:/v1/volumes":                         http.StatusForbidden,

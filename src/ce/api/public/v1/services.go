@@ -45,8 +45,8 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodDelete, "", app.WithAPIKey(snippetshandlers.HandlerSnippetsDelete, &app.Opts{Env: true}))
 
 	s.NewEndpoint("/v1/redirects").
-		Handler(shttp.MethodGet, "", app.WithAPIKey(handlerRedirectsGet, &app.Opts{Env: true})).
-		Handler(shttp.MethodPost, "", app.WithAPIKey(handlerRedirectsSet, &app.Opts{Env: true}))
+		Handler(shttp.MethodGet, "", WithAPIKey(handlerRedirectsGet, &Opts{MinimumScope: apikey.SCOPE_ENV})).
+		Handler(shttp.MethodPost, "", WithAPIKey(handlerRedirectsSet, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	s.NewEndpoint("/v1/domains").
 		Handler(shttp.MethodGet, "", app.WithAPIKey(domainhandlers.HandlerDomainsList, &app.Opts{Env: true})).
