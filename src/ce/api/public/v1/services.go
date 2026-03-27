@@ -1,7 +1,6 @@
 package publicapiv1
 
 import (
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/domainhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/mailerhandlers"
@@ -39,27 +38,27 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodGet, "/pull", WithAPIKey(handlerEnvPull, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	s.NewEndpoint("/v1/snippets").
-		Handler(shttp.MethodGet, "", app.WithAPIKey(snippetshandlers.HandlerSnippetsGet, &app.Opts{Env: true})).
-		Handler(shttp.MethodPost, "", app.WithAPIKey(snippetshandlers.HandlerSnippetsAdd, &app.Opts{Env: true})).
-		Handler(shttp.MethodPut, "", app.WithAPIKey(snippetshandlers.HandlerSnippetsPut, &app.Opts{Env: true})).
-		Handler(shttp.MethodDelete, "", app.WithAPIKey(snippetshandlers.HandlerSnippetsDelete, &app.Opts{Env: true}))
+		Handler(shttp.MethodGet, "", WithAPIKey(adaptAppHandler(snippetshandlers.HandlerSnippetsGet), &Opts{MinimumScope: apikey.SCOPE_ENV})).
+		Handler(shttp.MethodPost, "", WithAPIKey(adaptAppHandler(snippetshandlers.HandlerSnippetsAdd), &Opts{MinimumScope: apikey.SCOPE_ENV})).
+		Handler(shttp.MethodPut, "", WithAPIKey(adaptAppHandler(snippetshandlers.HandlerSnippetsPut), &Opts{MinimumScope: apikey.SCOPE_ENV})).
+		Handler(shttp.MethodDelete, "", WithAPIKey(adaptAppHandler(snippetshandlers.HandlerSnippetsDelete), &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	s.NewEndpoint("/v1/redirects").
 		Handler(shttp.MethodGet, "", WithAPIKey(handlerRedirectsGet, &Opts{MinimumScope: apikey.SCOPE_ENV})).
 		Handler(shttp.MethodPost, "", WithAPIKey(handlerRedirectsSet, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	s.NewEndpoint("/v1/domains").
-		Handler(shttp.MethodGet, "", app.WithAPIKey(domainhandlers.HandlerDomainsList, &app.Opts{Env: true})).
-		Handler(shttp.MethodPost, "", app.WithAPIKey(domainhandlers.HandlerDomainAdd, &app.Opts{Env: true})).
-		Handler(shttp.MethodDelete, "", app.WithAPIKey(domainhandlers.HandlerDomainDelete, &app.Opts{Env: true}))
+		Handler(shttp.MethodGet, "", WithAPIKey(adaptAppHandler(domainhandlers.HandlerDomainsList), &Opts{MinimumScope: apikey.SCOPE_ENV})).
+		Handler(shttp.MethodPost, "", WithAPIKey(adaptAppHandler(domainhandlers.HandlerDomainAdd), &Opts{MinimumScope: apikey.SCOPE_ENV})).
+		Handler(shttp.MethodDelete, "", WithAPIKey(adaptAppHandler(domainhandlers.HandlerDomainDelete), &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	s.NewEndpoint("/v1/domains").
 		Middleware(user.WithEE).
-		Handler(shttp.MethodPut, "/cert", app.WithAPIKey(domainhandlers.HandlerCertPut, &app.Opts{Env: true})).
-		Handler(shttp.MethodDelete, "/cert", app.WithAPIKey(domainhandlers.HandlerCertDelete, &app.Opts{Env: true}))
+		Handler(shttp.MethodPut, "/cert", WithAPIKey(adaptAppHandler(domainhandlers.HandlerCertPut), &Opts{MinimumScope: apikey.SCOPE_ENV})).
+		Handler(shttp.MethodDelete, "/cert", WithAPIKey(adaptAppHandler(domainhandlers.HandlerCertDelete), &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	s.NewEndpoint("/v1/mail").
-		Handler(shttp.MethodPost, "", app.WithAPIKey(mailerhandlers.HandlerMail, &app.Opts{Env: true}))
+		Handler(shttp.MethodPost, "", WithAPIKey(adaptAppHandler(mailerhandlers.HandlerMail), &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	s.NewEndpoint("/v1/volumes").
 		Middleware(volumes.LimitRequestBody()).
