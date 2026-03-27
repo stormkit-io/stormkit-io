@@ -25,13 +25,10 @@ type HandlerRedirectsSetSuite struct {
 	mockCacheService *mocks.CacheInterface
 }
 
-func (s *HandlerRedirectsSetSuite) SetupSuite() {
-	s.mockCacheService = &mocks.CacheInterface{}
-}
-
 func (s *HandlerRedirectsSetSuite) BeforeTest(suiteName, _ string) {
 	s.conn = databasetest.InitTx(suiteName)
 	s.Factory = factory.New(s.conn)
+	s.mockCacheService = &mocks.CacheInterface{}
 	appcache.DefaultCacheService = s.mockCacheService
 }
 

@@ -208,6 +208,33 @@ func (s *HandlerEnvUpdateSuite) Test_Success_AppScopedKey() {
 	s.Equal("npm run build:prod", updated.Data.BuildCmd)
 }
 
+// Test_BadRequest_InvalidRedirects verifies that sending invalid redirect rules in a PUT /v1/env request returns 400.
+func (s *HandlerEnvUpdateSuite) Test_BadRequest_InvalidRedirects() {
+	app := s.MockApp(nil)
+	env := s.MockEnv(app)
+	key := s.MockAPIKey(nil, env, map[string]any{
+		"Scope": apikey.SCOPE_ENV,
+		"EnvID": env.ID,
+	})
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodPut,
+		fmt.Sprintf("/v1/env?envId=%s", env.ID),
+		map[string]any{
+			"redirects": []map[string]any{
+				{"from": "", "to": "/new-path"},
+			},
+		},
+		map[string]string{
+			"Authorization": key.Value,
+		},
+	)
+
+	s.Equal(http.StatusBadRequest, response.Code)
+	s.Contains(response.String(), "'from' is required")
+}
+
 func TestHandlerEnvUpdate(t *testing.T) {
 	suite.Run(t, &HandlerEnvUpdateSuite{})
 }

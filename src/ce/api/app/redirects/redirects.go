@@ -27,11 +27,11 @@ func Validate(rules []Redirect) []string {
 	for i, r := range rules {
 		prefix := fmt.Sprintf("redirect[%d]", i)
 
-		if r.From == "" {
+		if strings.TrimSpace(r.From) == "" {
 			errors = append(errors, fmt.Sprintf("%s: 'from' is required", prefix))
 		}
 
-		if r.To == "" {
+		if strings.TrimSpace(r.To) == "" {
 			errors = append(errors, fmt.Sprintf("%s: 'to' is required", prefix))
 		}
 
