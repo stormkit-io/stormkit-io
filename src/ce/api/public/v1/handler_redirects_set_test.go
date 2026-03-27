@@ -37,6 +37,7 @@ func (s *HandlerRedirectsSetSuite) BeforeTest(suiteName, _ string) {
 
 func (s *HandlerRedirectsSetSuite) AfterTest(_, _ string) {
 	s.conn.CloseTx()
+	s.mockCacheService.AssertExpectations(s.T())
 	appcache.DefaultCacheService = nil
 }
 

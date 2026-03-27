@@ -131,6 +131,10 @@ func handlerEnvUpdate(req *RequestContext) *shttp.Response {
 
 	if data.Redirects != nil {
 		env.Data.Redirects = data.Redirects
+
+		if errs := redirects.Validate(env.Data.Redirects); len(errs) > 0 {
+			return shttp.BadRequest(map[string]any{"errors": errs})
+		}
 	}
 
 	if data.StatusChecks != nil {
