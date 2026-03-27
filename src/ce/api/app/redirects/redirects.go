@@ -2,6 +2,7 @@ package redirects
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
@@ -16,6 +17,34 @@ type Redirect struct {
 	Status  int               `json:"status,omitempty"`
 	Hosts   []string          `json:"hosts,omitempty"`
 	Headers map[string]string `json:"headers,omitempty"`
+}
+
+// Validate checks each redirect rule for correctness and returns a list of
+// human-readable error strings. Returns nil when all rules are valid.
+func Validate(rules []Redirect) []string {
+	var errors []string
+
+	for i, r := range rules {
+		prefix := fmt.Sprintf("redirect[%d]", i)
+
+		if r.From == "" {
+			errors = append(errors, fmt.Sprintf("%s: 'from' is required", prefix))
+		}
+
+		if r.To == "" {
+			errors = append(errors, fmt.Sprintf("%s: 'to' is required", prefix))
+		}
+
+		if r.Status != 0 && http.StatusText(r.Status) == "" {
+			errors = append(errors, fmt.Sprintf("%s: status %d is not a valid HTTP status code", prefix, r.Status))
+		}
+	}
+
+	if len(errors) == 0 {
+		return nil
+	}
+
+	return errors
 }
 
 type MatchArgs struct {

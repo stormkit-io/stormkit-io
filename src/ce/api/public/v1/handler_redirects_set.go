@@ -20,6 +20,10 @@ func handlerRedirectsSet(req *RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
+	if errs := redirects.Validate(data.Redirects); len(errs) > 0 {
+		return shttp.BadRequest(map[string]any{"errors": errs})
+	}
+
 	store := buildconf.NewStore()
 	req.Env.Data.Redirects = data.Redirects
 

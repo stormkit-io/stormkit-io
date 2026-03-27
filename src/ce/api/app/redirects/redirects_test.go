@@ -103,3 +103,70 @@ func (s *RedirectsSuite) Test_Redirect_MatchHost() {
 func TestRedirects(t *testing.T) {
 	suite.Run(t, &RedirectsSuite{})
 }
+
+type ValidateSuite struct {
+	suite.Suite
+}
+
+func (s *ValidateSuite) Test_Valid() {
+	errs := redirects.Validate([]redirects.Redirect{
+		{From: "/old", To: "/new"},
+		{From: "/old2", To: "/new2", Status: http.StatusMovedPermanently},
+	})
+
+	s.Nil(errs)
+}
+
+func (s *ValidateSuite) Test_Valid_EmptySlice() {
+	s.Nil(redirects.Validate(nil))
+	s.Nil(redirects.Validate([]redirects.Redirect{}))
+}
+
+func (s *ValidateSuite) Test_MissingFrom() {
+	errs := redirects.Validate([]redirects.Redirect{
+		{From: "", To: "/new"},
+	})
+
+	s.Require().Len(errs, 1)
+	s.Contains(errs[0], "redirect[0]")
+	s.Contains(errs[0], "'from' is required")
+}
+
+func (s *ValidateSuite) Test_MissingTo() {
+	errs := redirects.Validate([]redirects.Redirect{
+		{From: "/old", To: ""},
+	})
+
+	s.Require().Len(errs, 1)
+	s.Contains(errs[0], "redirect[0]")
+	s.Contains(errs[0], "'to' is required")
+}
+
+func (s *ValidateSuite) Test_InvalidStatus() {
+	errs := redirects.Validate([]redirects.Redirect{
+		{From: "/old", To: "/new", Status: 999},
+	})
+
+	s.Require().Len(errs, 1)
+	s.Contains(errs[0], "redirect[0]")
+	s.Contains(errs[0], "999")
+}
+
+func (s *ValidateSuite) Test_MultipleErrors() {
+	errs := redirects.Validate([]redirects.Redirect{
+		{From: "", To: ""},
+		{From: "/ok", To: "/ok"},
+		{From: "/bad", To: "/bad", Status: 0}, // status 0 means unset — valid
+		{From: "", To: "/new2", Status: 1},
+	})
+
+	s.Require().Len(errs, 4) // redirect[0] missing from+to, redirect[3] missing from + invalid status
+	s.Contains(errs[0], "redirect[0]")
+	s.Contains(errs[1], "redirect[0]")
+	s.Contains(errs[2], "redirect[3]")
+	s.Contains(errs[3], "redirect[3]")
+}
+
+func TestValidate(t *testing.T) {
+	suite.Run(t, &ValidateSuite{})
+}
