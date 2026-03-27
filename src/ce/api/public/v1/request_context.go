@@ -88,6 +88,25 @@ func (req *RequestContext) GetAuditData() audit.AuditData {
 	return d
 }
 
+// asAppContext converts this RequestContext into an *app.RequestContext so that
+// internal handlers can be reused without duplicating logic.
+func (req *RequestContext) asAppContext() *app.RequestContext {
+	envID := types.ID(0)
+
+	if req.Env != nil {
+		envID = req.Env.ID
+	}
+
+	return &app.RequestContext{
+		RequestContext: &user.RequestContext{
+			RequestContext: req.RequestContext,
+		},
+		App:   req.App,
+		EnvID: envID,
+		Token: req.Token,
+	}
+}
+
 type Opts struct {
 	MinimumScope string // apikey.SCOPE_*
 }

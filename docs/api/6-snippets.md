@@ -28,7 +28,7 @@ interface Response {
 
 curl -X POST \
      -H 'Authorization: <api_key>' \
-     -H 'Content-Type: application/javascript' \
+     -H 'Content-Type: application/json' \
      'https://api.stormkit.io/v1/snippets' \
      -d '{ "snippets": [{ "title": "Snippet title", "content":  "Hello World", "enabled":  true, "prepend":  false, "location": "head", "rules": { "hosts": ["example.org", "*.dev"], "path": "/my-path" } }] }'
 ```
@@ -36,8 +36,14 @@ curl -X POST \
 | Response | Definition                                           |
 | -------- | ---------------------------------------------------- |
 | 201      | Snippet was created successfully.                    |
-| 400      | Snippet is invalid. Check your parameters.           |
+| 400      | Snippet is invalid. Check the `errors` array.        |
 | 409      | Snippet content is duplicate within the environment. |
+
+On error, the response body contains an `errors` array:
+
+```json
+{ "errors": ["Snippet title is a required field."] }
+```
 
 </details>
 
@@ -57,7 +63,7 @@ interface QueryString {
 }
 
 interface Response {
-  snippets: []Redirect
+  snippets: []Snippet
   pagination: Pagination
 }
 ```
@@ -67,7 +73,6 @@ interface Response {
 
 curl -X GET \
      -H 'Authorization: <api_key>' \
-     -H 'Content-Type: application/javascript' \
      'https://api.stormkit.io/v1/snippets'
 ```
 
@@ -124,7 +129,7 @@ interface Response {
 
 curl -X PUT \
      -H 'Authorization: <api_key>' \
-     -H 'Content-Type: application/javascript' \
+     -H 'Content-Type: application/json' \
      'https://api.stormkit.io/v1/snippets' \
      -d '{ "snippet": { "id": 1501, "title": "New title", "content":  "Hello World", "enabled":  true, "prepend":  false, "location": "head", "rules": { "hosts": ["example.org", "*.dev"], "path": "/my-path" } } }'
 ```
@@ -132,8 +137,14 @@ curl -X PUT \
 | Response | Definition                                           |
 | -------- | ---------------------------------------------------- |
 | 200      | Snippet was updated successfully.                    |
-| 400      | Snippet is invalid. Check your parameters.           |
+| 400      | Snippet is invalid. Check the `errors` array.        |
 | 409      | Snippet content is duplicate within the environment. |
+
+On error, the response body contains an `errors` array:
+
+```json
+{ "errors": ["Snippet title is a required field."] }
+```
 
 </details>
 
@@ -143,7 +154,7 @@ curl -X PUT \
   <span>DELETE </span><span>/v1/snippets</span>
 </summary>
 
-Delete Snippets with the given ids. You can delete maximum `100` snippets at a time.
+Delete snippets with the given ids. You can delete a maximum of `100` snippets at a time.
 
 ```typescript
 interface QueryString {
@@ -158,10 +169,20 @@ interface Response {
 ```bash
 # Example
 
-curl -X PUT \
+curl -X DELETE \
      -H 'Authorization: <api_key>' \
-     -H 'Content-Type: application/javascript' \
      'https://api.stormkit.io/v1/snippets?ids=1501,5061'
+```
+
+| Response | Definition                                    |
+| -------- | --------------------------------------------- |
+| 200      | Snippets were deleted successfully.           |
+| 400      | Request is invalid. Check the `errors` array. |
+
+On error, the response body contains an `errors` array:
+
+```json
+{ "errors": ["ID should be an integer."] }
 ```
 
 </details>
@@ -199,4 +220,4 @@ interface Pagination {
 | rules.hosts | Inject snippet only for the provided hosts.                                                              |
 | rules.path  | If specified, snippet will be injected only when the path matches.                                       |
 
-**Note:** To inject snippets for all development endpoints, specify `*.dev` for the `rules.hosts` property. Specifying an indivual deployment endpoint will enable the snippet for all development endpoints.
+**Note:** To inject snippets for all development endpoints, specify `*.dev` for the `rules.hosts` property. Specifying an individual deployment endpoint will enable the snippet for all development endpoints.

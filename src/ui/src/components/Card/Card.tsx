@@ -13,7 +13,7 @@ import CardContext, { Size } from "./Card.context";
 interface Props extends BoxProps {
   successTitle?: string | false;
   errorTitle?: string | false;
-  error?: React.ReactNode;
+  error?: React.ReactNode | string[];
   info?: React.ReactNode;
   success?: React.ReactNode;
   contentPadding?: boolean; // When false, the content will not have padding x.
@@ -121,7 +121,17 @@ function Card({
             onClose={onErrorClose}
           >
             {errorTitle && <AlertTitle>{errorTitle}</AlertTitle>}
-            <Box>{error}</Box>
+            {Array.isArray(error) ? (
+              <Box component="ul" sx={{ m: 0, pl: 2, listStyleType: "disc" }}>
+                {error.map((e, i) => (
+                  <Box component="li" key={i}>
+                    {e}
+                  </Box>
+                ))}
+              </Box>
+            ) : (
+              <Box>{error}</Box>
+            )}
           </Alert>
         )}
         {!loading && success && (

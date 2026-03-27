@@ -240,7 +240,7 @@ func (s *HandlerSnippetsPutSuite) Test_Fail_InvalidHost() {
 	)
 
 	s.Equal(http.StatusBadRequest, response.Code)
-	s.JSONEq(`{"error": "Invalid or missing domain name(s): www.example.org" }`, response.String())
+	s.JSONEq(`{"errors": ["Invalid or missing domain name(s): www.example.org"]}`, response.String())
 }
 
 func (s *HandlerSnippetsPutSuite) Test_Success_SavingSameObject() {
@@ -307,7 +307,7 @@ func (s *HandlerSnippetsPutSuite) Test_InvalidRequest_NoSnippet() {
 	)
 
 	s.Equal(http.StatusBadRequest, response.Code)
-	s.JSONEq(response.String(), `{"error": "Nothing to update."}`)
+	s.JSONEq(response.String(), `{"errors": ["Nothing to update."]}`)
 
 	// Should not update the environment's updated at property
 	environment, err := buildconf.NewStore().EnvironmentByID(context.Background(), env.ID)
@@ -341,7 +341,7 @@ func (s *HandlerSnippetsPutSuite) Test_InvalidRequest_NoSnippetID() {
 	)
 
 	s.Equal(http.StatusBadRequest, response.Code)
-	s.JSONEq(response.String(), `{"error": "Nothing to update."}`)
+	s.JSONEq(response.String(), `{"errors": ["Nothing to update."]}`)
 }
 
 func (s *HandlerSnippetsPutSuite) Test_InvalidRequest_InvalidLocation() {
@@ -371,7 +371,7 @@ func (s *HandlerSnippetsPutSuite) Test_InvalidRequest_InvalidLocation() {
 	)
 
 	s.Equal(http.StatusBadRequest, response.Code)
-	s.JSONEq(response.String(), `{"error": "Location must be either 'head' or 'body'."}`)
+	s.JSONEq(response.String(), `{"errors": ["Location must be either 'head' or 'body'."]}`)
 }
 
 func (s *HandlerSnippetsPutSuite) Test_InvalidRequest_InvalidTitle() {
@@ -401,7 +401,7 @@ func (s *HandlerSnippetsPutSuite) Test_InvalidRequest_InvalidTitle() {
 	)
 
 	s.Equal(http.StatusBadRequest, response.Code)
-	s.JSONEq(response.String(), `{"error": "Snippet title is a required field."}`)
+	s.JSONEq(response.String(), `{"errors": ["Snippet title is a required field."]}`)
 }
 
 func (s *HandlerSnippetsPutSuite) Test_Fail_Duplicate() {
@@ -468,7 +468,7 @@ func (s *HandlerSnippetsPutSuite) Test_InvalidRequest_InvalidContent() {
 	)
 
 	s.Equal(http.StatusBadRequest, response.Code)
-	s.JSONEq(response.String(), `{"error": "Snippet content is a required field."}`)
+	s.JSONEq(response.String(), `{"errors": ["Snippet content is a required field."]}`)
 }
 
 func TestHandlerSnippetsPut(t *testing.T) {

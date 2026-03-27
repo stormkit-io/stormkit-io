@@ -130,7 +130,7 @@ func (s *HandlerSnippetsDeleteSuite) TestInvalidRequest_InvalidID() {
 	)
 
 	s.Equal(http.StatusBadRequest, response.Code)
-	s.JSONEq(response.String(), `{"error": "ID should be an integer."}`)
+	s.JSONEq(response.String(), `{"errors": ["ID should be an integer."]}`)
 }
 
 func TestHandlerSnippetsDelete(t *testing.T) {

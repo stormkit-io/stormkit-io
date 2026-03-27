@@ -1,7 +1,6 @@
 package snippetshandlers
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
@@ -28,19 +27,19 @@ func HandlerSnippetsPut(req *app.RequestContext) *shttp.Response {
 	}
 
 	if data.Snippet == nil {
-		return badRequest(errors.New("no-item"))
+		return shttp.BadRequest(map[string]any{"errors": []string{"Nothing to update."}})
 	}
 
 	data.Snippet.EnvID = req.EnvID
 
-	if err := validateSnippet(data.Snippet, data.Snippet.Location); err != nil {
-		return badRequest(err)
+	if errs := buildconf.ValidateSnippet(data.Snippet); len(errs) > 0 {
+		return shttp.BadRequest(map[string]any{"errors": errs})
 	}
 
-	normalizeRules(data.Snippet.Rules)
+	NormalizeSnippetRules(data.Snippet.Rules)
 
-	if err := validateDomains([]*buildconf.Snippet{data.Snippet}, req.EnvID); err != nil {
-		return badRequest(err)
+	if err := buildconf.ValidateSnippetDomains([]*buildconf.Snippet{data.Snippet}, req.EnvID); err != nil {
+		return shttp.BadRequest(map[string]any{"errors": []string{err.Error()}})
 	}
 
 	store := buildconf.SnippetsStore()
@@ -114,8 +113,6 @@ func HandlerSnippetsPut(req *app.RequestContext) *shttp.Response {
 func duplicateSnippetError() *shttp.Response {
 	return &shttp.Response{
 		Status: http.StatusConflict,
-		Data: map[string]string{
-			"error": "A snippet with the same content already exists for this environment.",
-		},
+		Data:   map[string]any{"errors": []string{"A snippet with the same content already exists for this environment."}},
 	}
 }

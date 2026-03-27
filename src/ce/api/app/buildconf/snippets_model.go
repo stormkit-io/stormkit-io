@@ -1,12 +1,15 @@
 package buildconf
 
 import (
+	"context"
 	"crypto/sha256"
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/dlclark/regexp2"
+	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 )
 
@@ -105,4 +108,91 @@ func (s *Snippet) ContentHash() string {
 	h := sha256.New()
 	h.Write([]byte(s.Content))
 	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+// JSON returns a plain map representation of the snippet suitable for JSON responses.
+func (s *Snippet) JSON() map[string]any {
+	var rules map[string]any
+
+	if s.Rules != nil {
+		rules = map[string]any{
+			"hosts": s.Rules.Hosts,
+			"path":  s.Rules.Path,
+		}
+	}
+
+	return map[string]any{
+		"id":       s.ID.String(),
+		"location": s.Location,
+		"prepend":  s.Prepend,
+		"enabled":  s.Enabled,
+		"title":    s.Title,
+		"content":  s.Content,
+		"rules":    rules,
+	}
+}
+
+const SnippetLocationHead = "head"
+const SnippetLocationBody = "body"
+
+// ValidateSnippet validates a snippet's fields and trims whitespace in-place.
+// Returns a slice of human-readable error messages; returns nil when the snippet is valid.
+func ValidateSnippet(snippet *Snippet) []string {
+	var errs []string
+
+	if snippet.Location != SnippetLocationHead && snippet.Location != SnippetLocationBody {
+		errs = append(errs, "Location must be either 'head' or 'body'.")
+	}
+
+	snippet.Title = strings.TrimSpace(snippet.Title)
+	snippet.Content = strings.TrimSpace(snippet.Content)
+
+	if snippet.Title == "" {
+		errs = append(errs, "Snippet title is a required field.")
+	}
+
+	if snippet.Content == "" {
+		errs = append(errs, "Snippet content is a required field.")
+	}
+
+	if snippet.Rules != nil && snippet.Rules.Path != "" {
+		if _, err := regexp2.Compile(snippet.Rules.Path, regexp2.None); err != nil {
+			errs = append(errs, "Snippet path must be a valid regular expression.")
+		}
+	}
+
+	return errs
+}
+
+// ValidateSnippetDomains checks that every host referenced in the given snippets
+// exists as a domain for the environment. Returns an error listing any missing hosts.
+func ValidateSnippetDomains(snippets []*Snippet, envID types.ID) error {
+	hosts := []string{}
+
+	for _, snippet := range snippets {
+		if snippet.Rules != nil && len(snippet.Rules.Hosts) > 0 {
+			for _, host := range snippet.Rules.Hosts {
+				if host != "*.dev" {
+					hosts = append(hosts, host)
+				}
+			}
+		}
+	}
+
+	if len(hosts) == 0 {
+		return nil
+	}
+
+	missingHosts, err := SnippetsStore().MissingHosts(context.Background(), hosts, envID)
+
+	if err != nil {
+		slog.Errorf("error while fetching missing hosts: %s", err.Error())
+		return err
+	}
+
+	if len(missingHosts) == 0 {
+		return nil
+	}
+
+	return fmt.Errorf("Invalid or missing domain name(s): %s", strings.Join(missingHosts, ", "))
 }

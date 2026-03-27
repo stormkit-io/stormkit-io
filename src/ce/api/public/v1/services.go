@@ -5,7 +5,6 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/domainhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/mailerhandlers"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/snippetshandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/volumes"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
@@ -39,10 +38,10 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodGet, "/pull", WithAPIKey(handlerEnvPull, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	s.NewEndpoint("/v1/snippets").
-		Handler(shttp.MethodGet, "", app.WithAPIKey(snippetshandlers.HandlerSnippetsGet, &app.Opts{Env: true})).
-		Handler(shttp.MethodPost, "", app.WithAPIKey(snippetshandlers.HandlerSnippetsAdd, &app.Opts{Env: true})).
-		Handler(shttp.MethodPut, "", app.WithAPIKey(snippetshandlers.HandlerSnippetsPut, &app.Opts{Env: true})).
-		Handler(shttp.MethodDelete, "", app.WithAPIKey(snippetshandlers.HandlerSnippetsDelete, &app.Opts{Env: true}))
+		Handler(shttp.MethodGet, "", WithAPIKey(handlerSnippetsGet, &Opts{MinimumScope: apikey.SCOPE_ENV})).
+		Handler(shttp.MethodPost, "", WithAPIKey(handlerSnippetsAdd, &Opts{MinimumScope: apikey.SCOPE_ENV})).
+		Handler(shttp.MethodPut, "", WithAPIKey(handlerSnippetsPut, &Opts{MinimumScope: apikey.SCOPE_ENV})).
+		Handler(shttp.MethodDelete, "", WithAPIKey(handlerSnippetsDelete, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	s.NewEndpoint("/v1/redirects").
 		Handler(shttp.MethodGet, "", WithAPIKey(handlerRedirectsGet, &Opts{MinimumScope: apikey.SCOPE_ENV})).

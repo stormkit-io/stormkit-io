@@ -24,23 +24,18 @@ func HandlerSnippetsAdd(req *app.RequestContext) *shttp.Response {
 	}
 
 	if len(data.Snippets) == 0 {
-		return &shttp.Response{
-			Status: http.StatusBadRequest,
-			Data: map[string]string{
-				"error": "Nothing to add.",
-			},
-		}
+		return shttp.BadRequest(map[string]any{"errors": []string{"Nothing to add."}})
 	}
 
 	snippets := []*buildconf.Snippet{}
 	titles := []string{}
 
 	for _, snippet := range data.Snippets {
-		if err := validateSnippet(snippet, snippet.Location); err != nil {
-			return badRequest(err)
+		if errs := buildconf.ValidateSnippet(snippet); len(errs) > 0 {
+			return shttp.BadRequest(map[string]any{"errors": errs})
 		}
 
-		normalizeRules(snippet.Rules)
+		NormalizeSnippetRules(snippet.Rules)
 
 		snippet.EnvID = req.EnvID
 		snippet.AppID = req.App.ID
@@ -48,8 +43,8 @@ func HandlerSnippetsAdd(req *app.RequestContext) *shttp.Response {
 		titles = append(titles, snippet.Title)
 	}
 
-	if err := validateDomains(snippets, req.EnvID); err != nil {
-		return badRequest(err)
+	if err := buildconf.ValidateSnippetDomains(snippets, req.EnvID); err != nil {
+		return shttp.BadRequest(map[string]any{"errors": []string{err.Error()}})
 	}
 
 	if err := store.Insert(req.Context(), snippets); err != nil {
@@ -85,10 +80,14 @@ func HandlerSnippetsAdd(req *app.RequestContext) *shttp.Response {
 		}
 	}
 
+	result := []map[string]any{}
+
+	for _, s := range snippets {
+		result = append(result, s.JSON())
+	}
+
 	return &shttp.Response{
 		Status: http.StatusCreated,
-		Data: map[string]any{
-			"snippets": toJSON(snippets),
-		},
+		Data:   map[string]any{"snippets": result},
 	}
 }

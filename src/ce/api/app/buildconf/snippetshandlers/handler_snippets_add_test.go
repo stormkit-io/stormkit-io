@@ -330,7 +330,7 @@ func (s *HandlerSnippetsAddSuite) Test_Fail_InvalidHost() {
 	)
 
 	s.Equal(http.StatusBadRequest, response.Code)
-	s.JSONEq(`{"error": "Invalid or missing domain name(s): www.stormkit.io" }`, response.String())
+	s.JSONEq(`{"errors": ["Invalid or missing domain name(s): www.stormkit.io"]}`, response.String())
 }
 
 func (s *HandlerSnippetsAddSuite) TestInvalidRequest_NoSnippets() {
@@ -352,7 +352,7 @@ func (s *HandlerSnippetsAddSuite) TestInvalidRequest_NoSnippets() {
 	)
 
 	s.Equal(http.StatusBadRequest, response.Code)
-	s.JSONEq(response.String(), `{"error": "Nothing to add."}`)
+	s.JSONEq(response.String(), `{"errors": ["Nothing to add."]}`)
 }
 
 func (s *HandlerSnippetsAddSuite) TestInvalidRequest_InvalidLocation() {
@@ -378,7 +378,7 @@ func (s *HandlerSnippetsAddSuite) TestInvalidRequest_InvalidLocation() {
 	)
 
 	s.Equal(http.StatusBadRequest, response.Code)
-	s.JSONEq(response.String(), `{"error": "Location must be either 'head' or 'body'."}`)
+	s.JSONEq(response.String(), `{"errors": ["Location must be either 'head' or 'body'."]}`)
 }
 
 func (s *HandlerSnippetsAddSuite) TestInvalidRequest_InvalidTitle() {
@@ -403,7 +403,7 @@ func (s *HandlerSnippetsAddSuite) TestInvalidRequest_InvalidTitle() {
 	)
 
 	s.Equal(http.StatusBadRequest, response.Code)
-	s.JSONEq(response.String(), `{"error": "Snippet title is a required field."}`)
+	s.JSONEq(response.String(), `{"errors": ["Snippet title is a required field."]}`)
 }
 
 func (s *HandlerSnippetsAddSuite) TestInvalidRequest_InvalidContent() {
@@ -428,7 +428,7 @@ func (s *HandlerSnippetsAddSuite) TestInvalidRequest_InvalidContent() {
 	)
 
 	s.Equal(http.StatusBadRequest, response.Code)
-	s.JSONEq(response.String(), `{"error": "Snippet content is a required field."}`)
+	s.JSONEq(response.String(), `{"errors": ["Snippet content is a required field."]}`)
 }
 
 func (s *HandlerSnippetsAddSuite) TestInvalidRequest_InvalidPathRegexp() {
@@ -455,7 +455,7 @@ func (s *HandlerSnippetsAddSuite) TestInvalidRequest_InvalidPathRegexp() {
 	)
 
 	s.Equal(http.StatusBadRequest, response.Code)
-	s.JSONEq(response.String(), `{"error": "Snippet path must be a valid regular expression."}`)
+	s.JSONEq(response.String(), `{"errors": ["Snippet path must be a valid regular expression."]}`)
 }
 
 func TestHandlerSnippetsAdd(t *testing.T) {

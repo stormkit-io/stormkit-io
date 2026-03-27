@@ -2,36 +2,8 @@ package snippetshandlers
 
 import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 )
-
-func toJSON(snippets []*buildconf.Snippet) []map[string]any {
-	r := []map[string]any{}
-
-	for _, snippet := range snippets {
-		var rules map[string]any
-
-		if snippet.Rules != nil {
-			rules = map[string]any{
-				"hosts": snippet.Rules.Hosts,
-				"path":  snippet.Rules.Path,
-			}
-		}
-
-		r = append(r, map[string]any{
-			"id":       snippet.ID.String(),
-			"location": snippet.Location,
-			"prepend":  snippet.Prepend,
-			"enabled":  snippet.Enabled,
-			"title":    snippet.Title,
-			"content":  snippet.Content,
-			"rules":    rules,
-		})
-	}
-
-	return r
-}
 
 // Services sets the Handlers for this service.
 func Services(r *shttp.Router) *shttp.Service {

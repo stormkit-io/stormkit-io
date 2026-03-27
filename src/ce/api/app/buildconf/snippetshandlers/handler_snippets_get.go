@@ -49,10 +49,16 @@ func HandlerSnippetsGet(req *app.RequestContext) *shttp.Response {
 		snippets = snippets[:snippetsLen-1]
 	}
 
+	result := []map[string]any{}
+
+	for _, s := range snippets {
+		result = append(result, s.JSON())
+	}
+
 	return &shttp.Response{
 		Status: http.StatusOK,
 		Data: map[string]any{
-			"snippets":   toJSON(snippets),
+			"snippets":   result,
 			"pagination": pagination,
 		},
 	}

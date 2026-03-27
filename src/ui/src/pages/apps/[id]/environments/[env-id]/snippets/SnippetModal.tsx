@@ -1,4 +1,4 @@
-import { useState, useContext, FormEventHandler } from "react";
+import { useState, useContext, SubmitEventHandler } from "react";
 import { html } from "@codemirror/lang-html";
 import CodeMirror from "@uiw/react-codemirror";
 import Box from "@mui/material/Box";
@@ -47,14 +47,14 @@ export default function SnippetModal({
 }: Props) {
   const { app } = useContext(AppContext);
   const { environment } = useContext(EnvironmentContext);
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<string | string[]>();
   const [loading, setLoading] = useState(false);
   const [selectedHosts, setSelectedHosts] = useState<string[]>();
   const [codeContent, setCodeContent] = useState<string>(
     snippet?.content || defaultContent,
   );
 
-  const handleSubmit: FormEventHandler = e => {
+  const handleSubmit: SubmitEventHandler = e => {
     e.preventDefault();
 
     setLoading(true);
@@ -95,6 +95,11 @@ export default function SnippetModal({
 
           if (typeof data.error === "string") {
             setError(data.error);
+            return;
+          }
+
+          if (Array.isArray(data.errors) && data.errors.length > 0) {
+            setError(data.errors);
             return;
           }
 

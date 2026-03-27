@@ -119,6 +119,10 @@ func (s *ServicesSuite) Test_EE() {
 		"GET:/v1/license":                          http.StatusOK,
 		"GET:/v1/license/check":                    http.StatusBadRequest,
 		"POST:/v1/volumes":                         http.StatusForbidden,
+		"GET:/v1/snippets":                         http.StatusForbidden,
+		"POST:/v1/snippets":                        http.StatusForbidden,
+		"PUT:/v1/snippets":                         http.StatusForbidden,
+		"DELETE:/v1/snippets":                      http.StatusForbidden,
 	}
 
 	for k, fn := range services.HandlerFuncs() {

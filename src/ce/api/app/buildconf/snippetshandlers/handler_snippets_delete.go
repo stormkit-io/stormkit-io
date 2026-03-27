@@ -1,7 +1,6 @@
 package snippetshandlers
 
 import (
-	"net/http"
 	"strconv"
 	"strings"
 
@@ -22,12 +21,7 @@ func HandlerSnippetsDelete(req *app.RequestContext) *shttp.Response {
 	}
 
 	if len(ids) == 0 {
-		return &shttp.Response{
-			Status: http.StatusBadRequest,
-			Data: map[string]string{
-				"error": "Nothing to delete.",
-			},
-		}
+		return shttp.BadRequest(map[string]any{"errors": []string{"Nothing to delete."}})
 	}
 
 	counter := 0
@@ -36,24 +30,14 @@ func HandlerSnippetsDelete(req *app.RequestContext) *shttp.Response {
 	deleteStr := make([]string, idsLen)
 
 	if idsLen > 100 {
-		return &shttp.Response{
-			Status: http.StatusBadRequest,
-			Data: map[string]string{
-				"error": "Please delete maximum 100 snippets at a time.",
-			},
-		}
+		return shttp.BadRequest(map[string]any{"errors": []string{"Please delete maximum 100 snippets at a time."}})
 	}
 
 	for _, id := range ids {
 		idInt, err := strconv.Atoi(id)
 
 		if err != nil {
-			return &shttp.Response{
-				Status: http.StatusBadRequest,
-				Data: map[string]string{
-					"error": "ID should be an integer.",
-				},
-			}
+			return shttp.BadRequest(map[string]any{"errors": []string{"ID should be an integer."}})
 		}
 
 		delete[counter] = types.ID(idInt)
