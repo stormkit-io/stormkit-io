@@ -39,6 +39,17 @@ const (
 	KEY_RUNTIMES_STATUS = "runtimes_status"
 )
 
+const (
+	// serviceRegistrationTTL is how long a service registration lives in Redis
+	// without a heartbeat refresh. If a service crashes without calling shutdown,
+	// its key is automatically evicted after this duration.
+	serviceRegistrationTTL = 30 * time.Second
+
+	// heartbeatInterval is how often a live service refreshes its TTL.
+	// Must be well below serviceRegistrationTTL to avoid false evictions.
+	heartbeatInterval = 10 * time.Second
+)
+
 type Handler func(context.Context, ...string)
 
 type MicroService struct {
@@ -95,7 +106,24 @@ func newService() MicroServiceInterface {
 		},
 	})
 
-	client.Set(service.ctx, key, data, 0)
+	client.Set(service.ctx, key, data, serviceRegistrationTTL)
+
+	// Heartbeat: refresh the TTL periodically so the key stays alive as long
+	// as this process is running. If the process crashes without a clean
+	// shutdown, the key expires on its own after serviceRegistrationTTL.
+	go func() {
+		ticker := time.NewTicker(heartbeatInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-service.ctx.Done():
+				return
+			case <-ticker.C:
+				client.Expire(service.ctx, key, serviceRegistrationTTL)
+			}
+		}
+	}()
 
 	shutdown.Subscribe(func() error {
 
