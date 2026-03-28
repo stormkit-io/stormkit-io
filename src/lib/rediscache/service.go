@@ -124,13 +124,19 @@ func newService() MicroServiceInterface {
 			},
 		})
 	} else {
+		// Capture TTL and interval into locals so the goroutine is not affected
+		// by any future mutation of the package-level vars (e.g. in tests), and
+		// to avoid a data race under -race.
+		ttl := ServiceRegistrationTTL
+		interval := HeartbeatInterval
+
 		// Heartbeat: refresh the TTL periodically so the key stays alive as long
 		// as this process is running. If the process crashes without a clean
-		// shutdown, the key expires on its own after serviceRegistrationTTL.
+		// shutdown, the key expires on its own after ttl.
 		// If Expire returns false (key was evicted during a transient outage),
 		// re-Set the full value so a live service can re-register automatically.
 		go func() {
-			ticker := time.NewTicker(HeartbeatInterval)
+			ticker := time.NewTicker(interval)
 			defer ticker.Stop()
 
 			for {
@@ -138,7 +144,8 @@ func newService() MicroServiceInterface {
 				case <-service.ctx.Done():
 					return
 				case <-ticker.C:
-					ok, err := client.Expire(service.ctx, key, ServiceRegistrationTTL).Result()
+					ok, err := client.Expire(service.ctx, key, ttl).Result()
+
 					if err != nil || !ok {
 						slog.Debug(slog.LogOpts{
 							Msg:   "service discovery heartbeat failed, re-registering service",
@@ -152,7 +159,7 @@ func newService() MicroServiceInterface {
 							},
 						})
 
-						if setErr := client.Set(service.ctx, key, data, ServiceRegistrationTTL).Err(); setErr != nil {
+						if setErr := client.Set(service.ctx, key, data, ttl).Err(); setErr != nil {
 							slog.Errorf("error while re-registering service %s in service discovery: %v", service.ID, setErr)
 						}
 					}
@@ -162,7 +169,6 @@ func newService() MicroServiceInterface {
 	}
 
 	shutdown.Subscribe(func() error {
-
 		slog.Debug(slog.LogOpts{
 			Msg:   "removing service from service discovery",
 			Level: slog.DL1,
@@ -398,4 +404,18 @@ func GetAll(key string, filter []string) (map[string]string, error) {
 // DelAll is a convenience function to delete a key across all services with optional filtering.
 func DelAll(key string, filter []string) error {
 	return Service().DelAll(key, filter)
+}
+
+// ResetService cancels the current service singleton's context (stopping its
+// heartbeat goroutine) and clears the singleton so the next call to Service()
+// creates a fresh instance. Only available in test binaries.
+func ResetService() {
+	_smux.Lock()
+	defer _smux.Unlock()
+
+	if ms, ok := _service.(*MicroService); ok && ms.cancel != nil {
+		ms.cancel()
+	}
+
+	_service = nil
 }

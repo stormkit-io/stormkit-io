@@ -17,6 +17,7 @@ type ServiceSuite struct {
 func (s *ServiceSuite) BeforeTest(_, _ string) {
 	os.Setenv("STORMKIT_SERVICE_NAME", "test-service")
 	rediscache.DefaultService = nil
+	rediscache.ResetService()
 }
 
 func (s *ServiceSuite) AfterTest(_, _ string) {
@@ -74,35 +75,43 @@ func (s *ServiceSuite) Test_DelAll() {
 
 func (s *ServiceSuite) Test_Service_RegistrationHasTTL() {
 	// Use short durations so this test doesn't take long.
-	rediscache.ServiceRegistrationTTL = 500 * time.Millisecond
-	rediscache.HeartbeatInterval = 100 * time.Millisecond
+	prevTTL, prevInterval := rediscache.ServiceRegistrationTTL, rediscache.HeartbeatInterval
+	rediscache.ServiceRegistrationTTL = 2 * time.Second
+	rediscache.HeartbeatInterval = 500 * time.Millisecond
+
 	defer func() {
-		rediscache.ServiceRegistrationTTL = 30 * time.Second
-		rediscache.HeartbeatInterval = 10 * time.Second
+		rediscache.ServiceRegistrationTTL = prevTTL
+		rediscache.HeartbeatInterval = prevInterval
 	}()
 
 	service := rediscache.Service()
 	key := service.Key("sd")
 
-	ttl, err := rediscache.Client().TTL(context.Background(), key).Result()
+	// Use PTTL for millisecond precision since the TTL may be sub-second.
+	pttl, err := rediscache.Client().PTTL(context.Background(), key).Result()
 	s.NoError(err)
-	s.Greater(ttl.Milliseconds(), int64(0), "service discovery key should have a TTL > 0")
+	s.Greater(pttl.Milliseconds(), int64(0), "service discovery key should have a TTL > 0")
 }
 
 func (s *ServiceSuite) Test_Service_HeartbeatKeepsKeyAlive() {
-	// Register with a very short TTL; the heartbeat must refresh it before it expires.
-	rediscache.ServiceRegistrationTTL = 300 * time.Millisecond
-	rediscache.HeartbeatInterval = 100 * time.Millisecond
+	// Register with a short TTL; the heartbeat must refresh it before it expires.
+	// Redis truncates durations below 1s, so use values >= 1s.
+	prevTTL, prevInterval := rediscache.ServiceRegistrationTTL, rediscache.HeartbeatInterval
+	rediscache.ServiceRegistrationTTL = 1500 * time.Millisecond
+	rediscache.HeartbeatInterval = 300 * time.Millisecond
+
 	defer func() {
-		rediscache.ServiceRegistrationTTL = 30 * time.Second
-		rediscache.HeartbeatInterval = 10 * time.Second
+		rediscache.ServiceRegistrationTTL = prevTTL
+		rediscache.HeartbeatInterval = prevInterval
 	}()
 
 	service := rediscache.Service()
 	key := service.Key("sd")
 
-	// Wait long enough that the TTL would have expired without a heartbeat (3×TTL).
-	time.Sleep(900 * time.Millisecond)
+	// Wait long enough that the TTL would have expired without a heartbeat (2×TTL).
+	// The heartbeat fires every 300ms and keeps extending the 1.5s TTL, so the
+	// key should still be alive at the 3s mark.
+	time.Sleep(3 * time.Second)
 
 	exists, err := rediscache.Client().Exists(context.Background(), key).Result()
 	s.NoError(err)
