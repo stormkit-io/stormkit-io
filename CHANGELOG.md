@@ -1,5 +1,29 @@
 # Changelog
 
+## v2026.03.24.2...v2026.03.28.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.03.24.2...v2026.03.28.1)
+
+### 🚀 Enhancements
+
+- Add validation for redirect rules ([ed4c2fc](https://github.com/stormkit-io/stormkit-io/commit/ed4c2fc))
+
+### 🩹 Fixes
+
+- Validate redirects in handlerEnvUpdate; assert cache expectations in test ([068fec0](https://github.com/stormkit-io/stormkit-io/commit/068fec0))
+- Nil pointer panic when restarting a failed deployment ([482e3ef](https://github.com/stormkit-io/stormkit-io/commit/482e3ef))
+
+### 🏡 Chore
+
+- Update changelog for v2026.03.24.2 ([2ada7aa](https://github.com/stormkit-io/stormkit-io/commit/2ada7aa))
+- Migrate redirects handlers to publicapiv1.WithAPIKey ([5266509](https://github.com/stormkit-io/stormkit-io/commit/5266509))
+- Fix mock leak in redirects test; add redirect validation test for env update ([d3e5055](https://github.com/stormkit-io/stormkit-io/commit/d3e5055))
+- Migrate /v1/snippets to local WithAPIKey and consolidate shared logic ([d04abfe](https://github.com/stormkit-io/stormkit-io/commit/d04abfe))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.03.24.1...v2026.03.24.2
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.03.24.1...v2026.03.24.2)
