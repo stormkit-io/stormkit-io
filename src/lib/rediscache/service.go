@@ -43,11 +43,18 @@ const (
 	// serviceRegistrationTTL is how long a service registration lives in Redis
 	// without a heartbeat refresh. If a service crashes without calling shutdown,
 	// its key is automatically evicted after this duration.
-	serviceRegistrationTTL = 30 * time.Second
+	defaultServiceRegistrationTTL = 30 * time.Second
 
 	// heartbeatInterval is how often a live service refreshes its TTL.
 	// Must be well below serviceRegistrationTTL to avoid false evictions.
-	heartbeatInterval = 10 * time.Second
+	defaultHeartbeatInterval = 10 * time.Second
+)
+
+// ServiceRegistrationTTL and HeartbeatInterval are package-level variables so
+// tests can override them to run fast without changing production defaults.
+var (
+	ServiceRegistrationTTL = defaultServiceRegistrationTTL
+	HeartbeatInterval      = defaultHeartbeatInterval
 )
 
 type Handler func(context.Context, ...string)
@@ -106,7 +113,7 @@ func newService() MicroServiceInterface {
 		},
 	})
 
-	if err := client.Set(service.ctx, key, data, serviceRegistrationTTL).Err(); err != nil {
+	if err := client.Set(service.ctx, key, data, ServiceRegistrationTTL).Err(); err != nil {
 		slog.Error(slog.LogOpts{
 			Msg: "failed to register service in service discovery",
 			Payload: []zap.Field{
@@ -123,7 +130,7 @@ func newService() MicroServiceInterface {
 		// If Expire returns false (key was evicted during a transient outage),
 		// re-Set the full value so a live service can re-register automatically.
 		go func() {
-			ticker := time.NewTicker(heartbeatInterval)
+			ticker := time.NewTicker(HeartbeatInterval)
 			defer ticker.Stop()
 
 			for {
@@ -131,7 +138,7 @@ func newService() MicroServiceInterface {
 				case <-service.ctx.Done():
 					return
 				case <-ticker.C:
-					ok, err := client.Expire(service.ctx, key, serviceRegistrationTTL).Result()
+					ok, err := client.Expire(service.ctx, key, ServiceRegistrationTTL).Result()
 					if err != nil || !ok {
 						slog.Debug(slog.LogOpts{
 							Msg:   "service discovery heartbeat failed, re-registering service",
@@ -145,7 +152,7 @@ func newService() MicroServiceInterface {
 							},
 						})
 
-						if setErr := client.Set(service.ctx, key, data, serviceRegistrationTTL).Err(); setErr != nil {
+						if setErr := client.Set(service.ctx, key, data, ServiceRegistrationTTL).Err(); setErr != nil {
 							slog.Errorf("error while re-registering service %s in service discovery: %v", service.ID, setErr)
 						}
 					}
