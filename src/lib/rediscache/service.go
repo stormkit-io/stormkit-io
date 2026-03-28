@@ -106,24 +106,53 @@ func newService() MicroServiceInterface {
 		},
 	})
 
-	client.Set(service.ctx, key, data, serviceRegistrationTTL)
+	if err := client.Set(service.ctx, key, data, serviceRegistrationTTL).Err(); err != nil {
+		slog.Error(slog.LogOpts{
+			Msg: "failed to register service in service discovery",
+			Payload: []zap.Field{
+				zap.String("id", service.ID),
+				zap.String("name", service.Name),
+				zap.String("key", key),
+				zap.Error(err),
+			},
+		})
+	} else {
+		// Heartbeat: refresh the TTL periodically so the key stays alive as long
+		// as this process is running. If the process crashes without a clean
+		// shutdown, the key expires on its own after serviceRegistrationTTL.
+		// If Expire returns false (key was evicted during a transient outage),
+		// re-Set the full value so a live service can re-register automatically.
+		go func() {
+			ticker := time.NewTicker(heartbeatInterval)
+			defer ticker.Stop()
 
-	// Heartbeat: refresh the TTL periodically so the key stays alive as long
-	// as this process is running. If the process crashes without a clean
-	// shutdown, the key expires on its own after serviceRegistrationTTL.
-	go func() {
-		ticker := time.NewTicker(heartbeatInterval)
-		defer ticker.Stop()
+			for {
+				select {
+				case <-service.ctx.Done():
+					return
+				case <-ticker.C:
+					ok, err := client.Expire(service.ctx, key, serviceRegistrationTTL).Result()
+					if err != nil || !ok {
+						slog.Debug(slog.LogOpts{
+							Msg:   "service discovery heartbeat failed, re-registering service",
+							Level: slog.DL1,
+							Payload: []zap.Field{
+								zap.String("id", service.ID),
+								zap.String("name", service.Name),
+								zap.String("key", key),
+								zap.Bool("expire_ok", ok),
+								zap.Error(err),
+							},
+						})
 
-		for {
-			select {
-			case <-service.ctx.Done():
-				return
-			case <-ticker.C:
-				client.Expire(service.ctx, key, serviceRegistrationTTL)
+						if setErr := client.Set(service.ctx, key, data, serviceRegistrationTTL).Err(); setErr != nil {
+							slog.Errorf("error while re-registering service %s in service discovery: %v", service.ID, setErr)
+						}
+					}
+				}
 			}
-		}
-	}()
+		}()
+	}
 
 	shutdown.Subscribe(func() error {
 
