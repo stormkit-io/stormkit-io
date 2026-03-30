@@ -19,11 +19,11 @@ func (ss *ServicesSuite) Test_Services() {
 	ss.NotNil(s)
 
 	handlers := []string{
-		"GET:/instance",
 		"GET:/changelog",
+		"GET:/instance",
 	}
 
-	ss.Equal(handlers, s.Handlers())
+	ss.Equal(handlers, s.HandlerKeys())
 }
 
 func TestServices(t *testing.T) {
