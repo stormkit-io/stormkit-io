@@ -267,9 +267,9 @@ func New() *Config {
 		},
 
 		HTTPTimeouts: &HttpTimeoutsConfig{
-			ReadTimeout:  30 * time.Second,
-			WriteTimeout: 30 * time.Second,
-			IdleTimeout:  60 * time.Second,
+			ReadTimeout:  getDuration(os.Getenv("STORMKIT_HTTP_READ_TIMEOUT"), 30*time.Second),
+			WriteTimeout: getDuration(os.Getenv("STORMKIT_HTTP_WRITE_TIMEOUT"), 30*time.Second),
+			IdleTimeout:  getDuration(os.Getenv("STORMKIT_HTTP_IDLE_TIMEOUT"), 60*time.Second),
 		},
 
 		DbConfigTimeouts: &DbConfigTimeouts{
@@ -568,7 +568,25 @@ func validate(c *Config) *Config {
 	return c
 }
 
-// get is a helper function to get one of the two values.
+// getDuration parses a Go duration string (e.g. "30s", "1m") and returns it.
+// Returns def when val is empty, unparseable, or non-positive.
+// Note: bare integers without a unit (e.g. "30") are parsed as nanoseconds by
+// time.ParseDuration — always include a unit suffix such as "s" or "m".
+func getDuration(val string, def time.Duration) time.Duration {
+	if val == "" {
+		return def
+	}
+
+	d, err := time.ParseDuration(val)
+	if err != nil || d <= 0 {
+		slog.Infof("config: invalid duration %q, using default %s", val, def)
+		return def
+	}
+
+	return d
+}
+
+// get returns the first non-empty string from vals.
 func get(vals ...string) string {
 	for _, v := range vals {
 		if v != "" {
