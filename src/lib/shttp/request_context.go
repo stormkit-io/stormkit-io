@@ -117,6 +117,12 @@ func (r *RequestContext) Query() url.Values {
 	return r.parsedURL
 }
 
+// ResetQuery clears the cached parsed query so that the next call to Query()
+// re-parses Request.URL.RawQuery. Call this after mutating RawQuery directly.
+func (r *RequestContext) ResetQuery() {
+	r.parsedURL = nil
+}
+
 // Headers returns the request headers in a map[string]string.
 func (r *RequestContext) Headers() http.Header {
 	if r.Request == nil {

@@ -79,7 +79,21 @@ func ResetCors() {
 }
 
 func WithTimeout(h http.Handler) http.Handler {
-	return http.TimeoutHandler(h, config.Get().DbConfigTimeouts.ConnectTimeout, "timeout")
+	timeout := config.Get().HTTPTimeouts.ReadTimeout
+	regular := http.TimeoutHandler(h, timeout, "timeout")
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// http.TimeoutHandler buffers the entire response, which is incompatible
+		// with SSE streams (long-lived connections). Skip the timeout wrapper only
+		// for the known SSE endpoint (GET /v1/mcp) to prevent Accept-header
+		// spoofing from bypassing timeouts on arbitrary routes.
+		if r.Method == http.MethodGet && r.URL.Path == "/v1/mcp" {
+			h.ServeHTTP(w, r)
+			return
+		}
+
+		regular.ServeHTTP(w, r)
+	})
 }
 
 // withCors enables cors headers for the api.
