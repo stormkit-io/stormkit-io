@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.04.01.2...v2026.04.01.3
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.01.2...v2026.04.01.3)
+
+### 🩹 Fixes
+
+- Treat VersionNotFound 404 as success in DeleteArtifacts ([dae2207](https://github.com/stormkit-io/stormkit-io/commit/dae2207))
+
+### 🏡 Chore
+
+- Update changelog for v2026.04.01.2 ([ba2d930](https://github.com/stormkit-io/stormkit-io/commit/ba2d930))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.04.01.1...v2026.04.01.2
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.01.1...v2026.04.01.2)
