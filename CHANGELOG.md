@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.04.01.1...v2026.04.01.2
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.01.1...v2026.04.01.2)
+
+### 🩹 Fixes
+
+- Add Content-MD5 header to Alibaba OSS DeleteObjects requests ([b408f31](https://github.com/stormkit-io/stormkit-io/commit/b408f31))
+
+### 🏡 Chore
+
+- Update changelog for v2026.04.01.1 ([a0fefff](https://github.com/stormkit-io/stormkit-io/commit/a0fefff))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.03.28.2...v2026.04.01.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.03.28.2...v2026.04.01.1)
