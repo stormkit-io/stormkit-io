@@ -118,6 +118,7 @@ func (s *JobHandlerForwardTest) Test_IngestHandlerForward_MultipleRecords() {
 }
 
 func (s *JobHandlerForwardTest) Test_IngestHandlerForward_BatchLimit() {
+	s.T().Setenv("STORMKIT_HOSTING_QUEUE_BATCH_SIZE", "100")
 
 	// Push more than 100 records to test batch limit
 	for i := 0; i < 150; i++ {

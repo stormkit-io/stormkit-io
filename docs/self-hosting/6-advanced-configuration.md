@@ -1,9 +1,17 @@
 ---
 title: "Advanced Configuration"
-description: Advanced configuration options for self-hosted Stormkit instances, including HTTP timeout tuning.
+description: Advanced configuration options for self-hosted Stormkit instances, including HTTP timeout tuning and queue configuration.
 ---
 
 # Advanced Configuration
+
+## Hosting Queue
+
+The hosting queue is a Redis list used to buffer incoming analytics, logs, and usage metrics before they are written to the database. A background worker drains this queue every 5 seconds.
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `STORMKIT_HOSTING_QUEUE_BATCH_SIZE` | `1000` | Number of items consumed from the hosting queue per worker run. Increase this value if the queue grows faster than it is being drained. |
 
 ## HTTP Timeouts
 

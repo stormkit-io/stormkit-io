@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/applog"
@@ -32,44 +33,44 @@ type HostingRecord struct {
 	FunctionInvoked bool               `json:"functionInvoked"`
 }
 
-// IngestHandlerForward reads last 100 rows from redis, and inserts them into the database.
+// IngestHandlerForward reads rows from redis and inserts them into the database.
+// The batch size defaults to 1000 and can be overridden via STORMKIT_HOSTING_QUEUE_BATCH_SIZE.
 //
 // Here's an example calculation on finding the number of data we can handle:
 // - Let's assume this method is called every 5 seconds
 // - Executions per minute:   12
 // - Executions per hour:     720
 // - Executions per day:      17'280
-// - Executions per day:      17'280
-// - Daily records handled:   17'280 x 100 = 1'728'000
-// - Monthly records handled: 51'840'000
+// - Daily records handled:   17'280 x 1000 = 17'280'000
+// - Monthly records handled: 518'400'000
 func IngestHandlerForward(ctx context.Context) error {
 	client := rediscache.Client()
 	analyticsRecords := []analytics.Record{}
 	logRecords := []*applog.Log{}
 	stats := map[string]map[string]int64{} // userId -> metric -> value
-	rows := 100
+	rows := utils.StringToInt(os.Getenv("STORMKIT_HOSTING_QUEUE_BATCH_SIZE"))
 
-	for i := 0; i < rows; i = i + 1 {
-		msg, err := client.LPop(ctx, HostingQueueName).Result()
+	if rows <= 0 {
+		rows = 1000
+	}
 
-		if rediscache.IsConnectionError(err) {
-			return err
-		}
+	msgs, err := client.LPopCount(ctx, HostingQueueName, rows).Result()
 
-		if err != nil && errors.Is(err, redis.Nil) {
-			break
-		}
+	if rediscache.IsConnectionError(err) {
+		return err
+	}
 
-		if err != nil {
-			slog.Errorf("error while popping from redis: %v", err)
-			break
-		}
+	if err != nil && !errors.Is(err, redis.Nil) {
+		slog.Errorf("error while popping from redis: %v", err)
+		return err
+	}
 
+	for _, msg := range msgs {
 		record := HostingRecord{}
 
 		if err := json.Unmarshal([]byte(msg), &record); err != nil {
 			slog.Errorf("cannot unmarshal log: %v", err)
-			break
+			continue
 		}
 
 		if record.Analytics != nil {
