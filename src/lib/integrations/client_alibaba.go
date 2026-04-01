@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	awsconf "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
@@ -96,11 +97,15 @@ func Alibaba(args ClientArgs) (*AlibabaClient, error) {
 	}
 
 	// Alibaba is S3 Compatible, so use that interface.
+	// AddContentChecksumMiddleware injects a Content-MD5 header for all S3
+	// operations that carry a request body. This is required by Alibaba OSS for
+	// DeleteObjects (which fails with MissingArgument without it) and is harmless
+	// for other operations such as PutObject.
 	awscli, err := AWS(
 		ClientArgs{
 			AccessKey:   args.AccessKey,
 			SecretKey:   args.SecretKey,
-			Middlewares: args.Middlewares,
+			Middlewares: append(args.Middlewares, smithyhttp.AddContentChecksumMiddleware),
 		}, &AWSOptions{
 			awsConf: &cfg,
 			s3Only:  true,

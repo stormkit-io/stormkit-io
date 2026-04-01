@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go/middleware"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
@@ -206,6 +207,55 @@ func (s *AlibabaOSSSuite) Test_GetFile() {
 	s.Equal("Hello world", string(result.Content))
 	s.Equal(int64(len("Hello world")), result.Size)
 	s.Equal("text/html; charset=utf-8", result.ContentType)
+}
+
+// Test_DeleteArtifacts_ContentMD5Header verifies that DeleteObjects requests sent
+// to Alibaba OSS include the Content-Md5 header required by the OSS API.
+func (s *AlibabaOSSSuite) Test_DeleteArtifacts_ContentMD5Header() {
+	contentMD5Seen := ""
+
+	oss, err := integrations.Alibaba(integrations.ClientArgs{
+		AccessKey: "my-access-key",
+		SecretKey: "my-secret-key",
+		Middlewares: []func(stack *middleware.Stack) error{
+			func(stack *middleware.Stack) error {
+				return stack.Finalize.Add(
+					middleware.FinalizeMiddlewareFunc("AssertContentMD5", func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
+						opName := awsmiddleware.GetOperationName(ctx)
+
+						switch opName {
+						case "ListObjectsV2":
+							return middleware.FinalizeOutput{
+								Result: &s3.ListObjectsV2Output{
+									Contents:    []s3types.Object{{Key: utils.Ptr("1/50919/index.html")}},
+									IsTruncated: utils.Ptr(false),
+								},
+							}, middleware.Metadata{}, nil
+						case "DeleteObjects":
+							if req, ok := fi.Request.(*smithyhttp.Request); ok {
+								contentMD5Seen = req.Header.Get("Content-Md5")
+							}
+							return middleware.FinalizeOutput{
+								Result: &s3.DeleteObjectsOutput{},
+							}, middleware.Metadata{}, nil
+						default:
+							return middleware.FinalizeOutput{}, middleware.Metadata{}, errors.New("unexpected AWS operation: " + opName)
+						}
+					}),
+					middleware.Before,
+				)
+			},
+		},
+	})
+
+	s.Require().NoError(err)
+
+	err = oss.DeleteArtifacts(context.Background(), integrations.DeleteArtifactsArgs{
+		StorageLocation: "alibaba:my-s3-bucket/1/50919",
+	})
+
+	s.NoError(err)
+	s.NotEmpty(contentMD5Seen, "Content-Md5 header must be present on DeleteObjects requests to Alibaba OSS")
 }
 
 func TestAlibabaOSS(t *testing.T) {
