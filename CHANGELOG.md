@@ -1,5 +1,28 @@
 # Changelog
 
+## v2026.03.28.2...v2026.04.01.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.03.28.2...v2026.04.01.1)
+
+### 🚀 Enhancements
+
+- Configurable http timeouts via env vars ([2b682d0](https://github.com/stormkit-io/stormkit-io/commit/2b682d0))
+- Increase hosting queue batch size to 1000 and make it configurable ([e3f7d6d](https://github.com/stormkit-io/stormkit-io/commit/e3f7d6d))
+
+### 🩹 Fixes
+
+- Flaky instancehandlers services test due to map iteration order ([ea1e519](https://github.com/stormkit-io/stormkit-io/commit/ea1e519))
+- Bypass http.TimeoutHandler for SSE streaming endpoint ([b0e51b2](https://github.com/stormkit-io/stormkit-io/commit/b0e51b2))
+- Guard nil keys and paginate deleteS3Folder for Alibaba OSS ([d36339a](https://github.com/stormkit-io/stormkit-io/commit/d36339a))
+
+### 🏡 Chore
+
+- Update changelog for v2026.03.28.2 ([8091fe4](https://github.com/stormkit-io/stormkit-io/commit/8091fe4))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.03.28.1...v2026.03.28.2
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.03.28.1...v2026.03.28.2)
