@@ -5,10 +5,12 @@ package integrations
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 
 	openapi "github.com/alibabacloud-go/darabonba-openapi/v2/client"
 	alibaba "github.com/alibabacloud-go/fc-20230330/v4/client"
+	"github.com/alibabacloud-go/tea/tea"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	awsconf "github.com/aws/aws-sdk-go-v2/config"
@@ -206,6 +208,12 @@ func (a AlibabaClient) DeleteArtifacts(ctx context.Context, args DeleteArtifacts
 		}
 
 		_, err := a.client.DeleteFunctionVersion(&fnName, &fnVersion)
+
+		if e, ok := err.(*tea.SDKError); ok && e.StatusCode != nil && *e.StatusCode == http.StatusNotFound {
+			// The function version no longer exists; treat as already deleted.
+			return nil
+		}
+
 		return err
 	}
 

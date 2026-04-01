@@ -308,6 +308,46 @@ func (s *AlibabaFunctionsSuite) Test_Upload_API() {
 	s.NotNil(result)
 }
 
+// Test_DeleteArtifacts_VersionNotFound verifies that a 404 SDKError from DeleteFunctionVersion
+// is treated as success so the deployment is still marked as deleted.
+func (s *AlibabaFunctionsSuite) Test_DeleteArtifacts_VersionNotFound() {
+	notFound := tea.NewSDKError(map[string]interface{}{
+		"statusCode": http.StatusNotFound,
+		"code":       "VersionNotFound",
+	})
+
+	s.sdk.On("DeleteFunctionVersion", mock.Anything, mock.Anything).Once().Return(nil, notFound)
+
+	alibaba, err := integrations.Alibaba(integrations.ClientArgs{})
+	s.Require().NoError(err)
+
+	err = alibaba.DeleteArtifacts(context.Background(), integrations.DeleteArtifactsArgs{
+		FunctionLocation: "alibaba:functions/sk-1-1-local/1",
+	})
+
+	s.NoError(err)
+}
+
+// Test_DeleteArtifacts_OtherErrorIsReturned verifies that non-404 errors from DeleteFunctionVersion
+// are propagated to the caller.
+func (s *AlibabaFunctionsSuite) Test_DeleteArtifacts_OtherErrorIsReturned() {
+	internalError := tea.NewSDKError(map[string]interface{}{
+		"statusCode": http.StatusInternalServerError,
+		"code":       "InternalError",
+	})
+
+	s.sdk.On("DeleteFunctionVersion", mock.Anything, mock.Anything).Once().Return(nil, internalError)
+
+	alibaba, err := integrations.Alibaba(integrations.ClientArgs{})
+	s.Require().NoError(err)
+
+	err = alibaba.DeleteArtifacts(context.Background(), integrations.DeleteArtifactsArgs{
+		FunctionLocation: "alibaba:functions/sk-1-1-local/1",
+	})
+
+	s.Error(err)
+}
+
 func TestAlibabaFunctionsSuite(t *testing.T) {
 	suite.Run(t, &AlibabaFunctionsSuite{})
 }
