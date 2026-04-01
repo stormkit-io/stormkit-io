@@ -245,41 +245,68 @@ func (a *AWSClient) UploadFile(file File, s3args any) error {
 	return err
 }
 
+// deleteS3Folder lists and deletes all objects under keyPrefix in the given bucket.
+// It pages through the listing (each page holds up to 1,000 keys) so folders with
+// more than 1,000 objects are fully deleted. Object entries with a nil or empty Key
+// are skipped to avoid a MissingArgument error from S3-compatible providers such as
+// Alibaba OSS.
 func (a *AWSClient) deleteS3Folder(ctx context.Context, bucketName, keyPrefix string) error {
-	// List all objects in the folder
-	listObjectsResp, err := a.S3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
-		Bucket: utils.Ptr(bucketName),
-		Prefix: utils.Ptr(keyPrefix), // Folder prefix (e.g., "my-folder/")
-	})
-
-	if err != nil {
-		return fmt.Errorf("unable to list objects in folder %q: %v", keyPrefix, err)
+	// Ensure the prefix ends with "/" to avoid matching keys from deployments
+	// whose IDs share the same numeric prefix (e.g. "1/50919" would otherwise
+	// also match "1/509190/...").
+	if !strings.HasSuffix(keyPrefix, "/") {
+		keyPrefix += "/"
 	}
 
-	// Prepare to delete the listed objects
-	var objectsToDelete []s3types.ObjectIdentifier
+	var continuationToken *string
 
-	for _, object := range listObjectsResp.Contents {
-		objectsToDelete = append(objectsToDelete, s3types.ObjectIdentifier{
-			Key: object.Key,
+	for {
+		listResp, err := a.S3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+			Bucket:            utils.Ptr(bucketName),
+			Prefix:            utils.Ptr(keyPrefix),
+			ContinuationToken: continuationToken,
 		})
+
+		if err != nil {
+			return fmt.Errorf("unable to list objects in bucket %q with prefix %q: %w", bucketName, keyPrefix, err)
+		}
+
+		var objectsToDelete []s3types.ObjectIdentifier
+
+		for _, object := range listResp.Contents {
+			if object.Key != nil && *object.Key != "" {
+				objectsToDelete = append(objectsToDelete, s3types.ObjectIdentifier{
+					Key: object.Key,
+				})
+			}
+		}
+
+		if len(objectsToDelete) > 0 {
+			_, err = a.S3Client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+				Bucket: utils.Ptr(bucketName),
+				Delete: &s3types.Delete{
+					Objects: objectsToDelete,
+					Quiet:   utils.Ptr(true),
+				},
+			})
+
+			if err != nil {
+				return fmt.Errorf("unable to delete objects in bucket %q with prefix %q: %w", bucketName, keyPrefix, err)
+			}
+		}
+
+		if listResp.IsTruncated == nil || !*listResp.IsTruncated {
+			break
+		}
+
+		if listResp.NextContinuationToken == nil || *listResp.NextContinuationToken == "" {
+			return fmt.Errorf("truncated S3 ListObjectsV2 response for bucket %q and prefix %q is missing NextContinuationToken", bucketName, keyPrefix)
+		}
+
+		continuationToken = listResp.NextContinuationToken
 	}
 
-	// If no objects are found, return
-	if len(objectsToDelete) == 0 {
-		return nil
-	}
-
-	// Delete the object
-	_, err = a.S3Client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
-		Bucket: utils.Ptr(bucketName),
-		Delete: &s3types.Delete{
-			Objects: objectsToDelete,
-			Quiet:   utils.Ptr(true),
-		},
-	})
-
-	return err
+	return nil
 }
 
 // parseS3Location parses a string in the following format:

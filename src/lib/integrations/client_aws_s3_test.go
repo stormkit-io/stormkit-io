@@ -252,3 +252,197 @@ func (s *AwsS3Suite) Test_ZipDownloader() {
 func TestAwsS3(t *testing.T) {
 	suite.Run(t, &AwsS3Suite{})
 }
+
+func (s *AwsS3Suite) Test_DeleteArtifacts_Success() {
+	listCallCount := 0
+	deleteCallCount := 0
+
+	aws, err := integrations.AWS(integrations.ClientArgs{
+		SessionToken: "my-session",
+		AccessKey:    "my-access-key",
+		SecretKey:    "my-secret-key",
+		Middlewares: []func(stack *middleware.Stack) error{
+			func(stack *middleware.Stack) error {
+				return stack.Finalize.Add(
+					middleware.FinalizeMiddlewareFunc("DeleteArtifacts", func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
+						opName := awsmiddleware.GetOperationName(ctx)
+
+						switch opName {
+						case "ListObjectsV2":
+							listCallCount++
+							return middleware.FinalizeOutput{
+								Result: &s3.ListObjectsV2Output{
+									Contents: []s3types.Object{
+										{Key: utils.Ptr("1/50919/index.html")},
+										{Key: utils.Ptr("1/50919/main.js")},
+									},
+									IsTruncated: utils.Ptr(false),
+								},
+							}, middleware.Metadata{}, nil
+						case "DeleteObjects":
+							deleteCallCount++
+							return middleware.FinalizeOutput{
+								Result: &s3.DeleteObjectsOutput{},
+							}, middleware.Metadata{}, nil
+						default:
+							s.T().Fatalf("unexpected AWS operation: %s", opName)
+							return middleware.FinalizeOutput{}, middleware.Metadata{}, errors.New("unexpected AWS operation: " + opName)
+						}
+					}),
+					middleware.Before,
+				)
+			},
+		},
+	}, nil)
+
+	s.Require().NoError(err)
+
+	err = aws.DeleteArtifacts(context.Background(), integrations.DeleteArtifactsArgs{
+		StorageLocation: "aws:my-s3-bucket/1/50919",
+	})
+
+	s.NoError(err)
+	s.Equal(1, listCallCount)
+	s.Equal(1, deleteCallCount)
+}
+
+// Test_DeleteArtifacts_NilKeysAreFiltered verifies that objects returned by ListObjectsV2
+// with a nil Key are skipped and do not cause a MissingArgument error on DeleteObjects.
+func (s *AwsS3Suite) Test_DeleteArtifacts_NilKeysAreFiltered() {
+	deleteCallCount := 0
+
+	aws, err := integrations.AWS(integrations.ClientArgs{
+		SessionToken: "my-session",
+		AccessKey:    "my-access-key",
+		SecretKey:    "my-secret-key",
+		Middlewares: []func(stack *middleware.Stack) error{
+			func(stack *middleware.Stack) error {
+				return stack.Initialize.Add(
+					middleware.InitializeMiddlewareFunc("DeleteNilKeysInit", func(ctx context.Context, fi middleware.InitializeInput, next middleware.InitializeHandler) (middleware.InitializeOutput, middleware.Metadata, error) {
+						if v, ok := fi.Parameters.(*s3.DeleteObjectsInput); ok {
+							deleteCallCount++
+							s.Require().Len(v.Delete.Objects, 1)
+							s.Equal("1/50919/index.html", *v.Delete.Objects[0].Key)
+						}
+						return next.HandleInitialize(ctx, fi)
+					}),
+					middleware.Before,
+				)
+			},
+			func(stack *middleware.Stack) error {
+				return stack.Finalize.Add(
+					middleware.FinalizeMiddlewareFunc("DeleteNilKeys", func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
+						opName := awsmiddleware.GetOperationName(ctx)
+
+						switch opName {
+						case "ListObjectsV2":
+							return middleware.FinalizeOutput{
+								Result: &s3.ListObjectsV2Output{
+									// One valid key, one nil key — the nil must be filtered out.
+									Contents: []s3types.Object{
+										{Key: utils.Ptr("1/50919/index.html")},
+										{Key: nil},
+									},
+									IsTruncated: utils.Ptr(false),
+								},
+							}, middleware.Metadata{}, nil
+						case "DeleteObjects":
+							return middleware.FinalizeOutput{
+								Result: &s3.DeleteObjectsOutput{},
+							}, middleware.Metadata{}, nil
+						default:
+							return middleware.FinalizeOutput{}, middleware.Metadata{}, errors.New("unexpected AWS operation: " + opName)
+						}
+					}),
+					middleware.Before,
+				)
+			},
+		},
+	}, nil)
+
+	s.Require().NoError(err)
+
+	err = aws.DeleteArtifacts(context.Background(), integrations.DeleteArtifactsArgs{
+		StorageLocation: "aws:my-s3-bucket/1/50919",
+	})
+
+	s.NoError(err)
+	s.Equal(1, deleteCallCount)
+}
+
+// Test_DeleteArtifacts_Paginated verifies that deleteS3Folder follows ListObjectsV2
+// pagination and issues a DeleteObjects call for each page.
+func (s *AwsS3Suite) Test_DeleteArtifacts_Paginated() {
+	listCallCount := 0
+	deleteCallCount := 0
+
+	aws, err := integrations.AWS(integrations.ClientArgs{
+		SessionToken: "my-session",
+		AccessKey:    "my-access-key",
+		SecretKey:    "my-secret-key",
+		Middlewares: []func(stack *middleware.Stack) error{
+			func(stack *middleware.Stack) error {
+				return stack.Finalize.Add(
+					middleware.FinalizeMiddlewareFunc("DeletePaginated", func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
+						opName := awsmiddleware.GetOperationName(ctx)
+
+						switch opName {
+						case "ListObjectsV2":
+							listCallCount++
+							if listCallCount == 1 {
+								return middleware.FinalizeOutput{
+									Result: &s3.ListObjectsV2Output{
+										Contents:              []s3types.Object{{Key: utils.Ptr("1/50919/page1.js")}},
+										IsTruncated:           utils.Ptr(true),
+										NextContinuationToken: utils.Ptr("token-page-2"),
+									},
+								}, middleware.Metadata{}, nil
+							}
+							return middleware.FinalizeOutput{
+								Result: &s3.ListObjectsV2Output{
+									Contents:    []s3types.Object{{Key: utils.Ptr("1/50919/page2.js")}},
+									IsTruncated: utils.Ptr(false),
+								},
+							}, middleware.Metadata{}, nil
+						case "DeleteObjects":
+							deleteCallCount++
+							return middleware.FinalizeOutput{
+								Result: &s3.DeleteObjectsOutput{},
+							}, middleware.Metadata{}, nil
+						default:
+							return middleware.FinalizeOutput{}, middleware.Metadata{}, errors.New("unexpected S3 operation: " + opName)
+						}
+					}),
+					middleware.Before,
+				)
+			},
+			func(stack *middleware.Stack) error {
+				return stack.Initialize.Add(
+					middleware.InitializeMiddlewareFunc("DeletePaginatedInit", func(ctx context.Context, fi middleware.InitializeInput, next middleware.InitializeHandler) (middleware.InitializeOutput, middleware.Metadata, error) {
+						if v, ok := fi.Parameters.(*s3.ListObjectsV2Input); ok {
+							if listCallCount == 0 {
+								s.Nil(v.ContinuationToken)
+							} else {
+								s.Require().NotNil(v.ContinuationToken)
+								s.Equal("token-page-2", *v.ContinuationToken)
+							}
+						}
+						return next.HandleInitialize(ctx, fi)
+					}),
+					middleware.Before,
+				)
+			},
+		},
+	}, nil)
+
+	s.Require().NoError(err)
+
+	err = aws.DeleteArtifacts(context.Background(), integrations.DeleteArtifactsArgs{
+		StorageLocation: "aws:my-s3-bucket/1/50919",
+	})
+
+	s.NoError(err)
+	s.Equal(2, listCallCount)
+	s.Equal(2, deleteCallCount)
+}
+
