@@ -13,6 +13,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"go.uber.org/zap"
+	"golang.org/x/sync/singleflight"
 )
 
 // VersionCookieName represents the name of the cookie that
@@ -36,20 +37,29 @@ type CachedConfig struct {
 
 var appCache AppCache
 var appCacheMu sync.Mutex
+var appConfSFGroup singleflight.Group
+
+// fetchConfigFn is the function used to fetch app config from the database.
+// It is a variable to allow overriding in tests.
+var fetchConfigFn = appconf.FetchConfig
 
 func init() {
 	appCache = AppCache{}
 
 	go func() {
-		for {
+		deleteAllExpired := func() {
+			appCacheMu.Lock()
+			defer appCacheMu.Unlock()
+
 			for hostName, cache := range appCache {
 				if time.Since(cache.InMemorySince) > inMemoryCacheTTL {
-					appCacheMu.Lock()
 					delete(appCache, hostName)
-					appCacheMu.Unlock()
 				}
 			}
+		}
 
+		for {
+			deleteAllExpired()
 			time.Sleep(time.Minute * 1)
 		}
 	}()
@@ -68,24 +78,41 @@ type Host struct {
 	Request *shttp.RequestContext
 }
 
-// FetchAppConf fetches the config for the host name from the database.
-// If the config is found in local cache, it's returned from the local cache.
-func FetchAppConf(hostName string) ([]*appconf.Config, error) {
+func getConfFromCache(hostName string) *CachedConfig {
 	appCacheMu.Lock()
+	defer appCacheMu.Unlock()
+
 	confFromCache := appCache[hostName]
-	appCacheMu.Unlock()
 
 	if confFromCache != nil {
 		// Frequently used caches should not be invalidated.
 		confFromCache.InMemorySince = time.Now()
+	}
+
+	return confFromCache
+}
+
+// FetchAppConf fetches the config for the host name from the database.
+// If the config is found in local cache, it's returned from the local cache.
+// singleflight ensures that concurrent cache misses for the same hostname
+// result in exactly one database query, preventing thundering herd under load.
+func FetchAppConf(hostName string) ([]*appconf.Config, error) {
+	confFromCache := getConfFromCache(hostName)
+
+	if confFromCache != nil {
 		return confFromCache.Config, nil
 	}
 
-	configs, err := appconf.FetchConfig(hostName)
+	v, err, _ := appConfSFGroup.Do(hostName, func() (any, error) {
+		return fetchConfigFn(hostName)
+	})
 
 	if err != nil {
 		slog.Errorf("Error fetching config %v for host %s", err, hostName)
+		return nil, err
 	}
+
+	configs := v.([]*appconf.Config)
 
 	cached := &CachedConfig{
 		Config:        configs,
@@ -113,7 +140,7 @@ func FetchAppConf(hostName string) ([]*appconf.Config, error) {
 		}
 	}
 
-	return configs, err
+	return configs, nil
 }
 
 // RequestConfig requests the config from api and assigns it to the

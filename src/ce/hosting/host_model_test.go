@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
@@ -127,6 +128,86 @@ func (s *HostSuite) Test_ModifyingURL() {
 	u2.Fragment = u1.Fragment
 	u2.Path = u1.Path
 	s.Equal("http://abc.com:3000/my-app?id=12345#section", u2.String())
+}
+
+// Test_FetchAppConf_SingleFlight verifies that concurrent cache misses for the
+// same hostname result in exactly one database call, preventing thundering herd.
+// It also verifies that re-fetching works correctly after a TTL-driven eviction.
+func (s *HostSuite) Test_FetchAppConf_SingleFlight() {
+	const hostname = "singleflight-test.example.com"
+	const concurrency = 50
+
+	var callCount int64
+
+	// Replace the DB fetch with a slow stub so all goroutines are in-flight simultaneously.
+	hosting.SetFetchConfigFn(func(hostName string) ([]*appconf.Config, error) {
+		atomic.AddInt64(&callCount, 1)
+		// Simulate a slow DB query so all goroutines pile up before any returns.
+		time.Sleep(50 * time.Millisecond)
+		return nil, nil
+	})
+	defer hosting.ResetFetchConfigFn()
+	defer hosting.InvalidateAppCache(hostname)
+
+	fireWave := func() {
+		var wg sync.WaitGroup
+		ready := make(chan struct{})
+
+		for range concurrency {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-ready
+				hosting.FetchAppConf(hostname)
+			}()
+		}
+
+		close(ready)
+		wg.Wait()
+	}
+
+	// First wave: cold cache.
+	fireWave()
+	s.Equal(int64(1), callCount, "expected exactly 1 DB call for %d concurrent cold-cache misses", concurrency)
+
+	// Simulate TTL expiry by evicting the cache entry.
+	hosting.InvalidateAppCache(hostname)
+	atomic.StoreInt64(&callCount, 0)
+
+	// Second wave: cache miss after TTL expiry — singleflight must still apply.
+	fireWave()
+	s.Equal(int64(1), callCount, "expected exactly 1 DB call for %d concurrent post-TTL-expiry misses", concurrency)
+}
+
+// Test_FetchAppConf_WarmCacheRace verifies that concurrent reads of a warm cache
+// entry do not race on the InMemorySince timestamp field.
+func (s *HostSuite) Test_FetchAppConf_WarmCacheRace() {
+	const hostname = "warm-cache-race-test.example.com"
+	const concurrency = 50
+
+	hosting.SetFetchConfigFn(func(hostName string) ([]*appconf.Config, error) {
+		return nil, nil
+	})
+	defer hosting.ResetFetchConfigFn()
+	defer hosting.InvalidateAppCache(hostname)
+
+	// Prime the cache so all subsequent calls hit the warm-cache path.
+	hosting.FetchAppConf(hostname)
+
+	var wg sync.WaitGroup
+	ready := make(chan struct{})
+
+	for range concurrency {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-ready
+			hosting.FetchAppConf(hostname)
+		}()
+	}
+
+	close(ready)
+	wg.Wait()
 }
 
 func TestHostModel(t *testing.T) {

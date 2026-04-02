@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sync"
 
 	"github.com/aws/smithy-go/middleware"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
@@ -95,6 +96,7 @@ type ClientInterface interface {
 }
 
 var CachedClient ClientInterface
+var clientOnce sync.Once
 
 // SetDefaultClient sets the client that will be returned by Client
 // method. This method is mainly used for testing purposes. For environments
@@ -105,6 +107,7 @@ func SetDefaultClient(client ClientInterface) {
 	}
 
 	CachedClient = client
+	clientOnce = sync.Once{}
 }
 
 type ClientArgs struct {
@@ -120,7 +123,8 @@ type ClientArgs struct {
 // Client returns the ClientInterface based on the environment configuration.
 // For instance, if AWS_* environment variables are declared, this function will
 // return the AWS client. After the first call, the client returns the
-// cached ClientInterface.
+// cached ClientInterface. clientOnce guarantees that the initialisation runs
+// exactly once even under concurrent callers.
 func Client(args ...ClientArgs) ClientInterface {
 	if CachedClient != nil {
 		return CachedClient
@@ -133,20 +137,24 @@ func Client(args ...ClientArgs) ClientInterface {
 		opts = args[0]
 	}
 
-	var err error
+	var initErr error
 
-	if cfg.AWS != nil || opts.Provider == config.ProviderAWS {
-		CachedClient, err = AWS(opts, nil)
-	} else if cfg.Alibaba != nil || opts.Provider == config.ProviderAlibaba {
-		CachedClient, err = Alibaba(opts)
-	} else if cfg.Deployer.IsLocal() || opts.Provider == config.ProviderFilesys {
-		CachedClient = Filesys()
-	}
+	clientOnce.Do(func() {
+		if cfg.AWS != nil || opts.Provider == config.ProviderAWS {
+			CachedClient, initErr = AWS(opts, nil)
+		} else if cfg.Alibaba != nil || opts.Provider == config.ProviderAlibaba {
+			CachedClient, initErr = Alibaba(opts)
+		} else if cfg.Deployer.IsLocal() || opts.Provider == config.ProviderFilesys {
+			CachedClient = Filesys()
+		}
 
-	slog.Infof("integrations client: %s", CachedClient.Name())
+		if CachedClient != nil {
+			slog.Infof("integrations client: %s", CachedClient.Name())
+		}
+	})
 
-	if err != nil {
-		panic(err)
+	if initErr != nil {
+		panic(initErr)
 	}
 
 	return CachedClient
