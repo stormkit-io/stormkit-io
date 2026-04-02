@@ -59,9 +59,14 @@ export default function Jobs() {
               onClick={() => {
                 setLoading(index);
 
-                Api.post(job.endpoint)
-                  .then(() => {
-                    setSuccess("Job has been successfully run.");
+                Api.post<{ deleted?: string[] }>(job.endpoint)
+                  .then((res) => {
+                    const count = res?.deleted?.length;
+                    setSuccess(
+                      count
+                        ? `Deleted ${count} record${count === 1 ? "" : "s"} successfully.`
+                        : "Job has been successfully run."
+                    );
                     setError(undefined);
                   })
                   .catch(() => {
