@@ -1,5 +1,25 @@
 # Changelog
 
+## v2026.04.01.3...v2026.04.02.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.01.3...v2026.04.02.1)
+
+### 🚀 Enhancements
+
+- Show deleted record count in jobs success message ([a9e9474](https://github.com/stormkit-io/stormkit-io/commit/a9e9474))
+
+### 🩹 Fixes
+
+- Prevent thundering herd and data races in FetchAppConf ([631a1bc](https://github.com/stormkit-io/stormkit-io/commit/631a1bc))
+
+### 🏡 Chore
+
+- Update changelog for v2026.04.01.3 ([4914bf7](https://github.com/stormkit-io/stormkit-io/commit/4914bf7))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.04.01.2...v2026.04.01.3
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.01.2...v2026.04.01.3)
