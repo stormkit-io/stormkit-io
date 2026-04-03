@@ -15,7 +15,7 @@ export default function Editor({ value, docsLink, onChange }: Props) {
   const { mode } = useContext(RootContext);
 
   return (
-    <>
+    <div style={{ minWidth: 0, overflow: "hidden" }}>
       <CodeMirror
         maxHeight="200px"
         value={value}
@@ -30,6 +30,6 @@ export default function Editor({ value, docsLink, onChange }: Props) {
         </Link>{" "}
         for more information.
       </Typography>
-    </>
+    </div>
   );
 }

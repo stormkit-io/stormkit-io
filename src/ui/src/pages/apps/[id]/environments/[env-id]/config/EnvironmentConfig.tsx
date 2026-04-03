@@ -171,8 +171,21 @@ export default function EnvironmentConfig() {
   }, [selectedItem]);
 
   return (
-    <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" } }}>
-      <Box component="nav" sx={{ mr: 2, minWidth: "250px" }}>
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: { xs: "column", md: "row" },
+      }}
+    >
+      <Box
+        component="nav"
+        sx={{
+          mr: 2,
+          mb: { xs: 2, md: 0 },
+          minWidth: { xs: "100%", md: "250px" },
+          maxWidth: { xs: "100%", md: "250px" },
+        }}
+      >
         <List
           sx={{ position: "sticky", top: 0, py: 0 }}
           data-testid="env-config-nav"
@@ -242,7 +255,15 @@ export default function EnvironmentConfig() {
           </ListItem>
         </List>
       </Box>
-      <Box sx={{ flex: 1 }}>
+      <Box
+        sx={{
+          flex: 1,
+          maxWidth: {
+            xs: "100%",
+            md: "calc(100% - 266px)" /* 250px nav + 16px margin */,
+          },
+        }}
+      >
         <Tab
           app={app}
           environment={environment}
