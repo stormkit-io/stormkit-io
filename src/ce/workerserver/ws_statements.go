@@ -61,7 +61,7 @@ var stmt = &statement{
 		FROM
 			deployments d
 		WHERE
-			d.created_at < NOW() - INTERVAL '15 minutes' AND
+			d.created_at < NOW() AT TIME ZONE 'UTC' - INTERVAL '15 minutes' AND
 			d.exit_code IS NULL
 		LIMIT 100;
 	`,
@@ -75,7 +75,7 @@ var stmt = &statement{
 			deployments_published dp ON dp.deployment_id = d.deployment_id
 		WHERE
 			(
-				d.created_at < NOW() - INTERVAL '{{ .days }} days' OR 
+				d.created_at < NOW() AT TIME ZONE 'UTC' - INTERVAL '{{ .days }} days' OR 
 				d.deleted_at IS NOT NULL
 			)
 			AND
