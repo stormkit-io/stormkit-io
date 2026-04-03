@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.04.03.1...v2026.04.03.2
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.03.1...v2026.04.03.2)
+
+### 🩹 Fixes
+
+- Use UTC timezone in deployment timeout and cleanup queries ([3b07bde](https://github.com/stormkit-io/stormkit-io/commit/3b07bde))
+
+### 🏡 Chore
+
+- Update changelog for v2026.04.03.1 ([e5aea50](https://github.com/stormkit-io/stormkit-io/commit/e5aea50))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.04.02.1...v2026.04.03.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.02.1...v2026.04.03.1)
