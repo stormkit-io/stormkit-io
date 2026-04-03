@@ -106,6 +106,7 @@ func AWS(args ClientArgs, opts *AWSOptions) (*AWSClient, error) {
 	CachedAWSClient = &AWSClient{
 		S3Client: s3.NewFromConfig(awsConfig, func(o *s3.Options) {
 			o.DisableLogOutputChecksumValidationSkipped = true
+			o.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenRequired
 		}),
 		providerPrefix: "aws",
 	}
