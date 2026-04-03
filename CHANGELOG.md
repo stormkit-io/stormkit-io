@@ -1,5 +1,22 @@
 # Changelog
 
+## v2026.04.02.1...v2026.04.03.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.02.1...v2026.04.03.1)
+
+### 🩹 Fixes
+
+- Disable aws-chunked encoding for S3 compatible storage ([dd90595](https://github.com/stormkit-io/stormkit-io/commit/dd90595))
+- Prevent codemirror from overflowing its container ([8d9c72b](https://github.com/stormkit-io/stormkit-io/commit/8d9c72b))
+
+### 🏡 Chore
+
+- Update changelog for v2026.04.02.1 ([37b1c95](https://github.com/stormkit-io/stormkit-io/commit/37b1c95))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.04.01.3...v2026.04.02.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.01.3...v2026.04.02.1)
