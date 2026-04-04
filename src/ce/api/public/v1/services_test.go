@@ -20,6 +20,7 @@ func (s *ServicesSuite) Test_Services_SelfHosted() {
 	s.NotNil(services)
 
 	handlers := []string{
+		"DELETE:/v1/deployments/{id:[0-9]+}",
 		"DELETE:/v1/domains",
 		"DELETE:/v1/domains/cert",
 		"DELETE:/v1/env",
@@ -61,6 +62,7 @@ func (s *ServicesSuite) Test_Services_StormkitCloud() {
 	s.NotNil(services)
 
 	handlers := []string{
+		"DELETE:/v1/deployments/{id:[0-9]+}",
 		"DELETE:/v1/domains",
 		"DELETE:/v1/domains/cert",
 		"DELETE:/v1/env",
@@ -107,6 +109,7 @@ func (s *ServicesSuite) Test_EE() {
 		"GET:/v1/deployments/{id:[0-9]+}":          http.StatusForbidden,
 		"GET:/v1/deployments/{id:[0-9]+}/poll":     http.StatusForbidden,
 		"POST:/v1/deployments/{id:[0-9]+}/publish": http.StatusForbidden,
+		"DELETE:/v1/deployments/{id:[0-9]+}":       http.StatusForbidden,
 		"POST:/v1/deploy":                          http.StatusForbidden,
 		"POST:/v1/env":                             http.StatusForbidden,
 		"PUT:/v1/env":                              http.StatusForbidden,

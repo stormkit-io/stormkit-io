@@ -64,6 +64,19 @@ func mcpAllTools() []mcpToolDef {
 			},
 		},
 		{
+			Name:        "delete_deployment",
+			Description: "Delete a deployment and its associated artifacts.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"deploymentId": map[string]any{"type": "string", "description": "Deployment ID to delete."},
+					"envId":        map[string]any{"type": "string", "description": "Environment the deployment belongs to."},
+				},
+				"required":             []string{"deploymentId", "envId"},
+				"additionalProperties": false,
+			},
+		},
+		{
 			Name:        "list_apps",
 			Description: "Return a paginated list of applications scoped to a team. Use hasNextPage and increment 'from' to paginate.",
 			InputSchema: map[string]any{
@@ -312,6 +325,18 @@ func mcpPublishDeployment(req *RequestContextMCP, args map[string]any) *shttp.Re
 	}
 
 	return handlerDeploymentPublish(req.RequestContext)
+}
+
+func mcpDeleteDeployment(req *RequestContextMCP, args map[string]any) *shttp.Response {
+	if resp := req.withEnv(args); resp != nil {
+		return resp
+	}
+
+	if resp := req.withDeploymentID(args); resp != nil {
+		return resp
+	}
+
+	return handlerDeploymentDelete(req.RequestContext)
 }
 
 func mcpListApps(req *RequestContextMCP, args map[string]any) *shttp.Response {
