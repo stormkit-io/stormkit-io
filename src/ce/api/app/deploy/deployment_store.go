@@ -226,9 +226,16 @@ func (s *Store) MyDeployments(ctx context.Context, filters *DeploymentsQueryFilt
 		joins = append(joins, "LEFT JOIN deployments_published dp ON dp.deployment_id = d.deployment_id")
 	}
 
+	if filters.Branch != "" {
+		params = append(params, filters.Branch)
+		where = append(where, fmt.Sprintf("d.branch = $%d", len(params)))
+	}
+
 	data := map[string]any{
-		"where": strings.Join(where, " AND "),
-		"joins": strings.Join(joins, " "),
+		"where":  strings.Join(where, " AND "),
+		"joins":  strings.Join(joins, " "),
+		"limit":  filters.Limit,
+		"offset": filters.From,
 	}
 
 	if filters.IncludeLogs != nil && *filters.IncludeLogs {

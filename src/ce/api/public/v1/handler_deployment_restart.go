@@ -35,7 +35,7 @@ func handlerDeploymentRestart(req *RequestContext) *shttp.Response {
 
 	if depl.Status() != "failed" {
 		return shttp.BadRequest(map[string]any{
-			"error": "Only failed deployments can be restarted",
+			"errors": []string{"Only failed deployments can be restarted"},
 		})
 	}
 

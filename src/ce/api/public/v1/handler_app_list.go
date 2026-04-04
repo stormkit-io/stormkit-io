@@ -34,16 +34,14 @@ func handlerAppList(req *RequestContext) *shttp.Response {
 	from, err := v.ToInt(q.Get("from"), "from")
 
 	if err != nil {
-		return shttp.BadRequest(map[string]any{
-			"error": err.Error(),
-		})
+		return shttp.BadRequest(map[string]any{"errors": []string{err.Error()}})
 	}
 
 	repo, repoValid := v.NormalizeRepo(q.Get("repo"))
 
 	if !repoValid {
 		return shttp.BadRequest(map[string]any{
-			"error": "The 'repo' parameter must be in the format 'github/org/repo', 'gitlab/org/repo', or 'bitbucket/org/repo'",
+			"errors": []string{"The 'repo' parameter must be in the format 'github/org/repo', 'gitlab/org/repo', or 'bitbucket/org/repo'"},
 		})
 	}
 

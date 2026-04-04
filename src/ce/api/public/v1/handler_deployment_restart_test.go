@@ -1,7 +1,6 @@
 package publicapiv1_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -70,9 +69,8 @@ func (s *HandlerDeploymentRestartSuite) Test_BadRequest_NotFailed() {
 
 	s.Equal(http.StatusBadRequest, response.Code)
 
-	var body map[string]any
-	s.Require().NoError(json.Unmarshal([]byte(response.String()), &body))
-	s.Equal("Only failed deployments can be restarted", body["error"])
+	body := response.Map()
+	s.Equal([]any{"Only failed deployments can be restarted"}, body["errors"])
 }
 
 // Test_BadRequest_RunningDeployment verifies that a running (no exit code) deployment returns 400.
@@ -171,8 +169,7 @@ func (s *HandlerDeploymentRestartSuite) Test_Success() {
 
 	s.Equal(http.StatusOK, response.Code)
 
-	var body map[string]any
-	s.Require().NoError(json.Unmarshal([]byte(response.String()), &body))
+	body := response.Map()
 	s.Equal(true, body["ok"])
 	s.mockDeployer.AssertCalled(s.T(), "Deploy", mock.Anything, mock.Anything, mock.Anything)
 }

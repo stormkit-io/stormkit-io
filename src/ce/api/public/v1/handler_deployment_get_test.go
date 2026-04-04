@@ -1,7 +1,6 @@
 package publicapiv1_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -57,8 +56,7 @@ func (s *HandlerDeploymentGetSuite) Test_Success() {
 
 	s.Equal(http.StatusOK, response.Code)
 
-	var body map[string]any
-	s.NoError(json.Unmarshal([]byte(response.String()), &body))
+	body := response.Map()
 
 	got, ok := body["deployment"].(map[string]any)
 	s.True(ok)
@@ -184,8 +182,7 @@ func (s *HandlerDeploymentGetSuite) Test_WithLogs_IncludesLogsAndStatusChecks() 
 
 	s.Equal(http.StatusOK, response.Code)
 
-	var body map[string]any
-	s.NoError(json.Unmarshal([]byte(response.String()), &body))
+	body := response.Map()
 
 	got := body["deployment"].(map[string]any)
 

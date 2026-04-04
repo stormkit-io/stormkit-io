@@ -90,6 +90,20 @@ func mcpAllTools() []mcpToolDef {
 			},
 		},
 		{
+			Name:        "list_deployments",
+			Description: "Return a paginated list of deployments for the given environment. Use hasNextPage and increment 'from' to paginate.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"envId":  map[string]any{"type": "string", "description": "ID of the environment to list deployments for."},
+					"from":   map[string]any{"type": "integer", "description": "Pagination offset (default 0)."},
+					"branch": map[string]any{"type": "string", "description": "Filter by branch name."},
+				},
+				"required":             []string{"envId"},
+				"additionalProperties": false,
+			},
+		},
+		{
 			Name:        "list_apps",
 			Description: "Return a paginated list of applications scoped to a team. Use hasNextPage and increment 'from' to paginate.",
 			InputSchema: map[string]any{
@@ -613,4 +627,17 @@ func mcpListDomains(req *RequestContextMCP, args map[string]any) *shttp.Response
 		Status: http.StatusOK,
 		Data:   map[string]any{"domains": domains},
 	}
+}
+
+func mcpListDeployments(req *RequestContextMCP, args map[string]any) *shttp.Response {
+	if resp := req.withEnv(args); resp != nil {
+		return resp
+	}
+
+	req.setQuery(map[string]string{
+		"from":   fmt.Sprintf("%d", intArg(args, "from")),
+		"branch": stringArg(args, "branch"),
+	})
+
+	return handlerDeploymentList(req.RequestContext)
 }

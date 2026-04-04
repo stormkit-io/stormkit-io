@@ -1,7 +1,6 @@
 package publicapiv1_test
 
 import (
-	"encoding/json"
 	"net/http"
 	"testing"
 
@@ -105,8 +104,7 @@ func (s *HandlerAppGetSuite) Test_Success() {
 
 		s.Equal(http.StatusOK, response.Code)
 
-		var body map[string]any
-		s.NoError(json.Unmarshal([]byte(response.String()), &body))
+		body := response.Map()
 
 		got, ok := body["app"].(map[string]any)
 		s.True(ok)

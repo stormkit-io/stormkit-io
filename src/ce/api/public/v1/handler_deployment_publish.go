@@ -32,7 +32,7 @@ func handlerDeploymentPublish(req *RequestContext) *shttp.Response {
 
 	if depl.ExitCode.ValueOrZero() != deploy.ExitCodeSuccess {
 		return shttp.BadRequest(map[string]any{
-			"error": "Deployment must have a successful build before it can be published",
+			"errors": []string{"Deployment must have a successful build before it can be published"},
 		})
 	}
 

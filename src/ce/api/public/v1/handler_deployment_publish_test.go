@@ -1,7 +1,6 @@
 package publicapiv1_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -62,8 +61,7 @@ func (s *HandlerDeploymentPublishSuite) Test_Success() {
 
 	s.Equal(http.StatusOK, response.Code)
 
-	var body map[string]any
-	s.NoError(json.Unmarshal([]byte(response.String()), &body))
+	body := response.Map()
 	s.Equal(true, body["ok"])
 }
 
@@ -95,8 +93,7 @@ func (s *HandlerDeploymentPublishSuite) Test_PublishedStateReflected() {
 
 	s.Equal(http.StatusOK, getResponse.Code)
 
-	var body map[string]any
-	s.NoError(json.Unmarshal([]byte(getResponse.String()), &body))
+	body := getResponse.Map()
 
 	got := body["deployment"].(map[string]any)
 	published := got["published"].([]any)
@@ -213,9 +210,8 @@ func (s *HandlerDeploymentPublishSuite) Test_BadRequest_FailedDeployment() {
 
 	s.Equal(http.StatusBadRequest, response.Code)
 
-	var body map[string]any
-	s.NoError(json.Unmarshal([]byte(response.String()), &body))
-	s.Equal("Deployment must have a successful build before it can be published", body["error"])
+	body := response.Map()
+	s.Equal([]any{"Deployment must have a successful build before it can be published"}, body["errors"])
 }
 
 func TestHandlerDeploymentPublish(t *testing.T) {

@@ -3,6 +3,70 @@ title: Deployments API
 description: Trigger new deployments programmatically using the Stormkit Deployments API.
 ---
 
+## GET /v1/deployments
+
+Returns a paginated list of deployments for the environment associated with the API key.
+
+**Base URL:** `https://api.stormkit.io`
+
+**Authentication:** At least an environment-level API key passed as the `Authorization` header.
+
+### Query parameters
+
+| Parameter | Type    | Required    | Default | Description                                                                                 |
+| --------- | ------- | ----------- | ------- | ------------------------------------------------------------------------------------------- |
+| `envId`   | string  | Conditional | —       | Required when using an app, team, or user-level API key to identify the target environment. |
+| `from`    | integer | No          | `0`     | Pagination offset. Pass the next offset to fetch subsequent pages.                          |
+| `branch`  | string  | No          | —       | Filter deployments by branch name.                                                          |
+
+### Response — 200 OK
+
+| Field         | Type    | Description                                                                                            |
+| ------------- | ------- | ------------------------------------------------------------------------------------------------------ |
+| `deployments` | array   | Array of deployment objects (same shape as `GET /v1/deployments/{id}`, without `logs`/`statusChecks`). |
+| `hasNextPage` | boolean | `true` when more results are available. Increment `from` by 20 to fetch the next page.                 |
+
+### Error responses
+
+| Status | Condition                                                                               |
+| ------ | --------------------------------------------------------------------------------------- |
+| `403`  | Missing/invalid API key, team token does not own the app, or user is not a team member. |
+| `500`  | Internal server error.                                                                  |
+
+### Examples
+
+```bash
+# List the latest deployments for an environment
+curl -H 'Authorization: <api_key>' \
+     -H 'Content-Type: application/json' \
+     'https://api.stormkit.io/v1/deployments'
+```
+
+```bash
+# Paginate through all deployments
+curl -H 'Authorization: <api_key>' \
+     -H 'Content-Type: application/json' \
+     'https://api.stormkit.io/v1/deployments?from=20'
+```
+
+```json
+{
+  "deployments": [
+    {
+      "id": "8241",
+      "appId": "1510",
+      "envId": "305",
+      "branch": "main",
+      "status": "success",
+      "createdAt": "1742300400"
+    }
+  ],
+  "hasNextPage": false
+}
+```
+
+---
+
 # Deployments API
 
 ## Overview
@@ -370,6 +434,7 @@ Makes a deployment live for the environment associated with the API key.
 # Publish a deployment at 100%
 curl -X POST \
      -H 'Authorization: <api_key>' \
+     -H 'Content-Type: application/json' \
      'https://api.stormkit.io/v1/deployments/8241/publish'
 ```
 
@@ -448,7 +513,7 @@ Restarts a failed deployment using the same configuration and branch. Only deplo
 | ------ | --------------------------------------------------------------------------------------- |
 | `400`  | Deployment is not in a failed state.                                                    |
 | `403`  | Missing/invalid API key, or token does not have access to the deployment's environment. |
-| `404`  | Deployment not found, or repository is inaccessible.                                   |
+| `404`  | Deployment not found, or repository is inaccessible.                                    |
 | `500`  | Internal server error.                                                                  |
 
 ### Example
@@ -456,6 +521,7 @@ Restarts a failed deployment using the same configuration and branch. Only deplo
 ```bash
 curl -X POST \
      -H 'Authorization: <api_key>' \
+     -H 'Content-Type: application/json' \
      'https://api.stormkit.io/v1/deployments/8241/restart'
 ```
 

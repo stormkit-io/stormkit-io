@@ -1,7 +1,6 @@
 package publicapiv1_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -133,8 +132,7 @@ func (s *HandlerAppListSuite) Test_Success() {
 
 	s.Equal(http.StatusOK, response.Code)
 
-	var body map[string]any
-	s.NoError(json.Unmarshal([]byte(response.String()), &body))
+	body := response.Map()
 
 	apps, _ := body["apps"].([]any)
 
@@ -166,8 +164,7 @@ func (s *HandlerAppListSuite) Test_FilterByRepo() {
 
 	s.Equal(http.StatusOK, response.Code)
 
-	var body map[string]any
-	s.NoError(json.Unmarshal([]byte(response.String()), &body))
+	body := response.Map()
 
 	apps, _ := body["apps"].([]any)
 	s.Len(apps, 1)
@@ -190,8 +187,7 @@ func (s *HandlerAppListSuite) Test_FilterByDisplayName() {
 
 	s.Equal(http.StatusOK, response.Code)
 
-	var body map[string]any
-	s.NoError(json.Unmarshal([]byte(response.String()), &body))
+	body := response.Map()
 
 	apps, _ := body["apps"].([]any)
 	s.Len(apps, 1)
@@ -260,8 +256,7 @@ func (s *HandlerAppListSuite) Test_FilterByTeamId() {
 
 	s.Equal(http.StatusOK, response.Code)
 
-	var body map[string]any
-	s.NoError(json.Unmarshal([]byte(response.String()), &body))
+	body := response.Map()
 
 	apps, _ := body["apps"].([]any)
 	s.Len(apps, 1)
