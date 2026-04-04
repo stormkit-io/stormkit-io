@@ -24,6 +24,19 @@ type RequestContext struct {
 	Env    *buildconf.Env
 	App    *app.App
 	TeamID types.ID
+	// vars is an optional override for URL path variables used by MCP tool
+	// wrappers, which call handlers directly without going through gorilla mux.
+	vars map[string]string
+}
+
+// Vars shadows the embedded shttp.RequestContext.Vars() so that MCP tool
+// wrappers can inject path variables without a live gorilla mux route match.
+func (r *RequestContext) Vars() map[string]string {
+	if r.vars != nil {
+		return r.vars
+	}
+
+	return r.RequestContext.Vars()
 }
 
 func (req *RequestContext) License() *admin.License {

@@ -64,6 +64,10 @@ func Services(r *shttp.Router) *shttp.Service {
 		Middleware(volumes.LimitRequestBody()).
 		Handler(shttp.MethodPost, "", WithAPIKey(handlerVolumesPost, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
+	s.NewEndpoint("/v1/mcp").
+		Handler(shttp.MethodPost, "", WithAPIKey(handlerMCP, &Opts{MinimumScope: apikey.SCOPE_USER})).
+		Handler(shttp.MethodGet, "", WithAPIKey(handlerMCPStream, &Opts{MinimumScope: apikey.SCOPE_USER}))
+
 	if config.IsDevelopment() || config.IsSelfHosted() {
 		s.NewEndpoint("/v1/auth").
 			Handler(shttp.MethodGet, "", HandlerAuthRedirect).
