@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	null "gopkg.in/guregu/null.v3"
+
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deployservice"
@@ -281,6 +283,7 @@ func (s *HandlerMCPSuite) Test_ToolsList_ReturnsExpectedTools() {
 		"get_deployment",
 		"publish_deployment",
 		"delete_deployment",
+		"restart_deployment",
 		"list_apps",
 		"list_environments",
 		"create_environment",
@@ -789,6 +792,55 @@ func (s *HandlerMCPSuite) Test_ListDomains_MissingEnvId() {
 	s.True(result["isError"].(bool))
 	content := result["content"].([]any)[0].(map[string]any)
 	s.Contains(content["text"].(string), "envId")
+}
+
+func (s *HandlerMCPSuite) Test_RestartDeployment_MissingEnvId() {
+	usr := s.MockUser()
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "restart_deployment", map[string]any{
+		"deploymentId": "123",
+	}))
+
+	env := s.rpcOK(resp)
+	result := env["result"].(map[string]any)
+	s.True(result["isError"].(bool))
+}
+
+func (s *HandlerMCPSuite) Test_RestartDeployment_Forbidden_NotMember() {
+	usr1 := s.MockUser()
+	usr2 := s.MockUser()
+	appl := s.MockApp(usr1)
+	mockEnv := s.MockEnv(appl)
+	depl := s.MockDeployment(mockEnv, map[string]any{"ExitCode": null.IntFrom(1)})
+	key := s.userKey(usr2)
+
+	resp := s.post(key.Value, mcpToolCall(1, "restart_deployment", map[string]any{
+		"envId":        mockEnv.ID.String(),
+		"deploymentId": depl.ID.String(),
+	}))
+
+	env := s.rpcOK(resp)
+	result := env["result"].(map[string]any)
+	s.True(result["isError"].(bool))
+}
+
+func (s *HandlerMCPSuite) Test_RestartDeployment_Success() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl)
+	depl := s.MockDeployment(mockEnv, map[string]any{"ExitCode": null.IntFrom(1)})
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "restart_deployment", map[string]any{
+		"envId":        mockEnv.ID.String(),
+		"deploymentId": depl.ID.String(),
+	}))
+
+	env := s.rpcOK(resp)
+	data := s.toolContent(env)
+
+	s.Equal(true, data["ok"])
 }
 
 func TestHandlerMCP(t *testing.T) {

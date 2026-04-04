@@ -78,6 +78,7 @@ type DiffFields struct {
 	SchemaName               string                 `json:"schemaName,omitempty"`
 	DeploymentID             string                 `json:"deploymentId,omitempty"`
 	AutoPublished            *bool                  `json:"autoPublished,omitempty"`
+	Restarted                *bool                  `json:"restarted,omitempty"`
 }
 
 type Diff struct {

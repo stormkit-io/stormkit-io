@@ -115,8 +115,9 @@ describe("~/shared/feed/AuditMessage.tsx", () => {
     ${"DELETE:SCHEMA"}     | ${"Deleted schema from production environment"}                   | ${null}
     ${"UPDATE:DEPLOYMENT"} | ${"Manually published deployment 8241 to production environment"} | ${null}
     ${"UPDATE:DEPLOYMENT"} | ${"Auto-published deployment 8241 to production environment"}     | ${{ old: {}, new: { deploymentId: "8241", autoPublished: true } }}
+    ${"UPDATE:DEPLOYMENT"} | ${"Restarted deployment 8241 in production environment"}          | ${{ old: {}, new: { deploymentId: "8241", restarted: true } }}
   `(
-    "displays the correct message for $action",
+    "displays the correct message for $action: $expected",
     ({ action, expected, diff }) => {
       const audit: Audit = {
         id: "1",

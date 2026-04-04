@@ -142,6 +142,8 @@ func mcpDispatch(req *RequestContextMCP, id any, params *toolCallParams) *shttp.
 		resp = mcpPublishDeployment(req, params.Arguments)
 	case "delete_deployment":
 		resp = mcpDeleteDeployment(req, params.Arguments)
+	case "restart_deployment":
+		resp = mcpRestartDeployment(req, params.Arguments)
 	case "list_apps":
 		resp = mcpListApps(req, params.Arguments)
 	case "list_environments":

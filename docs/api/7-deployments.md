@@ -419,3 +419,46 @@ curl -X DELETE \
 ```json
 { "ok": true }
 ```
+
+---
+
+## POST /v1/deployments/{id}/restart
+
+Restarts a failed deployment using the same configuration and branch. Only deployments with a `failed` status can be restarted.
+
+**Base URL:** `https://api.stormkit.io`
+
+**Authentication:** At least an environment-level API key passed as the `Authorization` header.
+
+### Path parameters
+
+| Parameter | Type   | Description        |
+| --------- | ------ | ------------------ |
+| `id`      | string | The deployment ID. |
+
+### Response — 200 OK
+
+| Field | Type    | Description               |
+| ----- | ------- | ------------------------- |
+| `ok`  | boolean | Always `true` on success. |
+
+### Error responses
+
+| Status | Condition                                                                               |
+| ------ | --------------------------------------------------------------------------------------- |
+| `400`  | Deployment is not in a failed state.                                                    |
+| `403`  | Missing/invalid API key, or token does not have access to the deployment's environment. |
+| `404`  | Deployment not found, or repository is inaccessible.                                   |
+| `500`  | Internal server error.                                                                  |
+
+### Example
+
+```bash
+curl -X POST \
+     -H 'Authorization: <api_key>' \
+     'https://api.stormkit.io/v1/deployments/8241/restart'
+```
+
+```json
+{ "ok": true }
+```

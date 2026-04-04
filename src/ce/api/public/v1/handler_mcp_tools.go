@@ -77,6 +77,19 @@ func mcpAllTools() []mcpToolDef {
 			},
 		},
 		{
+			Name:        "restart_deployment",
+			Description: "Restart a failed deployment. Only deployments with status 'failed' can be restarted.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"deploymentId": map[string]any{"type": "string", "description": "Deployment ID to restart."},
+					"envId":        map[string]any{"type": "string", "description": "Environment the deployment belongs to."},
+				},
+				"required":             []string{"deploymentId", "envId"},
+				"additionalProperties": false,
+			},
+		},
+		{
 			Name:        "list_apps",
 			Description: "Return a paginated list of applications scoped to a team. Use hasNextPage and increment 'from' to paginate.",
 			InputSchema: map[string]any{
@@ -337,6 +350,18 @@ func mcpDeleteDeployment(req *RequestContextMCP, args map[string]any) *shttp.Res
 	}
 
 	return handlerDeploymentDelete(req.RequestContext)
+}
+
+func mcpRestartDeployment(req *RequestContextMCP, args map[string]any) *shttp.Response {
+	if resp := req.withEnv(args); resp != nil {
+		return resp
+	}
+
+	if resp := req.withDeploymentID(args); resp != nil {
+		return resp
+	}
+
+	return handlerDeploymentRestart(req.RequestContext)
 }
 
 func mcpListApps(req *RequestContextMCP, args map[string]any) *shttp.Response {
