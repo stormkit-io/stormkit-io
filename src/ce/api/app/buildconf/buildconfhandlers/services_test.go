@@ -17,7 +17,6 @@ func (s *ServicesSuite) Test_Services() {
 
 	handlers := []string{
 		"DELETE:/app/env",
-		"GET:/app/{did:[0-9]+}/envs",
 		"GET:/app/{did:[0-9]+}/envs/{env:[0-9a-zA-Z-]+}",
 		"POST:/app/env",
 		"PUT:/app/env",

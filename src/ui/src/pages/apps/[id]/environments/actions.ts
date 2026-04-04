@@ -8,14 +8,12 @@ interface FetchEnvironmentsProps {
 
 interface FetchEnvironmentsReturnValue {
   environments: Array<Environment>;
-  hasNextPage: boolean;
   loading: boolean;
   error: string | null;
 }
 
 interface FetchEnvironmentsAPIResponse {
-  hasNextPage: boolean;
-  envs: Array<Environment>;
+  environments: Array<Environment>;
 }
 
 export const useFetchEnvironments = ({
@@ -23,7 +21,6 @@ export const useFetchEnvironments = ({
   refreshToken,
 }: FetchEnvironmentsProps): FetchEnvironmentsReturnValue => {
   const [environments, setEnvironments] = useState<Array<Environment>>([]);
-  const [hasNextPage, setHasNextPage] = useState(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -38,12 +35,11 @@ export const useFetchEnvironments = ({
     setError(null);
 
     api
-      .fetch<FetchEnvironmentsAPIResponse>(`/app/${app.id}/envs`)
+      .fetch<FetchEnvironmentsAPIResponse>(`/v1/envs?appId=${app.id}`)
       .then(res => {
         if (unmounted !== true) {
-          setHasNextPage(res.hasNextPage);
           setEnvironments(
-            res.envs.map(e => ({
+            res.environments.map(e => ({
               ...e,
               name: e.env,
             })),
@@ -61,7 +57,7 @@ export const useFetchEnvironments = ({
     };
   }, [app?.id, app?.displayName, refreshToken]);
 
-  return { environments, error, loading, hasNextPage };
+  return { environments, error, loading };
 };
 
 interface FetchStatusProps {

@@ -11,6 +11,63 @@ The Environments API lets you create, update, and delete environments, and pull 
 
 ---
 
+## GET /v1/envs
+
+Returns all environments configured for an application. At most 50 environments are returned.
+
+**Base URL:** `https://api.stormkit.io`
+
+**Authentication:** At least an app-level API key passed as the `Authorization` header. When using a team- or user-level key, `appId` must be provided as a query parameter.
+
+### Query parameters
+
+| Parameter | Type   | Required    | Description                                                                           |
+| --------- | ------ | ----------- | ------------------------------------------------------------------------------------- |
+| `appId`   | string | Conditional | Required when using a team- or user-level API key to identify the target application. |
+
+### Response — 200 OK
+
+| Field          | Type  | Description                   |
+| -------------- | ----- | ----------------------------- |
+| `environments` | array | Array of environment objects. |
+
+### Error responses
+
+| Status | Condition                                                      |
+| ------ | -------------------------------------------------------------- |
+| `403`  | Missing/invalid API key or insufficient permissions.           |
+| `404`  | App not found (team/user key with missing or invalid `appId`). |
+| `500`  | Internal server error.                                         |
+
+### Examples
+
+```bash
+# Using an app-level key (appId derived from token)
+curl -H 'Authorization: <api_key>' \
+     -H 'Content-Type: application/json' \
+     'https://api.stormkit.io/v1/envs'
+```
+
+```json
+// Example response
+{
+  "environments": [
+    {
+      "id": "305",
+      "name": "production",
+      "branch": "main"
+    },
+    {
+      "id": "306",
+      "name": "staging",
+      "branch": "staging"
+    }
+  ]
+}
+```
+
+---
+
 ## POST /v1/env
 
 Creates a new environment for an application.

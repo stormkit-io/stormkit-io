@@ -28,7 +28,7 @@ const toRequestObject = (environment: Environment) => {
         serverCmd: environment.build.serverCmd || "",
         vars: environment.build.vars,
       },
-    })
+    }),
   );
 };
 
@@ -58,7 +58,7 @@ export const mockFetchEnvironments = ({
   status,
   response,
 }: FetchEnvironmentsProps) =>
-  nock(endpoint).get(`/app/${app.id}/envs`).reply(status, response);
+  nock(endpoint).get(`/v1/envs?appId=${app.id}`).reply(status, response);
 
 interface InsertEnvironmentProps {
   environment: Environment;

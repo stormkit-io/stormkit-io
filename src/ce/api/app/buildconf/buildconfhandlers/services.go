@@ -11,8 +11,7 @@ func Services(r *shttp.Router) *shttp.Service {
 
 	// Endpoints with environment name.
 	s.NewEndpoint("/app/{did:[0-9]+}/envs").
-		Handler(shttp.MethodGet, "/{env:[0-9a-zA-Z-]+}", app.WithApp(handlerEnv)).
-		Handler(shttp.MethodGet, "", app.WithApp(handlerEnvs))
+		Handler(shttp.MethodGet, "/{env:[0-9a-zA-Z-]+}", app.WithApp(handlerEnv))
 
 	s.NewEndpoint("/app/env").
 		Handler(shttp.MethodDelete, "", app.WithApp(handlerEnvDelete)).

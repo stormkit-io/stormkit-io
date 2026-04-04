@@ -120,7 +120,7 @@ func mcpAllTools() []mcpToolDef {
 		},
 		{
 			Name:        "list_environments",
-			Description: "Return all environments configured for an application.",
+			Description: "Return all environments configured for an application. Returns up to 50 environments.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -397,23 +397,7 @@ func mcpListEnvironments(req *RequestContextMCP, args map[string]any) *shttp.Res
 		return resp
 	}
 
-	envs, err := buildconf.NewStore().ListEnvironments(req.Context(), req.App.ID)
-
-	if err != nil {
-		return shttp.Error(err)
-	}
-
-	// Clear environment variables from the response to avoid leaking secrets.
-	for _, env := range envs {
-		if env.Data != nil {
-			env.Data.Vars = nil
-		}
-	}
-
-	return &shttp.Response{
-		Status: http.StatusOK,
-		Data:   map[string]any{"environments": envs},
-	}
+	return handlerEnvList(req.RequestContext)
 }
 
 func mcpCreateEnvironment(req *RequestContextMCP, id any, args map[string]any) *shttp.Response {
