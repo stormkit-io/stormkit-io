@@ -355,6 +355,38 @@ Exported functions and non-obvious helpers get a doc comment starting with the f
 func (s *Store) DeploymentStatus(...) (*Deployment, error) { ... }
 ```
 
+### Code Style
+
+Always leave a blank line between logical blocks (variable declarations, `if` statements, `for` loops, `return` statements, etc.) to improve readability:
+
+```go
+// Good
+envID := utils.StringToID(req.Vars()["id"])
+
+if envID == 0 {
+    return shttp.NotFound()
+}
+
+env, err := store.EnvironmentByID(ctx, envID)
+
+if err != nil {
+    return shttp.Error(err)
+}
+
+return shttp.OK()
+
+// Avoid
+envID := utils.StringToID(req.Vars()["id"])
+if envID == 0 {
+    return shttp.NotFound()
+}
+env, err := store.EnvironmentByID(ctx, envID)
+if err != nil {
+    return shttp.Error(err)
+}
+return shttp.OK()
+```
+
 ### Common Internal Imports
 
 ```go
