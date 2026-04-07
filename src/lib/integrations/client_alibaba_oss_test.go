@@ -307,6 +307,51 @@ func (s *AlibabaOSSSuite) Test_Upload_UnsignedPayload() {
 	s.Equal("UNSIGNED-PAYLOAD", contentSHA256Seen, "x-amz-content-sha256 must be UNSIGNED-PAYLOAD to avoid aws-chunked encoding on Alibaba OSS")
 }
 
+// Test_Upload_NoContentMD5 verifies that PutObject requests to Alibaba OSS do NOT
+// carry a Content-MD5 header. The scoped deleteObjectsContentMD5 middleware must
+// only add the header for DeleteObjects; applying it to PutObject breaks uploads.
+func (s *AlibabaOSSSuite) Test_Upload_NoContentMD5() {
+	contentMD5Seen := ""
+
+	oss, err := integrations.Alibaba(integrations.ClientArgs{
+		AccessKey: "my-access-key",
+		SecretKey: "my-secret-key",
+		Middlewares: []func(stack *middleware.Stack) error{
+			func(stack *middleware.Stack) error {
+				return stack.Finalize.Add(
+					middleware.FinalizeMiddlewareFunc("AssertNoContentMD5", func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
+						opName := awsmiddleware.GetOperationName(ctx)
+
+						if opName == "PutObject" {
+							if req, ok := fi.Request.(*smithyhttp.Request); ok {
+								contentMD5Seen = req.Header.Get("Content-Md5")
+							}
+
+							return middleware.FinalizeOutput{
+								Result: &s3.PutObjectOutput{},
+							}, middleware.Metadata{}, nil
+						}
+
+						return middleware.FinalizeOutput{}, middleware.Metadata{}, errors.New("unexpected AWS operation: " + opName)
+					}),
+					middleware.Before,
+				)
+			},
+		},
+	})
+
+	s.Require().NoError(err)
+
+	_, err = oss.Upload(integrations.UploadArgs{
+		DeploymentID: 50919,
+		ClientZip:    path.Join(s.tmpdir, "sk-client.zip"),
+		BucketName:   "my-s3-bucket",
+	})
+
+	s.NoError(err)
+	s.Empty(contentMD5Seen, "Content-MD5 must not be set on PutObject requests to avoid breaking Alibaba OSS uploads")
+}
+
 func TestAlibabaOSS(t *testing.T) {
 	suite.Run(t, &AlibabaOSSSuite{})
 }

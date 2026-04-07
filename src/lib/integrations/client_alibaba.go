@@ -4,7 +4,10 @@ package integrations
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/base64"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -12,10 +15,12 @@ import (
 	alibaba "github.com/alibabacloud-go/fc-20230330/v4/client"
 	"github.com/alibabacloud-go/tea/tea"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	awsconf "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/smithy-go/middleware"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
@@ -27,6 +32,63 @@ func init() {
 		Msg:   "alibaba integration is enabled",
 		Level: slog.DL1,
 	})
+}
+
+// deleteObjectsContentMD5 is a Build-stage middleware that computes and sets the
+// Content-MD5 header exclusively for DeleteObjects requests. Alibaba OSS requires
+// this header on DeleteObjects but rejects or mishandles it on file uploads, so
+// using the global smithyhttp.AddContentChecksumMiddleware breaks PutObject.
+type deleteObjectsContentMD5 struct{}
+
+func addDeleteObjectsContentMD5Middleware(stack *middleware.Stack) error {
+	return stack.Build.Add(&deleteObjectsContentMD5{}, middleware.Before)
+}
+
+func (m *deleteObjectsContentMD5) ID() string { return "DeleteObjectsContentMD5" }
+
+func (m *deleteObjectsContentMD5) HandleBuild(
+	ctx context.Context, in middleware.BuildInput, next middleware.BuildHandler,
+) (middleware.BuildOutput, middleware.Metadata, error) {
+	if awsmiddleware.GetOperationName(ctx) != "DeleteObjects" {
+		return next.HandleBuild(ctx, in)
+	}
+
+	req, ok := in.Request.(*smithyhttp.Request)
+	if !ok {
+		return next.HandleBuild(ctx, in)
+	}
+
+	if v := req.Header.Get("Content-Md5"); v != "" {
+		return next.HandleBuild(ctx, in)
+	}
+
+	stream := req.GetStream()
+
+	if stream == nil {
+		return next.HandleBuild(ctx, in)
+	}
+
+	if !req.IsStreamSeekable() {
+		return middleware.BuildOutput{}, middleware.Metadata{}, fmt.Errorf("unseekable stream is not supported for computing md5 checksum")
+	}
+
+	h := md5.New()
+
+	if _, err := io.Copy(h, stream); err != nil {
+		return middleware.BuildOutput{}, middleware.Metadata{}, fmt.Errorf("failed to read body: %w", err)
+	}
+
+	sum := h.Sum(nil)
+	b64 := make([]byte, base64.StdEncoding.EncodedLen(len(sum)))
+	base64.StdEncoding.Encode(b64, sum)
+
+	if err := req.RewindStream(); err != nil {
+		return middleware.BuildOutput{}, middleware.Metadata{}, fmt.Errorf("error rewinding request stream after computing md5 checksum: %w", err)
+	}
+
+	req.Header.Set("Content-Md5", string(b64))
+
+	return next.HandleBuild(ctx, in)
 }
 
 type AlibabaSDK interface {
@@ -100,10 +162,12 @@ func Alibaba(args ClientArgs) (*AlibabaClient, error) {
 	}
 
 	// Alibaba is S3 Compatible, so use that interface.
-	// AddContentChecksumMiddleware injects a Content-MD5 header for all S3
-	// operations that carry a request body. This is required by Alibaba OSS for
-	// DeleteObjects (which fails with MissingArgument without it) and is harmless
-	// for other operations such as PutObject.
+	//
+	// addDeleteObjectsContentMD5Middleware injects a Content-MD5 header only for
+	// DeleteObjects requests. Alibaba OSS requires this header for DeleteObjects
+	// (it fails with MissingArgument without it). Using the global
+	// smithyhttp.AddContentChecksumMiddleware instead breaks PutObject because it
+	// tries to compute MD5 on upload streams that may not be seekable.
 	//
 	// SwapComputePayloadSHA256ForUnsignedPayloadMiddleware replaces the default
 	// ComputePayloadSHA256 middleware with UnsignedPayload, which sets
@@ -116,7 +180,7 @@ func Alibaba(args ClientArgs) (*AlibabaClient, error) {
 			SecretKey: args.SecretKey,
 			Middlewares: append(
 				args.Middlewares,
-				smithyhttp.AddContentChecksumMiddleware,
+				addDeleteObjectsContentMD5Middleware,
 				v4.SwapComputePayloadSHA256ForUnsignedPayloadMiddleware,
 			),
 		}, &AWSOptions{
