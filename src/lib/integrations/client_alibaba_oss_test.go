@@ -258,6 +258,55 @@ func (s *AlibabaOSSSuite) Test_DeleteArtifacts_ContentMD5Header() {
 	s.NotEmpty(contentMD5Seen, "Content-Md5 header must be present on DeleteObjects requests to Alibaba OSS")
 }
 
+// Test_Upload_UnsignedPayload verifies that PutObject requests sent to Alibaba OSS
+// carry the x-amz-content-sha256: UNSIGNED-PAYLOAD header. Without this, the AWS
+// SDK uses aws-chunked transfer encoding for multipart uploads, which Alibaba OSS
+// rejects with an InvalidArgument error.
+func (s *AlibabaOSSSuite) Test_Upload_UnsignedPayload() {
+	contentSHA256Seen := ""
+
+	oss, err := integrations.Alibaba(integrations.ClientArgs{
+		AccessKey: "my-access-key",
+		SecretKey: "my-secret-key",
+		Middlewares: []func(stack *middleware.Stack) error{
+			// Insert after the "Signing" middleware so the x-amz-content-sha256
+			// header has already been set by the signer when we inspect it.
+			func(stack *middleware.Stack) error {
+				return stack.Finalize.Insert(
+					middleware.FinalizeMiddlewareFunc("AssertUnsignedPayload", func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
+						opName := awsmiddleware.GetOperationName(ctx)
+
+						if opName == "PutObject" {
+							if req, ok := fi.Request.(*smithyhttp.Request); ok {
+								contentSHA256Seen = req.Header.Get("X-Amz-Content-Sha256")
+							}
+
+							return middleware.FinalizeOutput{
+								Result: &s3.PutObjectOutput{},
+							}, middleware.Metadata{}, nil
+						}
+
+						return middleware.FinalizeOutput{}, middleware.Metadata{}, errors.New("unexpected AWS operation: " + opName)
+					}),
+					"Signing",
+					middleware.After,
+				)
+			},
+		},
+	})
+
+	s.Require().NoError(err)
+
+	_, err = oss.Upload(integrations.UploadArgs{
+		DeploymentID: 50919,
+		ClientZip:    path.Join(s.tmpdir, "sk-client.zip"),
+		BucketName:   "my-s3-bucket",
+	})
+
+	s.NoError(err)
+	s.Equal("UNSIGNED-PAYLOAD", contentSHA256Seen, "x-amz-content-sha256 must be UNSIGNED-PAYLOAD to avoid aws-chunked encoding on Alibaba OSS")
+}
+
 func TestAlibabaOSS(t *testing.T) {
 	suite.Run(t, &AlibabaOSSSuite{})
 }

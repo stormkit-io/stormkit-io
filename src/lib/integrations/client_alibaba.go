@@ -13,6 +13,7 @@ import (
 	"github.com/alibabacloud-go/tea/tea"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	awsconf "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
@@ -103,11 +104,21 @@ func Alibaba(args ClientArgs) (*AlibabaClient, error) {
 	// operations that carry a request body. This is required by Alibaba OSS for
 	// DeleteObjects (which fails with MissingArgument without it) and is harmless
 	// for other operations such as PutObject.
+	//
+	// SwapComputePayloadSHA256ForUnsignedPayloadMiddleware replaces the default
+	// ComputePayloadSHA256 middleware with UnsignedPayload, which sets
+	// x-amz-content-sha256 to "UNSIGNED-PAYLOAD". Without this, the AWS SDK uses
+	// aws-chunked transfer encoding for multipart uploads, which Alibaba OSS does
+	// not support and rejects with an InvalidArgument error.
 	awscli, err := AWS(
 		ClientArgs{
-			AccessKey:   args.AccessKey,
-			SecretKey:   args.SecretKey,
-			Middlewares: append(args.Middlewares, smithyhttp.AddContentChecksumMiddleware),
+			AccessKey: args.AccessKey,
+			SecretKey: args.SecretKey,
+			Middlewares: append(
+				args.Middlewares,
+				smithyhttp.AddContentChecksumMiddleware,
+				v4.SwapComputePayloadSHA256ForUnsignedPayloadMiddleware,
+			),
 		}, &AWSOptions{
 			awsConf: &cfg,
 			s3Only:  true,
