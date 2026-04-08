@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
@@ -67,7 +68,7 @@ func (s *RequestContextSuite) Test_ForbiddenOrNotFound() {
 		opts   *publicapiv1.Opts
 	}{
 		{"empty token", "", http.StatusForbidden, nil},
-		{"token without SK_ prefix", "not-a-valid-token", http.StatusForbidden, nil},
+		{"random non-SK_ string", "not-a-valid-token", http.StatusForbidden, nil},
 		{"unknown SK_ token", "SK_unknowntoken", http.StatusForbidden, nil},
 		{"SCOPE_USER key has no UserID", appOnlyKey.Value, http.StatusForbidden, &publicapiv1.Opts{MinimumScope: apikey.SCOPE_USER}},
 		{"SCOPE_TEAM key has no TeamID and no teamId in request", appOnlyKey.Value, http.StatusForbidden, &publicapiv1.Opts{MinimumScope: apikey.SCOPE_TEAM}},
@@ -195,6 +196,66 @@ func (s *RequestContextSuite) Test_Success_WithRequestBody() {
 	for _, tt := range tests {
 		s.Run(tt.name, func() {
 			resp := s.invoke(http.MethodPost, "/", tt.body, "application/json", key.Value, tt.opts)
+			s.Equal(http.StatusOK, resp.Status)
+		})
+	}
+}
+
+// jwtToken mints a JWT bearer token encoding the given user's ID.
+func (s *RequestContextSuite) jwtToken(usr *factory.MockUser) string {
+	tok, err := user.JWT(jwt.MapClaims{"uid": usr.ID.String()})
+	s.Require().NoError(err)
+
+	return tok
+}
+
+func (s *RequestContextSuite) Test_Forbidden_JWT() {
+	unknownUIDTok, err := user.JWT(jwt.MapClaims{"uid": "999999999"})
+	s.Require().NoError(err)
+
+	tests := []struct {
+		name  string
+		token string
+	}{
+		{"empty token", ""},
+		{"random non-SK_ string", "not-a-valid-token"},
+		{"malformed JWT", "aaa.bbb.ccc"},
+		{"JWT with unknown uid", unknownUIDTok},
+	}
+
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			resp := s.invoke(http.MethodGet, "/", "", "", tt.token)
+			s.Equal(http.StatusForbidden, resp.Status)
+		})
+	}
+}
+
+func (s *RequestContextSuite) Test_Success_JWT() {
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+	tok := s.jwtToken(usr)
+
+	tests := []struct {
+		name   string
+		target string
+		opts   *publicapiv1.Opts
+	}{
+		{"no scope", "/", nil},
+		{"SCOPE_USER", "/", &publicapiv1.Opts{MinimumScope: apikey.SCOPE_USER}},
+		{"SCOPE_TEAM from query param", fmt.Sprintf("/?teamId=%d", usr.DefaultTeamID), &publicapiv1.Opts{MinimumScope: apikey.SCOPE_TEAM}},
+		{"SCOPE_APP from query param", fmt.Sprintf("/?appId=%d", app.ID), &publicapiv1.Opts{MinimumScope: apikey.SCOPE_APP}},
+		{"SCOPE_ENV from query param", fmt.Sprintf("/?envId=%d", env.ID), &publicapiv1.Opts{MinimumScope: apikey.SCOPE_ENV}},
+	}
+
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			var opts []*publicapiv1.Opts
+			if tt.opts != nil {
+				opts = append(opts, tt.opts)
+			}
+			resp := s.invoke(http.MethodGet, tt.target, "", "", tok, opts...)
 			s.Equal(http.StatusOK, resp.Status)
 		})
 	}

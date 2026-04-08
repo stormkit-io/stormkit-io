@@ -20,7 +20,6 @@ func (s *ServicesSuite) Test_Services() {
 		"DELETE:/app",
 		"DELETE:/app/outbound-webhooks",
 		"DELETE:/app/{did:[0-9]+}/deploy-trigger",
-		"GET:/app/{did:[0-9]+}",
 		"GET:/app/{did:[0-9]+}/outbound-webhooks",
 		"GET:/app/{did:[0-9]+}/outbound-webhooks/{wid:[0-9]+}/trigger",
 		"GET:/app/{did:[0-9]+}/settings",

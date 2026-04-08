@@ -24,6 +24,8 @@ type RequestContext struct {
 	Env    *buildconf.Env
 	App    *app.App
 	TeamID types.ID
+	// User is populated for JWT-authenticated requests. It is nil for SK_-key requests.
+	User *user.User
 	// vars is an optional override for URL path variables used by MCP tool
 	// wrappers, which call handlers directly without going through gorilla mux.
 	vars map[string]string
@@ -143,45 +145,66 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 			RequestContext: req,
 		}
 
-		if !strings.Contains(token, "SK_") {
-			return shttp.Forbidden()
+		if !strings.HasPrefix(token, "SK_") {
+			uid := user.UIDFromBearer(token)
+
+			if uid == 0 {
+				return shttp.Forbidden()
+			}
+
+			usr, err := user.NewStore().UserByID(uid)
+
+			if err != nil {
+				return shttp.Error(err)
+			}
+
+			if usr == nil {
+				return shttp.Forbidden()
+			}
+
+			request.User = usr
+			request.Token = &apikey.Token{
+				UserID: usr.ID,
+				Scope:  apikey.SCOPE_USER,
+				Name:   "jwt",
+			}
+		} else {
+			key, err := apikey.NewStore().APIKey(req.Context(), token)
+
+			if err != nil {
+				return shttp.Error(err)
+			}
+
+			// This is an invalid key. A key needs to have either an app ID, user ID or team ID.
+			if key == nil || (key.UserID == 0 && key.AppID == 0 && key.TeamID == 0) {
+				return shttp.Forbidden()
+			}
+
+			request.Token = key
 		}
-
-		key, err := apikey.NewStore().APIKey(req.Context(), token)
-
-		if err != nil {
-			return shttp.Error(err)
-		}
-
-		// This is an invalid key. A key needs to have either an app ID, user ID or team ID.
-		if key == nil || (key.UserID == 0 && key.AppID == 0 && key.TeamID == 0) {
-			return shttp.Forbidden()
-		}
-
-		request.Token = key
 
 		switch options.MinimumScope {
 		case apikey.SCOPE_USER:
-			if key.UserID == 0 {
+			if request.Token.UserID == 0 {
 				return shttp.Forbidden()
 			}
 		case apikey.SCOPE_TEAM:
-			request.TeamID = key.TeamID
+			request.TeamID = request.Token.TeamID
 
 			if request.TeamID == 0 {
 				request.TeamID = getTeamIDFromRequest(req)
 			}
 
 			// Validate membership if the key is not already tied to a team.
-			if key.TeamID == 0 {
-				isMember := team.NewStore().IsMember(req.Context(), key.UserID, request.TeamID)
+			if request.Token.TeamID == 0 {
+				isMember := team.NewStore().IsMember(req.Context(), request.Token.UserID, request.TeamID)
 
 				if !isMember {
 					return shttp.Forbidden()
 				}
 			}
 		case apikey.SCOPE_APP:
-			appID := key.AppID
+			appID := request.Token.AppID
 
 			if appID == 0 {
 				appID = getAppIDFromRequest(req)
@@ -205,13 +228,13 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 			request.TeamID = app.TeamID
 
 			// Validate membership if the key is not already tied to an app.
-			if key.AppID == 0 {
-				if key.TeamID != 0 {
-					if app.TeamID != key.TeamID {
+			if request.Token.AppID == 0 {
+				if request.Token.TeamID != 0 {
+					if app.TeamID != request.Token.TeamID {
 						return shttp.Forbidden()
 					}
-				} else if key.UserID != 0 {
-					isMember := team.NewStore().IsMember(req.Context(), key.UserID, app.TeamID)
+				} else if request.Token.UserID != 0 {
+					isMember := team.NewStore().IsMember(req.Context(), request.Token.UserID, app.TeamID)
 
 					if !isMember {
 						return shttp.Forbidden()
@@ -219,7 +242,7 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 				}
 			}
 		case apikey.SCOPE_ENV:
-			envID := key.EnvID
+			envID := request.Token.EnvID
 
 			if envID == 0 {
 				envID = getEnvIDFromRequest(req)
@@ -250,18 +273,18 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 			request.TeamID = app.TeamID
 
 			// Validate membership if the key is not already tied to an environment.
-			if key.EnvID == 0 {
-				if key.AppID != 0 && key.AppID != env.AppID {
+			if request.Token.EnvID == 0 {
+				if request.Token.AppID != 0 && request.Token.AppID != env.AppID {
 					return shttp.Forbidden()
-				} else if key.TeamID != 0 {
-					if app.TeamID != key.TeamID {
+				} else if request.Token.TeamID != 0 {
+					if app.TeamID != request.Token.TeamID {
 						return shttp.Forbidden()
 					}
 
 					request.App = app
 					request.TeamID = app.TeamID
-				} else if key.UserID != 0 {
-					isMember := buildconf.NewStore().IsMember(req.Context(), env.ID, key.UserID)
+				} else if request.Token.UserID != 0 {
+					isMember := buildconf.NewStore().IsMember(req.Context(), env.ID, request.Token.UserID)
 
 					if !isMember {
 						return shttp.Forbidden()
@@ -300,7 +323,8 @@ func getEnvIDFromRequest(req *shttp.RequestContext) types.ID {
 
 func getAppIDFromRequest(req *shttp.RequestContext) types.ID {
 	if req.Method == shttp.MethodGet || req.Method == shttp.MethodDelete {
-		return utils.StringToID(req.Query().Get("appId"))
+		return utils.StringToID(
+			utils.GetString(req.Vars()["appId"], req.Query().Get("appId")))
 	}
 
 	data := struct {

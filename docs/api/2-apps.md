@@ -21,12 +21,12 @@ Creates a new application and links it to a source-code repository.
 
 ### Request body
 
-| Field         | Type   | Required | Description                                                                                                                                       |
-| ------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Field         | Type   | Required | Description                                                                                                                                                       |
+| ------------- | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `teamId`      | string | No       | ID of the team to create the application under. Required when using a user-level API key; ignored when using a team-level key (the team is derived from the key). |
-| `repo`        | string | No       | Repository path in `owner/slug` format (e.g. `acme/my-app`). Omit to create a bare application.                                                   |
-| `provider`    | string | No       | Source-code provider. One of `github`, `gitlab`, `bitbucket`. Required when `repo` is set.                                                        |
-| `displayName` | string | No       | Human-readable application name. Must contain only alphanumeric characters, hyphens, and underscores, with no consecutive hyphens. Auto-generated when omitted. |
+| `repo`        | string | No       | Repository path in `owner/slug` format (e.g. `acme/my-app`). Omit to create a bare application.                                                                   |
+| `provider`    | string | No       | Source-code provider. One of `github`, `gitlab`, `bitbucket`. Required when `repo` is set.                                                                        |
+| `displayName` | string | No       | Human-readable application name. Must contain only alphanumeric characters, hyphens, and underscores, with no consecutive hyphens. Auto-generated when omitted.   |
 
 ### Response — 200 OK
 
@@ -205,19 +205,13 @@ curl -X GET \
 
 ---
 
-## GET /v1/app
+## GET /v1/app/{id}
 
-Returns a single application.
+Returns a single application. This is also an alias for `GET /v1/app` with an app-level API key.
 
 **Base URL:** `https://api.stormkit.io`
 
-**Authentication:** App-level, user-level, or team-level API key passed as the `Authorization` header. When using a user or team-level key, `appId` must be provided as a query parameter and the authenticated principal must be a member of the team that owns the application.
-
-### Query parameters
-
-| Parameter | Type   | Required                                    | Description                                                                                                       |
-| --------- | ------ | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `appId`   | number | **Yes** (unless using an app-level API key) | The ID of the application to fetch. Not required when using an app-level key — the app is derived from the token. |
+**Authentication:** App-level, user-level, or team-level API key passed as the `Authorization` header. When using a user or team-level key, provide the application ID in the request path (for example, `GET /v1/app/{appId}`), and the authenticated principal must be a member of the team that owns the application. For backwards compatibility, the server also accepts `appId` as a query parameter.
 
 ### Response — 200 OK
 
@@ -252,14 +246,16 @@ Returns a single application.
 # Using an app-level key (appId is derived from the token)
 curl -X GET \
      -H 'Authorization: <app_api_key>' \
+     -H 'Content-type: application/json' \
      'https://api.stormkit.io/v1/app'
 ```
 
 ```bash
-# Using a user or team-level key (appId must be provided as a query parameter)
+# Using a user or team-level key (appId must be provided in the URL)
 curl -X GET \
      -H 'Authorization: <user_or_team_api_key>' \
-     'https://api.stormkit.io/v1/app?appId=1510'
+     -H 'Content-Type: application/json' \
+     'https://api.stormkit.io/v1/app/1510'
 ```
 
 ```json

@@ -16,7 +16,6 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodGet, "", user.WithAuth(handlerAppIndex))
 
 	s.NewEndpoint("/app").
-		Handler(shttp.MethodGet, "/{did:[0-9]+}", app.WithApp(handlerAppGet)).
 		Handler(shttp.MethodPut, "", app.WithApp(handlerAppUpdate)).
 		Handler(shttp.MethodPost, "", user.WithAuth(handlerAppInsert)).
 		Handler(shttp.MethodPost, "/webhooks/{provider:github|gitlab|bitbucket}", handlerInboundWebhooks).

@@ -256,6 +256,22 @@ func ParseBearer(token string) string {
 	return ""
 }
 
+// UIDFromBearer parses a raw JWT bearer string (without the "Bearer " prefix)
+// and returns the user ID extracted from the "uid" claim, or 0 if the token
+// is missing, invalid, or expired.
+func UIDFromBearer(bearer string) types.ID {
+	claims := ParseJWT(&ParseJWTArgs{Bearer: bearer})
+
+	switch claims["uid"].(type) {
+	case int64:
+		return types.ID(claims["uid"].(int64))
+	case string:
+		return utils.StringToID(claims["uid"].(string))
+	default:
+		return 0
+	}
+}
+
 // uidFromRequest returns the user id from the given request context.
 func uidFromRequest(req *shttp.RequestContext) types.ID {
 	var bearer string
@@ -267,14 +283,5 @@ func uidFromRequest(req *shttp.RequestContext) types.ID {
 		bearer = ParseBearer(auth)
 	}
 
-	claims := ParseJWT(&ParseJWTArgs{Bearer: bearer})
-
-	switch claims["uid"].(type) {
-	case int64:
-		return types.ID(claims["uid"].(int64))
-	case string:
-		return utils.StringToID(claims["uid"].(string))
-	default:
-		return 0
-	}
+	return UIDFromBearer(bearer)
 }

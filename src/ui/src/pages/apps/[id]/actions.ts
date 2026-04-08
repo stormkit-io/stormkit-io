@@ -37,7 +37,7 @@ export const useFetchApp = ({ appId }: FetchAppProps): FetchAppReturnValue => {
     setError(null);
 
     api
-      .fetch<FetchAppAPIResponse>(`/app/${appId}`)
+      .fetch<FetchAppAPIResponse>(`/v1/app/${appId}`)
       .then(res => {
         if (unmounted !== true) {
           setApp(res?.app);
