@@ -21,6 +21,9 @@ const appListLimit = 20
 //	              page's "from" field returned in the response to fetch subsequent pages.
 //	repo        - Optional exact (case-insensitive) match on the repository path (e.g. "github/org/repo").
 //	displayName - Optional exact (case-insensitive) match on the application display name.
+//	filter      - Optional case-insensitive substring match on the application display name or repo.
+//				  Ignored if displayName or repo is provided. This is meant for simple client-side search and
+//				  therefore it is not documented in the API documentation.
 //
 // Response:
 //
@@ -45,11 +48,10 @@ func handlerAppList(req *RequestContext) *shttp.Response {
 		})
 	}
 
-	displayName := q.Get("displayName")
-
 	myApps, err := app.NewStore().Apps(req.Context(), app.AppsArgs{
 		Repo:        repo,
-		DisplayName: displayName,
+		DisplayName: q.Get("displayName"),
+		Filter:      q.Get("filter"),
 		TeamID:      req.TeamID,
 		From:        from,
 		Limit:       appListLimit + 1,

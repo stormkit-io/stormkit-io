@@ -12,9 +12,6 @@ func Services(r *shttp.Router) *shttp.Service {
 
 	s.NewEndpoint("/deploy").Handler(shttp.MethodGet, "", handlerOneClickDeploy)
 
-	s.NewEndpoint("/apps").
-		Handler(shttp.MethodGet, "", user.WithAuth(handlerAppIndex))
-
 	s.NewEndpoint("/app").
 		Handler(shttp.MethodPut, "", app.WithApp(handlerAppUpdate)).
 		Handler(shttp.MethodPost, "", user.WithAuth(handlerAppInsert)).
