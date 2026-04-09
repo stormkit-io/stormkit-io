@@ -1,5 +1,30 @@
 # Changelog
 
+## v2026.04.03.2...v2026.04.09.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.03.2...v2026.04.09.1)
+
+### 🚀 Enhancements
+
+- Add MCP server endpoint ([d313356](https://github.com/stormkit-io/stormkit-io/commit/d313356))
+- Add DELETE /v1/deployments/{id} endpoint ([7cea94b](https://github.com/stormkit-io/stormkit-io/commit/7cea94b))
+- Add POST /v1/deployments/{id}/restart endpoint ([3a65cf2](https://github.com/stormkit-io/stormkit-io/commit/3a65cf2))
+- Add GET /v1/deployments endpoint to list deployments ([10851ae](https://github.com/stormkit-io/stormkit-io/commit/10851ae))
+- Add JWT support to publicapiv1.WithAPIKey ([15597d4](https://github.com/stormkit-io/stormkit-io/commit/15597d4))
+
+### 📖 Documentation
+
+- Document blank line between blocks convention in AGENTS.md ([c71f1bf](https://github.com/stormkit-io/stormkit-io/commit/c71f1bf))
+- Add Content-Type application/json to POST curl examples ([e248269](https://github.com/stormkit-io/stormkit-io/commit/e248269))
+
+### 🏡 Chore
+
+- Update changelog for v2026.04.03.2 ([b883aa4](https://github.com/stormkit-io/stormkit-io/commit/b883aa4))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.04.03.1...v2026.04.03.2
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.03.1...v2026.04.03.2)
