@@ -31,18 +31,18 @@ describe("~/pages/team/TeamAPIKeys.tsx", () => {
 
     await waitFor(() => {
       expect(fetchScope.isDone()).toBe(true);
+
+      const subheader =
+        "This key will allow you to interact with our API and modify all apps under this team.";
+
+      // Header
+      expect(wrapper.getByText("API Keys")).toBeTruthy();
+      expect(wrapper.getByText(subheader)).toBeTruthy();
+
+      // API Keys
+      expect(wrapper.getByText("Default")).toBeTruthy();
+      expect(wrapper.getByText("CI")).toBeTruthy();
     });
-
-    const subheader =
-      "This key will allow you to interact with our API and modify all apps under this team.";
-
-    // Header
-    expect(wrapper.getByText("API Keys")).toBeTruthy();
-    expect(wrapper.getByText(subheader)).toBeTruthy();
-
-    // API Keys
-    expect(wrapper.getByText("Default")).toBeTruthy();
-    expect(wrapper.getByText("CI")).toBeTruthy();
   });
 
   test("should delete api key", async () => {

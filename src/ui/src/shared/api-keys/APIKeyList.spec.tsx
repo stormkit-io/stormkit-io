@@ -35,11 +35,10 @@ describe("~/shared/api-keys/APIKeyList.tsx", () => {
 
       await waitFor(() => {
         expect(fetchScope.isDone()).toBe(true);
+        expect(wrapper.getByText(defaultProps.subtitle)).toBeTruthy();
+        expect(wrapper.getByText("Default")).toBeTruthy();
+        expect(wrapper.getByText("CI")).toBeTruthy();
       });
-
-      expect(wrapper.getByText(defaultProps.subtitle)).toBeTruthy();
-      expect(wrapper.getByText("Default")).toBeTruthy();
-      expect(wrapper.getByText("CI")).toBeTruthy();
     });
 
     test("uses the default title 'API Keys'", async () => {
@@ -47,9 +46,8 @@ describe("~/shared/api-keys/APIKeyList.tsx", () => {
 
       await waitFor(() => {
         expect(fetchScope.isDone()).toBe(true);
+        expect(wrapper.getByText("API Keys")).toBeTruthy();
       });
-
-      expect(wrapper.getByText("API Keys")).toBeTruthy();
     });
 
     test("uses a custom title when provided", async () => {
@@ -57,9 +55,8 @@ describe("~/shared/api-keys/APIKeyList.tsx", () => {
 
       await waitFor(() => {
         expect(fetchScope.isDone()).toBe(true);
+        expect(wrapper.getByText("Environment Keys")).toBeTruthy();
       });
-
-      expect(wrapper.getByText("Environment Keys")).toBeTruthy();
     });
 
     test("shows the empty message when there are no keys", async () => {
@@ -68,9 +65,8 @@ describe("~/shared/api-keys/APIKeyList.tsx", () => {
 
       await waitFor(() => {
         expect(fetchScope.isDone()).toBe(true);
+        expect(wrapper.getByText(defaultProps.emptyMessage)).toBeTruthy();
       });
-
-      expect(wrapper.getByText(defaultProps.emptyMessage)).toBeTruthy();
     });
 
     test("shows an error message when the fetch fails", async () => {
@@ -79,13 +75,12 @@ describe("~/shared/api-keys/APIKeyList.tsx", () => {
 
       await waitFor(() => {
         expect(fetchScope.isDone()).toBe(true);
+        expect(
+          wrapper.getByText(
+            "An error occurred while fetching your API key. Please try again later.",
+          ),
+        ).toBeTruthy();
       });
-
-      expect(
-        wrapper.getByText(
-          "An error occurred while fetching your API key. Please try again later.",
-        ),
-      ).toBeTruthy();
     });
   });
 
@@ -114,23 +109,23 @@ describe("~/shared/api-keys/APIKeyList.tsx", () => {
 
       await waitFor(() => {
         expect(generateScope.isDone()).toBe(true);
+
+        // Modal should be closed
+        expect(() => wrapper.getByText("Generate New Key")).toThrow();
+
+        // One-time token alert must be visible
+        expect(
+          wrapper.getByText(
+            "Make sure to copy your new API key now. It won't be shown again.",
+          ),
+        ).toBeTruthy();
+
+        expect(
+          wrapper.getByDisplayValue(
+            "SK_newtoken1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdefghij",
+          ),
+        ).toBeTruthy();
       });
-
-      // Modal should be closed
-      expect(() => wrapper.getByText("Generate New Key")).toThrow();
-
-      // One-time token alert must be visible
-      expect(
-        wrapper.getByText(
-          "Make sure to copy your new API key now. It won't be shown again.",
-        ),
-      ).toBeTruthy();
-
-      expect(
-        wrapper.getByDisplayValue(
-          "SK_newtoken1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdefghij",
-        ),
-      ).toBeTruthy();
     });
 
     test("dismissing the alert removes the token from the page", async () => {

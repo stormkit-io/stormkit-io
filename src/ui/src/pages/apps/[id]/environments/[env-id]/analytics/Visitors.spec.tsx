@@ -45,7 +45,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/analytics/Visitors.tsx", () =>
         onTimeSpanChange={onTimeSpanChange}
         domain={domain}
         ts={ts}
-      />
+      />,
     );
   };
 
@@ -53,7 +53,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/analytics/Visitors.tsx", () =>
     createWrapper({});
 
     expect(
-      wrapper.getByText("Bots are excluded from these statistics")
+      wrapper.getByText("Bots are excluded from these statistics"),
     ).toBeTruthy();
 
     await waitFor(() => {
@@ -71,17 +71,16 @@ describe("~/pages/apps/[id]/environments/[env-id]/analytics/Visitors.tsx", () =>
 
     await waitFor(() => {
       expect(scope.isDone()).toBe(true);
+      expect(wrapper.getByTestId("area-chart").innerHTML).toEqual(
+        JSON.stringify([
+          { name: "2024-01-14", total: 20, unique: 10 },
+          { name: "2024-01-13", total: 50, unique: 25 },
+          { name: "2023-12-19", total: 46, unique: 19 },
+          { name: "2023-11-04", total: 32, unique: 22 },
+          { name: "2023-07-02", total: 12, unique: 12 },
+        ]),
+      );
     });
-
-    expect(wrapper.getByTestId("area-chart").innerHTML).toEqual(
-      JSON.stringify([
-        { name: "2024-01-14", total: 20, unique: 10 },
-        { name: "2024-01-13", total: 50, unique: 25 },
-        { name: "2023-12-19", total: 46, unique: 19 },
-        { name: "2023-11-04", total: 32, unique: 22 },
-        { name: "2023-07-02", total: 12, unique: 12 },
-      ])
-    );
   });
 
   it("should emit event when time span changes", async () => {
