@@ -25,6 +25,7 @@ declare interface DiffFields {
   deploymentId?: string;
   autoPublished?: boolean;
   restarted?: boolean;
+  stopped?: boolean;
 }
 
 declare interface Diff {

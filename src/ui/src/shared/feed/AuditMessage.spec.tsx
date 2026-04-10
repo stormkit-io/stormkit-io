@@ -116,6 +116,7 @@ describe("~/shared/feed/AuditMessage.tsx", () => {
     ${"UPDATE:DEPLOYMENT"} | ${"Manually published deployment 8241 to production environment"} | ${null}
     ${"UPDATE:DEPLOYMENT"} | ${"Auto-published deployment 8241 to production environment"}     | ${{ old: {}, new: { deploymentId: "8241", autoPublished: true } }}
     ${"UPDATE:DEPLOYMENT"} | ${"Restarted deployment 8241 in production environment"}          | ${{ old: {}, new: { deploymentId: "8241", restarted: true } }}
+    ${"UPDATE:DEPLOYMENT"} | ${"Stopped deployment 8241 in production environment"}            | ${{ old: {}, new: { deploymentId: "8241", stopped: true } }}
   `(
     "displays the correct message for $action: $expected",
     ({ action, expected, diff }) => {

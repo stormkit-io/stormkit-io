@@ -51,7 +51,7 @@ func handlerDeploymentStop(req *RequestContext) *shttp.Response {
 	if req.License().IsEnterprise() {
 		err := audit.FromRequestContext(req).
 			WithAction(audit.UpdateAction, audit.TypeDeployment).
-			WithDiff(&audit.Diff{Old: audit.DiffFields{DeploymentID: id.String()}}).
+			WithDiff(&audit.Diff{New: audit.DiffFields{DeploymentID: id.String(), Stopped: utils.Ptr(true)}}).
 			Insert()
 
 		if err != nil {

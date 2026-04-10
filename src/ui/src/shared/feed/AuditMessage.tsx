@@ -256,6 +256,15 @@ export default function AuditMessage({ audit }: Props) {
       );
 
     case "UPDATE:DEPLOYMENT":
+      if (audit.diff.new.stopped) {
+        return (
+          <AuditRow audit={audit}>
+            Stopped deployment {audit.diff.new.deploymentId} in{" "}
+            <EnvLink audit={audit} hash="#deployments" /> environment
+          </AuditRow>
+        );
+      }
+
       if (audit.diff.new.restarted) {
         return (
           <AuditRow audit={audit}>
