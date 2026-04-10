@@ -1,5 +1,29 @@
 # Changelog
 
+## v2026.04.09.1...v2026.04.10.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.09.1...v2026.04.10.1)
+
+### 🚀 Enhancements
+
+- Retire internal GET /apps and add filter param to public app list ([fee9ee8](https://github.com/stormkit-io/stormkit-io/commit/fee9ee8))
+- Switch UI app list to /v1/apps and remove useFetchApp ([8cea186](https://github.com/stormkit-io/stormkit-io/commit/8cea186))
+- Add GET /v1/envs endpoint to list environments ([4229e73](https://github.com/stormkit-io/stormkit-io/commit/4229e73))
+- Add POST /v1/deployments/{id}/stop endpoint ([8a52c3b](https://github.com/stormkit-io/stormkit-io/commit/8a52c3b))
+- Add stopped field to audit diff for deployment stop action ([d79eea3](https://github.com/stormkit-io/stormkit-io/commit/d79eea3))
+
+### 🏡 Chore
+
+- Update changelog for v2026.04.09.1 ([4716911](https://github.com/stormkit-io/stormkit-io/commit/4716911))
+- Move UI test assertions inside waitFor blocks ([9699ec4](https://github.com/stormkit-io/stormkit-io/commit/9699ec4))
+- Use user name as token name ([30136b2](https://github.com/stormkit-io/stormkit-io/commit/30136b2))
+- Retire internal restart endpoint ([8f53aba](https://github.com/stormkit-io/stormkit-io/commit/8f53aba))
+- Retire internal restart endpoint (Go side) ([344ea2d](https://github.com/stormkit-io/stormkit-io/commit/344ea2d))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.04.03.2...v2026.04.09.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.03.2...v2026.04.09.1)
