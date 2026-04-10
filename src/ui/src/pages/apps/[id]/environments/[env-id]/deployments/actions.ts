@@ -168,15 +168,15 @@ export const useFetchDeployments = ({
 };
 
 interface StopDeploymentProps {
-  appId: string;
+  envId: string;
   deploymentId: string;
 }
 
 export const stopDeployment = ({
-  appId,
+  envId,
   deploymentId,
 }: StopDeploymentProps): Promise<void> => {
-  return api.post("/app/deploy/stop", { appId, deploymentId });
+  return api.post(`/v1/deployments/${deploymentId}/stop`, { envId });
 };
 
 interface FetchDeploymentProps {

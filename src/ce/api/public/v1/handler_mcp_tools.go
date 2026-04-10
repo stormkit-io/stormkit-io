@@ -90,6 +90,19 @@ func mcpAllTools() []mcpToolDef {
 			},
 		},
 		{
+			Name:        "stop_deployment",
+			Description: "Stop a running deployment.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"deploymentId": map[string]any{"type": "string", "description": "Deployment ID to stop."},
+					"envId":        map[string]any{"type": "string", "description": "Environment the deployment belongs to."},
+				},
+				"required":             []string{"deploymentId", "envId"},
+				"additionalProperties": false,
+			},
+		},
+		{
 			Name:        "list_deployments",
 			Description: "Return a paginated list of deployments for the given environment. Use hasNextPage and increment 'from' to paginate.",
 			InputSchema: map[string]any{
@@ -376,6 +389,18 @@ func mcpRestartDeployment(req *RequestContextMCP, args map[string]any) *shttp.Re
 	}
 
 	return handlerDeploymentRestart(req.RequestContext)
+}
+
+func mcpStopDeployment(req *RequestContextMCP, args map[string]any) *shttp.Response {
+	if resp := req.withEnv(args); resp != nil {
+		return resp
+	}
+
+	if resp := req.withDeploymentID(args); resp != nil {
+		return resp
+	}
+
+	return handlerDeploymentStop(req.RequestContext)
 }
 
 func mcpListApps(req *RequestContextMCP, args map[string]any) *shttp.Response {

@@ -27,20 +27,20 @@ export const mockFetchDeployments = ({
 };
 
 interface MockStopDeploymentProps {
-  appId: string;
+  envId: string;
   deploymentId: string;
   status?: number;
   response?: object;
 }
 
 export const mockStopDeployment = ({
-  appId,
+  envId,
   deploymentId,
   status = 200,
   response = { ok: true },
 }: MockStopDeploymentProps) =>
   nock(endpoint)
-    .post(`/app/deploy/stop`, { appId, deploymentId })
+    .post(`/v1/deployments/${deploymentId}/stop`, { envId })
     .reply(status, response);
 
 interface MockDeleteDeploymentProps {

@@ -17,8 +17,7 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodPost, "", app.WithApp(handlerDeployStart)).
 		Handler(shttp.MethodDelete, "", app.WithApp(handlerDeployDelete)).
 		Handler(shttp.MethodPost, "/restart", app.WithApp(handlerDeployRestart)).
-		Handler(shttp.MethodPost, "/callback", handlerDeployCallback).
-		Handler(shttp.MethodPost, "/stop", shttp.WithRateLimit(app.WithApp(handlerDeployStop), nil))
+		Handler(shttp.MethodPost, "/callback", handlerDeployCallback)
 
 	s.NewEndpoint("/app/{did:[0-9]+}/manifest").
 		Handler(shttp.MethodGet, "/{deploymentId:[0-9]+}", shttp.WithRateLimit(

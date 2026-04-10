@@ -35,6 +35,7 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodGet, "/poll", WithAPIKey(handlerDeploymentPoll, &Opts{MinimumScope: apikey.SCOPE_ENV})).
 		Handler(shttp.MethodPost, "/publish", WithAPIKey(handlerDeploymentPublish, &Opts{MinimumScope: apikey.SCOPE_ENV})).
 		Handler(shttp.MethodPost, "/restart", WithAPIKey(handlerDeploymentRestart, &Opts{MinimumScope: apikey.SCOPE_ENV})).
+		Handler(shttp.MethodPost, "/stop", WithAPIKey(handlerDeploymentStop, &Opts{MinimumScope: apikey.SCOPE_ENV})).
 		Handler(shttp.MethodDelete, "", WithAPIKey(handlerDeploymentDelete, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	s.NewEndpoint("/v1/env").

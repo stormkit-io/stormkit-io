@@ -140,7 +140,7 @@ export default function DeploymentRow({
           onConfirm={({ setLoading, setError }) => {
             setLoading(true);
             stopDeployment({
-              appId: deployment.appId,
+              envId: deployment.envId,
               deploymentId: deployment.id,
             })
               .then(() => {

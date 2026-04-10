@@ -528,3 +528,46 @@ curl -X POST \
 ```json
 { "ok": true }
 ```
+
+---
+
+## POST /v1/deployments/{id}/stop
+
+Stops a running deployment. If the deployment has already finished, this is a no-op and still returns `200 OK`.
+
+**Base URL:** `https://api.stormkit.io`
+
+**Authentication:** At least an environment-level API key passed as the `Authorization` header.
+
+### Path parameters
+
+| Parameter | Type   | Description        |
+| --------- | ------ | ------------------ |
+| `id`      | string | The deployment ID. |
+
+### Response — 200 OK
+
+| Field | Type    | Description               |
+| ----- | ------- | ------------------------- |
+| `ok`  | boolean | Always `true` on success. |
+
+### Error responses
+
+| Status | Condition                                                                               |
+| ------ | --------------------------------------------------------------------------------------- |
+| `403`  | Missing/invalid API key, or token does not have access to the deployment's environment. |
+| `404`  | Deployment not found, or it does not belong to the environment of the API key.          |
+| `500`  | Internal server error.                                                                  |
+
+### Example
+
+```bash
+curl -X POST \
+     -H 'Authorization: <api_key>' \
+     -H 'Content-Type: application/json' \
+     'https://api.stormkit.io/v1/deployments/8241/stop'
+```
+
+```json
+{ "ok": true }
+```

@@ -2,20 +2,20 @@ import nock from "nock";
 
 const endpoint = process.env.API_DOMAIN || "localhost";
 interface MockStopDeploymentCallProps {
-  appId: string;
+  envId: string;
   deploymentId: string;
   status?: number;
   response?: object;
 }
 
 export const mockStopDeploymentCall = ({
-  appId,
+  envId,
   deploymentId,
   status = 200,
   response = { ok: true },
 }: MockStopDeploymentCallProps) =>
   nock(endpoint)
-    .post(`/app/deploy/stop`, { appId, deploymentId })
+    .post(`/v1/deployments/${deploymentId}/stop`, { envId })
     .reply(status, response);
 
 interface MockDeleteDeploymentCallProps {

@@ -235,7 +235,7 @@ describe("~/shared/deployments/DeploymentRow.tsx", () => {
       expect(wrapper.getByText("Confirm action")).toBeTruthy();
 
       const scope = mockStopDeployment({
-        appId: deployment.appId,
+        envId: deployment.envId,
         deploymentId: deployment.id,
       });
 
