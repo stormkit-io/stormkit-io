@@ -55,7 +55,6 @@ export default function DeploymentRow({
     onPublishClick: () => setShowPublishModal(true),
     onRestartClick: () => {
       restartDeployment({
-        appId: deployment.appId,
         deploymentId: deployment.id,
         envId: deployment.envId,
       }).then(() => {

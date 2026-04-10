@@ -26,6 +26,23 @@ export const mockFetchDeployments = ({
     .reply(status, response);
 };
 
+interface MockRestartDeploymentProps {
+  envId: string;
+  deploymentId: string;
+  status?: number;
+  response?: object;
+}
+
+export const mockRestartDeployment = ({
+  envId,
+  deploymentId,
+  status = 200,
+  response = { ok: true },
+}: MockRestartDeploymentProps) =>
+  nock(endpoint)
+    .post(`/v1/deployments/${deploymentId}/restart`, { envId })
+    .reply(status, response);
+
 interface MockStopDeploymentProps {
   envId: string;
   deploymentId: string;

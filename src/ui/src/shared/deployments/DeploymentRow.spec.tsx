@@ -3,6 +3,7 @@ import { describe, expect, it, vi, beforeEach, type Mock } from "vitest";
 import mockDeployments from "~/testing/data/mock_deployments_v2";
 import mockManifest from "~/testing/data/mock_deployment_manifest";
 import {
+  mockRestartDeployment,
   mockStopDeployment,
   mockDeleteDeployment,
   mockFetchManifest,
@@ -179,6 +180,21 @@ describe("~/shared/deployments/DeploymentRow.tsx", () => {
       });
 
       fireEvent.click(wrapper.getByText("Yes, continue"));
+
+      await waitFor(() => {
+        expect(scope.isDone()).toBe(true);
+      });
+
+      expect(setRefreshToken).toHaveBeenCalled();
+    });
+
+    it("should restart the deployment", async () => {
+      const scope = mockRestartDeployment({
+        envId: deployment.envId,
+        deploymentId: deployment.id,
+      });
+
+      fireEvent.click(wrapper.getByText("Restart"));
 
       await waitFor(() => {
         expect(scope.isDone()).toBe(true);
