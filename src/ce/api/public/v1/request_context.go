@@ -166,7 +166,7 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 			request.Token = &apikey.Token{
 				UserID: usr.ID,
 				Scope:  apikey.SCOPE_USER,
-				Name:   "jwt",
+				Name:   usr.Display(),
 			}
 		} else {
 			key, err := apikey.NewStore().APIKey(req.Context(), token)
