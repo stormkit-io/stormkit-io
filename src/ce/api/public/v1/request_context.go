@@ -100,6 +100,11 @@ func (req *RequestContext) GetAuditData() audit.AuditData {
 		d.AppID = req.Env.AppID
 	}
 
+	if req.User != nil {
+		d.UserID = req.User.ID
+		d.UserDisplay = req.User.Display()
+	}
+
 	return d
 }
 

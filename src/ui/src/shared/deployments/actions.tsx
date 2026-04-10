@@ -50,7 +50,7 @@ export const publishDeployments = ({
 
   if (total !== 100) {
     return Promise.reject(
-      `The sum of percentages has be to 100. Currently it is ${total}.`
+      `The sum of percentages has be to 100. Currently it is ${total}.`,
     );
   }
 
@@ -113,17 +113,15 @@ export const stopDeployment = ({
 };
 
 interface RestartDeploymentProps {
-  appId: string;
   envId: string;
   deploymentId: string;
 }
 
 export const restartDeployment = ({
-  appId,
   envId,
   deploymentId,
 }: RestartDeploymentProps): Promise<void> => {
-  return api.post("/app/deploy/restart", { appId, envId, deploymentId });
+  return api.post(`/v1/deployments/${deploymentId}/restart`, { envId });
 };
 
 interface WithMenuItemsProps {
@@ -189,7 +187,7 @@ export const useWithMenuItems = ({
         text: deployment.status === "running" ? "Stop" : "Delete",
         icon: deployment.status === "running" ? <StopIcon /> : <DeleteIcon />,
         onClick: onStateChangeClick,
-      }
+      },
     );
 
     return items;

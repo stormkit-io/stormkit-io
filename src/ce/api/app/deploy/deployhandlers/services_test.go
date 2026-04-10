@@ -21,7 +21,6 @@ func (s *ServicesSuite) TestServices() {
 		"GET:/my/deployments",
 		"POST:/app/deploy",
 		"POST:/app/deploy/callback",
-		"POST:/app/deploy/restart",
 		"POST:/app/deployments/publish",
 	}
 
