@@ -135,6 +135,21 @@ interface AuthConfig {
   successUrl?: string;
 }
 
+interface SaveConfigParams {
+  envId: string;
+  successUrl: string;
+  tokenTtl: number;
+  status: boolean;
+}
+
+export const saveConfig = ({
+  envId,
+  successUrl,
+  tokenTtl,
+  status,
+}: SaveConfigParams): Promise<void> =>
+  api.post("/skauth/config", { envId, successUrl, tokenTtl, status });
+
 export const useFetchProviders = ({
   envId,
   refreshToken,

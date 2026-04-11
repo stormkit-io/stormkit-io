@@ -258,6 +258,50 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
     });
   });
 
+  describe("auth config form", () => {
+    beforeEach(async () => {
+      await createWrapper({ hasSchema: true });
+    });
+
+    it("should explain how success callback can access skauth", async () => {
+      await waitFor(() => {
+        expect(
+          wrapper.getByText(
+            "Relative URL to redirect to after successful authentication. At this URL, browser code can read the skauth item from localStorage.",
+          ),
+        ).toBeTruthy();
+      });
+    });
+
+    it("should save config successfully", async () => {
+      const scope = nock(apiDomain)
+        .post("/skauth/config", {
+          envId: currentEnv.id,
+          successUrl: "",
+          tokenTtl: 0,
+          status: true,
+        })
+        .reply(200);
+
+      fireEvent.submit(wrapper.getByRole("button", { name: "Save" }).closest("form")!);
+
+      await waitFor(() => {
+        expect(scope.isDone()).toBe(true);
+        expect(wrapper.getByText("Settings saved successfully")).toBeTruthy();
+      });
+    });
+
+    it("should display error when save fails", async () => {
+      nock(apiDomain).post("/skauth/config").reply(500);
+
+      fireEvent.submit(wrapper.getByRole("button", { name: "Save" }).closest("form")!);
+
+      await waitFor(() => {
+        expect(wrapper.getByText("Failed to save settings")).toBeTruthy();
+      });
+    });
+  });
+
   describe("when fetch providers fails", () => {
     beforeEach(async () => {
       currentApp = mockApp();

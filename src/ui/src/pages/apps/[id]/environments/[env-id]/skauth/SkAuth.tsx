@@ -16,7 +16,7 @@ import CardFooter from "~/components/CardFooter";
 import { RootContext } from "~/pages/Root.context";
 import Drawer from "./ProviderSettings";
 import { useFetchSchema } from "../database/actions";
-import { AuthProvider, useFetchProviders } from "./actions";
+import { AuthProvider, saveConfig, useFetchProviders } from "./actions";
 
 interface EmptyViewProps {
   isCloud?: boolean;
@@ -155,6 +155,8 @@ export default function SkAuth() {
   const result = useFetchSchema({ envId: env.id!, isCloud });
   const [refreshToken, setRefreshToken] = useState<number>();
   const [success, setSuccess] = useState<string>();
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string>();
   const { providers, loading, error, config } = useFetchProviders({
     envId: env.id!,
     refreshToken,
@@ -166,7 +168,7 @@ export default function SkAuth() {
 
   if (!hasSchema && !result.loading) {
     return (
-      <Card>
+      <Card sx={{ width: "100%" }}>
         <CardHeader title={title} subtitle={subtitle} />
         <EmptyView isCloud={isCloud} env={env} />
       </Card>
@@ -179,10 +181,39 @@ export default function SkAuth() {
         success={success}
         successTitle={false}
         onSuccessClose={() => setSuccess(undefined)}
-        error={result.error || error}
+        error={result.error || error || saveError}
         loading={result.loading || loading}
         component="form"
         sx={{ width: "100%" }}
+        onSubmit={e => {
+          e.preventDefault();
+          const form = e.target;
+
+          if (!(form instanceof HTMLFormElement)) {
+            throw new TypeError("Expected form submit target");
+          }
+
+          const data = new FormData(form);
+
+          setSaving(true);
+          setSaveError(undefined);
+
+          saveConfig({
+            envId: env.id!,
+            successUrl: (data.get("successUrl") as string) || "",
+            tokenTtl: Number(data.get("tokenTtl") || 0),
+            status: true,
+          })
+            .then(() => {
+              setSuccess("Settings saved successfully");
+            })
+            .catch(() => {
+              setSaveError("Failed to save settings");
+            })
+            .finally(() => {
+              setSaving(false);
+            });
+        }}
       >
         <CardHeader title={title} subtitle={subtitle} />
 
@@ -195,7 +226,7 @@ export default function SkAuth() {
             defaultValue={config?.successUrl || ""}
             variant="filled"
             autoComplete="off"
-            helperText="Relative URL to redirect to after successful authentication"
+            helperText="Relative URL to redirect to after successful authentication. At this URL, browser code can read the skauth item from localStorage."
             slotProps={{
               inputLabel: {
                 shrink: true,
@@ -228,11 +259,7 @@ export default function SkAuth() {
             type="submit"
             variant="contained"
             color="secondary"
-            disabled={result.loading || loading}
-            onClick={e => {
-              e.preventDefault();
-              setSuccess("Settings saved successfully");
-            }}
+            disabled={result.loading || loading || saving}
           >
             Save
           </Button>
