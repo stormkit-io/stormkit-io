@@ -22,7 +22,6 @@ var schemaStmt = struct {
 	createAuthTable       string
 	createMigrationsTable string
 	selectMigrations      string
-	selectAuthUser        string
 	insertOAuth           string
 	insertAuthUser        string
 }{
@@ -93,21 +92,6 @@ var schemaStmt = struct {
 		ORDER BY 3;
 	`,
 
-	selectAuthUser: `
-		SELECT
-			user_id,
-			first_name,
-			last_name,
-			email,
-			avatar,
-			created_at,
-			last_login_at
-		FROM
-			stormkit_auth_users
-		WHERE
-			user_id = $1;
-	`,
-
 	insertOAuth: `
 		INSERT INTO stormkit_auth_providers (
 			user_id, account_id, access_token, refresh_token, token_type, provider_name, expiry
@@ -131,7 +115,26 @@ var sqlTemplates = struct {
 	createMigrationUser *template.Template
 	createAppUser       *template.Template
 	dropSchema          *template.Template
+	selectAuthUser      *template.Template
 }{
+	selectAuthUser: template.Must(template.New("selectAuthUser").Parse(`
+		SELECT
+			u.user_id,
+			u.first_name,
+			u.last_name,
+			u.email,
+			u.avatar,
+			u.created_at,
+			u.last_login_at
+			{{- if .WithHash}}, p.access_token AS password_hash{{end}}
+		FROM
+			stormkit_auth_users u
+			{{- if .WithHash}}
+			JOIN stormkit_auth_providers p ON u.user_id = p.user_id AND p.provider_name = $2
+			{{- end}}
+		WHERE
+			u.{{.WhereField}} = $1;
+	`)),
 	createSchema: template.Must(template.New("createSchema").Parse(`CREATE SCHEMA IF NOT EXISTS {{.SchemaName}}`)),
 
 	createMigrationUser: template.Must(template.New("createMigrationUser").Parse(`
@@ -613,7 +616,18 @@ func (s *schemaStore) AuthUser(ctx context.Context, authID types.ID) (*skauth.Us
 		return nil, fmt.Errorf("schema configuration is required to retrieve auth user")
 	}
 
-	row, err := s.QueryRow(ctx, schemaStmt.selectAuthUser, authID)
+	buf := bytes.Buffer{}
+
+	err := sqlTemplates.selectAuthUser.Execute(&buf, map[string]any{
+		"WhereField": "user_id",
+		"WithHash":   false,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to render selectAuthUser template: %w", err)
+	}
+
+	row, err := s.QueryRow(ctx, buf.String(), authID)
 
 	if err != nil {
 		return nil, err

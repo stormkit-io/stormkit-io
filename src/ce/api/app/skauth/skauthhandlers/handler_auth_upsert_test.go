@@ -223,6 +223,58 @@ func (s *HandlerAuthUpsertSuite) Test_Idempotent() {
 	}, provider.Data)
 }
 
+func (s *HandlerAuthUpsertSuite) Test_Success_EmailProvider() {
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/skauth",
+		map[string]any{
+			"envId":        s.env.ID,
+			"providerName": skauth.ProviderEmail,
+			"status":       true,
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(s.usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+
+	provider, err := skauth.NewStore().Provider(context.Background(), s.env.ID, skauth.ProviderEmail)
+	s.NoError(err)
+	s.NotNil(provider, "Email provider should be saved")
+	s.True(provider.Status)
+	s.Equal(skauth.ProviderData{}, provider.Data, "Email provider should have no OAuth credentials")
+}
+
+// Test_Success_EmailProvider_NoClientCredentials verifies that the email provider
+// can be enabled without supplying clientId or clientSecret.
+func (s *HandlerAuthUpsertSuite) Test_Success_EmailProvider_NoClientCredentials() {
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/skauth",
+		map[string]any{
+			"envId":        s.env.ID,
+			"providerName": skauth.ProviderEmail,
+			"clientId":     "should-be-ignored",
+			"clientSecret": "should-be-ignored",
+			"status":       false,
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(s.usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+
+	provider, err := skauth.NewStore().Provider(context.Background(), s.env.ID, skauth.ProviderEmail)
+	s.NoError(err)
+	s.NotNil(provider)
+	s.False(provider.Status)
+	s.Equal(skauth.ProviderData{}, provider.Data, "Email provider should store no OAuth credentials")
+}
+
 func TestHandlerUpsertSuite(t *testing.T) {
 	suite.Run(t, &HandlerAuthUpsertSuite{})
 }

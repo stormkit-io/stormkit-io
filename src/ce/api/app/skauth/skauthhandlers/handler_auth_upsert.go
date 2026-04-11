@@ -20,6 +20,7 @@ type AuthUpsertRequest struct {
 }
 
 // handlerAuthUpsert handles the upsert of an authentication provider configuration.
+// It delegates to a provider-specific helper based on the provider name.
 func handlerAuthUpsert(req *app.RequestContext) *shttp.Response {
 	data := &AuthUpsertRequest{}
 
@@ -61,7 +62,20 @@ func handlerAuthUpsert(req *app.RequestContext) *shttp.Response {
 
 	data.ProviderName = strings.TrimSpace(strings.ToLower(data.ProviderName))
 
-	// If updating an existing provider and client secret is not provided, retain the existing secret
+	switch data.ProviderName {
+	case skauth.ProviderEmail:
+		return handleEmailProvider(req, data, env)
+	default:
+		return handleOAuthProvider(req, data, env)
+	}
+}
+
+// handleOAuthProvider validates OAuth-specific fields (clientId, clientSecret) and saves
+// the provider configuration.
+func handleOAuthProvider(req *app.RequestContext, data *AuthUpsertRequest, env *buildconf.Env) *shttp.Response {
+	ctx := req.Context()
+
+	// If updating an existing provider and client secret is not provided, retain the existing secret.
 	if data.ClientSecret == "" || data.ClientSecret == ClientSecretPlaceholder {
 		existingProvider, err := skauth.NewStore().Provider(ctx, req.EnvID, data.ProviderName)
 
@@ -86,6 +100,22 @@ func handlerAuthUpsert(req *app.RequestContext) *shttp.Response {
 		})
 	}
 
+	return saveProvider(req, data, env, skauth.ProviderData{
+		ClientID:     data.ClientID,
+		ClientSecret: data.ClientSecret,
+	})
+}
+
+// handleEmailProvider saves the email/password provider configuration.
+// Email providers do not require OAuth credentials.
+func handleEmailProvider(req *app.RequestContext, data *AuthUpsertRequest, env *buildconf.Env) *shttp.Response {
+	return saveProvider(req, data, env, skauth.ProviderData{})
+}
+
+// saveProvider creates the auth table (idempotent) and upserts the provider record.
+func saveProvider(req *app.RequestContext, data *AuthUpsertRequest, env *buildconf.Env, providerData skauth.ProviderData) *shttp.Response {
+	ctx := req.Context()
+
 	migrationStore, err := env.SchemaConf.Store(buildconf.SchemaAccessTypeMigrations)
 
 	if err != nil {
@@ -102,10 +132,7 @@ func handlerAuthUpsert(req *app.RequestContext) *shttp.Response {
 	provider := &skauth.Provider{
 		Name:   data.ProviderName,
 		Status: data.Status,
-		Data: skauth.ProviderData{
-			ClientID:     data.ClientID,
-			ClientSecret: data.ClientSecret,
-		},
+		Data:   providerData,
 	}
 
 	if provider.Client() == nil {
