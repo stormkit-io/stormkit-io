@@ -82,7 +82,8 @@ func Services(r *shttp.Router) *shttp.Service {
 		s.NewEndpoint("/v1/auth").
 			Handler(shttp.MethodGet, "", HandlerAuthRedirect).
 			Handler(shttp.MethodGet, "/session", HandlerSession).
-			Handler(shttp.MethodGet, "/callback", HandlerAuthCallback)
+			Handler(shttp.MethodGet, "/callback", HandlerAuthCallback).
+			Handler(shttp.MethodPost, "/register", HandlerAuthEmailRegister)
 	}
 
 	if config.IsStormkitCloud() {

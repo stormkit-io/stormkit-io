@@ -87,28 +87,54 @@ func (db *TestDB) CloseTx() {
 	}
 }
 
-func InitTx(suiteName string) TestDB {
-	conn, err := sql.Open("txdb", suiteName)
+// resetSequences resets all sequences in the test schema to 1 using a direct
+// postgres connection so that the locks are held only for the duration of the
+// statement. Running setval inside a txdb transaction would hold
+// RowExclusiveLock on every sequence for the entire test, which conflicts with
+// concurrent migration DDL (which needs AccessExclusiveLock) and can produce
+// deadlocks when multiple test packages run in parallel.
+//
+// The query joins pg_namespace and restricts to current_schema() to avoid
+// touching pg_catalog sequences or sequences from other schemas, and uses a
+// schema-qualified format string for the regclass cast to prevent ambiguous
+// name resolution via search_path.
+func resetSequences() {
+	direct, err := sql.Open("postgres", database.ConnectionString(database.Config))
 
 	if err != nil {
 		panic(err)
 	}
 
-	// Reset all sequences to 1
-	_, err = conn.Exec(`
+	defer direct.Close()
+
+	_, err = direct.Exec(`
 		DO $$
 		DECLARE
-    		r RECORD;
+			r RECORD;
 		BEGIN
-		FOR r IN
-        		SELECT c.relname 
-        		FROM pg_class c 
-        		WHERE c.relkind = 'S'
-    		LOOP
-        		EXECUTE format('ALTER SEQUENCE %I RESTART WITH 1', r.relname);
-    		END LOOP;
+			FOR r IN
+				SELECT n.nspname, c.relname
+				FROM pg_class c
+				JOIN pg_namespace n ON n.oid = c.relnamespace
+				WHERE c.relkind = 'S'
+				  AND n.nspname = current_schema()
+			LOOP
+				PERFORM setval(format('%I.%I', r.nspname, r.relname)::regclass, 1, false);
+			END LOOP;
 		END $$;
 	`)
+
+	if err != nil {
+		panic(err)
+	}
+}
+
+func InitTx(suiteName string) TestDB {
+	// Reset sequences before opening the txdb transaction so locks are released
+	// immediately and do not interfere with concurrent migration DDL.
+	resetSequences()
+
+	conn, err := sql.Open("txdb", suiteName)
 
 	if err != nil {
 		panic(err)

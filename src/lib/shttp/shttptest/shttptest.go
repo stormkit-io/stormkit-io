@@ -7,6 +7,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 )
 
@@ -114,6 +115,22 @@ func RequestWithHeaders(h http.Handler, method, target string, body any, headers
 		}
 
 		httpBody = bytes.NewReader(data)
+	}
+
+	if strings.HasPrefix(httpHeaders.Get("Content-Type"), "application/x-www-form-urlencoded") {
+		v, ok := body.(map[string]string)
+
+		if !ok {
+			panic("shttptest: form-urlencoded body must be map[string]string")
+		}
+
+		vals := url.Values{}
+
+		for k, val := range v {
+			vals.Set(k, val)
+		}
+
+		httpBody = strings.NewReader(vals.Encode())
 	}
 
 	if strings.HasPrefix(httpHeaders.Get("Content-Type"), "multipart/form-data") {
