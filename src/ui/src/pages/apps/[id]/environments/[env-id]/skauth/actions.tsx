@@ -30,17 +30,33 @@ export interface AuthProvider {
 }
 
 const allProviders: AuthProvider[] = [
-  // {
-  //   id: "email",
-  //   icon: EmailIcon,
-  //   name: "Email",
-  //   drawerTitle: "Email Provider Settings",
-  //   drawerDesc: "Allow authentication using email/password and magic links.",
-  //   fields: [
-  //     { name: "clientId", label: "Client ID", value: "" },
-  //     { name: "clientSecret", label: "Client Secret", value: "" },
-  //   ],
-  // },
+  {
+    id: "email",
+    icon: EmailIcon,
+    name: "Email",
+    drawerTitle: "Email Provider Settings",
+    drawerDesc: "Allow authentication using email and password.",
+    steps: [
+      "Enable this provider to allow users to register and sign in with an email and password.",
+      <>
+        Use the{" "}
+        <Link
+          href="https://www.stormkit.io/docs/features/authentication"
+          target="_blank"
+          rel="noreferrer noopener"
+        >
+          Stormkit Auth API
+        </Link>{" "}
+        to register and authenticate users programmatically.
+      </>,
+      <>
+        Send a <code>POST</code> request to{" "}
+        <code>/_stormkit/auth/register</code> with a JSON body containing{" "}
+        <code>email</code> and <code>password</code> fields. On success, a JWT
+        token is returned.
+      </>,
+    ],
+  },
   {
     id: "google",
     icon: GoogleIcon,

@@ -76,7 +76,7 @@ func (s *HandlerAuthEmailRegisterSuite) post(fields map[string]string) shttptest
 		shttp.MethodPost,
 		"/v1/auth/register",
 		fields,
-		map[string]string{"Content-Type": "application/x-www-form-urlencoded"},
+		nil,
 	)
 }
 
@@ -132,12 +132,14 @@ func (s *HandlerAuthEmailRegisterSuite) Test_Success() {
 		"password": "supersecret123",
 	})
 
-	s.Equal(http.StatusFound, response.Code)
-	s.Contains(response.Header().Get("Location"), "/_stormkit/auth?code=")
-	s.NotContains(response.Header().Get("Location"), "successUrl")
+	s.Equal(http.StatusCreated, response.Code)
+
+	token, ok := response.Map()["token"].(string)
+	s.True(ok)
+	s.NotEmpty(token)
 }
 
-// Test_Success_NoSuccessURL verifies that the redirect only contains the code parameter.
+// Test_Success_NoSuccessURL verifies that registration works regardless of whether a SuccessURL is set.
 func (s *HandlerAuthEmailRegisterSuite) Test_Success_NoSuccessURL() {
 	env, err := s.setupEnv("")
 	s.Require().NoError(err)
@@ -148,12 +150,14 @@ func (s *HandlerAuthEmailRegisterSuite) Test_Success_NoSuccessURL() {
 		"password": "supersecret123",
 	})
 
-	s.Equal(http.StatusFound, response.Code)
-	s.Contains(response.Header().Get("Location"), "/_stormkit/auth?code=")
-	s.NotContains(response.Header().Get("Location"), "successUrl")
+	s.Equal(http.StatusCreated, response.Code)
+
+	token, ok := response.Map()["token"].(string)
+	s.True(ok)
+	s.NotEmpty(token)
 }
 
-// Test_DuplicateEmail verifies that registering with an existing email returns an error redirect.
+// Test_DuplicateEmail verifies that registering with an existing email returns a JSON 400 error.
 func (s *HandlerAuthEmailRegisterSuite) Test_DuplicateEmail() {
 	env, err := s.setupEnv("")
 	s.Require().NoError(err)
@@ -164,7 +168,7 @@ func (s *HandlerAuthEmailRegisterSuite) Test_DuplicateEmail() {
 		"password": "supersecret123",
 	}
 
-	s.Require().Equal(http.StatusFound, s.post(fields).Code)
+	s.Require().Equal(http.StatusCreated, s.post(fields).Code)
 
 	// Second registration with same email — no Referer, so falls back to JSON error.
 	response := s.post(fields)

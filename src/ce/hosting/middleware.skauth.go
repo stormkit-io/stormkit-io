@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/lib/html"
 	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -16,8 +17,29 @@ func WithSKAuth(req *RequestContext) (*shttp.Response, error) {
 		return nil, nil
 	}
 
-	if !strings.HasPrefix(req.URL().Path, "/_stormkit/auth") {
+	path := req.URL().Path
+
+	if !strings.HasPrefix(path, "/_stormkit/auth") {
 		return nil, nil
+	}
+
+	if path == "/_stormkit/auth/register" {
+		if req.Method != http.MethodPost {
+			return &shttp.Response{
+				Status: http.StatusMethodNotAllowed,
+				Data:   map[string]any{"errors": []string{"method not allowed"}},
+			}, nil
+		}
+
+		// Inject the environment ID from the host config so the handler can
+		// look up the environment without requiring it in the request body.
+		reqURL := req.URL()
+		q := reqURL.Query()
+		q.Set("envId", req.Host.Config.EnvID.String())
+		reqURL.RawQuery = q.Encode()
+		req.ResetQuery()
+
+		return publicapiv1.HandlerAuthEmailRegister(req.RequestContext), nil
 	}
 
 	var head, content string

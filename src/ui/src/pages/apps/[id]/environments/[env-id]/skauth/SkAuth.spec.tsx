@@ -190,6 +190,9 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
       await createWrapper({
         hasSchema: true,
         providers: {
+          email: {
+            status: true,
+          },
           google: {
             status: true,
             clientId: "google-client-id",
@@ -206,6 +209,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
 
     it("should display authentication providers", async () => {
       await waitFor(() => {
+        expect(wrapper.getByText("Email")).toBeTruthy();
         expect(wrapper.getByText("Google")).toBeTruthy();
         expect(wrapper.getByText("X / Twitter (OAuth 2.0)")).toBeTruthy();
       });
@@ -213,7 +217,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
 
     it("should display correct status for enabled provider", async () => {
       await waitFor(() => {
-        expect(wrapper.getByText("enabled")).toBeTruthy();
+        expect(wrapper.getAllByText("enabled").length).toBeGreaterThan(0);
       });
     });
 

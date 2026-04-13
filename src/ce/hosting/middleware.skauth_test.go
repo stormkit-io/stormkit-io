@@ -1,7 +1,10 @@
 package hosting_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -60,7 +63,33 @@ func (s *WithSKAuthSuite) hostWithSKAuth() *hosting.Host {
 	}
 }
 
-// Test_SKAuthDisabled checks that the middleware is a no-op when SKAuth is not configured.
+func (s *WithSKAuthSuite) newPostRequest(host *hosting.Host, path string, body any) *hosting.RequestContext {
+	var buf bytes.Buffer
+
+	if body != nil {
+		_ = json.NewEncoder(&buf).Encode(body)
+	}
+
+	rq := &hosting.RequestContext{
+		Host: host,
+		RequestContext: shttp.NewRequestContext(&http.Request{
+			Method: http.MethodPost,
+			Header: make(http.Header),
+			URL: &url.URL{
+				Host:    host.Name,
+				Path:    path,
+				RawPath: path,
+			},
+			Body: io.NopCloser(&buf),
+		}),
+	}
+
+	rq.OriginalPath = path
+
+	return rq
+}
+
+
 func (s *WithSKAuthSuite) Test_SKAuthDisabled() {
 	host := &hosting.Host{
 		Name:   "www.stormkit.io",
@@ -135,6 +164,47 @@ func (s *WithSKAuthSuite) Test_ValidCode() {
 	body := string(res.Data.([]byte))
 	s.Contains(body, `localStorage.setItem('skauth'`)
 	s.Contains(body, sessionToken)
+}
+
+// Test_RegisterPath_SKAuthDisabled checks that /_stormkit/auth/register is a no-op when SKAuth is not configured.
+func (s *WithSKAuthSuite) Test_RegisterPath_SKAuthDisabled() {
+	host := &hosting.Host{
+		Name:   "www.stormkit.io",
+		Config: &appconf.Config{},
+	}
+
+	req := s.newPostRequest(host, "/_stormkit/auth/register", map[string]any{
+		"email":    "test@example.com",
+		"password": "supersecret123",
+	})
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.Nil(res)
+}
+
+// Test_RegisterPath_MethodNotAllowed checks that /_stormkit/auth/register rejects non-POST requests.
+func (s *WithSKAuthSuite) Test_RegisterPath_MethodNotAllowed() {
+	req := s.newRequest(s.hostWithSKAuth(), "/_stormkit/auth/register")
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.NotNil(res)
+	s.Equal(http.StatusMethodNotAllowed, res.Status)
+}
+
+// Test_RegisterPath_MissingEnv checks that /_stormkit/auth/register returns 400 when the
+// host has no EnvID configured (envId injected as 0 triggers validation failure).
+func (s *WithSKAuthSuite) Test_RegisterPath_MissingEnv() {
+	req := s.newPostRequest(s.hostWithSKAuth(), "/_stormkit/auth/register", map[string]any{
+		"email":    "test@example.com",
+		"password": "supersecret123",
+	})
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.NotNil(res)
+	s.Equal(http.StatusBadRequest, res.Status)
 }
 
 func TestWithSKAuth(t *testing.T) {
