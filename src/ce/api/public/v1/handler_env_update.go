@@ -69,12 +69,18 @@ func handlerEnvUpdate(req *RequestContext) *shttp.Response {
 
 	if data.AutoDeployBranches != nil {
 		env.AutoDeployBranches = null.StringFrom(*data.AutoDeployBranches)
-		env.AutoDeploy = true
+
+		if *data.AutoDeployBranches != "" {
+			env.AutoDeploy = true
+		}
 	}
 
 	if data.AutoDeployCommits != nil {
 		env.AutoDeployCommits = null.StringFrom(*data.AutoDeployCommits)
-		env.AutoDeploy = true
+
+		if *data.AutoDeployCommits != "" {
+			env.AutoDeploy = true
+		}
 	}
 
 	if data.APIFolder != nil {

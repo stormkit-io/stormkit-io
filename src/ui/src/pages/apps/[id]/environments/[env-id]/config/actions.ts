@@ -196,16 +196,28 @@ export const updateEnvironment = ({
   setSuccess("");
 
   return api
-    .put<{ status: boolean }>(`/app/env`, {
-      id: envId,
-      build,
-      appId: app.id,
-      env: values.name,
+    .put<{ status: boolean }>(`/v1/env`, {
+      envId,
+      name: values.name,
       branch: values.branch,
       autoPublish: values.autoPublish === "on",
       autoDeploy: values.autoDeploy !== "disabled",
       autoDeployBranches: values.autoDeployBranches,
       autoDeployCommits: values.autoDeployCommits,
+      buildCmd: build.buildCmd,
+      serverCmd: build.serverCmd,
+      installCmd: build.installCmd,
+      distFolder: build.distFolder,
+      headers: build.headers,
+      headersFile: build.headersFile,
+      redirectsFile: build.redirectsFile,
+      errorFile: build.errorFile,
+      apiFolder: build.apiFolder,
+      apiPathPrefix: build.apiPathPrefix,
+      previewLinks: build.previewLinks,
+      statusChecks: build.statusChecks,
+      redirects: build.redirects,
+      envVars: build.vars,
     })
     .then(() => {
       setSuccess(successMsg);

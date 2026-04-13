@@ -235,6 +235,94 @@ func (s *HandlerEnvUpdateSuite) Test_BadRequest_InvalidRedirects() {
 	s.Contains(response.String(), "'from' is required")
 }
 
+func (s *HandlerEnvUpdateSuite) Test_BadRequest_DoubleHyphens() {
+	app := s.MockApp(nil)
+	env := s.MockEnv(app, map[string]any{
+		"Name": "development",
+	})
+	key := s.MockAPIKey(nil, env, map[string]any{
+		"Scope": apikey.SCOPE_ENV,
+		"EnvID": env.ID,
+	})
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodPut,
+		fmt.Sprintf("/v1/env?envId=%s", env.ID),
+		map[string]any{
+			"name": "development--renamed",
+		},
+		map[string]string{
+			"Authorization": key.Value,
+		},
+	)
+
+	s.Equal(http.StatusBadRequest, response.Code)
+	s.Contains(response.String(), "Double hyphens (--) are not allowed as they are reserved for Stormkit")
+}
+
+func (s *HandlerEnvUpdateSuite) Test_BadRequest_InvalidAutoDeployBranches() {
+	app := s.MockApp(nil)
+	env := s.MockEnv(app, map[string]any{
+		"Name": "development",
+	})
+	key := s.MockAPIKey(nil, env, map[string]any{
+		"Scope": apikey.SCOPE_ENV,
+		"EnvID": env.ID,
+	})
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodPut,
+		fmt.Sprintf("/v1/env?envId=%s", env.ID),
+		map[string]any{
+			"autoDeployBranches": "(invalid-regex",
+		},
+		map[string]string{
+			"Authorization": key.Value,
+		},
+	)
+
+	s.Equal(http.StatusBadRequest, response.Code)
+	s.Contains(response.String(), "parsing regexp: missing closing ) in `(invalid-regex`")
+}
+
+// Test_Success_DisableAutoDeploy verifies that sending autoDeploy=false with empty
+// autoDeployBranches and autoDeployCommits (as the frontend does when clearing) correctly
+// disables auto deploy without the empty-string branches re-enabling it.
+func (s *HandlerEnvUpdateSuite) Test_Success_DisableAutoDeploy() {
+	app := s.MockApp(nil)
+	env := s.MockEnv(app, map[string]any{
+		"AutoDeploy": true,
+	})
+	key := s.MockAPIKey(nil, env, map[string]any{
+		"Scope": apikey.SCOPE_ENV,
+		"EnvID": env.ID,
+	})
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodPut,
+		fmt.Sprintf("/v1/env?envId=%s", env.ID),
+		map[string]any{
+			"autoDeploy":         false,
+			"autoDeployBranches": "",
+			"autoDeployCommits":  "",
+		},
+		map[string]string{
+			"Authorization": key.Value,
+		},
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+
+	updated, err := buildconf.NewStore().EnvironmentByID(context.Background(), env.ID)
+
+	s.NoError(err)
+	s.NotNil(updated)
+	s.False(updated.AutoDeploy)
+}
+
 func TestHandlerEnvUpdate(t *testing.T) {
 	suite.Run(t, &HandlerEnvUpdateSuite{})
 }

@@ -3,6 +3,7 @@ import { expect } from "vitest";
 
 const endpoint = process.env.API_DOMAIN || "";
 
+// Used for POST /app/env (insert).
 const toRequestObject = (environment: Environment) => {
   return JSON.parse(
     JSON.stringify({
@@ -28,6 +29,39 @@ const toRequestObject = (environment: Environment) => {
         serverCmd: environment.build.serverCmd || "",
         vars: environment.build.vars,
       },
+    }),
+  );
+};
+
+// Used for PUT /v1/env (update) — flat body, no nesting.
+const toUpdateRequestObject = (environment: Environment) => {
+  return JSON.parse(
+    JSON.stringify({
+      envId: environment.id,
+      name: environment.name || environment.env,
+      branch: environment.branch,
+      autoPublish: !!environment.autoPublish,
+      autoDeploy: !!environment.autoDeploy,
+      autoDeployBranches: environment.autoDeployBranches || undefined,
+      autoDeployCommits: environment.autoDeployCommits || undefined,
+      buildCmd: environment.build.buildCmd?.trim() || "",
+      serverCmd: environment.build.serverCmd?.trim() || "",
+      installCmd: environment.build.installCmd?.trim() || "",
+      distFolder: (
+        environment.build.distFolder ||
+        environment.build.serverFolder ||
+        ""
+      ).trim(),
+      headers: environment.build.headers?.trim() || "",
+      headersFile: environment.build.headersFile,
+      redirectsFile: environment.build.redirectsFile,
+      errorFile: environment.build.errorFile,
+      apiFolder: environment.build.apiFolder,
+      apiPathPrefix: environment.build.apiPathPrefix,
+      previewLinks: environment.build.previewLinks !== false,
+      statusChecks: environment.build.statusChecks,
+      redirects: environment.build.redirects,
+      envVars: environment.build.vars,
     }),
   );
 };
@@ -94,8 +128,8 @@ export const mockUpdateEnvironment = ({
   response = { ok: true },
 }: UpdateEnvironmentProps) => {
   return nock(endpoint)
-    .put(`/app/env`, (body: any) => {
-      expect(body).toEqual(toRequestObject(environment));
+    .put(`/v1/env`, (body: any) => {
+      expect(body).toEqual(toUpdateRequestObject(environment));
       return true;
     })
     .reply(status, response);
