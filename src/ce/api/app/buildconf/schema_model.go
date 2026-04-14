@@ -9,6 +9,12 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
+// schemaStoreCache is a package-level cache of open schema store connections,
+// keyed by access type and connection coordinates. It survives across requests,
+// unlike the per-request SchemaConf structs that are deserialized fresh from
+// the database each time.
+var schemaStoreCache sync.Map
+
 type SchemaTable struct {
 	Name string
 	Size int64 // in bytes
@@ -58,8 +64,6 @@ type SchemaConf struct {
 	SSLMode           string `json:"sslMode"`
 	DriverName        string `json:"-"` // Used in tests to specify the driver name
 
-	cachedStores    map[string]*schemaStore `json:"-"`
-	cachedStoresMux sync.Mutex              `json:"-"`
 }
 
 // Value implements the Sql Driver interface.
@@ -70,18 +74,15 @@ func (sc *SchemaConf) Value() (driver.Value, error) {
 const SchemaAccessTypeMigrations = "migrations"
 const SchemaAccessTypeAppUser = "app"
 
+func (sc *SchemaConf) storeKey(accessType string) string {
+	return fmt.Sprintf("%s:%s@%s:%s/%s/%s", accessType, sc.AppUserName, sc.Host, sc.Port, sc.DBName, sc.SchemaName)
+}
+
 func (sc *SchemaConf) Store(accessType string) (*schemaStore, error) {
-	sc.cachedStoresMux.Lock()
-	defer sc.cachedStoresMux.Unlock()
+	cacheKey := sc.storeKey(accessType)
 
-	if sc.cachedStores == nil {
-		sc.cachedStores = make(map[string]*schemaStore)
-	}
-
-	cacheKey := fmt.Sprintf("%s:%s", accessType, sc.DBName)
-
-	if db, exists := sc.cachedStores[cacheKey]; exists {
-		return db, nil
+	if cached, ok := schemaStoreCache.Load(cacheKey); ok {
+		return cached.(*schemaStore), nil
 	}
 
 	store, err := SchemaStoreFor(sc, accessType)
@@ -90,8 +91,8 @@ func (sc *SchemaConf) Store(accessType string) (*schemaStore, error) {
 		return nil, err
 	}
 
-	sc.cachedStores[cacheKey] = store
-	return store, err
+	schemaStoreCache.Store(cacheKey, store)
+	return store, nil
 }
 
 // URL returns the psql connection URL.

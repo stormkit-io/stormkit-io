@@ -16,7 +16,7 @@ export default function AppMenu({ app, team }: Props) {
 
   const appMenu = useMemo(
     () => appMenuItems({ app, pathname }),
-    [app, pathname]
+    [app, pathname],
   );
 
   return (
@@ -60,6 +60,7 @@ export default function AppMenu({ app, team }: Props) {
             }}
           />
           <MenuLink
+            inline
             item={{
               text: <AppName imageSize={18} app={app} />,
               path: `/apps/${app.id}/environments/${app.defaultEnvId}`,
@@ -69,7 +70,7 @@ export default function AppMenu({ app, team }: Props) {
         </Box>
         <Box>
           {appMenu.map(item => (
-            <MenuLink key={item.path} item={item} sx={{ mr: 1 }} />
+            <MenuLink inline key={item.path} item={item} sx={{ mr: 1 }} />
           ))}
         </Box>
       </Box>

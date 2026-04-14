@@ -27,7 +27,7 @@ export default function EnvMenu() {
 
   const envMenu = useMemo(
     () => envMenuItems({ app, env, pathname }),
-    [app, env, pathname]
+    [app, env, pathname],
   );
 
   if (!selectedEnvId || !env) {
@@ -67,8 +67,8 @@ export default function EnvMenu() {
                 navigate(
                   pathname.replace(
                     `/environments/${selectedEnvId}`,
-                    `/environments/${e.target.value}`
-                  )
+                    `/environments/${e.target.value}`,
+                  ),
                 );
               } else {
                 navigate(`/apps/${app.id}/environments/${e.target.value}`);
@@ -100,18 +100,52 @@ export default function EnvMenu() {
           }}
         >
           {envMenu.map(item => (
-            <MenuLink
-              key={item.path}
-              item={item}
-              sx={{
-                borderBottom: "1px solid",
-                borderColor: "container.border",
-                mx: 2,
-                p: 2,
-                display: "flex",
-                alignItems: "center",
-              }}
-            />
+            <Box key={item.path}>
+              <Box
+                sx={{
+                  borderBottom: item.children ? undefined : "1px solid",
+                  borderColor: "container.border",
+                }}
+              >
+                <MenuLink
+                  item={item}
+                  sx={{
+                    flex: 1,
+                    mx: 2,
+                    p: 2,
+                    display: "flex",
+                    alignItems: "center",
+                  }}
+                />
+              </Box>
+              {item.isActive && item.children && (
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    borderBottom: "1px solid",
+                    borderColor: "container.border",
+                    pb: 2,
+                  }}
+                >
+                  {item.children.map(child => (
+                    <MenuLink
+                      dot
+                      key={child.path}
+                      item={child}
+                      sx={{
+                        mx: 2,
+                        py: 1,
+                        borderBottom: "1px solid",
+                        borderColor: "container.border",
+                        display: "flex",
+                        alignItems: "center",
+                      }}
+                    />
+                  ))}
+                </Box>
+              )}
+            </Box>
           ))}
         </Box>
         <Box sx={{ display: { xs: "block", md: "none" }, mr: 2 }}>

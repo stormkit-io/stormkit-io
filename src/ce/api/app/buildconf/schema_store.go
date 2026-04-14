@@ -715,11 +715,8 @@ func (s *schemaStore) ListAuthUsers(ctx context.Context, from, limit int) ([]*sk
 
 // Close closes the schema store and its underlying database connection.
 func (s *schemaStore) Close() error {
-	s.conf.cachedStoresMux.Lock()
-	defer s.conf.cachedStoresMux.Unlock()
-
 	if s.conf != nil {
-		delete(s.conf.cachedStores, fmt.Sprintf("%s:%s", s.accessType, s.conf.DBName))
+		schemaStoreCache.Delete(s.conf.storeKey(s.accessType))
 	}
 
 	return s.Conn.Close()

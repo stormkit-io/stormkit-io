@@ -225,3 +225,59 @@ export const useFetchProviders = ({
 
   return { providers, loading, error, config };
 };
+
+export interface AuthUser {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  avatar: string;
+  createdAt: number;
+  lastLoginAt: number;
+}
+
+interface FetchAuthUsersParams {
+  envId: string;
+  refreshToken?: number;
+}
+
+export const useFetchAuthUsers = ({ envId, refreshToken }: FetchAuthUsersParams) => {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>();
+  const [users, setUsers] = useState<AuthUser[]>([]);
+  const [offset, setOffset] = useState(0);
+  const [hasNextPage, setHasNextPage] = useState(false);
+
+  const fetchPage = (from: number) => {
+    setLoading(true);
+    setError(undefined);
+
+    api
+      .fetch<{ results: AuthUser[]; hasNextPage: boolean }>(
+        `/v1/auth/users?envId=${envId}&from=${from}`
+      )
+      .then(({ results, hasNextPage }) => {
+        setUsers(prev => (from === 0 ? results : [...prev, ...results]));
+        setHasNextPage(hasNextPage);
+        setOffset(from + results.length);
+      })
+      .catch(() => {
+        setError("Something went wrong while fetching auth users.");
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    setOffset(0);
+    setUsers([]);
+    fetchPage(0);
+  }, [envId, refreshToken]);
+
+  const loadMore = () => {
+    fetchPage(offset);
+  };
+
+  return { loading, error, users, hasNextPage, loadMore };
+};

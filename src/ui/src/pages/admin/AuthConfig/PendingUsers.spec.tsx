@@ -289,7 +289,7 @@ describe("~/pages/admin/AuthConfig/PendingUsers.tsx", () => {
         expect(fetchScope.isDone()).toBe(true);
       });
 
-      const checkboxes = wrapper.getAllByRole("checkbox");
+      const checkboxes = await waitFor(() => wrapper.getAllByRole("checkbox"));
 
       // Select a user
       fireEvent.click(checkboxes[1]);
@@ -449,7 +449,7 @@ describe("~/pages/admin/AuthConfig/PendingUsers.tsx", () => {
         expect(fetchScope.isDone()).toBe(true);
       });
 
-      const checkboxes = wrapper.getAllByRole("checkbox");
+      const checkboxes = await waitFor(() => wrapper.getAllByRole("checkbox"));
 
       // Select first user
       fireEvent.click(checkboxes[1]);

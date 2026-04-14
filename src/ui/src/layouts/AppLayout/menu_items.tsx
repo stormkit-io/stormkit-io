@@ -8,6 +8,7 @@ import InsertChartIcon from "@mui/icons-material/InsertChart";
 import MailIcon from "@mui/icons-material/Mail";
 import GroupIcon from "@mui/icons-material/Group";
 import DatabaseIcon from "@mui/icons-material/Inventory";
+import { SxProps } from "@mui/material/styles";
 
 export const appMenuItems = ({
   app,
@@ -35,10 +36,11 @@ interface Path {
   icon?: React.ReactNode;
   text: React.ReactNode;
   isActive?: boolean;
+  children?: Omit<Path, "children">[];
 }
 
-const Icon = (Icon: any) => {
-  return <Icon sx={{ fontSize: 15, mr: 2, color: "text.secondary" }} />;
+const Icon = (Icon: any, sx: SxProps = {}) => {
+  return <Icon sx={{ fontSize: 15, mr: 2, color: "text.secondary", ...sx }} />;
 };
 
 export const envMenuItems = ({
@@ -56,7 +58,7 @@ export const envMenuItems = ({
 
   const envPath = `/apps/${app.id}/environments/${env.id}`;
 
-  const items = [
+  const items: Path[] = [
     {
       text: "Config",
       path: envPath,
@@ -102,6 +104,18 @@ export const envMenuItems = ({
       path: `${envPath}/auth`,
       icon: Icon(GroupIcon),
       isActive: pathname.includes("/auth"),
+      children: [
+        {
+          text: "Providers",
+          path: `${envPath}/auth`,
+          isActive: pathname.endsWith("/auth"),
+        },
+        {
+          text: "Users",
+          path: `${envPath}/auth/users`,
+          isActive: pathname.endsWith("/auth/users"),
+        },
+      ],
     });
   }
 
