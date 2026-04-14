@@ -126,6 +126,19 @@ type User struct {
 	LastLoginAt utils.Unix `json:"lastLoginAt,omitempty"`
 }
 
+// JSON returns a map representation of the user for API responses.
+func (u *User) JSON() map[string]any {
+	return map[string]any{
+		"id":          u.ID.String(),
+		"firstName":   u.FirstName,
+		"lastName":    u.LastName,
+		"email":       u.Email,
+		"avatar":      u.Avatar,
+		"createdAt":   u.CreatedAt,
+		"lastLoginAt": u.LastLoginAt,
+	}
+}
+
 // RedirectURL returns the OAuth2 redirect URL.
 func RedirectURL() string {
 	return admin.MustConfig().ApiURL("/v1/auth/callback")

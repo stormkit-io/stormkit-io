@@ -23,7 +23,7 @@ var schemaStmt = struct {
 	createMigrationsTable string
 	selectMigrations      string
 	insertOAuth           string
-	insertAuthUser        string
+	insertAuthUser string
 }{
 	createAuthTable: `
 		CREATE TABLE IF NOT EXISTS stormkit_auth_users (
@@ -115,9 +115,9 @@ var sqlTemplates = struct {
 	createMigrationUser *template.Template
 	createAppUser       *template.Template
 	dropSchema          *template.Template
-	selectAuthUser      *template.Template
+	selectAuthUsers     *template.Template
 }{
-	selectAuthUser: template.Must(template.New("selectAuthUser").Parse(`
+	selectAuthUsers: template.Must(template.New("selectAuthUsers").Parse(`
 		SELECT
 			u.user_id,
 			u.first_name,
@@ -132,8 +132,13 @@ var sqlTemplates = struct {
 			{{- if .WithHash}}
 			JOIN stormkit_auth_providers p ON u.user_id = p.user_id AND p.provider_name = $2
 			{{- end}}
+		{{- if .WhereField}}
 		WHERE
-			u.{{.WhereField}} = $1;
+			u.{{.WhereField}} = $1
+		{{- else}}
+		ORDER BY u.user_id ASC
+		LIMIT $1 OFFSET $2
+		{{- end}};
 	`)),
 	createSchema: template.Must(template.New("createSchema").Parse(`CREATE SCHEMA IF NOT EXISTS {{.SchemaName}}`)),
 
@@ -618,13 +623,13 @@ func (s *schemaStore) AuthUser(ctx context.Context, authID types.ID) (*skauth.Us
 
 	buf := bytes.Buffer{}
 
-	err := sqlTemplates.selectAuthUser.Execute(&buf, map[string]any{
+	err := sqlTemplates.selectAuthUsers.Execute(&buf, map[string]any{
 		"WhereField": "user_id",
 		"WithHash":   false,
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to render selectAuthUser template: %w", err)
+		return nil, fmt.Errorf("failed to render selectAuthUsers template: %w", err)
 	}
 
 	row, err := s.QueryRow(ctx, buf.String(), authID)
@@ -654,6 +659,58 @@ func (s *schemaStore) AuthUser(ctx context.Context, authID types.ID) (*skauth.Us
 	}
 
 	return authUser, nil
+}
+
+// ListAuthUsers returns a paginated list of authentication users.
+func (s *schemaStore) ListAuthUsers(ctx context.Context, from, limit int) ([]*skauth.User, error) {
+	if s.conf == nil {
+		return nil, fmt.Errorf("schema configuration is required to list auth users")
+	}
+
+	buf := bytes.Buffer{}
+
+	if err := sqlTemplates.selectAuthUsers.Execute(&buf, map[string]any{
+		"WhereField": "",
+		"WithHash":   false,
+	}); err != nil {
+		return nil, fmt.Errorf("failed to render selectAuthUsers template: %w", err)
+	}
+
+	rows, err := s.Query(ctx, buf.String(), limit, from)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if rows == nil {
+		return []*skauth.User{}, nil
+	}
+
+	defer rows.Close()
+
+	users := []*skauth.User{}
+
+	for rows.Next() {
+		u := &skauth.User{}
+
+		err = rows.Scan(
+			&u.ID,
+			&u.FirstName,
+			&u.LastName,
+			&u.Email,
+			&u.Avatar,
+			&u.CreatedAt,
+			&u.LastLoginAt,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		users = append(users, u)
+	}
+
+	return users, nil
 }
 
 // Close closes the schema store and its underlying database connection.
