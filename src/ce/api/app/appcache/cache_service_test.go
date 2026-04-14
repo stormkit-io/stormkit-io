@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -61,29 +62,57 @@ func (s *CacheSuite) SetupSuite() {
 
 func (s *CacheSuite) Test_ResetCache() {
 	service := rediscache.Service()
+
+	var mu sync.Mutex
 	msgs := []string{}
 
+	snapshot := func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+		return slices.Clone(msgs)
+	}
+
 	s.NoError(service.SubscribeAsync(rediscache.EventInvalidateHostingCache, func(ctx context.Context, payload ...string) {
+		mu.Lock()
+		defer mu.Unlock()
 		msgs = append(msgs, payload...)
 	}))
 
 	s.NoError(appcache.Service().Reset(s.env.ID))
 
-	expected := []string{
-		// First three comes from the first call
+	firstBatch := []string{
 		"example.org",
 		fmt.Sprintf(`^%s(?:--\d+)?`, s.app.DisplayName),
 		"www.example.org",
-
-		// Last one comes from the second call
-		"www.example.org",
 	}
+
+	sortedEqual := func(a, b []string) bool {
+		if len(a) != len(b) {
+			return false
+		}
+		ac, bc := slices.Clone(a), slices.Clone(b)
+		slices.Sort(ac)
+		slices.Sort(bc)
+		return slices.Equal(ac, bc)
+	}
+
+	// Wait for the first batch to arrive before issuing the second Reset,
+	// so messages from both calls don't interleave.
+	// ResetCacheArgs has no ORDER BY, so compare order-insensitively.
+	s.Require().Eventually(func() bool {
+		return sortedEqual(firstBatch, snapshot())
+	}, 5*time.Second, 100*time.Millisecond)
 
 	// With filters
 	s.NoError(appcache.Service().Reset(0, "www.example.org"))
 
 	s.Eventually(func() bool {
-		return slices.Equal(expected, msgs)
+		snap := snapshot()
+		// The last message is always deterministic (direct key from second Reset).
+		// The first 3 can arrive in any order due to no ORDER BY in ResetCacheArgs.
+		return len(snap) == 4 &&
+			snap[len(snap)-1] == "www.example.org" &&
+			sortedEqual(snap[:3], firstBatch)
 	}, 5*time.Second, 100*time.Millisecond)
 }
 
