@@ -1,5 +1,32 @@
 # Changelog
 
+## v2026.04.10.1...v2026.04.16.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.10.1...v2026.04.16.1)
+
+### 🚀 Enhancements
+
+- Add email provider foundation for SkAuth ([485cc32](https://github.com/stormkit-io/stormkit-io/commit/485cc32))
+- Add skauth email registration endpoint ([65149ab](https://github.com/stormkit-io/stormkit-io/commit/65149ab))
+- Retire buildconfhandlers env update handler ([#168](https://github.com/stormkit-io/stormkit-io/pull/168))
+- Add email auth provider to SkAuth and expose /_stormkit/auth/register endpoint ([#169](https://github.com/stormkit-io/stormkit-io/pull/169))
+- Add GET /v1/auth/users public API endpoint ([#170](https://github.com/stormkit-io/stormkit-io/pull/170))
+- Add auth users UI and secondary nav ([#172](https://github.com/stormkit-io/stormkit-io/pull/172))
+
+### 🩹 Fixes
+
+- Wire auth config form submission to API ([2c50473](https://github.com/stormkit-io/stormkit-io/commit/2c50473))
+- Eliminate data race and ordering flakiness in TestCacheSuite/TestResetCache ([#171](https://github.com/stormkit-io/stormkit-io/pull/171))
+- Use inline menu links for admin menu ([35e7004](https://github.com/stormkit-io/stormkit-io/commit/35e7004))
+
+### 🏡 Chore
+
+- Update changelog for v2026.04.10.1 ([ecfe84f](https://github.com/stormkit-io/stormkit-io/commit/ecfe84f))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.04.09.1...v2026.04.10.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.09.1...v2026.04.10.1)
