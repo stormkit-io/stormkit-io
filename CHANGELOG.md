@@ -1,5 +1,25 @@
 # Changelog
 
+## v2026.04.16.1...v2026.04.17.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.16.1...v2026.04.17.1)
+
+### 🚀 Enhancements
+
+- Inject mise tool paths into deployment CI environment ([#175](https://github.com/stormkit-io/stormkit-io/pull/175))
+
+### 🩹 Fixes
+
+- Avoid duplicate mise activation in .bashrc and update default version ([#174](https://github.com/stormkit-io/stormkit-io/pull/174))
+
+### 🏡 Chore
+
+- Update changelog for v2026.04.16.1 ([#173](https://github.com/stormkit-io/stormkit-io/pull/173))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.04.10.1...v2026.04.16.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.10.1...v2026.04.16.1)
