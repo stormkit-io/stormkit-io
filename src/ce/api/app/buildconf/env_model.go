@@ -1,6 +1,7 @@
 package buildconf
 
 import (
+	"context"
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
@@ -11,8 +12,10 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/redirects"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
+	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils/mise"
 	null "gopkg.in/guregu/null.v3"
 )
 
@@ -206,6 +209,7 @@ type InterpolatedVarsOpts struct {
 	DeploymentID string
 	Env          string
 	EnvID        string
+	BinPaths     bool
 }
 
 func systmVars() map[string]string {
@@ -222,6 +226,18 @@ func (bc *BuildConf) InterpolatedVars(opts InterpolatedVarsOpts) map[string]stri
 
 	if vars == nil {
 		vars = map[string]string{}
+	}
+
+	if opts.BinPaths {
+		paths, err := mise.Client().BinPaths(context.Background())
+
+		if err != nil {
+			slog.Errorf("Error fetching mise paths: %v\n", err)
+		}
+
+		for key, value := range paths {
+			vars[key] = value
+		}
 	}
 
 	vars["SK_APP_ID"] = opts.AppID

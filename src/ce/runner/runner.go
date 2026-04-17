@@ -56,6 +56,30 @@ func normalize(msg *deployservice.DeploymentMessage) *deployservice.DeploymentMe
 	return msg
 }
 
+// PrepareEnvVars builds a []string env slice from the map, always using the
+// current process PATH and HOME so mise path updates are picked up automatically.
+func PrepareEnvVars(envVars map[string]string) []string {
+	result := []string{
+		"CI=true",
+		"PATH=" + os.Getenv("PATH"),
+		"HOME=" + os.Getenv("HOME"),
+	}
+
+	keys := make([]string, 0, len(envVars))
+
+	for k := range envVars {
+		keys = append(keys, k)
+	}
+
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		result = append(result, k+"="+envVars[k])
+	}
+
+	return result
+}
+
 func printEnvVariables(opts RunnerOpts) error {
 	vars := []string{}
 
@@ -137,8 +161,7 @@ type BuildOpts struct {
 	RedirectsFile    string
 	APIFolder        string            // Relative path to the API folder (trimmed)
 	DistFolder       string            // Relative path to the distribution folder (trimmed)
-	EnvVars          map[string]string // Normalized environment variables
-	EnvVarsRaw       []string          // Raw environment variables in KEY=VALUE format
+	EnvVars map[string]string // Normalized environment variables
 	DeploymentID     string
 	AppID            string
 	EnvID            string
@@ -230,18 +253,9 @@ func Start(payload, rootDir string) error {
 			DistFolder:       trim(msg.Build.DistFolder),
 			MigrationsFolder: trim(msg.Build.MigrationsFolder),
 			StatusChecks:     msg.Build.StatusChecks,
-			EnvVars:          msg.Build.Vars,
-			EnvVarsRaw: []string{
-				"CI=true",
-				fmt.Sprintf("PATH=%s", os.Getenv("PATH")),
-				fmt.Sprintf("HOME=%s", os.Getenv("HOME")),
-			},
+			EnvVars: msg.Build.Vars,
 		},
 		Uploader: msg.Config,
-	}
-
-	for k, v := range opts.Build.EnvVars {
-		opts.Build.EnvVarsRaw = append(opts.Build.EnvVarsRaw, fmt.Sprintf("%s=%s", k, v))
 	}
 
 	if opts.Build.EnvVars == nil {
@@ -336,11 +350,6 @@ func Run(opts RunnerOpts) *RunResult {
 
 	if miseOutput, err = installer.InstallRuntimeDependencies(ctx); err != nil {
 		return &RunResult{opts: opts, err: err}
-	}
-
-	// Make sure the path is updated (the first variable is always the PATH)
-	if len(opts.Build.EnvVarsRaw) > 1 {
-		opts.Build.EnvVarsRaw[1] = fmt.Sprintf("PATH=%s", os.Getenv("PATH"))
 	}
 
 	if err := installer.RuntimeVersion(ctx); err != nil {

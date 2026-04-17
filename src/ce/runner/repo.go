@@ -30,7 +30,6 @@ type Repo struct {
 	branch      string // The branch to checkout
 	workDir     string
 	vars        map[string]string
-	varsRaw     []string
 	reporter    *ReporterModel
 }
 
@@ -54,7 +53,6 @@ func NewRepo(opts RunnerOpts) RepoInterface {
 		branch:      opts.Repo.Branch,
 		workDir:     opts.WorkDir,
 		vars:        opts.Build.EnvVars,
-		varsRaw:     opts.Build.EnvVarsRaw,
 		reporter:    opts.Reporter,
 	}
 
@@ -115,7 +113,7 @@ func (r Repo) Checkout(ctx context.Context) error {
 				"--progress", "--single-branch",
 				"--branch", r.branch, r.dir,
 			},
-			Env:    r.varsRaw,
+			Env:    PrepareEnvVars(r.vars),
 			Stdout: r.reporter.File(),
 			Stderr: r.reporter.File(),
 		},
@@ -125,7 +123,7 @@ func (r Repo) Checkout(ctx context.Context) error {
 		cmd = sys.Command(ctx, sys.CommandOpts{
 			Name:   "sh",
 			Args:   []string{"-c", fmt.Sprintf("%s %s", ssh, cmd.String())},
-			Env:    r.varsRaw,
+			Env:    PrepareEnvVars(r.vars),
 			Stdout: r.reporter.File(),
 			Stderr: r.reporter.File(),
 		})
@@ -144,7 +142,7 @@ func (r Repo) HeadSHA() string {
 		Name: "git",
 		Args: []string{"rev-parse", "HEAD"},
 		Dir:  r.dir,
-		Env:  r.varsRaw,
+		Env:  PrepareEnvVars(r.vars),
 	})
 
 	msg, _ := cmd.Output()
@@ -157,7 +155,7 @@ func (r Repo) AuthorInfo() string {
 		Name: "git",
 		Args: []string{"--no-pager", "show", "-s", "--format='%an <%ae>'", "HEAD"},
 		Dir:  r.dir,
-		Env:  r.varsRaw,
+		Env:  PrepareEnvVars(r.vars),
 	})
 
 	msg, _ := cmd.Output()
@@ -170,7 +168,7 @@ func (r Repo) CommitMsg() string {
 		Name: "git",
 		Args: []string{"log", "-1", "--pretty=%B"},
 		Dir:  r.dir,
-		Env:  r.varsRaw,
+		Env:  PrepareEnvVars(r.vars),
 	})
 
 	msg, _ := cmd.Output()

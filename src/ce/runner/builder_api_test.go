@@ -30,11 +30,6 @@ func (s *APIBuilderSuite) BeforeTest(_, _ string) {
 			Dir: path.Join(tmpDir, "repo"),
 		},
 		Build: runner.BuildOpts{
-			EnvVarsRaw: []string{
-				"CI=true",
-				fmt.Sprintf("PATH=%s", os.Getenv("PATH")),
-				fmt.Sprintf("HOME=%s", os.Getenv("HOME")),
-			},
 		},
 	}
 
@@ -57,7 +52,6 @@ func (s *APIBuilderSuite) Test_NewAPIBuilder() {
 	ctx := context.Background()
 	options := runner.APIBuilderOpts{
 		WorkDir:        s.config.Repo.Dir,
-		EnvVarsSlice:   s.config.Build.EnvVarsRaw,
 		APIDir:         "api",
 		OutputDir:      "dist",
 		PackageManager: "npm",
@@ -70,7 +64,6 @@ func (s *APIBuilderSuite) Test_BuildAll_NoAPIFiles() {
 	ctx := context.Background()
 	options := runner.APIBuilderOpts{
 		WorkDir:        s.config.Repo.Dir,
-		EnvVarsSlice:   s.config.Build.EnvVarsRaw,
 		APIDir:         "api",
 		OutputDir:      "dist",
 		PackageManager: "npm",
@@ -87,7 +80,6 @@ func (s *APIBuilderSuite) Test_BuildAll_WithJSFiles() {
 	ctx := context.Background()
 	options := runner.APIBuilderOpts{
 		WorkDir:        s.config.Repo.Dir,
-		EnvVarsSlice:   s.config.Build.EnvVarsRaw,
 		APIDir:         "api",
 		OutputDir:      "dist",
 		PackageManager: "npm",
@@ -136,7 +128,6 @@ func (s *APIBuilderSuite) Test_BuildAll_WithNestedDirectories() {
 	ctx := context.Background()
 	options := runner.APIBuilderOpts{
 		WorkDir:        s.config.Repo.Dir,
-		EnvVarsSlice:   s.config.Build.EnvVarsRaw,
 		APIDir:         "api",
 		OutputDir:      "dist",
 		PackageManager: "npm",
@@ -169,7 +160,6 @@ func (s *APIBuilderSuite) Test_BuildAll_SkipsPrivateFiles() {
 	ctx := context.Background()
 	options := runner.APIBuilderOpts{
 		WorkDir:        s.config.Repo.Dir,
-		EnvVarsSlice:   s.config.Build.EnvVarsRaw,
 		APIDir:         "api",
 		OutputDir:      "dist",
 		PackageManager: "npm",
@@ -205,7 +195,6 @@ func (s *APIBuilderSuite) Test_InstallDependencies_NPM() {
 	options := runner.APIBuilderOpts{
 		WorkDir:        s.config.Repo.Dir,
 		Reporter:       s.config.Reporter,
-		EnvVarsSlice:   s.config.Build.EnvVarsRaw,
 		APIDir:         "api",
 		OutputDir:      "dist",
 		PackageManager: "npm",
@@ -225,7 +214,7 @@ func (s *APIBuilderSuite) Test_InstallDependencies_NPM() {
 
 	// Mock npm install command
 	s.mockCmd.On("SetOpts", sys.CommandOpts{
-		Env:    s.config.Build.EnvVarsRaw,
+		Env:    runner.PrepareEnvVars(s.config.Build.EnvVars),
 		Name:   "npm",
 		Args:   []string{"install"},
 		Dir:    apiDir,
@@ -246,7 +235,6 @@ func (s *APIBuilderSuite) Test_InstallDependencies_NPM_WithLockFile() {
 	options := runner.APIBuilderOpts{
 		WorkDir:        s.config.Repo.Dir,
 		Reporter:       s.config.Reporter,
-		EnvVarsSlice:   s.config.Build.EnvVarsRaw,
 		APIDir:         "api",
 		OutputDir:      "dist",
 		PackageManager: "npm",
@@ -268,7 +256,7 @@ func (s *APIBuilderSuite) Test_InstallDependencies_NPM_WithLockFile() {
 
 	// Mock npm ci command (used when package-lock.json exists)
 	s.mockCmd.On("SetOpts", sys.CommandOpts{
-		Env:    s.config.Build.EnvVarsRaw,
+		Env:    runner.PrepareEnvVars(s.config.Build.EnvVars),
 		Name:   "npm",
 		Args:   []string{"ci", "--include=dev"},
 		Dir:    apiDir,
@@ -288,7 +276,6 @@ func (s *APIBuilderSuite) Test_InstallDependencies_Yarn() {
 	ctx := context.Background()
 	options := runner.APIBuilderOpts{
 		WorkDir:        s.config.Repo.Dir,
-		EnvVarsSlice:   s.config.Build.EnvVarsRaw,
 		Reporter:       s.config.Reporter,
 		APIDir:         "api",
 		OutputDir:      "dist",
@@ -310,7 +297,7 @@ func (s *APIBuilderSuite) Test_InstallDependencies_Yarn() {
 
 	// Mock yarn install command
 	s.mockCmd.On("SetOpts", sys.CommandOpts{
-		Env:    s.config.Build.EnvVarsRaw,
+		Env:    runner.PrepareEnvVars(s.config.Build.EnvVars),
 		Name:   "yarn",
 		Args:   []string{"install"},
 		Dir:    apiDir,
@@ -331,7 +318,6 @@ func (s *APIBuilderSuite) Test_InstallDependencies_MultiplePackageFiles() {
 	options := runner.APIBuilderOpts{
 		WorkDir:        s.config.Repo.Dir,
 		Reporter:       s.config.Reporter,
-		EnvVarsSlice:   s.config.Build.EnvVarsRaw,
 		APIDir:         "api",
 		OutputDir:      "dist",
 		PackageManager: "npm",
@@ -354,7 +340,7 @@ func (s *APIBuilderSuite) Test_InstallDependencies_MultiplePackageFiles() {
 
 	// Mock npm install commands for both directories
 	s.mockCmd.On("SetOpts", sys.CommandOpts{
-		Env:    s.config.Build.EnvVarsRaw,
+		Env:    runner.PrepareEnvVars(s.config.Build.EnvVars),
 		Name:   "npm",
 		Args:   []string{"install"},
 		Dir:    usersDir,
@@ -363,7 +349,7 @@ func (s *APIBuilderSuite) Test_InstallDependencies_MultiplePackageFiles() {
 	}).Return(s.mockCmd).Once()
 
 	s.mockCmd.On("SetOpts", sys.CommandOpts{
-		Env:    s.config.Build.EnvVarsRaw,
+		Env:    runner.PrepareEnvVars(s.config.Build.EnvVars),
 		Name:   "npm",
 		Args:   []string{"install"},
 		Dir:    postsDir,
@@ -383,7 +369,6 @@ func (s *APIBuilderSuite) Test_BuildAll_SupportedFileExtensions() {
 	ctx := context.Background()
 	options := runner.APIBuilderOpts{
 		WorkDir:        s.config.Repo.Dir,
-		EnvVarsSlice:   s.config.Build.EnvVarsRaw,
 		Reporter:       s.config.Reporter,
 		APIDir:         "api",
 		OutputDir:      "dist",
@@ -427,7 +412,6 @@ func (s *APIBuilderSuite) Test_InstallDependencies_CommandFailure() {
 	ctx := context.Background()
 	options := runner.APIBuilderOpts{
 		WorkDir:        s.config.Repo.Dir,
-		EnvVarsSlice:   s.config.Build.EnvVarsRaw,
 		Reporter:       s.config.Reporter,
 		APIDir:         "api",
 		OutputDir:      "dist",
@@ -443,7 +427,7 @@ func (s *APIBuilderSuite) Test_InstallDependencies_CommandFailure() {
 
 	// Mock failing npm install command
 	s.mockCmd.On("SetOpts", sys.CommandOpts{
-		Env:    s.config.Build.EnvVarsRaw,
+		Env:    runner.PrepareEnvVars(s.config.Build.EnvVars),
 		Name:   "npm",
 		Args:   []string{"install"},
 		Dir:    apiDir,

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 	"sync"
 	"time"
@@ -33,6 +34,7 @@ type MiseInterface interface {
 	InstallLocal(context.Context, LocalOpts) error // Runs mise install in the specified directory
 	ListLocal(context.Context, LocalOpts) ([]string, error)
 	ListGlobal(context.Context) (map[string][]ListOutput, error)
+	BinPaths(context.Context) (map[string]string, error) // Returns { "MISE_<TOOL>_PATH": <path> }
 	Version() (string, error)
 	SelfUpdate(ctx context.Context) error
 	Prune(ctx context.Context) error
@@ -89,6 +91,7 @@ func (m *Mise) InstallMise(ctx context.Context) error {
 		},
 		Env: []string{
 			"MISE_VERSION=" + utils.GetString(os.Getenv("MISE_VERSION"), "v2026.4.15"),
+			"PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=true",
 			"PATH=" + os.Getenv("PATH"),
 			"HOME=" + os.Getenv("HOME"),
 		},
@@ -240,6 +243,36 @@ func (m *Mise) ListLocal(ctx context.Context, opts LocalOpts) ([]string, error) 
 	}
 
 	return requiredDependencies, nil
+}
+
+func (m *Mise) BinPaths(ctx context.Context) (map[string]string, error) {
+	tools, err := m.ListLocal(ctx, LocalOpts{})
+
+	if err != nil {
+		return nil, err
+	}
+
+	vars := map[string]string{}
+
+	for _, tool := range tools {
+		pieces := strings.Split(tool, "@")
+		toolName := pieces[0]
+
+		// nix:chromium for example should return just "chromium" as the tool name
+		if strings.Contains(toolName, ":") {
+			toolName = strings.Split(toolName, ":")[1]
+		}
+
+		toolPath, err := exec.LookPath(toolName)
+
+		if err != nil {
+			return nil, fmt.Errorf("error looking up path for tool %s: %v", toolName, err)
+		}
+
+		vars[fmt.Sprintf("MISE_%s_PATH", strings.ToUpper(toolName))] = toolPath
+	}
+
+	return vars, nil
 }
 
 // ListGlobal lists the globally installed runtimes using mise.

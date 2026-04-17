@@ -371,6 +371,7 @@ func rowsToConfigs(rows *sql.Rows, err error) ([]*Config, error) {
 					EnvID:        cnf.EnvID.String(),
 					Env:          envName,
 					DisplayName:  displayName,
+					BinPaths:     true,
 				},
 			)
 

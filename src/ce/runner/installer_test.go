@@ -37,9 +37,7 @@ func (s *InstallerSuite) BeforeTest(_, _ string) {
 		WorkDir:  path.Join(tmpDir, "repo"),
 		Reporter: runner.NewReporter("http://example.com"),
 		Build: runner.BuildOpts{
-			EnvVarsRaw: []string{
-				"CI=true",
-			},
+			EnvVars: map[string]string{},
 		},
 		Repo: runner.RepoOpts{
 			Dir: path.Join(tmpDir, "repo"),
@@ -145,7 +143,7 @@ func (s *InstallerSuite) Test_Install_Yarn() {
 		Name: "yarn",
 		Args: []string{"--version"},
 		Dir:  s.config.WorkDir,
-		Env:  s.config.Build.EnvVarsRaw,
+		Env:    runner.PrepareEnvVars(s.config.Build.EnvVars),
 	}).Return(s.mockCmd).Once()
 
 	s.mockCmd.On("Output").Return([]byte("1.22.19\n"), nil).Once()
@@ -155,7 +153,7 @@ func (s *InstallerSuite) Test_Install_Yarn() {
 		Name:   "yarn",
 		Args:   []string{"config", "set", "workspaces-experimental", "true"},
 		Dir:    s.config.WorkDir,
-		Env:    s.config.Build.EnvVarsRaw,
+		Env:    runner.PrepareEnvVars(s.config.Build.EnvVars),
 		Stdout: s.config.Reporter.File(),
 		Stderr: s.config.Reporter.File(),
 	}).Return(s.mockCmd).Once()
@@ -167,7 +165,7 @@ func (s *InstallerSuite) Test_Install_Yarn() {
 		Name:   "yarn",
 		Args:   []string{"--production=false"},
 		Dir:    s.config.Repo.Dir,
-		Env:    s.config.Build.EnvVarsRaw,
+		Env:    runner.PrepareEnvVars(s.config.Build.EnvVars),
 		Stdout: s.config.Reporter.File(),
 		Stderr: s.config.Reporter.File(),
 	}).Return(s.mockCmd).Once()
@@ -206,7 +204,7 @@ func (s *InstallerSuite) Test_Install_Npm() {
 			Name:   cmd[0],
 			Args:   cmd[1:],
 			Dir:    s.config.Repo.Dir,
-			Env:    s.config.Build.EnvVarsRaw,
+			Env:    runner.PrepareEnvVars(s.config.Build.EnvVars),
 			Stdout: s.config.Reporter.File(),
 			Stderr: s.config.Reporter.File(),
 		}).Return(s.mockCmd).Once()
@@ -248,7 +246,7 @@ func (s *InstallerSuite) Test_Install_Npm_Windows() {
 			Name:   cmd[0],
 			Args:   cmd[1:],
 			Dir:    s.config.Repo.Dir,
-			Env:    s.config.Build.EnvVarsRaw,
+			Env:    runner.PrepareEnvVars(s.config.Build.EnvVars),
 			Stdout: s.config.Reporter.File(),
 			Stderr: s.config.Reporter.File(),
 		}).Return(s.mockCmd).Once()
@@ -282,7 +280,7 @@ func (s *InstallerSuite) Test_Install_Pnpm() {
 		Name:   "pnpm",
 		Args:   []string{"install"},
 		Dir:    s.config.Repo.Dir,
-		Env:    s.config.Build.EnvVarsRaw,
+		Env:    runner.PrepareEnvVars(s.config.Build.EnvVars),
 		Stdout: s.config.Reporter.File(),
 		Stderr: s.config.Reporter.File(),
 	}).Return(s.mockCmd).Once()
@@ -316,7 +314,7 @@ func (s *InstallerSuite) Test_Install_Bun() {
 		Name:   "bun",
 		Args:   []string{"install"},
 		Dir:    s.config.Repo.Dir,
-		Env:    s.config.Build.EnvVarsRaw,
+		Env:    runner.PrepareEnvVars(s.config.Build.EnvVars),
 		Stdout: s.config.Reporter.File(),
 		Stderr: s.config.Reporter.File(),
 	}).Return(s.mockCmd).Once()
@@ -349,7 +347,7 @@ func (s *InstallerSuite) TestInstall_Custom() {
 		Name:   "sh",
 		Args:   []string{"-c", "npm install"},
 		Dir:    s.config.Repo.Dir,
-		Env:    s.config.Build.EnvVarsRaw,
+		Env:    runner.PrepareEnvVars(s.config.Build.EnvVars),
 		Stdout: s.config.Reporter.File(),
 		Stderr: s.config.Reporter.File(),
 	}).Return(s.mockCmd).Once()
@@ -402,7 +400,7 @@ func (s *InstallerSuite) Test_Runtimes() {
 			Name:   strings.Split(expected.ExpectedMessage, " ")[0],
 			Args:   strings.Split(expected.ExpectedMessage, " ")[1:],
 			Dir:    s.config.Repo.Dir,
-			Env:    s.config.Build.EnvVarsRaw,
+			Env:    runner.PrepareEnvVars(s.config.Build.EnvVars),
 			Stdout: s.config.Reporter.File(),
 			Stderr: s.config.Reporter.File(),
 		}).Return(s.mockCmd).Once()
@@ -425,6 +423,7 @@ func (s *InstallerSuite) Test_InstallingRuntimeDeps() {
 	s.mockMise.On("InstallMise", ctx).Return(nil).Once()
 	s.mockMise.On("InstallLocal", ctx, mise.LocalOpts{Dir: workDir, Stdout: stdout, Stderr: stdout}).Return(nil).Once()
 	s.mockMise.On("ListLocal", ctx, mise.LocalOpts{Dir: workDir}).Return([]string{"go@1.24"}, nil).Once()
+	s.mockMise.On("BinPaths", ctx).Return(map[string]string{"MISE_GO_PATH": "/usr/local/mise/go"}, nil).Once()
 
 	s.config.WorkDir = workDir
 	s.config.Repo.Runtime = "go"
@@ -443,6 +442,7 @@ func (s *InstallerSuite) Test_InstallingRuntimeDeps() {
 
 	// Since InstallLocal returns empty runtimes, we expect another InstallLocal with the runtime
 	s.mockMise.On("InstallLocal", ctx, mise.LocalOpts{Dir: workDir, Stdout: stdout, Stderr: stdout, Runtime: "go"}).Return(nil).Once()
+	s.mockMise.On("BinPaths", ctx).Return(map[string]string{}, nil).Once()
 
 	p = runner.NewInstaller(s.config)
 

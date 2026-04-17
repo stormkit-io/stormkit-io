@@ -32,9 +32,9 @@ func (s *StatusChecksSuite) BeforeTest(_, _ string) {
 		RootDir:  tmpDir,
 		WorkDir:  path.Join(tmpDir, "repo"),
 		Build: runner.BuildOpts{
-			EnvVarsRaw: []string{
-				"NODE_ENV=production",
-				"TEST_RUN=true",
+			EnvVars: map[string]string{
+				"NODE_ENV": "production",
+				"TEST_RUN": "true",
 			},
 		},
 	}
@@ -57,7 +57,7 @@ func (s *StatusChecksSuite) Test_Run() {
 	s.mockCmd.On("SetOpts", sys.CommandOpts{
 		Name:   "sh",
 		Args:   []string{"-c", "printenv"},
-		Env:    s.config.Build.EnvVarsRaw,
+		Env:    runner.PrepareEnvVars(s.config.Build.EnvVars),
 		Dir:    s.config.WorkDir,
 		Stdout: s.config.Reporter.File(),
 		Stderr: s.config.Reporter.File(),

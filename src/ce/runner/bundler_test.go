@@ -3,7 +3,6 @@ package runner_test
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path"
 	"regexp"
@@ -36,11 +35,6 @@ func (s *BundlerSuite) BeforeTest(_, _ string) {
 		},
 		Build: runner.BuildOpts{
 			MigrationsFolder: "/migrations",
-			EnvVarsRaw: []string{
-				"CI=true",
-				fmt.Sprintf("PATH=%s", os.Getenv("PATH")),
-				fmt.Sprintf("HOME=%s", os.Getenv("HOME")),
-			},
 		},
 	}
 

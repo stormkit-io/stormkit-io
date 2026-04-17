@@ -3,7 +3,6 @@ package runner_test
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path"
 	"sort"
@@ -38,11 +37,6 @@ func (s *DepTree) SetupTest() {
 			ServerFolder: ".next",
 			EnvVars: map[string]string{
 				"CI": "true",
-			},
-			EnvVarsRaw: []string{
-				"CI=true",
-				fmt.Sprintf("HOME=%s", os.Getenv("HOME")),
-				fmt.Sprintf("PATH=%s", os.Getenv("PATH")),
 			},
 		},
 		Repo: runner.RepoOpts{

@@ -74,7 +74,7 @@ type Installer struct {
 	buildCmd           string
 	hasPackageLockFile bool
 	runtime            string // The runtime that is going to be used to build the project
-	envVars            []string
+	envVars            map[string]string
 }
 
 // For testing purposes
@@ -89,7 +89,7 @@ func NewInstaller(opts RunnerOpts) InstallerInterface {
 		workDir:            opts.WorkDir,
 		buildCmd:           opts.Build.BuildCmd,
 		installCmd:         opts.Build.InstallCmd,
-		envVars:            opts.Build.EnvVarsRaw,
+		envVars:            opts.Build.EnvVars,
 		reporter:           opts.Reporter,
 		packageJson:        opts.Repo.PackageJson,
 		hasPackageLockFile: opts.Repo.PackageLockFile,
@@ -133,7 +133,7 @@ func (p Installer) RuntimeVersion(ctx context.Context) error {
 		Name:   runtimeCmd,
 		Args:   []string{versionArg},
 		Dir:    p.workDir,
-		Env:    p.envVars,
+		Env:    PrepareEnvVars(p.envVars),
 		Stdout: p.reporter.File(),
 		Stderr: p.reporter.File(),
 	}).Run()
@@ -192,9 +192,14 @@ func (p *Installer) InstallRuntimeDependencies(ctx context.Context) ([]string, e
 		runtimes = append(runtimes, p.runtime)
 	}
 
-	// Make sure to update the PATH
-	if len(p.envVars) > 1 {
-		p.envVars[1] = fmt.Sprintf("PATH=%s", os.Getenv("PATH"))
+	binPaths, err := m.BinPaths(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for key, value := range binPaths {
+		p.envVars[key] = value
 	}
 
 	return runtimes, nil
@@ -234,7 +239,7 @@ func (p *Installer) installCustom(ctx context.Context) error {
 		Name:   "sh",
 		Args:   []string{"-c", p.installCmd},
 		Dir:    p.workDir,
-		Env:    p.envVars,
+		Env:    PrepareEnvVars(p.envVars),
 		Stdout: p.reporter.File(),
 		Stderr: p.reporter.File(),
 	})
@@ -249,7 +254,7 @@ func (p *Installer) installBun(ctx context.Context) error {
 		Name:   "bun",
 		Args:   []string{"install"},
 		Dir:    p.workDir,
-		Env:    p.envVars,
+		Env:    PrepareEnvVars(p.envVars),
 		Stdout: p.reporter.File(),
 		Stderr: p.reporter.File(),
 	}).Run()
@@ -262,7 +267,7 @@ func (p *Installer) installPnpm(ctx context.Context) error {
 		Name:   "pnpm",
 		Args:   []string{"install"},
 		Dir:    p.workDir,
-		Env:    p.envVars,
+		Env:    PrepareEnvVars(p.envVars),
 		Stdout: p.reporter.File(),
 		Stderr: p.reporter.File(),
 	}).Run()
@@ -276,7 +281,7 @@ func (p *Installer) yarnVersion() Version {
 	cmd := sys.Command(context.Background(), sys.CommandOpts{
 		Name: "yarn",
 		Args: []string{"--version"},
-		Env:  p.envVars,
+		Env:  PrepareEnvVars(p.envVars),
 		Dir:  p.workDir,
 	})
 
@@ -304,7 +309,7 @@ func (p *Installer) installYarn(ctx context.Context) error {
 		cmd := sys.Command(ctx, sys.CommandOpts{
 			Name:   "yarn",
 			Args:   []string{"config", "set", "workspaces-experimental", "true"},
-			Env:    p.envVars,
+			Env:    PrepareEnvVars(p.envVars),
 			Dir:    p.workDir,
 			Stdout: file,
 			Stderr: file,
@@ -319,7 +324,7 @@ func (p *Installer) installYarn(ctx context.Context) error {
 
 	opts := sys.CommandOpts{
 		Name:   "yarn",
-		Env:    p.envVars,
+		Env:    PrepareEnvVars(p.envVars),
 		Dir:    p.workDir,
 		Stdout: file,
 		Stderr: file,
@@ -358,7 +363,7 @@ func (p *Installer) installNpm(ctx context.Context) error {
 			Name:   eval[0],
 			Args:   eval[1:],
 			Dir:    p.workDir,
-			Env:    p.envVars,
+			Env:    PrepareEnvVars(p.envVars),
 			Stdout: p.reporter.File(),
 			Stderr: p.reporter.File(),
 		})

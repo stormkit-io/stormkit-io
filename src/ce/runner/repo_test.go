@@ -29,12 +29,7 @@ func (s *RepoSuite) BeforeTest(_, _ string) {
 		RootDir:  tmpDir,
 		Reporter: runner.NewReporter("https://example.com"),
 		Build: runner.BuildOpts{
-			EnvVars: map[string]string{
-				"CI": "true",
-			},
-			EnvVarsRaw: []string{
-				"CI=true",
-			},
+			EnvVars: map[string]string{},
 		},
 		Repo: runner.RepoOpts{
 			Dir: path.Join(tmpDir, "repo"),
@@ -112,7 +107,7 @@ func (s *RepoSuite) Test_Checkout_Github() {
 			"--branch", "main",
 			s.config.Repo.Dir,
 		},
-		Env:    s.config.Build.EnvVarsRaw,
+		Env:    runner.PrepareEnvVars(map[string]string{"SK_BRANCH_NAME": "main"}),
 		Dir:    s.config.WorkDir,
 		Stderr: s.config.Reporter.File(),
 		Stdout: s.config.Reporter.File(),
@@ -132,7 +127,7 @@ func (s *RepoSuite) Test_CommitInfo() {
 			"HEAD",
 		},
 		Dir: s.config.Repo.Dir,
-		Env: s.config.Build.EnvVarsRaw,
+		Env:    runner.PrepareEnvVars(s.config.Build.EnvVars),
 	}).Return(s.mockCmd).Once()
 
 	s.mockCmd.On("Output").Return([]byte("790dcef2a8c61ff6011a4b595cdcb2f0de6c4e2b\n"), nil).Once()
@@ -148,7 +143,7 @@ func (s *RepoSuite) Test_CommitInfo() {
 			"HEAD",
 		},
 		Dir: s.config.Repo.Dir,
-		Env: s.config.Build.EnvVarsRaw,
+		Env:    runner.PrepareEnvVars(s.config.Build.EnvVars),
 	}).Return(s.mockCmd).Once()
 
 	s.mockCmd.On("Output").Return([]byte("Joe Doe <joe@doe.org>\n"), nil).Once()
@@ -158,7 +153,7 @@ func (s *RepoSuite) Test_CommitInfo() {
 		Name: "git",
 		Args: []string{"log", "-1", "--pretty=%B"},
 		Dir:  s.config.Repo.Dir,
-		Env:  s.config.Build.EnvVarsRaw,
+		Env:    runner.PrepareEnvVars(s.config.Build.EnvVars),
 	}).Return(s.mockCmd).Once()
 
 	s.mockCmd.On("Output").Return([]byte("chore: first commit\n\ncommit body"), nil).Once()

@@ -22,8 +22,7 @@ type Builder struct {
 	distDir     string
 	apiDir      string // Path to api dir
 	packageMngr string
-	envVars     map[string]string
-	envVarsRaw  []string
+	envVars map[string]string
 	reporter    *ReporterModel
 }
 
@@ -42,8 +41,7 @@ func NewBuilder(opts RunnerOpts) BuilderInterface {
 		cmd:         opts.Build.BuildCmd,
 		distDir:     opts.Build.DistFolder,
 		apiDir:      opts.Build.APIFolder,
-		envVarsRaw:  opts.Build.EnvVarsRaw,
-		envVars:     opts.Build.EnvVars,
+		envVars: opts.Build.EnvVars,
 		reporter:    opts.Reporter,
 	}
 
@@ -72,7 +70,7 @@ func (bm Builder) ExecCommands(ctx context.Context) error {
 	cmd := sys.Command(ctx, sys.CommandOpts{
 		Name:   "sh",
 		Args:   []string{"-c", bm.cmd},
-		Env:    bm.envVarsRaw,
+		Env:    PrepareEnvVars(bm.envVars),
 		Dir:    bm.workDir,
 		Stdout: bm.reporter.File(),
 		Stderr: bm.reporter.File(),
@@ -99,8 +97,7 @@ func (bm Builder) BuildApiIfNecessary(ctx context.Context) (bool, error) {
 		APIDir:         bm.apiDir,
 		OutputDir:      filepath.Join(".stormkit", "api"),
 		PackageManager: bm.packageMngr,
-		EnvVarsMap:     bm.envVars,
-		EnvVarsSlice:   bm.envVarsRaw,
+		EnvVarsMap: bm.envVars,
 		Reporter:       bm.reporter,
 	})
 

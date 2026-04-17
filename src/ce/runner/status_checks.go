@@ -8,14 +8,14 @@ import (
 
 type StatusChecks struct {
 	workDir  string
-	envVars  []string
+	envVars  map[string]string
 	reporter *ReporterModel
 }
 
 func NewStatusChecks(opts RunnerOpts) *StatusChecks {
 	return &StatusChecks{
 		workDir:  opts.WorkDir,
-		envVars:  opts.Build.EnvVarsRaw,
+		envVars:  opts.Build.EnvVars,
 		reporter: opts.Reporter,
 	}
 }
@@ -27,7 +27,7 @@ func (s *StatusChecks) Run(ctx context.Context, command string) error {
 	cmd := sys.Command(ctx, sys.CommandOpts{
 		Name:   "sh",
 		Args:   []string{"-c", command},
-		Env:    s.envVars,
+		Env:    PrepareEnvVars(s.envVars),
 		Dir:    s.workDir,
 		Stdout: rep.File(),
 		Stderr: rep.File(),

@@ -12,6 +12,8 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils/mise"
+	"github.com/stormkit-io/stormkit-io/src/mocks"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -19,15 +21,19 @@ type ShttpSuite struct {
 	suite.Suite
 	*factory.Factory
 
-	conn databasetest.TestDB
+	conn     databasetest.TestDB
+	mockMise *mocks.MiseInterface
 }
 
 func (s *ShttpSuite) BeforeTest(suiteName, _ string) {
 	s.conn = databasetest.InitTx(suiteName)
 	s.Factory = factory.New(s.conn)
+	s.mockMise = &mocks.MiseInterface{}
+	mise.DefaultMise = s.mockMise
 }
 
 func (s *ShttpSuite) AfterTest(_, _ string) {
+	mise.DefaultMise = nil
 	s.conn.CloseTx()
 }
 
@@ -118,6 +124,8 @@ func (s *ShttpSuite) Test_FetchAppConf_ByDisplayName() {
 	}
 
 	s.NoError(deploy.NewStore().InsertDeployment(context.Background(), deployment))
+
+	s.mockMise.On("BinPaths", context.Background()).Return(map[string]string{}, nil).Once()
 
 	confs, err := appconf.FetchConfig(fmt.Sprintf("my-app--%d.stormkit:8888", deployment.ID))
 	s.NoError(err)

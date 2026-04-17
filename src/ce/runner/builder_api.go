@@ -20,8 +20,7 @@ type APIBuilderOpts struct {
 	APIDir         string
 	OutputDir      string
 	PackageManager string // "npm", "yarn", "pnpm"
-	EnvVarsMap     map[string]string
-	EnvVarsSlice   []string
+	EnvVarsMap map[string]string
 	Reporter       *ReporterModel
 }
 
@@ -81,7 +80,7 @@ func (b *APIBuilder) InstallDependencies() error {
 	// Install nested dependencies
 	for _, ip := range installPaths {
 		cmd := sys.Command(b.ctx, sys.CommandOpts{
-			Env:    b.options.EnvVarsSlice,
+			Env:    PrepareEnvVars(b.options.EnvVarsMap),
 			Name:   b.options.PackageManager,
 			Args:   strings.Split(ip.installArg, " "),
 			Dir:    ip.path,
