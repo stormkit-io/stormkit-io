@@ -85,10 +85,10 @@ func (m *Mise) InstallMise(ctx context.Context) error {
 		Name: "sh",
 		Args: []string{
 			"-c",
-			`curl https://mise.run | sh && echo 'eval "$(~/.local/bin/mise activate bash)"' >> ~/.bashrc`,
+			`curl https://mise.run | sh && grep -qF 'mise activate bash' ~/.bashrc || echo 'eval "$(~/.local/bin/mise activate bash)"' >> ~/.bashrc`,
 		},
 		Env: []string{
-			"MISE_VERSION=" + utils.GetString(os.Getenv("MISE_VERSION"), "v2026.2.3"),
+			"MISE_VERSION=" + utils.GetString(os.Getenv("MISE_VERSION"), "v2026.4.15"),
 			"PATH=" + os.Getenv("PATH"),
 			"HOME=" + os.Getenv("HOME"),
 		},
@@ -103,11 +103,11 @@ func (m *Mise) InstallMise(ctx context.Context) error {
 	// Update path so that it supports mise
 	os.Setenv("PATH", fmt.Sprintf("%s:%s", os.Getenv("HOME")+"/.local/bin", os.Getenv("PATH")))
 
-	for _, runtime := range []string{"go", "node", "ruby", "elixir", "python"} {
+	addSetting := func(name, value string) error {
 		cmd := sys.Command(ctx, sys.CommandOpts{
 			Name: "mise",
 			Args: []string{
-				"settings", "add", "idiomatic_version_file_enable_tools", runtime,
+				"settings", "add", name, value,
 			},
 			Env: []string{
 				"PATH=" + os.Getenv("PATH"),
@@ -115,10 +115,30 @@ func (m *Mise) InstallMise(ctx context.Context) error {
 			},
 		})
 
-		if err := cmd.Run(); err != nil {
-			slog.Errorf("error enabling idiomatic version file for %s: %v", runtime, err)
-			continue
+		return cmd.Run()
+	}
+
+	for _, runtime := range []string{"go", "node", "ruby", "elixir", "python"} {
+		if err := addSetting("idiomatic_version_file_enable_tools", runtime); err != nil {
+			slog.Errorf("error adding mise setting for runtime %s: %v", runtime, err)
 		}
+	}
+
+	if err := addSetting("experimental", "true"); err != nil {
+		slog.Errorf("error adding mise experimental setting: %v", err)
+	}
+
+	// Enable plugin for using nix:* packages
+	cmd = sys.Command(ctx, sys.CommandOpts{
+		String: "mise plugin install nix https://github.com/jbadeau/mise-nix.git",
+		Env: []string{
+			"PATH=" + os.Getenv("PATH"),
+			"HOME=" + os.Getenv("HOME"),
+		},
+	})
+
+	if err = cmd.Run(); err != nil {
+		slog.Errorf("error installing mise nix plugin: %v", err)
 	}
 
 	return nil
@@ -336,7 +356,7 @@ func (m *Mise) SelfUpdate(ctx context.Context) error {
 // Prune removes unused mise installations and cleans up the environment.
 func (m *Mise) Prune(ctx context.Context) error {
 	cmd := sys.Command(ctx, sys.CommandOpts{
-		String: "mise prune --yes",
+		String: "mise ls --global | xargs -n1 -r mise unuse --global --yes",
 		Dir:    os.Getenv("HOME"),
 	})
 
