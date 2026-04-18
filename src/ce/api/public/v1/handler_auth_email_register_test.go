@@ -112,9 +112,12 @@ func (s *HandlerAuthEmailRegisterSuite) Test_Success() {
 
 	s.Equal(http.StatusCreated, response.Code)
 
-	token, ok := response.Map()["token"].(string)
+	body := response.Map()
+	token, ok := body["token"].(string)
 	s.True(ok)
 	s.NotEmpty(token)
+	s.Equal("jane@example.com", body["email"])
+	s.NotEmpty(body["userId"])
 }
 
 // Test_Success_NoSuccessURL verifies that registration works regardless of whether a SuccessURL is set.
@@ -130,9 +133,12 @@ func (s *HandlerAuthEmailRegisterSuite) Test_Success_NoSuccessURL() {
 
 	s.Equal(http.StatusCreated, response.Code)
 
-	token, ok := response.Map()["token"].(string)
+	body := response.Map()
+	token, ok := body["token"].(string)
 	s.True(ok)
 	s.NotEmpty(token)
+	s.Equal("jane@example-2.com", body["email"])
+	s.NotEmpty(body["userId"])
 }
 
 // Test_DuplicateEmail verifies that registering with an existing email returns a JSON 400 error.

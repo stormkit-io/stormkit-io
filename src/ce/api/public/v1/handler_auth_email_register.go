@@ -117,7 +117,7 @@ func HandlerAuthEmailRegister(req *shttp.RequestContext) *shttp.Response {
 
 	return &shttp.Response{
 		Status: http.StatusCreated,
-		Data:   map[string]any{"token": sessionToken},
+		Data:   map[string]any{"token": sessionToken, "email": email, "userId": usr.ID},
 	}
 }
 
