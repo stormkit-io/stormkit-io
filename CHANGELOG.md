@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.04.22.1...v2026.04.22.2
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.22.1...v2026.04.22.2)
+
+### 🩹 Fixes
+
+- Install runtimes before pruning to avoid binary availability gap ([#185](https://github.com/stormkit-io/stormkit-io/pull/185))
+
+### 🏡 Chore
+
+- Update changelog for v2026.04.22.1 ([#184](https://github.com/stormkit-io/stormkit-io/pull/184))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.04.21.1...v2026.04.22.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.21.1...v2026.04.22.1)
