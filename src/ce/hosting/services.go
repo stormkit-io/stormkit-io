@@ -9,6 +9,29 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 )
 
+func WithTimeout(h http.Handler) http.Handler {
+	timeout := config.Get().HTTPTimeouts.ReadTimeout
+	regular := http.TimeoutHandler(h, timeout, "timeout")
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Bypass timeout for SSE streams — http.TimeoutHandler buffers the
+		// entire response which is incompatible with streaming.
+		if r.Method == http.MethodGet && r.URL.Path == "/v1/mcp" {
+			h.ServeHTTP(w, r)
+			return
+		}
+
+		// Bypass timeout for requests with a body — large uploads can take
+		// longer than the configured read timeout.
+		if r.Body != nil && r.Body != http.NoBody {
+			h.ServeHTTP(w, r)
+			return
+		}
+
+		regular.ServeHTTP(w, r)
+	})
+}
+
 // Services sets the handlers for this service.
 func Services(r *shttp.Router) *shttp.Service {
 	pieces := strings.Split(admin.MustConfig().DomainConfig.Dev, "//")
@@ -22,21 +45,4 @@ func Services(r *shttp.Router) *shttp.Service {
 	s.NewEndpoint("/").CatchAll(WithHost(HandlerForward), devDomain)
 
 	return s
-}
-
-func WithTimeout(h http.Handler) http.Handler {
-	timeout := config.Get().HTTPTimeouts.ReadTimeout
-	regular := http.TimeoutHandler(h, timeout, "timeout")
-
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// http.TimeoutHandler buffers the entire response, which is incompatible
-		// with SSE streams. Bypass it only for the known streaming endpoint to
-		// prevent clients from opting out of timeouts via the Accept header alone.
-		if r.Method == http.MethodGet && r.URL.Path == "/v1/mcp" {
-			h.ServeHTTP(w, r)
-			return
-		}
-
-		regular.ServeHTTP(w, r)
-	})
 }

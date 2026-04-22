@@ -61,8 +61,6 @@ func (s *CacheSuite) SetupSuite() {
 }
 
 func (s *CacheSuite) Test_ResetCache() {
-	service := rediscache.Service()
-
 	var mu sync.Mutex
 	msgs := []string{}
 
@@ -72,11 +70,22 @@ func (s *CacheSuite) Test_ResetCache() {
 		return slices.Clone(msgs)
 	}
 
-	s.NoError(service.SubscribeAsync(rediscache.EventInvalidateHostingCache, func(ctx context.Context, payload ...string) {
-		mu.Lock()
-		defer mu.Unlock()
-		msgs = append(msgs, payload...)
-	}))
+	// Subscribe directly so we can wait for the SUBSCRIBE confirmation before
+	// broadcasting — SubscribeAsync returns before the handshake completes,
+	// causing a race where messages published immediately after are missed.
+	sub := rediscache.Client().Subscribe(s.ctx, rediscache.EventInvalidateHostingCache)
+	defer sub.Close()
+
+	_, err := sub.Receive(s.ctx)
+	s.Require().NoError(err)
+
+	go func() {
+		for msg := range sub.Channel() {
+			mu.Lock()
+			msgs = append(msgs, msg.Payload)
+			mu.Unlock()
+		}
+	}()
 
 	s.NoError(appcache.Service().Reset(s.env.ID))
 

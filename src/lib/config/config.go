@@ -95,16 +95,14 @@ type RunnerConfig struct {
 
 type HttpTimeoutsConfig struct {
 	ReadTimeout  time.Duration
-	WriteTimeout time.Duration
 	IdleTimeout  time.Duration
 	ProxyTimeout time.Duration
 }
 
 type DbConfigTimeouts struct {
-	ConnectTimeout time.Duration
-	MaxLifetime    int // maximum amount of time that a connection can be reused before it is closed and replaced with a new connection
-	MaxIdleConns   int // maximum number of idle connections that can be kept in the connection pool
-	MaxOpenConns   int // maximum number of open connections that can be used at the same time
+	MaxLifetime  int // maximum amount of time that a connection can be reused before it is closed and replaced with a new connection
+	MaxIdleConns int // maximum number of idle connections that can be kept in the connection pool
+	MaxOpenConns int // maximum number of open connections that can be used at the same time
 }
 
 // DatabaseConfig has the configs for the database.
@@ -269,16 +267,14 @@ func New() *Config {
 
 		HTTPTimeouts: &HttpTimeoutsConfig{
 			ReadTimeout:  getDuration(os.Getenv("STORMKIT_HTTP_READ_TIMEOUT"), 30*time.Second),
-			WriteTimeout: getDuration(os.Getenv("STORMKIT_HTTP_WRITE_TIMEOUT"), 30*time.Second),
 			IdleTimeout:  getDuration(os.Getenv("STORMKIT_HTTP_IDLE_TIMEOUT"), 60*time.Second),
 			ProxyTimeout: getDuration(os.Getenv("STORMKIT_HTTP_PROXY_TIMEOUT"), 30*time.Second),
 		},
 
 		DbConfigTimeouts: &DbConfigTimeouts{
-			ConnectTimeout: 30 * time.Second,
-			MaxLifetime:    0, // unlimited
-			MaxIdleConns:   2,
-			MaxOpenConns:   50,
+			MaxLifetime:  0, // unlimited
+			MaxIdleConns: 2,
+			MaxOpenConns: 50,
 		},
 
 		Runner: &RunnerConfig{

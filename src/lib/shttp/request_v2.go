@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 )
 
@@ -73,7 +74,7 @@ func NewRequestV2(method, url string) RequestInterface {
 	client.contentLength = 0
 	client.headers = nil
 	client.followRedirects = true
-	client.timeout = 10 * time.Second
+	client.timeout = config.Get().HTTPTimeouts.ProxyTimeout
 
 	return client
 }
@@ -186,7 +187,6 @@ func (r *RequestV2) Do() (*HTTPResponse, error) {
 type ProxyArgs struct {
 	Target          string
 	FollowRedirects *bool
-	Timeout         time.Duration
 }
 
 func Proxy(req *RequestContext, args ProxyArgs) *Response {
@@ -213,15 +213,12 @@ func Proxy(req *RequestContext, args ProxyArgs) *Response {
 
 	client := NewRequestV2(req.Method, args.Target).Headers(headers)
 
-	if args.Timeout > 0 {
-		client.WithTimeout(args.Timeout)
-	}
-
 	if args.FollowRedirects != nil && !*args.FollowRedirects {
 		client.FollowRedirects(false)
 	}
 
 	if req.Body != nil {
+		client.WithTimeout(0)
 		client.Stream(req.Body, req.ContentLength)
 	}
 
