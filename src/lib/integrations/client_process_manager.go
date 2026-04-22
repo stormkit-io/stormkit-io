@@ -3,7 +3,6 @@ package integrations
 import (
 	"bufio"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -649,27 +648,34 @@ func (pm *ProcessManager) addService(service *Service, ARN string) {
 	}
 }
 
-// Request the given URL within the allowed timeout. We're trying every 250ms to fetch the
-// result from the server until allowed timeout is exhausted.
-func (pm *ProcessManager) requestWithRetry(args InvokeArgs, service *Service) (*InvokeResult, error) {
-	timeout := time.After(30 * time.Second)
-	ticker := time.NewTicker(250 * time.Millisecond)
-	defer ticker.Stop()
+// waitForPort polls via TCP dial until the port is accepting connections or the timeout elapses.
+func (pm *ProcessManager) waitForPort(port int, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	addr := fmt.Sprintf("localhost:%d", port)
 
-	for {
-		select {
-		case <-timeout:
-			return nil, errors.New("server is not up and running within allowed timeout")
-		case <-ticker.C:
-			res, err := pm.request(args, service)
+	for time.Now().Before(deadline) {
+		conn, err := net.DialTimeout("tcp", addr, 250*time.Millisecond)
 
-			if err != nil {
-				continue
-			}
-
-			return res, nil
+		if err == nil {
+			conn.Close()
+			return nil
 		}
+
+		time.Sleep(250 * time.Millisecond)
 	}
+
+	return fmt.Errorf("server on port %d did not become available within the allowed timeout", port)
+}
+
+// requestWithRetry waits for the service port to accept TCP connections, then forwards
+// the request exactly once. Separating port-readiness polling from the HTTP send ensures
+// the streaming body is never consumed on a failed connection attempt.
+func (pm *ProcessManager) requestWithRetry(args InvokeArgs, service *Service) (*InvokeResult, error) {
+	if err := pm.waitForPort(service.port, 30*time.Second); err != nil {
+		return nil, err
+	}
+
+	return pm.request(args, service)
 }
 
 // Request the given resource from the spawned server.
@@ -680,10 +686,11 @@ func (pm *ProcessManager) request(args InvokeArgs, service *Service) (*InvokeRes
 
 	res := shttp.Proxy(&shttp.RequestContext{
 		Request: &http.Request{
-			Header: args.Headers,
-			Method: args.Method,
-			URL:    args.URL,
-			Body:   args.Body,
+			Header:        args.Headers,
+			Method:        args.Method,
+			URL:           args.URL,
+			Body:          args.Body,
+			ContentLength: args.ContentLength,
 		},
 	}, shttp.ProxyArgs{
 		Target:          target.String(),

@@ -35,6 +35,7 @@ type RequestInterface interface {
 	URL(url string) RequestInterface
 	Method(method string) RequestInterface
 	Payload(payload any) RequestInterface
+	Stream(body io.Reader, contentLength int64) RequestInterface
 	Headers(headers http.Header) RequestInterface
 	WithExponentialBackoff(maxDelay time.Duration, maxRetries int) RequestInterface
 	WithTimeout(duration time.Duration) RequestInterface
@@ -47,6 +48,8 @@ type RequestV2 struct {
 	timeout               time.Duration
 	method                string
 	payload               []byte
+	bodyStream            io.Reader
+	contentLength         int64
 	headers               http.Header
 	url                   string
 	followRedirects       bool
@@ -66,6 +69,8 @@ func NewRequestV2(method, url string) RequestInterface {
 	client.method = method
 	client.url = url
 	client.payload = nil
+	client.bodyStream = nil
+	client.contentLength = 0
 	client.headers = nil
 	client.followRedirects = true
 	client.timeout = 10 * time.Second
@@ -96,6 +101,13 @@ func (r *RequestV2) Payload(payload any) RequestInterface {
 	return r
 }
 
+// Stream sets a streaming body for the request, bypassing buffering.
+func (r *RequestV2) Stream(body io.Reader, contentLength int64) RequestInterface {
+	r.bodyStream = body
+	r.contentLength = contentLength
+	return r
+}
+
 // Method sets the request method.
 func (r *RequestV2) Method(method string) RequestInterface {
 	r.method = method
@@ -115,10 +127,20 @@ func (r *RequestV2) FollowRedirects(v bool) RequestInterface {
 
 // Do triggers a request.
 func (r *RequestV2) Do() (*HTTPResponse, error) {
-	req, err := http.NewRequest(r.method, r.url, bytes.NewBuffer(r.payload))
+	body := io.Reader(bytes.NewBuffer(r.payload))
+
+	if r.bodyStream != nil {
+		body = r.bodyStream
+	}
+
+	req, err := http.NewRequest(r.method, r.url, body)
 
 	if err != nil {
 		return nil, err
+	}
+
+	if r.bodyStream != nil && r.contentLength > 0 {
+		req.ContentLength = r.contentLength
 	}
 
 	req.Header = r.headers
@@ -168,7 +190,7 @@ type ProxyArgs struct {
 }
 
 func Proxy(req *RequestContext, args ProxyArgs) *Response {
-	headers := req.Header
+	headers := req.Header.Clone()
 
 	// Make sure X-Forwarded-For headers are set
 	if headers.Get("X-Forwarded-For") == "" && headers.Get("X-Real-IP") == "" {
@@ -200,7 +222,7 @@ func Proxy(req *RequestContext, args ProxyArgs) *Response {
 	}
 
 	if req.Body != nil {
-		client.Payload(req.Body)
+		client.Stream(req.Body, req.ContentLength)
 	}
 
 	response, err := client.Do()

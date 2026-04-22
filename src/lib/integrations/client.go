@@ -26,21 +26,22 @@ type GetFileResult struct {
 }
 
 type InvokeArgs struct {
-	ARN          string            // Function ARN
-	Body         io.ReadCloser     // Request body
-	Method       string            // Request method
-	HostName     string            // Host Name
-	URL          *url.URL          // Request url
-	Headers      http.Header       // Request headers
-	Command      string            // If provided, this will run as a process manager. This only works on local environments.
-	CaptureLogs  bool              // Whether to tell the handlers to capture logs
-	EnvVariables map[string]string // This is required for server actions
-	IsPublished  bool              // Whether the deployment is published or not
-	AppID        types.ID
-	EnvID        types.ID
-	DeploymentID types.ID
-	Context      map[string]any // Additional context to pass to the function
-	QueueLog     func(*Log)     // Queue logs for later processing
+	ARN           string            // Function ARN
+	Body          io.ReadCloser     // Request body
+	ContentLength int64             // Request body content length; -1 if unknown
+	Method        string            // Request method
+	HostName      string            // Host Name
+	URL           *url.URL          // Request url
+	Headers       http.Header       // Request headers
+	Command       string            // If provided, this will run as a process manager. This only works on local environments.
+	CaptureLogs   bool              // Whether to tell the handlers to capture logs
+	EnvVariables  map[string]string // This is required for server actions
+	IsPublished   bool              // Whether the deployment is published or not
+	AppID         types.ID
+	EnvID         types.ID
+	DeploymentID  types.ID
+	Context       map[string]any // Additional context to pass to the function
+	QueueLog      func(*Log)     // Queue logs for later processing
 }
 
 type Log struct {

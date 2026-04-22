@@ -3,10 +3,12 @@
 package mocks
 
 import (
+	io "io"
 	http "net/http"
 
-	shttp "github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	mock "github.com/stretchr/testify/mock"
+
+	shttp "github.com/stormkit-io/stormkit-io/src/lib/shttp"
 
 	time "time"
 )
@@ -117,6 +119,26 @@ func (_m *RequestInterface) Payload(payload interface{}) shttp.RequestInterface 
 	var r0 shttp.RequestInterface
 	if rf, ok := ret.Get(0).(func(interface{}) shttp.RequestInterface); ok {
 		r0 = rf(payload)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(shttp.RequestInterface)
+		}
+	}
+
+	return r0
+}
+
+// Stream provides a mock function with given fields: body, contentLength
+func (_m *RequestInterface) Stream(body io.Reader, contentLength int64) shttp.RequestInterface {
+	ret := _m.Called(body, contentLength)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Stream")
+	}
+
+	var r0 shttp.RequestInterface
+	if rf, ok := ret.Get(0).(func(io.Reader, int64) shttp.RequestInterface); ok {
+		r0 = rf(body, contentLength)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(shttp.RequestInterface)

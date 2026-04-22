@@ -438,7 +438,33 @@ func (s *HandlerForwardSuite) Test_Redirects_RedirectingToDifferentDomain_ProxyW
 	s.mockRequest.On("URL", "https://test-api.example.com/api/v2/my-endpoint").Return(s.mockRequest).Once()
 	s.mockRequest.On("Method", "").Return(s.mockRequest).Once()
 	s.mockRequest.On("Headers", shttp.HeadersFromMap(map[string]string{})).Return(s.mockRequest).Once()
-	s.mockRequest.On("Payload", req.Body).Return(s.mockRequest).Once()
+	s.mockRequest.On("Stream", req.Body, int64(0)).Return(s.mockRequest).Once()
+	s.mockRequest.On("Do").Return(&shttp.HTTPResponse{
+		Response: &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader("my-response")),
+			Header:     make(http.Header),
+		},
+	}, nil).Once()
+
+	res := hosting.HandlerForward(req)
+	data, ok := res.Data.([]byte)
+
+	s.Nil(res.Redirect)
+	s.True(ok)
+	s.Equal([]byte("my-response"), data)
+	s.Equal(http.StatusOK, res.Status)
+}
+
+func (s *HandlerForwardSuite) Test_Redirects_RedirectingToDifferentDomain_ProxyWithContentLength() {
+	req := s.newRequest(s.host, "/api/v2/my-endpoint")
+	req.Body = io.NopCloser(strings.NewReader("my-payload"))
+	req.ContentLength = int64(len("my-payload"))
+
+	s.mockRequest.On("URL", "https://test-api.example.com/api/v2/my-endpoint").Return(s.mockRequest).Once()
+	s.mockRequest.On("Method", "").Return(s.mockRequest).Once()
+	s.mockRequest.On("Headers", shttp.HeadersFromMap(map[string]string{})).Return(s.mockRequest).Once()
+	s.mockRequest.On("Stream", req.Body, int64(10)).Return(s.mockRequest).Once()
 	s.mockRequest.On("Do").Return(&shttp.HTTPResponse{
 		Response: &http.Response{
 			StatusCode: http.StatusOK,
@@ -463,7 +489,7 @@ func (s *HandlerForwardSuite) Test_Redirects_RedirectingToDifferentDomain_ProxyW
 	s.mockRequest.On("URL", "https://test-api.example.com/api/v1/my-endpoint/").Return(s.mockRequest).Once()
 	s.mockRequest.On("Method", "").Return(s.mockRequest).Once()
 	s.mockRequest.On("Headers", shttp.HeadersFromMap(map[string]string{})).Return(s.mockRequest).Once()
-	s.mockRequest.On("Payload", req.Body).Return(s.mockRequest).Once()
+	s.mockRequest.On("Stream", req.Body, int64(0)).Return(s.mockRequest).Once()
 	s.mockRequest.On("Do").Return(&shttp.HTTPResponse{
 		Response: &http.Response{
 			StatusCode: http.StatusOK,

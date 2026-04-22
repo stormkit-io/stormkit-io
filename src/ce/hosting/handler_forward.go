@@ -271,12 +271,13 @@ func (r *RequestServer) Dynamic() *shttp.Response {
 	}
 
 	result, err := integrations.Client().Invoke(integrations.InvokeArgs{
-		URL:          url,
-		ARN:          arn,
-		Body:         r.req.Body,
-		Method:       r.req.Method,
-		Headers:      r.req.Headers(),
-		HostName:     r.req.Host.Name,
+		URL:           url,
+		ARN:           arn,
+		Body:          r.req.Body,
+		ContentLength: r.req.ContentLength,
+		Method:        r.req.Method,
+		Headers:       r.req.Headers(),
+		HostName:      r.req.Host.Name,
 		AppID:        cnf.AppID,
 		EnvID:        cnf.EnvID,
 		DeploymentID: cnf.DeploymentID,
