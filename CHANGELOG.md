@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.04.22.3...v2026.04.22.4
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.22.3...v2026.04.22.4)
+
+### 🩹 Fixes
+
+- Disable proxy timeout for streaming uploads to prevent large file failures ([#188](https://github.com/stormkit-io/stormkit-io/pull/188))
+
+### 🏡 Chore
+
+- Update changelog for v2026.04.22.3 ([#187](https://github.com/stormkit-io/stormkit-io/pull/187))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.04.22.2...v2026.04.22.3
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.22.2...v2026.04.22.3)
