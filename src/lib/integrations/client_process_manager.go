@@ -415,6 +415,7 @@ func (pm *ProcessManager) Start(ctx context.Context, args *InvokeArgs, workDir s
 
 		if err := s.cmd.Start(); err != nil {
 			pm.QueueLog(args, err.Error())
+			s.Kill()
 			return
 		}
 
