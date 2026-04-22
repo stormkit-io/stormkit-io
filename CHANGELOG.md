@@ -1,5 +1,19 @@
 # Changelog
 
+## v2026.04.22.2...v2026.04.22.3
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.22.2...v2026.04.22.3)
+
+### 🏡 Chore
+
+- Update changelog for v2026.04.22.2 ([#186](https://github.com/stormkit-io/stormkit-io/pull/186))
+- Install dependencies synchronously ([e47e654](https://github.com/stormkit-io/stormkit-io/commit/e47e654))
+- Skip logging errors of look paths ([e47e8c7](https://github.com/stormkit-io/stormkit-io/commit/e47e8c7))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.04.22.1...v2026.04.22.2
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.22.1...v2026.04.22.2)
