@@ -510,10 +510,6 @@ func installDependencies(ctx context.Context) error {
 		return err
 	}
 
-	if err := m.Prune(ctx); err != nil {
-		slog.Errorf("error pruning mise: %v", err)
-	}
-
 	var output string
 
 	for _, runtime := range vc.SystemConfig.Runtimes {
@@ -531,6 +527,12 @@ func installDependencies(ctx context.Context) error {
 				zap.String("runtime", runtime),
 			},
 		})
+	}
+
+	// Remove any runtimes that are not in the config anymore to clean up the environment
+	// and avoid filling up the disk with unused runtimes.
+	if err := m.Prune(ctx, vc.SystemConfig.Runtimes); err != nil {
+		slog.Errorf("error pruning mise: %v", err)
 	}
 
 	slog.Debug(slog.LogOpts{

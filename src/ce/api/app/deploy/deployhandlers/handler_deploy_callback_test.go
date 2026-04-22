@@ -373,7 +373,7 @@ func (s *HandlerDeployCallbackSuite) Test_ExitCode_InstallRuntimes() {
 	mockMise.On("InstallMise", mock.Anything).Return(nil).Once()
 	mockMise.On("InstallGlobal", mock.Anything, "go@1.24").Return("", nil).Once()
 	mockMise.On("InstallGlobal", mock.Anything, "node@22").Return("", nil).Once()
-	mockMise.On("Prune", mock.Anything).Return(nil).Once()
+	mockMise.On("Prune", mock.Anything, mock.Anything).Return(nil).Once()
 
 	manifest := &deploy.BuildManifest{
 		Runtimes: []string{"go@1.24", "node@22"},

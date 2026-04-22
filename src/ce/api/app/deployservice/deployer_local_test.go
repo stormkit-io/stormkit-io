@@ -62,7 +62,7 @@ func (s *DeployerLocalSuite) Test_StartDeployment() {
 	s.NoError(err)
 
 	s.mockMise.On("InstallMise", mock.Anything).Return(nil).Once()
-	s.mockMise.On("Prune", mock.Anything).Return(nil).Once()
+	s.mockMise.On("Prune", mock.Anything, mock.Anything).Return(nil).Once()
 	s.mockExec.On("SetOpts", sys.CommandOpts{
 		Name: s.mockExecutable,
 		Args: []string{

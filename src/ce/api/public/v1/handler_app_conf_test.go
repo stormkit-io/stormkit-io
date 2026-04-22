@@ -8,28 +8,35 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
 	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
+	"github.com/stormkit-io/stormkit-io/src/mocks"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp/shttptest"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils/mise"
 )
 
 type HandlerAppConfSuite struct {
 	suite.Suite
 	*factory.Factory
 
-	conn databasetest.TestDB
+	conn     databasetest.TestDB
+	mockMise *mocks.MiseInterface
 }
 
 func (s *HandlerAppConfSuite) BeforeTest(suiteName, _ string) {
 	s.conn = databasetest.InitTx(suiteName)
 	s.Factory = factory.New(s.conn)
+	s.mockMise = &mocks.MiseInterface{}
+	mise.DefaultMise = s.mockMise
 }
 
 func (s *HandlerAppConfSuite) AfterTest(_, _ string) {
 	s.conn.CloseTx()
+	mise.DefaultMise = nil
 }
 
 func (s *HandlerAppConfSuite) Test_Success() {
@@ -44,6 +51,8 @@ func (s *HandlerAppConfSuite) Test_Success() {
 			{EnvID: env.ID, Percentage: 100},
 		},
 	})
+
+	s.mockMise.On("BinPaths", mock.Anything).Return(map[string]string{"MISE_GO_PATH": "my-path"}, nil).Once()
 
 	response := shttptest.RequestWithHeaders(
 		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
@@ -72,6 +81,7 @@ func (s *HandlerAppConfSuite) Test_Success() {
 			"billingUserId": "1",
 			"envVariables": {
 				"NODE_ENV": "production",
+				"MISE_GO_PATH": "my-path",
 				"SK_APP_ID": "{{ .AppID }}",
 				"SK_DEPLOYMENT_ID": "{{ .DeploymentID }}",
 				"SK_DEPLOYMENT_URL": "http://sample-project--{{ .DeploymentID }}.stormkit:8888",

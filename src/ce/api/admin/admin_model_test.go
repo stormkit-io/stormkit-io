@@ -91,11 +91,12 @@ func (s *AdminModelSuite) Test_InstallDependencies() {
 	s.NoError(admin.Store().UpsertConfig(ctx, vc))
 
 	s.mockMise.On("InstallMise", ctx).Return(nil).Once()
-	s.mockMise.On("Prune", ctx).Return(nil).Once()
 
 	for _, runtime := range vc.SystemConfig.Runtimes {
 		s.mockMise.On("InstallGlobal", ctx, runtime).Return(fmt.Sprintf("runtime installed: %s", runtime), nil).Once()
 	}
+
+	s.mockMise.On("Prune", ctx, vc.SystemConfig.Runtimes).Return(nil).Once()
 
 	admin.InstallDependencies(ctx)
 }
@@ -105,10 +106,11 @@ func (s *AdminModelSuite) Test_InstallDependencies_WithBackwardsCompatibility() 
 	os.Setenv("NODE_VERSION", "18")
 	defer os.Unsetenv("NODE_VERSION")
 
+	runtimes := []string{"go@1.24"}
 	ctx := context.Background()
 	vc := admin.InstanceConfig{
 		SystemConfig: &admin.SystemConfig{
-			Runtimes: []string{"go@1.24"},
+			Runtimes: runtimes,
 		},
 	}
 
@@ -117,16 +119,13 @@ func (s *AdminModelSuite) Test_InstallDependencies_WithBackwardsCompatibility() 
 
 	s.NoError(admin.Store().UpsertConfig(ctx, vc))
 
-	runtimes := []string{"go@1.24", "node@18", "yarn@1.22", "pnpm@latest"}
-
 	s.mockMise.On("InstallMise", ctx).Return(nil).Once()
-	s.mockMise.On("Prune", ctx).Return(nil).Once()
-
-	for _, runtime := range runtimes {
-		s.mockMise.On("InstallGlobal", ctx, runtime).Return(fmt.Sprintf("runtime installed: %s", runtime), nil).Once()
-	}
+	s.mockMise.On("InstallGlobal", ctx, "go@1.24").Return("runtime installed: go@1.24", nil).Once()
+	s.mockMise.On("Prune", ctx, runtimes).Return(nil).Once()
 
 	admin.InstallDependencies(ctx)
+
+	s.mockMise.AssertExpectations(s.T())
 }
 
 func (s *AdminModelSuite) Test_Store() {

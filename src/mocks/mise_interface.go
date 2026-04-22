@@ -168,17 +168,17 @@ func (_m *MiseInterface) ListLocal(_a0 context.Context, _a1 mise.LocalOpts) ([]s
 	return r0, r1
 }
 
-// Prune provides a mock function with given fields: ctx
-func (_m *MiseInterface) Prune(ctx context.Context) error {
-	ret := _m.Called(ctx)
+// Prune provides a mock function with given fields: ctx, exceptRuntimes
+func (_m *MiseInterface) Prune(ctx context.Context, exceptRuntimes []string) error {
+	ret := _m.Called(ctx, exceptRuntimes)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Prune")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context) error); ok {
-		r0 = rf(ctx)
+	if rf, ok := ret.Get(0).(func(context.Context, []string) error); ok {
+		r0 = rf(ctx, exceptRuntimes)
 	} else {
 		r0 = ret.Error(0)
 	}

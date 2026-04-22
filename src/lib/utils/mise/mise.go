@@ -37,7 +37,7 @@ type MiseInterface interface {
 	BinPaths(context.Context) (map[string]string, error) // Returns { "MISE_<TOOL>_PATH": <path> }
 	Version() (string, error)
 	SelfUpdate(ctx context.Context) error
-	Prune(ctx context.Context) error
+	Prune(ctx context.Context, exceptRuntimes []string) error
 }
 
 var DefaultMise MiseInterface
@@ -387,15 +387,39 @@ func (m *Mise) SelfUpdate(ctx context.Context) error {
 	return nil
 }
 
-// Prune removes unused mise installations and cleans up the environment.
-func (m *Mise) Prune(ctx context.Context) error {
-	cmd := sys.Command(ctx, sys.CommandOpts{
-		Name: "sh",
-		Args: []string{"-c", "mise ls --global | xargs -n1 -r mise unuse --global --yes"},
-		Dir:  os.Getenv("HOME"),
-	})
+// Prune removes globally installed tools that are not present in exceptRuntimes.
+// exceptRuntimes entries are matched by tool name, ignoring the version (e.g. "node@22" matches tool "node").
+func (m *Mise) Prune(ctx context.Context, exceptRuntimes []string) error {
+	keep := make(map[string]bool, len(exceptRuntimes))
 
-	return cmd.Run()
+	for _, r := range exceptRuntimes {
+		name := strings.SplitN(r, "@", 2)[0]
+		keep[name] = true
+	}
+
+	installed, err := m.ListGlobal(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	for tool := range installed {
+		if keep[tool] {
+			continue
+		}
+
+		cmd := sys.Command(ctx, sys.CommandOpts{
+			Name: "mise",
+			Args: []string{"unuse", "--global", "--yes", tool},
+			Dir:  os.Getenv("HOME"),
+		})
+
+		if err := cmd.Run(); err != nil {
+			slog.Errorf("error pruning mise tool %s: %v", tool, err)
+		}
+	}
+
+	return nil
 }
 
 // AutoUpdate is a job that triggers the automatic update of mise.
