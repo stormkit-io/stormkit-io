@@ -1,5 +1,22 @@
 # Changelog
 
+## v2026.04.22.4...v2026.04.22.5
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.22.4...v2026.04.22.5)
+
+### 🩹 Fixes
+
+- Disable proxy timeout for streaming uploads to prevent large file failures ([#190](https://github.com/stormkit-io/stormkit-io/pull/190))
+- Replace certmagic.HTTPS with custom httpsServe to remove hardcoded server timeouts ([522a4d9](https://github.com/stormkit-io/stormkit-io/commit/522a4d9))
+
+### 🏡 Chore
+
+- Update changelog for v2026.04.22.4 ([#189](https://github.com/stormkit-io/stormkit-io/pull/189))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.04.22.3...v2026.04.22.4
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.22.3...v2026.04.22.4)
