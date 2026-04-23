@@ -61,12 +61,14 @@ func (s *StringSuite) Test_ParseRepoWithProvider() {
 		{"https://github.com/my-org/my-repo", "github", "my-org/my-repo"},
 		{"https://github.com/my-org/my-repo.git", "github", "my-org/my-repo"},
 		{"http://github.com/my-org/my-repo", "github", "my-org/my-repo"},
+		{"https://github.com/my-org/my-repo/", "github", "my-org/my-repo"},
+		{"https://github.com/my-org/my-repo/tree/main", "github", "my-org/my-repo"},
 		{"https://gitlab.com/my-org/my-repo", "gitlab", "my-org/my-repo"},
 		{"https://bitbucket.org/my-org/my-repo", "bitbucket", "my-org/my-repo"},
 		{"github/my-org/my-repo", "github", "my-org/my-repo"},
 		{"gitlab/my-org/my-repo", "gitlab", "my-org/my-repo"},
 		{"bitbucket/my-org/my-repo", "bitbucket", "my-org/my-repo"},
-		{"my-org/my-repo", "", "my-org/my-repo"},
+		{"my-org/my-repo", "github", "my-org/my-repo"},
 	}
 
 	for _, tc := range cases {

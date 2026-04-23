@@ -2,6 +2,7 @@ package utils
 
 import (
 	"net/mail"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -109,26 +110,31 @@ func ParseRepoWithProvider(raw string) (provider, ownerSlug string) {
 	raw = strings.TrimSuffix(raw, ".git")
 
 	if strings.HasPrefix(raw, "https://") || strings.HasPrefix(raw, "http://") {
-		withoutScheme := strings.SplitN(raw, "://", 2)[1]
-		parts := strings.SplitN(withoutScheme, "/", 3)
+		u, err := url.Parse(raw)
 
-		if len(parts) < 3 {
+		if err != nil {
 			return "", ""
 		}
 
-		host := strings.ToLower(parts[0])
-		path := parts[1] + "/" + parts[2]
+		segments := strings.Split(strings.Trim(u.Path, "/"), "/")
+
+		if len(segments) < 2 || segments[0] == "" || segments[1] == "" {
+			return "", ""
+		}
+
+		ownerSlug = segments[0] + "/" + segments[1]
+		host := strings.ToLower(u.Hostname())
 
 		switch {
 		case strings.Contains(host, "github"):
-			return "github", path
+			return "github", ownerSlug
 		case strings.Contains(host, "gitlab"):
-			return "gitlab", path
+			return "gitlab", ownerSlug
 		case strings.Contains(host, "bitbucket"):
-			return "bitbucket", path
+			return "bitbucket", ownerSlug
 		}
 
-		return "", path
+		return "", ownerSlug
 	}
 
 	for _, p := range []string{"github", "gitlab", "bitbucket"} {
@@ -137,7 +143,7 @@ func ParseRepoWithProvider(raw string) (provider, ownerSlug string) {
 		}
 	}
 
-	return "", raw
+	return "github", raw
 }
 
 // NormalizeURL ensures that the given URL starts with "http://" or "https://"

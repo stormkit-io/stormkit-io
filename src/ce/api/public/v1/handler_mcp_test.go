@@ -279,6 +279,7 @@ func (s *HandlerMCPSuite) Test_ToolsList_ReturnsExpectedTools() {
 	}
 
 	s.ElementsMatch([]string{
+		"create_app",
 		"deploy",
 		"get_deployment",
 		"publish_deployment",
