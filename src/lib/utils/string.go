@@ -117,7 +117,7 @@ func ParseRepoWithProvider(raw string) (provider, ownerSlug string) {
 		}
 
 		host := strings.ToLower(parts[0])
-		path := parts[1] + "/" + parts[2]
+		path := strings.TrimRight(parts[1]+"/"+parts[2], "/")
 
 		switch {
 		case strings.Contains(host, "github"):
