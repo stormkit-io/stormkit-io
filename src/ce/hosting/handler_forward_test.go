@@ -438,7 +438,6 @@ func (s *HandlerForwardSuite) Test_Redirects_RedirectingToDifferentDomain_ProxyW
 	s.mockRequest.On("URL", "https://test-api.example.com/api/v2/my-endpoint").Return(s.mockRequest).Once()
 	s.mockRequest.On("Method", "").Return(s.mockRequest).Once()
 	s.mockRequest.On("Headers", shttp.HeadersFromMap(map[string]string{})).Return(s.mockRequest).Once()
-	s.mockRequest.On("WithTimeout", time.Duration(0)).Return(s.mockRequest).Once()
 	s.mockRequest.On("Stream", req.Body, int64(0)).Return(s.mockRequest).Once()
 	s.mockRequest.On("Do").Return(&shttp.HTTPResponse{
 		Response: &http.Response{
@@ -466,7 +465,6 @@ func (s *HandlerForwardSuite) Test_Redirects_RedirectingToDifferentDomain_ProxyW
 	s.mockRequest.On("URL", "https://test-api.example.com/api/v2/my-endpoint").Return(s.mockRequest).Once()
 	s.mockRequest.On("Method", "").Return(s.mockRequest).Once()
 	s.mockRequest.On("Headers", shttp.HeadersFromMap(map[string]string{})).Return(s.mockRequest).Once()
-	s.mockRequest.On("WithTimeout", time.Duration(0)).Return(s.mockRequest).Once()
 	s.mockRequest.On("Stream", req.Body, int64(10)).Return(s.mockRequest).Once()
 	s.mockRequest.On("Do").Return(&shttp.HTTPResponse{
 		Response: &http.Response{
@@ -494,7 +492,6 @@ func (s *HandlerForwardSuite) Test_Redirects_RedirectingToDifferentDomain_ProxyW
 	s.mockRequest.On("Method", "").Return(s.mockRequest).Once()
 	s.mockRequest.On("Headers", shttp.HeadersFromMap(map[string]string{})).Return(s.mockRequest).Once()
 	s.mockRequest.On("Stream", req.Body, int64(0)).Return(s.mockRequest).Once()
-	s.mockRequest.On("WithTimeout", time.Duration(0)).Return(s.mockRequest).Once()
 	s.mockRequest.On("Do").Return(&shttp.HTTPResponse{
 		Response: &http.Response{
 			StatusCode: http.StatusOK,
@@ -510,6 +507,7 @@ func (s *HandlerForwardSuite) Test_Redirects_RedirectingToDifferentDomain_ProxyW
 	s.True(ok)
 	s.Equal([]byte("my-response"), data)
 	s.Equal(http.StatusOK, res.Status)
+	s.mockRequest.AssertExpectations(s.T())
 }
 
 func (s *HandlerForwardSuite) Test_Redirects_UI_Defined_Redirects() {

@@ -21,8 +21,15 @@ import (
 
 // nonMagic starts an http server.
 func nonMagic(handler http.Handler, port string) {
-	slog.Info(fmt.Sprintf("external server listening on :%s", port))
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", port), handler))
+	addr := fmt.Sprintf(":%s", port)
+	slog.Info(fmt.Sprintf("external server listening on %s", addr))
+
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: handler,
+	}
+
+	log.Fatal(srv.ListenAndServe())
 }
 
 func handler() http.Handler {

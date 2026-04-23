@@ -26,6 +26,11 @@ func HeadersFromMap(m map[string]string) http.Header {
 	return headers
 }
 
+var (
+	streamingTransport     *http.Transport
+	streamingTransportOnce sync.Once
+)
+
 var clientPool = sync.Pool{
 	New: func() any {
 		return &RequestV2{}
@@ -146,8 +151,24 @@ func (r *RequestV2) Do() (*HTTPResponse, error) {
 
 	req.Header = r.headers
 
-	client := &http.Client{
-		Timeout: r.timeout,
+	var client *http.Client
+
+	if r.bodyStream != nil && r.timeout > 0 {
+		// For streaming requests, avoid an overall client timeout that would
+		// cut off large uploads. Use ResponseHeaderTimeout instead so the
+		// upstream must start sending response headers within the deadline
+		// after the request body is fully sent. The transport is intentionally
+		// shared across all streaming requests: all callers use the same
+		// configured proxy timeout, so a single transport is safe to reuse.
+		streamingTransportOnce.Do(func() {
+			t := http.DefaultTransport.(*http.Transport).Clone()
+			t.ResponseHeaderTimeout = r.timeout
+			streamingTransport = t
+		})
+
+		client = &http.Client{Transport: streamingTransport}
+	} else {
+		client = &http.Client{Timeout: r.timeout}
 	}
 
 	if !r.followRedirects {
@@ -218,7 +239,6 @@ func Proxy(req *RequestContext, args ProxyArgs) *Response {
 	}
 
 	if req.Body != nil {
-		client.WithTimeout(0)
 		client.Stream(req.Body, req.ContentLength)
 	}
 

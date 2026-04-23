@@ -1,6 +1,7 @@
 package hosting
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
@@ -9,26 +10,22 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 )
 
+// WithTimeout enforces per-read idle deadlines on request bodies via context
+// cancellation, equivalent to nginx's client_body_timeout. Works for both
+// HTTP/1.1 and HTTP/2. No handler-level timeout is applied; ReadHeaderTimeout
+// on the server covers the header phase and ResponseHeaderTimeout on the proxy
+// client covers upstream stalls.
 func WithTimeout(h http.Handler) http.Handler {
-	timeout := config.Get().HTTPTimeouts.ReadTimeout
-	regular := http.TimeoutHandler(h, timeout, "timeout")
+	cfg := config.Get().HTTPTimeouts
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Bypass timeout for SSE streams — http.TimeoutHandler buffers the
-		// entire response which is incompatible with streaming.
-		if r.Method == http.MethodGet && r.URL.Path == "/v1/mcp" {
-			h.ServeHTTP(w, r)
-			return
+		if cfg.ClientBodyTimeout > 0 && r.Body != nil && r.Body != http.NoBody {
+			ctx, cancel := context.WithCancel(r.Context())
+			r = r.WithContext(ctx)
+			r.Body = shttp.NewIdleTimeoutReader(r.Body, cancel, cfg.ClientBodyTimeout)
 		}
 
-		// Bypass timeout for requests with a body — large uploads can take
-		// longer than the configured read timeout.
-		if r.Body != nil && r.Body != http.NoBody {
-			h.ServeHTTP(w, r)
-			return
-		}
-
-		regular.ServeHTTP(w, r)
+		h.ServeHTTP(w, r)
 	})
 }
 

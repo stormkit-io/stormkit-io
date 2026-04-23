@@ -28,6 +28,7 @@ func (s *PackageSuite) AfterTest(_, _ string) {
 	os.Unsetenv("STORMKIT_HTTP_READ_TIMEOUT")
 	os.Unsetenv("STORMKIT_HTTP_IDLE_TIMEOUT")
 	os.Unsetenv("STORMKIT_HTTP_PROXY_TIMEOUT")
+	os.Unsetenv("STORMKIT_HTTP_CLIENT_BODY_TIMEOUT")
 }
 
 func (s *PackageSuite) Test_HTTPTimeouts_Defaults() {
@@ -35,17 +36,20 @@ func (s *PackageSuite) Test_HTTPTimeouts_Defaults() {
 	s.Equal(30*time.Second, c.HTTPTimeouts.ReadTimeout)
 	s.Equal(60*time.Second, c.HTTPTimeouts.IdleTimeout)
 	s.Equal(30*time.Second, c.HTTPTimeouts.ProxyTimeout)
+	s.Equal(60*time.Second, c.HTTPTimeouts.ClientBodyTimeout)
 }
 
 func (s *PackageSuite) Test_HTTPTimeouts_ValidValues() {
 	os.Setenv("STORMKIT_HTTP_READ_TIMEOUT", "5s")
 	os.Setenv("STORMKIT_HTTP_IDLE_TIMEOUT", "2m")
 	os.Setenv("STORMKIT_HTTP_PROXY_TIMEOUT", "5m")
+	os.Setenv("STORMKIT_HTTP_CLIENT_BODY_TIMEOUT", "2m")
 
 	c := config.New()
 	s.Equal(5*time.Second, c.HTTPTimeouts.ReadTimeout)
 	s.Equal(2*time.Minute, c.HTTPTimeouts.IdleTimeout)
 	s.Equal(5*time.Minute, c.HTTPTimeouts.ProxyTimeout)
+	s.Equal(2*time.Minute, c.HTTPTimeouts.ClientBodyTimeout)
 }
 
 func (s *PackageSuite) Test_HTTPTimeouts_InvalidValue_FallsBackToDefault() {
@@ -53,10 +57,12 @@ func (s *PackageSuite) Test_HTTPTimeouts_InvalidValue_FallsBackToDefault() {
 	os.Setenv("STORMKIT_HTTP_READ_TIMEOUT", "notaduration")
 	// Non-positive durations should also fall back to defaults.
 	os.Setenv("STORMKIT_HTTP_IDLE_TIMEOUT", "-1s")
+	os.Setenv("STORMKIT_HTTP_CLIENT_BODY_TIMEOUT", "notaduration")
 
 	c := config.New()
 	s.Equal(30*time.Second, c.HTTPTimeouts.ReadTimeout)
 	s.Equal(60*time.Second, c.HTTPTimeouts.IdleTimeout)
+	s.Equal(60*time.Second, c.HTTPTimeouts.ClientBodyTimeout)
 }
 
 func TestPackages(t *testing.T) {
