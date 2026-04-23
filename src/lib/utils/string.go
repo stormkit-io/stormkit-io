@@ -2,7 +2,6 @@ package utils
 
 import (
 	"net/mail"
-	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -110,31 +109,26 @@ func ParseRepoWithProvider(raw string) (provider, ownerSlug string) {
 	raw = strings.TrimSuffix(raw, ".git")
 
 	if strings.HasPrefix(raw, "https://") || strings.HasPrefix(raw, "http://") {
-		u, err := url.Parse(raw)
+		withoutScheme := strings.SplitN(raw, "://", 2)[1]
+		parts := strings.SplitN(withoutScheme, "/", 3)
 
-		if err != nil {
+		if len(parts) < 3 || parts[2] == "" {
 			return "", ""
 		}
 
-		segments := strings.Split(strings.Trim(u.Path, "/"), "/")
-
-		if len(segments) < 2 || segments[0] == "" || segments[1] == "" {
-			return "", ""
-		}
-
-		ownerSlug = segments[0] + "/" + segments[1]
-		host := strings.ToLower(u.Hostname())
+		host := strings.ToLower(parts[0])
+		path := parts[1] + "/" + parts[2]
 
 		switch {
 		case strings.Contains(host, "github"):
-			return "github", ownerSlug
+			return "github", path
 		case strings.Contains(host, "gitlab"):
-			return "gitlab", ownerSlug
+			return "gitlab", path
 		case strings.Contains(host, "bitbucket"):
-			return "bitbucket", ownerSlug
+			return "bitbucket", path
 		}
 
-		return "", ownerSlug
+		return "", path
 	}
 
 	for _, p := range []string{"github", "gitlab", "bitbucket"} {
