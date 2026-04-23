@@ -50,6 +50,32 @@ func (s *StringSuite) Test_ParseSemver() {
 	}
 }
 
+func (s *StringSuite) Test_ParseRepoWithProvider() {
+	type testCase struct {
+		input    string
+		provider string
+		slug     string
+	}
+
+	cases := []testCase{
+		{"https://github.com/my-org/my-repo", "github", "my-org/my-repo"},
+		{"https://github.com/my-org/my-repo.git", "github", "my-org/my-repo"},
+		{"http://github.com/my-org/my-repo", "github", "my-org/my-repo"},
+		{"https://gitlab.com/my-org/my-repo", "gitlab", "my-org/my-repo"},
+		{"https://bitbucket.org/my-org/my-repo", "bitbucket", "my-org/my-repo"},
+		{"github/my-org/my-repo", "github", "my-org/my-repo"},
+		{"gitlab/my-org/my-repo", "gitlab", "my-org/my-repo"},
+		{"bitbucket/my-org/my-repo", "bitbucket", "my-org/my-repo"},
+		{"my-org/my-repo", "", "my-org/my-repo"},
+	}
+
+	for _, tc := range cases {
+		provider, slug := utils.ParseRepoWithProvider(tc.input)
+		s.Equal(tc.provider, provider, "provider mismatch for input: %s", tc.input)
+		s.Equal(tc.slug, slug, "slug mismatch for input: %s", tc.input)
+	}
+}
+
 func TestString(t *testing.T) {
 	suite.Run(t, &StringSuite{})
 }

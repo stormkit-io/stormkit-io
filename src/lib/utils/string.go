@@ -98,6 +98,48 @@ func ParseSemver(version string) (major, minor, patch string) {
 	return major, minor, patch
 }
 
+// ParseRepoWithProvider parses a repository reference in any of the following
+// formats and returns the provider and the "owner/name" path:
+//
+//   - https://github.com/owner/repo  (full URL, optional .git suffix)
+//   - github/owner/repo              (Stormkit style)
+//   - owner/repo                     (bare, provider will be empty)
+func ParseRepoWithProvider(raw string) (provider, ownerSlug string) {
+	raw = strings.TrimSpace(raw)
+	raw = strings.TrimSuffix(raw, ".git")
+
+	if strings.HasPrefix(raw, "https://") || strings.HasPrefix(raw, "http://") {
+		withoutScheme := strings.SplitN(raw, "://", 2)[1]
+		parts := strings.SplitN(withoutScheme, "/", 3)
+
+		if len(parts) < 3 {
+			return "", ""
+		}
+
+		host := strings.ToLower(parts[0])
+		path := parts[1] + "/" + parts[2]
+
+		switch {
+		case strings.Contains(host, "github"):
+			return "github", path
+		case strings.Contains(host, "gitlab"):
+			return "gitlab", path
+		case strings.Contains(host, "bitbucket"):
+			return "bitbucket", path
+		}
+
+		return "", path
+	}
+
+	for _, p := range []string{"github", "gitlab", "bitbucket"} {
+		if strings.HasPrefix(strings.ToLower(raw), p+"/") {
+			return p, raw[len(p)+1:]
+		}
+	}
+
+	return "", raw
+}
+
 // NormalizeURL ensures that the given URL starts with "http://" or "https://"
 // and removes any trailing slashes.
 func NormalizeURL(url string) string {

@@ -7,6 +7,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/redirects"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"gopkg.in/guregu/null.v3"
 )
 
@@ -113,6 +114,23 @@ func mcpAllTools() []mcpToolDef {
 					"branch": map[string]any{"type": "string", "description": "Filter by branch name."},
 				},
 				"required":             []string{"envId"},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "create_app",
+			Description: "Create a new application linked to a source-control repository.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"teamId": map[string]any{"type": "string", "description": "Team ID to create the app under. Required."},
+					"repo": map[string]any{
+						"type":        "string",
+						"description": "Repository reference. Accepted formats: full URL (https://github.com/org/repo), Stormkit style (github/org/repo), or bare owner/repo.",
+					},
+					"displayName": map[string]any{"type": "string", "description": "Human-readable name for the app. Auto-generated if omitted."},
+				},
+				"required":             []string{"teamId"},
 				"additionalProperties": false,
 			},
 		},
@@ -401,6 +419,26 @@ func mcpStopDeployment(req *RequestContextMCP, args map[string]any) *shttp.Respo
 	}
 
 	return handlerDeploymentStop(req.RequestContext)
+}
+
+func mcpCreateApp(req *RequestContextMCP, id any, args map[string]any) *shttp.Response {
+	if resp := req.withTeamID(args); resp != nil {
+		return resp
+	}
+
+	provider, ownerSlug := utils.ParseRepoWithProvider(stringArg(args, "repo"))
+
+	body := appCreatePost{
+		Repo:        ownerSlug,
+		Provider:    provider,
+		DisplayName: stringArg(args, "displayName"),
+	}
+
+	if resp := req.setBody(id, body); resp != nil {
+		return resp
+	}
+
+	return handlerAppCreate(req.RequestContext)
 }
 
 func mcpListApps(req *RequestContextMCP, args map[string]any) *shttp.Response {
