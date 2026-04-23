@@ -185,7 +185,7 @@ func (m *Mise) InstallLocal(ctx context.Context, opts LocalOpts) error {
 	if opts.Runtime != "" {
 		args = fmt.Sprintf("mise use -y %s", opts.Runtime)
 	} else {
-		args = "mise trust -q && mise install"
+		args = "mise trust --yes -q && mise install"
 	}
 
 	// Install the runtime using mise
