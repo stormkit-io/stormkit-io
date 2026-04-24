@@ -197,7 +197,8 @@ type Config struct {
 	Hash             string
 	RedisAddr        string
 	Secrets          map[string]string
-	HTTPTimeouts     *HttpTimeoutsConfig
+	TrustProxyHeaders bool
+	HTTPTimeouts      *HttpTimeoutsConfig
 	DbConfigTimeouts *DbConfigTimeouts
 }
 
@@ -265,6 +266,8 @@ func New() *Config {
 			DiscordDeploymentsSuccessChannel: os.Getenv("DISCORD_DEPLOYMENTS_SUCCESS_CHANNEL"),
 			DiscordProductionChannel:         os.Getenv("DISCORD_PRODUCTION_CHANNEL"),
 		},
+
+		TrustProxyHeaders: isTrueString(os.Getenv("STORMKIT_TRUST_PROXY_HEADERS")),
 
 		HTTPTimeouts: &HttpTimeoutsConfig{
 			ReadTimeout:       getDuration(os.Getenv("STORMKIT_HTTP_READ_TIMEOUT"), 30*time.Second),

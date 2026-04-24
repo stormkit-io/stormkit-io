@@ -4,6 +4,8 @@ import (
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 )
 
 // Options represents the rate limit options.
@@ -34,15 +36,16 @@ func IP(r *http.Request) string {
 		return ""
 	}
 
-	// Check the X-Forwarded-For header first (commonly used by proxies)
-	if forwardedFor := r.Header.Get("X-Forwarded-For"); forwardedFor != "" {
-		return forwardedFor
+	if config.Get().TrustProxyHeaders {
+		if forwardedFor := r.Header.Get("X-Forwarded-For"); forwardedFor != "" {
+			return forwardedFor
+		}
+
+		if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+			return realIP
+		}
 	}
 
-	// If X-Forwarded-For is empty, check the X-Real-IP header
-	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
-		return realIP
-	}
 	return getRemoteAddr(r)
 }
 

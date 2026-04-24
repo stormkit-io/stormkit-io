@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/model"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp/shttperr"
 )
@@ -215,14 +216,17 @@ func (r *RequestContext) Redirect(url string, status int) {
 	http.Redirect(r.writer, r.Request, url, status)
 }
 
-// RemoteAddr returns the remote address. It first checks for X-Fowarded-*
-// headers and if either the ip or the port is missing returns the request.RemoteAddr.
+// RemoteAddr returns the remote address. When STORMKIT_TRUST_PROXY_HEADERS is
+// true it reads from X-Forwarded-For / X-Real-IP set by an upstream proxy.
+// Otherwise it always uses the real socket address so clients cannot spoof it.
 func RemoteAddr(r *http.Request) string {
-	// Check the X-Forwarded-For header first (commonly used by proxies)
+	if !config.Get().TrustProxyHeaders {
+		return r.RemoteAddr
+	}
+
 	addr := r.Header.Get("X-Forwarded-For")
 	port := r.Header.Get("X-Forwarded-Port")
 
-	// If X-Forwarded-For is empty, check the X-Real-IP header
 	if addr == "" {
 		addr = r.Header.Get("X-Real-IP")
 	}
