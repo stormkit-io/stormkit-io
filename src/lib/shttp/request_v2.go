@@ -213,37 +213,31 @@ type ProxyArgs struct {
 func Proxy(req *RequestContext, args ProxyArgs) *Response {
 	headers := req.Header.Clone()
 
-	// When Stormkit is the public edge (default), always overwrite X-Forwarded-For
-	// and X-Real-IP with the real socket address so clients cannot spoof them.
+	// When Stormkit is the public edge (default), overwrite X-Forwarded-For with
+	// the real socket address and overwrite X-Real-IP if the client supplied one,
+	// so clients cannot spoof their IP for rate-limiting or access-control.
 	// When STORMKIT_TRUST_PROXY_HEADERS=true a trusted upstream proxy (e.g. a
-	// load balancer) has already set these headers; preserve them and only append
-	// the real socket address to the X-Forwarded-For chain.
-	trustProxy := config.Get().TrustProxyHeaders
+	// load balancer) has already set these headers correctly; pass them through
+	// unchanged.
+	if !config.Get().TrustProxyHeaders {
+		if remoteAddr := req.RemoteAddr(); remoteAddr != "" {
+			addr, port, err := net.SplitHostPort(remoteAddr)
 
-	if remoteAddr := req.RemoteAddr(); remoteAddr != "" {
-		addr, port, err := net.SplitHostPort(remoteAddr)
-
-		if err != nil {
-			slog.Errorf("error splitting remote address: %s", remoteAddr)
-		}
-
-		if addr != "" {
-			if trustProxy {
-				prior := headers.Get("X-Forwarded-For")
-
-				if prior != "" {
-					headers.Set("X-Forwarded-For", prior+", "+addr)
-				} else {
-					headers.Set("X-Forwarded-For", addr)
-				}
-			} else {
-				headers.Set("X-Forwarded-For", addr)
-				headers.Del("X-Real-IP")
+			if err != nil {
+				slog.Errorf("error splitting remote address: %s", remoteAddr)
 			}
-		}
 
-		if port != "" {
-			headers.Set("X-Forwarded-Port", port)
+			if addr != "" {
+				headers.Set("X-Forwarded-For", addr)
+
+				if headers.Get("X-Real-IP") != "" {
+					headers.Set("X-Real-IP", addr)
+				}
+			}
+
+			if port != "" {
+				headers.Set("X-Forwarded-Port", port)
+			}
 		}
 	}
 

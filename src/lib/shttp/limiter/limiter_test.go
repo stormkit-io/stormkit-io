@@ -4,46 +4,78 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp/limiter"
+	"github.com/stretchr/testify/suite"
 )
 
-func TestIP_XForwardedFor(t *testing.T) {
-	req := &http.Request{
-		Header: http.Header{
-			"X-Forwarded-For": []string{"1.1.1.1"},
-		},
-	}
-
-	ip := limiter.IP(req)
-
-	if ip != "1.1.1.1" {
-		t.Fatalf("Was expecting ip to be 1.1.1.1 but received: %s", ip)
-	}
+type IPSuite struct {
+	suite.Suite
 }
 
-func TestIP_XRealIP(t *testing.T) {
+func (s *IPSuite) TearDownTest() {
+	config.Get().TrustProxyHeaders = false
+}
+
+func (s *IPSuite) Test_EdgeMode_UsesRemoteAddr() {
 	hdr := http.Header{}
+	hdr.Set("X-Forwarded-For", "9.9.9.9")
+	hdr.Set("X-Real-IP", "8.8.8.8")
+
 	req := &http.Request{
-		Header: hdr,
+		RemoteAddr: "1.2.3.4:1234",
+		Header:     hdr,
 	}
 
-	hdr.Set("X-Real-IP", "127.0.0.1")
-
-	ip := limiter.IP(req)
-
-	if ip != "127.0.0.1" {
-		t.Fatalf("Was expecting ip to be 127.0.0.1 but received: %s", ip)
-	}
+	s.Equal("1.2.3.4", limiter.IP(req))
 }
 
-func TestIP_RemoteAddr(t *testing.T) {
+func (s *IPSuite) Test_EdgeMode_FallsBackToRemoteAddrWithoutPort() {
 	req := &http.Request{
 		RemoteAddr: "127.0.0.1",
 	}
 
-	ip := limiter.IP(req)
+	s.Equal("127.0.0.1", limiter.IP(req))
+}
 
-	if ip != "127.0.0.1" {
-		t.Fatalf("Was expecting ip to be 127.0.0.1 but received: %s", ip)
+func (s *IPSuite) Test_TrustProxy_UsesXForwardedFor() {
+	config.Get().TrustProxyHeaders = true
+
+	hdr := http.Header{}
+	hdr.Set("X-Forwarded-For", "1.1.1.1")
+
+	req := &http.Request{
+		RemoteAddr: "10.0.0.1:1234",
+		Header:     hdr,
 	}
+
+	s.Equal("1.1.1.1", limiter.IP(req))
+}
+
+func (s *IPSuite) Test_TrustProxy_FallsBackToXRealIP() {
+	config.Get().TrustProxyHeaders = true
+
+	hdr := http.Header{}
+	hdr.Set("X-Real-IP", "127.0.0.1")
+
+	req := &http.Request{
+		RemoteAddr: "10.0.0.1:1234",
+		Header:     hdr,
+	}
+
+	s.Equal("127.0.0.1", limiter.IP(req))
+}
+
+func (s *IPSuite) Test_TrustProxy_FallsBackToRemoteAddr() {
+	config.Get().TrustProxyHeaders = true
+
+	req := &http.Request{
+		RemoteAddr: "10.0.0.1:5000",
+	}
+
+	s.Equal("10.0.0.1", limiter.IP(req))
+}
+
+func TestIPSuite(t *testing.T) {
+	suite.Run(t, new(IPSuite))
 }

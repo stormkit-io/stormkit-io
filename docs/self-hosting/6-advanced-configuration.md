@@ -15,13 +15,13 @@ The hosting queue is a Redis list used to buffer incoming analytics, logs, and u
 
 ## Reverse Proxy / Load Balancer
 
-By default Stormkit assumes it is the public edge and rewrites `X-Forwarded-For` and `X-Real-IP` with the real socket address on every proxied request, preventing clients from spoofing those headers.
+By default Stormkit assumes it is the public edge: `X-Forwarded-For` is always overwritten with the real socket address, and `X-Real-IP` is overwritten if the client supplied one. This prevents clients from spoofing their IP for rate-limiting or access-control purposes.
 
-If Stormkit sits behind a trusted reverse proxy or load balancer that already sets `X-Forwarded-For` correctly, enable the following variable so that the upstream chain is preserved and the real socket address is appended rather than replaced:
+If Stormkit sits behind a trusted reverse proxy or load balancer that already sets these headers correctly, enable the following variable so that they are passed through unchanged:
 
 | Variable                          | Default | Description                                                                                                                                                      |
 | --------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `STORMKIT_TRUST_PROXY_HEADERS`    | `false` | Set to `true` when Stormkit runs behind a trusted upstream proxy. The existing `X-Forwarded-For` header is preserved and the connecting address is appended to it. When `false` (default), `X-Forwarded-For` and `X-Real-IP` are always overwritten with the real socket address. |
+| `STORMKIT_TRUST_PROXY_HEADERS`    | `false` | Set to `true` when Stormkit runs behind a trusted upstream proxy. `X-Forwarded-For` and `X-Real-IP` are passed through unchanged. When `false` (default), `X-Forwarded-For` is always overwritten with the real socket address and `X-Real-IP` is overwritten if present. |
 
 ## HTTP Timeouts
 

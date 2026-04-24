@@ -24,6 +24,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/hosting"
 	jobs "github.com/stormkit-io/stormkit-io/src/ce/workerserver"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/analytics"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/integrations"
 	"github.com/stormkit-io/stormkit-io/src/lib/pool"
@@ -108,6 +109,7 @@ func (s *HandlerForwardSuite) BeforeTest(_, _ string) {
 func (s *HandlerForwardSuite) AfterTest(_, _ string) {
 	admin.ResetMockLicense()
 	hosting.QueueName = jobs.HostingQueueName
+	config.Get().TrustProxyHeaders = false
 }
 
 func (s *HandlerForwardSuite) TearDownSuite() {
@@ -527,6 +529,8 @@ func (s *HandlerForwardSuite) Test_Redirects_UI_Defined_Redirects() {
 }
 
 func (s *HandlerForwardSuite) Test_Analytics() {
+	config.Get().TrustProxyHeaders = true
+
 	s.mockClient.On("GetFile", integrations.GetFileArgs{
 		Location:     "aws:my-bucket/my-key-prefix",
 		FileName:     "/analytics/index.html",
