@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strings"
 
+	proxyproto "github.com/pires/go-proxyproto"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/hosting"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
@@ -24,12 +26,19 @@ func nonMagic(handler http.Handler, port string) {
 	addr := fmt.Sprintf(":%s", port)
 	slog.Info(fmt.Sprintf("external server listening on %s", addr))
 
-	srv := &http.Server{
-		Addr:    addr,
-		Handler: handler,
+	ln, err := net.Listen("tcp", addr)
+
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	log.Fatal(srv.ListenAndServe())
+	if config.Get().ProxyProtocol {
+		ln = &proxyproto.Listener{Listener: ln}
+	}
+
+	srv := &http.Server{Handler: handler}
+
+	log.Fatal(srv.Serve(ln))
 }
 
 func handler() http.Handler {

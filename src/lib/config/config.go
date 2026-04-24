@@ -181,25 +181,26 @@ var Limits = map[string]limits{
 
 // Config is the root object for the configuration.
 type Config struct {
-	AWS              *AwsConfig
-	Alibaba          *AlibabaConfig
-	Database         *DatabaseConfig
-	Deployer         *DeployerConfig
-	Stripe           *StripeConfig
-	Reporting        *ReportingConfig
-	Runner           *RunnerConfig
-	Tracking         *TrackingConfig
-	InstanceID       string // The ID of the instance that is randomly assigned during start time
-	AppSecret        string
-	APIKey           string // The API key used to access several endpoints (for dedicated instances)
-	Env              string
-	Version          VersionConfig
-	Hash             string
-	RedisAddr        string
-	Secrets          map[string]string
+	AWS               *AwsConfig
+	Alibaba           *AlibabaConfig
+	Database          *DatabaseConfig
+	Deployer          *DeployerConfig
+	Stripe            *StripeConfig
+	Reporting         *ReportingConfig
+	Runner            *RunnerConfig
+	Tracking          *TrackingConfig
+	InstanceID        string // The ID of the instance that is randomly assigned during start time
+	AppSecret         string
+	APIKey            string // The API key used to access several endpoints (for dedicated instances)
+	Env               string
+	Version           VersionConfig
+	Hash              string
+	RedisAddr         string
+	Secrets           map[string]string
 	TrustProxyHeaders bool
+	ProxyProtocol     bool
 	HTTPTimeouts      *HttpTimeoutsConfig
-	DbConfigTimeouts *DbConfigTimeouts
+	DbConfigTimeouts  *DbConfigTimeouts
 }
 
 var c *Config
@@ -268,6 +269,7 @@ func New() *Config {
 		},
 
 		TrustProxyHeaders: isTrueString(os.Getenv("STORMKIT_TRUST_PROXY_HEADERS")),
+		ProxyProtocol:     isTrueString(os.Getenv("STORMKIT_PROXY_PROTOCOL")),
 
 		HTTPTimeouts: &HttpTimeoutsConfig{
 			ReadTimeout:       getDuration(os.Getenv("STORMKIT_HTTP_READ_TIMEOUT"), 30*time.Second),

@@ -14,6 +14,7 @@ import (
 
 	"github.com/caddyserver/certmagic"
 	"github.com/libdns/route53"
+	proxyproto "github.com/pires/go-proxyproto"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
@@ -129,21 +130,25 @@ func Magic(opts MagicOpts) {
 func httpsServe(cfg *certmagic.Config, handler http.Handler) error {
 	ctx := context.Background()
 
-	httpLn, err := net.Listen("tcp", fmt.Sprintf(":%d", certmagic.HTTPPort))
+	httpTCPLn, err := net.Listen("tcp", fmt.Sprintf(":%d", certmagic.HTTPPort))
 
 	if err != nil {
 		return err
 	}
 
+	httpLn := maybeProxyProto(httpTCPLn)
+
 	tlsConfig := cfg.TLSConfig()
 	tlsConfig.NextProtos = append([]string{"h2", "http/1.1"}, tlsConfig.NextProtos...)
 
-	httpsLn, err := tls.Listen("tcp", fmt.Sprintf(":%d", certmagic.HTTPSPort), tlsConfig)
+	httpsTCPLn, err := net.Listen("tcp", fmt.Sprintf(":%d", certmagic.HTTPSPort))
 
 	if err != nil {
 		httpLn.Close()
 		return err
 	}
+
+	httpsLn := tls.NewListener(maybeProxyProto(httpsTCPLn), tlsConfig)
 
 	// Ensure both listeners are closed when the HTTPS server stops, which
 	// also causes the HTTP goroutine below to exit cleanly.
@@ -181,6 +186,16 @@ func httpsServe(cfg *certmagic.Config, handler http.Handler) error {
 	go httpServer.Serve(httpLn)
 
 	return httpsServer.Serve(httpsLn)
+}
+
+// maybeProxyProto wraps ln with a PROXY protocol listener when
+// STORMKIT_PROXY_PROTOCOL is enabled, otherwise returns ln unchanged.
+func maybeProxyProto(ln net.Listener) net.Listener {
+	if !config.Get().ProxyProtocol {
+		return ln
+	}
+
+	return &proxyproto.Listener{Listener: ln}
 }
 
 // httpRedirectHandler redirects plain HTTP requests to HTTPS.
