@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.04.24.1...v2026.04.24.2
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.24.1...v2026.04.24.2)
+
+### 🚀 Enhancements
+
+- Pass remoteAddress and remotePort to lambda invocations ([#197](https://github.com/stormkit-io/stormkit-io/pull/197))
+
+### 🏡 Chore
+
+- Update changelog for v2026.04.24.1 ([#196](https://github.com/stormkit-io/stormkit-io/pull/196))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.04.22.5...v2026.04.24.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.22.5...v2026.04.24.1)
