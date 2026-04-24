@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.04.24.2...v2026.04.24.3
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.24.2...v2026.04.24.3)
+
+### 🚀 Enhancements
+
+- Add PROXY protocol support for L4 load balancers ([#199](https://github.com/stormkit-io/stormkit-io/pull/199))
+
+### 🏡 Chore
+
+- Update changelog for v2026.04.24.2 ([#198](https://github.com/stormkit-io/stormkit-io/pull/198))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.04.24.1...v2026.04.24.2
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.24.1...v2026.04.24.2)
