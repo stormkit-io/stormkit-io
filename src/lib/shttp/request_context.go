@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -103,6 +104,36 @@ func (r *RequestContext) URL() *url.URL {
 // headers and if either the ip or the port is missing returns the request.RemoteAddr.
 func (r *RequestContext) RemoteAddr() string {
 	return RemoteAddr(r.Request)
+}
+
+// RemoteIP returns only the IP part of the remote address, guaranteed to be a
+// plain IP string with no port suffix. When the address contains a
+// comma-separated list (as some proxies produce for X-Forwarded-For), the
+// first entry — the original client IP — is returned.
+func (r *RequestContext) RemoteIP() string {
+	addr := r.RemoteAddr()
+
+	if ip, _, err := net.SplitHostPort(addr); err == nil {
+		addr = ip
+	}
+
+	if idx := strings.IndexByte(addr, ','); idx != -1 {
+		addr = addr[:idx]
+	}
+
+	return strings.TrimSpace(addr)
+}
+
+// RemotePort returns only the port part of the remote address, or an empty
+// string if the port cannot be determined.
+func (r *RequestContext) RemotePort() string {
+	addr := r.RemoteAddr()
+
+	if _, port, err := net.SplitHostPort(addr); err == nil {
+		return port
+	}
+
+	return ""
 }
 
 // Query returns the query parameters.

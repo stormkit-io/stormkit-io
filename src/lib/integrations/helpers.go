@@ -253,14 +253,16 @@ func prepareInvokeRequest(args InvokeArgs) FunctionRequest {
 	}
 
 	return FunctionRequest{
-		CaptureLogs: args.CaptureLogs,
-		Method:      args.Method,
-		Path:        args.URL.Path,
-		Query:       args.URL.Query(),
-		Headers:     headers,
-		RawHeaders:  rawHeaders,
-		URL:         relativeUrl,
-		Body:        string(body),
-		Context:     args.Context,
+		CaptureLogs:   args.CaptureLogs,
+		Method:        args.Method,
+		Path:          args.URL.Path,
+		Query:         args.URL.Query(),
+		Headers:       headers,
+		RawHeaders:    rawHeaders,
+		URL:           relativeUrl,
+		Body:          string(body),
+		Context:       args.Context,
+		RemoteAddress: args.RemoteAddress,
+		RemotePort:    args.RemotePort,
 	}
 }

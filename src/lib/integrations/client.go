@@ -42,6 +42,8 @@ type InvokeArgs struct {
 	DeploymentID  types.ID
 	Context       map[string]any // Additional context to pass to the function
 	QueueLog      func(*Log)     // Queue logs for later processing
+	RemoteAddress string
+	RemotePort    string
 }
 
 type Log struct {
@@ -60,15 +62,17 @@ type InvokeResult struct {
 }
 
 type FunctionRequest struct {
-	Method      string            `json:"method"`
-	URL         string            `json:"url"` // URL is the relative path + query string
-	Path        string            `json:"path"`
-	Body        string            `json:"body,omitempty"`
-	Query       url.Values        `json:"query,omitempty"`
-	Headers     map[string]string `json:"headers,omitempty"`
-	RawHeaders  []string          `json:"rawHeaders,omitempty"`
-	CaptureLogs bool              `json:"captureLogs,omitempty"`
-	Context     map[string]any    `json:"context,omitempty"`
+	Method        string            `json:"method"`
+	URL           string            `json:"url"` // URL is the relative path + query string
+	Path          string            `json:"path"`
+	Body          string            `json:"body,omitempty"`
+	Query         url.Values        `json:"query,omitempty"`
+	Headers       map[string]string `json:"headers,omitempty"`
+	RawHeaders    []string          `json:"rawHeaders,omitempty"`
+	CaptureLogs   bool              `json:"captureLogs,omitempty"`
+	Context       map[string]any    `json:"context,omitempty"`
+	RemoteAddress string            `json:"remoteAddress,omitempty"`
+	RemotePort    string            `json:"remotePort,omitempty"`
 }
 
 type FunctionResponse struct {
