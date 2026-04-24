@@ -1,5 +1,28 @@
 # Changelog
 
+## v2026.04.22.5...v2026.04.24.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.22.5...v2026.04.24.1)
+
+### 🚀 Enhancements
+
+- Add create_app MCP tool ([#193](https://github.com/stormkit-io/stormkit-io/pull/193))
+
+### 🩹 Fixes
+
+- Add --yes flag to mise trust to prevent silent no-op in non-interactive shells ([#194](https://github.com/stormkit-io/stormkit-io/pull/194))
+- Read IdleTimeout from config in httpsServe ([38fe798](https://github.com/stormkit-io/stormkit-io/commit/38fe798))
+- Prevent X-Forwarded-For spoofing at the edge ([#195](https://github.com/stormkit-io/stormkit-io/pull/195))
+
+### 🏡 Chore
+
+- Update changelog for v2026.04.22.5 ([#191](https://github.com/stormkit-io/stormkit-io/pull/191))
+- Improve connection timeouts ([#192](https://github.com/stormkit-io/stormkit-io/pull/192))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.04.22.4...v2026.04.22.5
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.22.4...v2026.04.22.5)
