@@ -1,5 +1,25 @@
 # Changelog
 
+## v2026.04.25.3...v2026.04.25.4
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.25.3...v2026.04.25.4)
+
+### 🚀 Enhancements
+
+- Wrap status checks with nix develop when flake.nix is present ([7697c85](https://github.com/stormkit-io/stormkit-io/commit/7697c85))
+
+### 📖 Documentation
+
+- Update runtimes doc with nix package manager link and improved description ([0ee2079](https://github.com/stormkit-io/stormkit-io/commit/0ee2079))
+
+### 🏡 Chore
+
+- Update changelog for v2026.04.25.3 ([#206](https://github.com/stormkit-io/stormkit-io/pull/206))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.04.25.2...v2026.04.25.3
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.25.2...v2026.04.25.3)
