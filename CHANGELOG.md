@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.04.24.3...v2026.04.25.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.24.3...v2026.04.25.1)
+
+### 🚀 Enhancements
+
+- Support flake.nix and persist nix store ([#201](https://github.com/stormkit-io/stormkit-io/pull/201))
+
+### 🏡 Chore
+
+- Update changelog for v2026.04.24.3 ([#200](https://github.com/stormkit-io/stormkit-io/pull/200))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.04.24.2...v2026.04.24.3
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.24.2...v2026.04.24.3)
