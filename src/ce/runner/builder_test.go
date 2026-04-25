@@ -98,6 +98,37 @@ func (s *BuildManagerSuite) Test_Build_WithFlake() {
 	mockCmd.AssertExpectations(s.T())
 }
 
+func (s *BuildManagerSuite) Test_Build_WithFlake_InRepoRoot() {
+	subDir := path.Join(s.config.Repo.Dir, "subdir")
+	s.NoError(os.MkdirAll(subDir, 0776))
+
+	s.config.WorkDir = subDir
+	s.config.Build.BuildCmd = "npm run build"
+	s.config.Build.EnvVars = map[string]string{}
+
+	// flake.nix is at repo root, not workDir
+	s.NoError(os.WriteFile(path.Join(s.config.Repo.Dir, "flake.nix"), []byte("{}"), 0776))
+
+	mockCmd := &mocks.CommandInterface{}
+	sys.DefaultCommand = mockCmd
+	defer func() { sys.DefaultCommand = nil }()
+
+	mockCmd.On("SetOpts", sys.CommandOpts{
+		Name:   "nix",
+		Args:   []string{"--extra-experimental-features", "nix-command flakes", "develop", "--command", "sh", "-c", "npm run build"},
+		Env:    runner.PrepareEnvVars(s.config.Build.EnvVars),
+		Dir:    s.config.Repo.Dir,
+		Stdout: s.config.Reporter.File(),
+		Stderr: s.config.Reporter.File(),
+	}).Return(mockCmd).Once()
+
+	mockCmd.On("Run").Return(nil, nil).Once()
+
+	bm := runner.NewBuilder(s.config)
+	s.NoError(bm.ExecCommands(context.Background()))
+	mockCmd.AssertExpectations(s.T())
+}
+
 func TestBuildManagerSuite(t *testing.T) {
 	suite.Run(t, &BuildManagerSuite{})
 }

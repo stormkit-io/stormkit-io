@@ -131,19 +131,6 @@ func (m *Mise) InstallMise(ctx context.Context) error {
 		slog.Errorf("error adding mise experimental setting: %v", err)
 	}
 
-	// Enable plugin for using nix:* packages
-	cmd = sys.Command(ctx, sys.CommandOpts{
-		String: "mise plugin install nix https://github.com/jbadeau/mise-nix.git",
-		Env: []string{
-			"PATH=" + os.Getenv("PATH"),
-			"HOME=" + os.Getenv("HOME"),
-		},
-	})
-
-	if err = cmd.Run(); err != nil {
-		slog.Errorf("error installing mise nix plugin: %v", err)
-	}
-
 	return nil
 }
 
@@ -258,7 +245,7 @@ func (m *Mise) BinPaths(ctx context.Context) (map[string]string, error) {
 		pieces := strings.Split(tool, "@")
 		toolName := pieces[0]
 
-		// nix:chromium for example should return just "chromium" as the tool name
+		// npm:ng for example should return just "ng" as the tool name
 		if strings.Contains(toolName, ":") {
 			toolName = strings.Split(toolName, ":")[1]
 		}
