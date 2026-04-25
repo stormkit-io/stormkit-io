@@ -16,6 +16,7 @@ You can:
 - Install and manage multiple runtimes (Node.js, Go, npm, Angular CLI, etc.)
 - Specify exact versions or use `latest`
 - Enable or disable automatic runtime installation
+- Use a `flake.nix` file to provide system-level tools via Nix
 - Upgrade the underlying runtime manager (**mise**)
 
 ## Accessing the Runtime Management Page
@@ -72,6 +73,29 @@ The following files are recognized automatically:
 | node    | `.nvmrc`, `.node-version`             |
 | python  | `.python-version`, `.python-versions` |
 | ruby    | `.ruby-version`, `Gemfile`            |
+
+## Nix Flakes
+
+If your repository contains a `flake.nix` file, Stormkit will automatically run `nix develop` during the **install runtimes** step to bootstrap the Nix development shell. The packages defined in the flake are then available for all subsequent build commands — no additional configuration required.
+
+A typical `flake.nix` that provides `ffmpeg` and `imagemagick` during builds:
+
+```nix
+{
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+
+  outputs = { self, nixpkgs }: let
+    system = "x86_64-linux";
+    pkgs = nixpkgs.legacyPackages.${system};
+  in {
+    devShells.${system}.default = pkgs.mkShell {
+      packages = [ pkgs.ffmpeg pkgs.imagemagick ];
+    };
+  };
+}
+```
+
+`flake.nix` and `mise.toml` can coexist — mise handles language runtimes while the flake covers system-level tools.
 
 ## Mise Runtime Manager
 

@@ -139,9 +139,41 @@ func (p Installer) RuntimeVersion(ctx context.Context) error {
 	}).Run()
 }
 
-// InstallRuntimeDependencies installs runtime dependencies using mise.
+func (p *Installer) hasFlakeNix() bool {
+	_, err := os.Stat(path.Join(p.workDir, "flake.nix"))
+	return err == nil
+}
+
+// installFlake runs the flake's dev shell and applies its PATH to the current process
+// so that packages defined in flake.nix are available to subsequent build commands.
+func (p *Installer) installFlake(ctx context.Context) error {
+	cmd := sys.Command(ctx, sys.CommandOpts{
+		Name:   "sh",
+		Args:   []string{"-c", `nix --extra-experimental-features "nix-command flakes" develop --command env`},
+		Dir:    p.workDir,
+		Env:    PrepareEnvVars(p.envVars),
+		Stderr: p.reporter.File(),
+	})
+
+	output, err := cmd.Output()
+
+	if err != nil {
+		return err
+	}
+
+	for line := range strings.SplitSeq(string(output), "\n") {
+		if v, ok := strings.CutPrefix(line, "PATH="); ok {
+			os.Setenv("PATH", v)
+			break
+		}
+	}
+
+	return nil
+}
+
+// InstallRuntimeDependencies installs runtime dependencies using mise and flake.nix (if present).
 func (p *Installer) InstallRuntimeDependencies(ctx context.Context) ([]string, error) {
-	p.reporter.AddStep("mise install")
+	p.reporter.AddStep("install runtimes")
 
 	m := mise.Client()
 
@@ -156,10 +188,14 @@ func (p *Installer) InstallRuntimeDependencies(ctx context.Context) ([]string, e
 		Stderr: p.reporter.File(),
 	}
 
-	err := m.InstallLocal(ctx, opts)
-
-	if err != nil {
+	if err := m.InstallLocal(ctx, opts); err != nil {
 		return nil, err
+	}
+
+	if p.hasFlakeNix() {
+		if err := p.installFlake(ctx); err != nil {
+			return nil, err
+		}
 	}
 
 	runtimes, err := m.ListLocal(ctx, mise.LocalOpts{

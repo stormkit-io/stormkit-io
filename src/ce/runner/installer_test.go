@@ -433,7 +433,7 @@ func (s *InstallerSuite) Test_InstallingRuntimeDeps() {
 	installed, err := p.InstallRuntimeDependencies(ctx)
 	s.Equal([]string{"go@1.24"}, installed)
 	s.NoError(err)
-	s.Contains(s.config.Reporter.Logs(), "[sk-step] mise install")
+	s.Contains(s.config.Reporter.Logs(), "[sk-step] install runtimes")
 
 	// Now let's try returning no runtimes installed
 	s.mockMise.On("InstallMise", ctx).Return(nil).Once()
@@ -449,7 +449,42 @@ func (s *InstallerSuite) Test_InstallingRuntimeDeps() {
 	installed, err = p.InstallRuntimeDependencies(ctx)
 	s.Equal([]string{"go"}, installed)
 	s.NoError(err)
-	s.Contains(s.config.Reporter.Logs(), "[sk-step] mise install")
+	s.Contains(s.config.Reporter.Logs(), "[sk-step] install runtimes")
+}
+
+func (s *InstallerSuite) Test_InstallingRuntimeDeps_WithFlake() {
+	ctx := context.Background()
+	workDir := path.Join(s.config.Repo.Dir, "my-dir")
+	stdout := s.config.Reporter.File()
+
+	s.NoError(os.Mkdir(workDir, 0776))
+	s.NoError(os.WriteFile(path.Join(workDir, "mise.toml"), []byte(`[tools]\ngo = "1.24"`), 0776))
+	s.NoError(os.WriteFile(path.Join(workDir, "flake.nix"), []byte(`{}`), 0776))
+
+	s.mockMise.On("InstallMise", ctx).Return(nil).Once()
+	s.mockMise.On("InstallLocal", ctx, mise.LocalOpts{Dir: workDir, Stdout: stdout, Stderr: stdout}).Return(nil).Once()
+	s.mockMise.On("ListLocal", ctx, mise.LocalOpts{Dir: workDir}).Return([]string{"go@1.24"}, nil).Once()
+	s.mockMise.On("BinPaths", ctx).Return(map[string]string{}, nil).Once()
+
+	s.mockCmd.On("SetOpts", sys.CommandOpts{
+		Name:   "sh",
+		Args:   []string{"-c", `nix --extra-experimental-features "nix-command flakes" develop --command env`},
+		Dir:    workDir,
+		Env:    runner.PrepareEnvVars(s.config.Build.EnvVars),
+		Stderr: stdout,
+	}).Return(s.mockCmd).Once()
+
+	s.mockCmd.On("Output").Return([]byte("HOME=/home/stormkit\nPATH=/nix/store/abc/bin:/usr/bin\nTERM=xterm\n"), nil).Once()
+
+	s.config.WorkDir = workDir
+	s.config.Repo.Runtime = "go"
+
+	p := runner.NewInstaller(s.config)
+
+	installed, err := p.InstallRuntimeDependencies(ctx)
+	s.NoError(err)
+	s.Equal([]string{"go@1.24"}, installed)
+	s.Equal("/nix/store/abc/bin:/usr/bin", os.Getenv("PATH"))
 }
 
 func TestInstallerSuite(t *testing.T) {
