@@ -444,6 +444,35 @@ func (b Bundler) bundleServerSideStormkitSubfolder() ([]string, string, error) {
 	return []string{StormkitServerFolder}, fmt.Sprintf("%s:%s", serverEntry, functionHandler), nil
 }
 
+// copyNixFlake copies flake.nix and flake.lock from the detected flake directory
+// into destDir so the files are included in the server zip and available at runtime
+// for nix develop wrapping.
+func (b Bundler) copyNixFlake(destDir string) {
+	flakeDir := nixFlakeDir(b.workDir, b.repoDir)
+
+	if flakeDir == "" {
+		return
+	}
+
+	for _, name := range []string{"flake.nix", "flake.lock"} {
+		src := filepath.Join(flakeDir, name)
+
+		if !file.Exists(src) {
+			continue
+		}
+
+		dst := filepath.Join(destDir, name)
+
+		if src == dst {
+			continue
+		}
+
+		if err := file.Copy(src, dst, 0664); err != nil {
+			slog.Errorf("error copying %s to server output: %s", name, err.Error())
+		}
+	}
+}
+
 // bundleServerSide returns the necessary information to bundle the server side code.
 func (b Bundler) bundleServerSide() ([]string, string, error) {
 	if b.serverCmd == "" && len(b.serverDirs) == 0 {
@@ -454,6 +483,7 @@ func (b Bundler) bundleServerSide() ([]string, string, error) {
 
 	// Handle bundling the whole folder case (go, python, ruby, etc...)
 	if len(b.serverDirs) == 1 && b.serverDirs[0] == "" {
+		b.copyNixFlake(b.workDir)
 		return []string{"."}, functionHandler, nil
 	}
 
@@ -507,6 +537,8 @@ func (b Bundler) bundleServerSide() ([]string, string, error) {
 		if dir == "" || !file.Exists(absolutePath) {
 			continue
 		}
+
+		b.copyNixFlake(absolutePath)
 
 		deps, err := b.bundleDependencies(absolutePath, additionalDeps...)
 

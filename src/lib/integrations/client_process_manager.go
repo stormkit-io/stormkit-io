@@ -272,6 +272,16 @@ func (pm *ProcessManager) runSetupScript(ctx context.Context, args RunSetupScrip
 	return nil
 }
 
+// BuildServerCommand wraps command with nix develop when flake.nix is present in workDir,
+// so that all nix-provided libraries are available at runtime.
+func (pm *ProcessManager) BuildServerCommand(command, workDir string) string {
+	if file.Exists(path.Join(workDir, "flake.nix")) {
+		return `nix --extra-experimental-features "nix-command flakes" develop --command sh -c ` + command
+	}
+
+	return command
+}
+
 // Start starts a new service with the given arguments and working directory.
 // It creates a new command with the given command string, working directory, and environment variables.
 // It also creates a log file in the temporary directory to capture the output of the command.
@@ -404,7 +414,7 @@ func (pm *ProcessManager) Start(ctx context.Context, args *InvokeArgs, workDir s
 		s.isSettingUp = false
 
 		service.cmd = sys.Command(ctx, sys.CommandOpts{
-			String:      args.Command,
+			String:      pm.BuildServerCommand(args.Command, workDir),
 			Dir:         workDir,
 			Env:         vars,
 			Stdout:      outfile,

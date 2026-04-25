@@ -361,6 +361,21 @@ func (s *ProcessManagerSuite) Test_StormkitServerConfig() {
 	s.True(file.Exists(path.Join(s.tmpdir, "my_workdir", "example.txt")), "example.txt should exist in the workdir")
 }
 
+func (s *ProcessManagerSuite) Test_BuildServerCommand_WithoutFlake() {
+	cmd := s.pm.BuildServerCommand("node index.js", s.tmpdir)
+	s.Equal("node index.js", cmd)
+}
+
+func (s *ProcessManagerSuite) Test_BuildServerCommand_WithFlake() {
+	flakePath := path.Join(s.tmpdir, "flake.nix")
+	s.NoError(os.WriteFile(flakePath, []byte("{}"), 0664))
+
+	defer os.Remove(flakePath)
+
+	cmd := s.pm.BuildServerCommand("node index.js", s.tmpdir)
+	s.Equal(`nix --extra-experimental-features "nix-command flakes" develop --command sh -c node index.js`, cmd)
+}
+
 func TestProcessManager(t *testing.T) {
 	suite.Run(t, &ProcessManagerSuite{})
 }

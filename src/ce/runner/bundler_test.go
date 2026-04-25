@@ -175,6 +175,61 @@ func (s *BundlerSuite) Test_Bundle_AllRepo() {
 	s.Equal([]string{"."}, artifacts.ServerDirs)
 }
 
+func (s *BundlerSuite) Test_Bundle_CopiesFlakeNix_WholeDir() {
+	// flake.nix in repoDir, whole workDir bundled
+	s.config.Build.ServerCmd = "npm run start"
+	s.NoError(os.WriteFile(path.Join(s.config.Repo.Dir, "flake.nix"), []byte("{}"), 0664))
+	s.NoError(os.WriteFile(path.Join(s.config.Repo.Dir, "flake.lock"), []byte("{}"), 0664))
+
+	bundler := runner.NewBundler(s.config)
+	artifacts, err := bundler.Bundle(context.Background())
+
+	s.NoError(err)
+	s.Equal([]string{"."}, artifacts.ServerDirs)
+
+	// flake.nix was already in workDir — no copy needed, but it must be present
+	s.FileExists(path.Join(s.config.Repo.Dir, "flake.nix"))
+	s.FileExists(path.Join(s.config.Repo.Dir, "flake.lock"))
+}
+
+func (s *BundlerSuite) Test_Bundle_CopiesFlakeNix_ToServerDir() {
+	// flake.nix in workDir, server output is a dist subdirectory.
+	// findDistDir auto-detects "dist", so flake.nix is copied there.
+	distDir := path.Join(s.config.Repo.Dir, "dist")
+	s.NoError(os.MkdirAll(distDir, 0774))
+	s.NoError(os.WriteFile(path.Join(distDir, "server"), []byte("binary"), 0775))
+	s.NoError(os.WriteFile(path.Join(s.config.Repo.Dir, "flake.nix"), []byte("{}"), 0664))
+	s.NoError(os.WriteFile(path.Join(s.config.Repo.Dir, "flake.lock"), []byte("{}"), 0664))
+
+	s.config.Build.ServerCmd = "./dist/server"
+
+	bundler := runner.NewBundler(s.config)
+	_, err := bundler.Bundle(context.Background())
+
+	s.NoError(err)
+	s.FileExists(path.Join(distDir, "flake.nix"))
+	s.FileExists(path.Join(distDir, "flake.lock"))
+}
+
+func (s *BundlerSuite) Test_Bundle_CopiesFlakeNix_FromRepoDirToServerDir() {
+	// flake.nix is in repoDir but workDir is a subdirectory (SK_CWD case)
+	subDir := path.Join(s.config.Repo.Dir, "app")
+	serverDir := path.Join(subDir, "dist")
+	s.NoError(os.MkdirAll(serverDir, 0774))
+	s.NoError(os.WriteFile(path.Join(serverDir, "server"), []byte("binary"), 0775))
+	s.NoError(os.WriteFile(path.Join(s.config.Repo.Dir, "flake.nix"), []byte("{}"), 0664))
+
+	s.config.WorkDir = subDir
+	s.config.Build.ServerFolder = "dist"
+	s.config.Build.ServerCmd = "./dist/server"
+
+	bundler := runner.NewBundler(s.config)
+	_, err := bundler.Bundle(context.Background())
+
+	s.NoError(err)
+	s.FileExists(path.Join(serverDir, "flake.nix"))
+}
+
 func (s *BundlerSuite) Test_Bundle_NextServer_AlternativeSyntax() {
 	s.config.Build.ServerCmd = "npm run start"
 	s.config.Build.ServerFolder = ".next"
