@@ -144,31 +144,18 @@ func (p *Installer) hasFlakeNix() bool {
 	return err == nil
 }
 
-// installFlake runs the flake's dev shell and applies its PATH to the current process
-// so that packages defined in flake.nix are available to subsequent build commands.
+// installFlake pre-builds the nix dev shell so its packages are in the store
+// before the build command runs. The build command itself is wrapped by the
+// builder using `nix develop --command` to get the full shell environment.
 func (p *Installer) installFlake(ctx context.Context) error {
-	cmd := sys.Command(ctx, sys.CommandOpts{
+	return sys.Command(ctx, sys.CommandOpts{
 		Name:   "sh",
-		Args:   []string{"-c", `nix --extra-experimental-features "nix-command flakes" develop --command env`},
+		Args:   []string{"-c", `nix --extra-experimental-features "nix-command flakes" develop --command true`},
 		Dir:    p.workDir,
 		Env:    PrepareEnvVars(p.envVars),
+		Stdout: p.reporter.File(),
 		Stderr: p.reporter.File(),
-	})
-
-	output, err := cmd.Output()
-
-	if err != nil {
-		return err
-	}
-
-	for line := range strings.SplitSeq(string(output), "\n") {
-		if v, ok := strings.CutPrefix(line, "PATH="); ok {
-			os.Setenv("PATH", v)
-			break
-		}
-	}
-
-	return nil
+	}).Run()
 }
 
 // InstallRuntimeDependencies installs runtime dependencies using mise and flake.nix (if present).

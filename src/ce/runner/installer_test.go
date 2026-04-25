@@ -468,13 +468,14 @@ func (s *InstallerSuite) Test_InstallingRuntimeDeps_WithFlake() {
 
 	s.mockCmd.On("SetOpts", sys.CommandOpts{
 		Name:   "sh",
-		Args:   []string{"-c", `nix --extra-experimental-features "nix-command flakes" develop --command env`},
+		Args:   []string{"-c", `nix --extra-experimental-features "nix-command flakes" develop --command true`},
 		Dir:    workDir,
 		Env:    runner.PrepareEnvVars(s.config.Build.EnvVars),
+		Stdout: stdout,
 		Stderr: stdout,
 	}).Return(s.mockCmd).Once()
 
-	s.mockCmd.On("Output").Return([]byte("HOME=/home/stormkit\nPATH=/nix/store/abc/bin:/usr/bin\nTERM=xterm\n"), nil).Once()
+	s.mockCmd.On("Run").Return(nil, nil).Once()
 
 	s.config.WorkDir = workDir
 	s.config.Repo.Runtime = "go"
@@ -484,7 +485,6 @@ func (s *InstallerSuite) Test_InstallingRuntimeDeps_WithFlake() {
 	installed, err := p.InstallRuntimeDependencies(ctx)
 	s.NoError(err)
 	s.Equal([]string{"go@1.24"}, installed)
-	s.Equal("/nix/store/abc/bin:/usr/bin", os.Getenv("PATH"))
 }
 
 func TestInstallerSuite(t *testing.T) {

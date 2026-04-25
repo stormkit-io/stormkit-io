@@ -67,16 +67,22 @@ func (bm Builder) ExecCommands(ctx context.Context) error {
 
 	bm.reporter.AddStep(bm.cmd)
 
-	cmd := sys.Command(ctx, sys.CommandOpts{
-		Name:   "sh",
-		Args:   []string{"-c", bm.cmd},
+	opts := sys.CommandOpts{
 		Env:    PrepareEnvVars(bm.envVars),
 		Dir:    bm.workDir,
 		Stdout: bm.reporter.File(),
 		Stderr: bm.reporter.File(),
-	})
+	}
 
-	return cmd.Run()
+	if file.Exists(filepath.Join(bm.workDir, "flake.nix")) {
+		opts.Name = "nix"
+		opts.Args = []string{"--extra-experimental-features", "nix-command flakes", "develop", "--command", "sh", "-c", bm.cmd}
+	} else {
+		opts.Name = "sh"
+		opts.Args = []string{"-c", bm.cmd}
+	}
+
+	return sys.Command(ctx, opts).Run()
 }
 
 func (bm Builder) BuildApiIfNecessary(ctx context.Context) (bool, error) {
