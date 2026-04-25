@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.04.25.2...v2026.04.25.3
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.25.2...v2026.04.25.3)
+
+### 🚀 Enhancements
+
+- Copy flake.nix to server output and wrap command with nix develop ([#205](https://github.com/stormkit-io/stormkit-io/pull/205))
+
+### 🏡 Chore
+
+- Update changelog for v2026.04.25.2 ([#204](https://github.com/stormkit-io/stormkit-io/pull/204))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.04.25.1...v2026.04.25.2
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.25.1...v2026.04.25.2)
