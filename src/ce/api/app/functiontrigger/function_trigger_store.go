@@ -74,13 +74,13 @@ var stmts = struct {
 	`,
 	updateNextRunAt: `
 		UPDATE
-			function_triggers AS ft
+			function_triggers
 		SET
 			next_run_at = (v.next_run_at)::timestamp
 		FROM
-			(VALUES {{ generateValues 2 (len .) }}) AS v(trigger_id, next_run_at) 
+			(VALUES {{ generateValues 2 (len .) }}) AS v(trigger_id, next_run_at)
 		WHERE
-			(v.trigger_id)::integer = ft.trigger_id;
+			(v.trigger_id)::integer = function_triggers.trigger_id;
 	`,
 	insertTriggerLogs: `
 		INSERT INTO function_trigger_logs (
@@ -259,6 +259,10 @@ func (s *Store) Update(ctx context.Context, ft *FunctionTrigger) error {
 
 // SetNextRunAt is a batch operation to update the nextRunAt of the given trigger ids.
 func (s *Store) SetNextRunAt(ctx context.Context, values map[types.ID]utils.Unix) error {
+	if len(values) == 0 {
+		return nil
+	}
+
 	var qb strings.Builder
 
 	if err := s.updateBatchStmt.Execute(&qb, values); err != nil {
