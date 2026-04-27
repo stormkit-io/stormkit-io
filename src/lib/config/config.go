@@ -127,6 +127,20 @@ func (dc DeployerConfig) IsLocal() bool {
 	return dc.Service == "local"
 }
 
+// SMTPConfig holds credentials for system-level transactional email sending.
+type SMTPConfig struct {
+	Host     string
+	Port     string
+	Username string
+	Password string
+	From     string
+}
+
+// IsConfigured returns true when the minimum required fields are present.
+func (c *SMTPConfig) IsConfigured() bool {
+	return c != nil && c.Host != "" && c.Username != "" && c.Password != ""
+}
+
 // StripeConfig represents the stripe configuration.
 type StripeConfig struct {
 	ClientID            string
@@ -189,6 +203,7 @@ type Config struct {
 	Database          *DatabaseConfig
 	Deployer          *DeployerConfig
 	Stripe            *StripeConfig
+	SMTP              *SMTPConfig
 	Reporting         *ReportingConfig
 	Runner            *RunnerConfig
 	Tracking          *TrackingConfig
@@ -258,6 +273,14 @@ func New() *Config {
 			CustomerPortalLink:  os.Getenv("STRIPE_CUSTOMER_PORTAL_LINK"),
 			PaymentLinkPremium:  os.Getenv("STRIPE_PAYMENT_LINK_PREMIUM"),
 			PaymentLinkUltimate: os.Getenv("STRIPE_PAYMENT_LINK_ULTIMATE"),
+		},
+
+		SMTP: &SMTPConfig{
+			Host:     os.Getenv("STORMKIT_SMTP_HOST"),
+			Port:     os.Getenv("STORMKIT_SMTP_PORT"),
+			Username: os.Getenv("STORMKIT_SMTP_USERNAME"),
+			Password: os.Getenv("STORMKIT_SMTP_PASSWORD"),
+			From:     os.Getenv("STORMKIT_SMTP_FROM"),
 		},
 
 		Deployer: &DeployerConfig{
@@ -420,6 +443,15 @@ func Set(config *Config) *Config {
 // Reset resets the config.
 func Reset() {
 	c = nil
+}
+
+// SetSMTP overrides the SMTP config. Intended for tests only.
+func SetSMTP(smtp *SMTPConfig) {
+	if !IsTest() {
+		panic("SetSMTP can only be used in test environments")
+	}
+
+	Get().SMTP = smtp
 }
 
 var _cachedSecrets map[string]string
