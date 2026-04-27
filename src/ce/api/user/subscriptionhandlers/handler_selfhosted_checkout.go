@@ -1,7 +1,9 @@
 package subscriptionhandlers
 
 import (
+	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -16,6 +18,7 @@ const (
 // HandleSelfHostedCheckout redirects self-hosted users to the appropriate Stripe page.
 func HandleSelfHostedCheckout(req *shttp.RequestContext) *shttp.Response {
 	plan := req.Request.URL.Query().Get("plan")
+	ref := req.Request.URL.Query().Get("ref")
 	stripe := config.Get().Stripe
 
 	if stripe == nil {
@@ -28,9 +31,9 @@ func HandleSelfHostedCheckout(req *shttp.RequestContext) *shttp.Response {
 	case planPortal:
 		redirectURL = stripe.CustomerPortalLink
 	case planPremium:
-		redirectURL = stripe.PaymentLinkPremium
+		redirectURL = withClientReferenceID(stripe.PaymentLinkPremium, ref)
 	case planUltimate:
-		redirectURL = stripe.PaymentLinkUltimate
+		redirectURL = withClientReferenceID(stripe.PaymentLinkUltimate, ref)
 	}
 
 	if redirectURL == "" {
@@ -40,4 +43,22 @@ func HandleSelfHostedCheckout(req *shttp.RequestContext) *shttp.Response {
 	req.Redirect(redirectURL, http.StatusFound)
 
 	return nil
+}
+
+func withClientReferenceID(baseURL, ref string) string {
+	if ref == "" {
+		return baseURL
+	}
+
+	u, err := url.Parse(baseURL)
+
+	if err != nil {
+		return baseURL
+	}
+
+	q := u.Query()
+	q.Set("client_reference_id", fmt.Sprintf("selfhosted:%s", ref))
+	u.RawQuery = q.Encode()
+
+	return u.String()
 }
