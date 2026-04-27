@@ -2,7 +2,6 @@ package adminhandlers_test
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -44,8 +43,9 @@ func (s *HandlerLicenseSetSuite) mockResponse(token string, responseStatus int, 
 	headers := make(http.Header)
 	headers.Set("Content-Type", "application/json")
 
-	s.mockRequest.On("URL", fmt.Sprintf("https://api.stormkit.io/v1/license/check?token=%s", token)).Return(s.mockRequest).Times(calledTimes)
-	s.mockRequest.On("Method", http.MethodGet).Return(s.mockRequest).Times(calledTimes)
+	s.mockRequest.On("URL", "https://api.stormkit.io/v1/license/check").Return(s.mockRequest).Times(calledTimes)
+	s.mockRequest.On("Method", http.MethodPost).Return(s.mockRequest).Times(calledTimes)
+	s.mockRequest.On("Payload", map[string]any{"token": token}).Return(s.mockRequest).Times(calledTimes)
 	s.mockRequest.On("Headers", headers).Return(s.mockRequest).Times(calledTimes)
 	s.mockRequest.On("WithExponentialBackoff", 5*time.Minute, 10).Return(s.mockRequest).Times(calledTimes)
 	s.mockRequest.On("Do").Return(&shttp.HTTPResponse{
@@ -93,7 +93,6 @@ func (s *HandlerLicenseSetSuite) Test_Success_RemoveLicense() {
 	validLicense := admin.NewLicense(admin.NewLicenseArgs{
 		Seats:   50,
 		Premium: true,
-		UserID:  usr.ID,
 	})
 
 	// Set initial license

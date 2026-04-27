@@ -91,9 +91,8 @@ func Services(r *shttp.Router) *shttp.Service {
 
 	if config.IsStormkitCloud() {
 		s.NewEndpoint("/v1/license").
-			// Temporary solution until we migrate previous licenses
-			Handler(shttp.MethodGet, "", func(rc *shttp.RequestContext) *shttp.Response { return shttp.OK() }).
-			Handler(shttp.MethodGet, "/check", handlerLicenseCheck)
+			Handler(shttp.MethodGet, "/check", handlerLicenseCheck). // Backwards compatibility for old licenses, to be removed in the future.
+			Handler(shttp.MethodPost, "/check", handlerLicenseCheck)
 	}
 
 	return s

@@ -3,6 +3,7 @@ package publicapiv1
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
@@ -10,23 +11,30 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
-func handlerLicenseCheck(req *shttp.RequestContext) *shttp.Response {
-	token := req.Query().Get("token")
-	license, _ := licenseFromContent(token)
-	var fromDB *admin.License
-	var err error
+type LicenseCheckRequest struct {
+	Token string `json:"token"`
+}
 
-	if license != nil {
-		fromDB, err = user.NewStore().LicenseByUserID(req.Context(), license.UserID)
-	} else {
-		fromDB, err = user.NewStore().LicenseByToken(req.Context(), token)
+func handlerLicenseCheck(req *shttp.RequestContext) *shttp.Response {
+	data := LicenseCheckRequest{}
+
+	if req.Method == http.MethodGet {
+		data.Token = req.Query().Get("token")
+	} else if req.Method == http.MethodPost {
+		if err := req.Post(&data); err != nil {
+			return shttp.Error(err)
+		}
 	}
 
-	if err != nil {
-		if err.Error() == "invalid-token" {
-			return shttp.BadRequest()
-		}
+	token := normalizeLicenseKey(data.Token)
 
+	if token == "" {
+		return shttp.BadRequest(map[string]any{"errors": []string{"token is required"}})
+	}
+
+	fromDB, err := user.NewStore().License(req.Context(), user.LicenseParams{Token: token})
+
+	if err != nil {
 		return shttp.Error(err)
 	}
 
@@ -47,25 +55,24 @@ func handlerLicenseCheck(req *shttp.RequestContext) *shttp.Response {
 	}
 }
 
-// Backwards compatibility:
-// licenseFromContent takes an encrypted and encoded license as an argument
-// and returns a License object from it.
-func licenseFromContent(content string) (*admin.License, error) {
-	token, err := utils.DecodeString(content)
+// Older keys might have `userId:key` format, we need to normalize them before checking the database.
+func normalizeLicenseKey(key string) string {
+	if strings.Contains(key, ":") {
+		pieces := strings.SplitN(key, ":", 2)
+		return pieces[1]
+	}
+
+	// Backwards compatibility for older licenses that were generated with the old format, to be removed in the future.
+	license := admin.License{}
+	encodedKey, err := utils.DecodeString(key)
 
 	if err != nil {
-		return nil, err
+		return key
 	}
 
-	license := &admin.License{}
-
-	if err := json.Unmarshal(token, license); err != nil {
-		return nil, err
+	if err := json.Unmarshal([]byte(encodedKey), &license); err == nil {
+		return license.Key
 	}
 
-	if license.UserID.String() == "" {
-		return nil, nil
-	}
-
-	return license, nil
+	return key
 }

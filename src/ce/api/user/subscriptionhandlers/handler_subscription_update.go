@@ -8,6 +8,7 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
+	"github.com/stormkit-io/stormkit-io/src/lib/mailer"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stripe/stripe-go/v81"
@@ -59,8 +60,7 @@ func handlerSubscriptionUpdate(req *shttp.RequestContext) *shttp.Response {
 
 	case
 		"customer.subscription.created",
-		"customer.subscription.updated",
-		"customer.subscription.canceled":
+		"customer.subscription.updated":
 		var subscription stripe.Subscription
 
 		if err := json.Unmarshal(event.Data.Raw, &subscription); err != nil {
@@ -70,12 +70,24 @@ func handlerSubscriptionUpdate(req *shttp.RequestContext) *shttp.Response {
 
 		return UpdateSubscription(req, subscription)
 
+	case "customer.subscription.deleted":
+		var subscription stripe.Subscription
+
+		if err := json.Unmarshal(event.Data.Raw, &subscription); err != nil {
+			slog.Errorf("error while unmarshaling stripe event: %s", err.Error())
+			return shttp.Error(err)
+		}
+
+		return CancelSubscription(req, subscription)
+
 	default:
 		return shttp.NoContent()
 	}
 }
 
 // UpdateSubscription updates the subscription of the user based on the provided subscription info.
+// For cloud users it updates their account metadata. For self-hosted customers (no cloud account)
+// it generates or updates a license and emails it on first creation.
 func UpdateSubscription(req *shttp.RequestContext, subscription stripe.Subscription) *shttp.Response {
 	client := stripeClient()
 	customer, err := client.Customers(subscription.Customer.ID, nil)
@@ -94,42 +106,157 @@ func UpdateSubscription(req *shttp.RequestContext, subscription stripe.Subscript
 		return shttp.NotFound()
 	}
 
-	packageName := config.PackageFree
-	quantity := int64(0)
+	store := user.NewStore()
+	usr, err := store.UserByEmail(req.Context(), []string{customer.Email})
 
-	if subscription.Items != nil {
-		for _, sub := range subscription.Items.Data {
-			// The last item is usually the new plan, so keep collecting until the end
-			// instead of breaking the loop.
-			if pck := productIDToPackage[sub.Plan.Product.ID]; pck != "" {
-				packageName = pck
-				quantity = sub.Quantity
+	if err != nil {
+		return shttp.Error(err, fmt.Sprintf("error while retrieving user from stripe email: %s, err: %v", customer.Email, err))
+	}
+
+	if usr != nil {
+		packageName := config.PackageFree
+		quantity := int64(0)
+
+		if subscription.Items != nil {
+			for _, sub := range subscription.Items.Data {
+				if pck := productIDToPackage[sub.Plan.Product.ID]; pck != "" {
+					packageName = pck
+					quantity = sub.Quantity
+				}
 			}
 		}
+
+		meta := usr.Metadata
+		meta.PackageName = packageName
+		meta.StripeCustomerID = customer.ID
+		meta.SeatsPurchased = int(quantity)
+
+		if err := store.UpdateSubscription(req.Context(), usr.ID, meta); err != nil {
+			return shttp.Error(err, fmt.Sprintf("error while updating subscription: %v", err))
+		}
+
+		return shttp.OK()
+	}
+
+	// No cloud account — self-hosted customer.
+	return SendSelfHostedLicense(req, customer, subscription)
+}
+
+// CancelSubscription downgrades a cloud user to the free tier and removes any
+// self-hosted license associated with the customer, if they exist.
+func CancelSubscription(req *shttp.RequestContext, subscription stripe.Subscription) *shttp.Response {
+	client := stripeClient()
+	customer, err := client.Customers(subscription.Customer.ID, nil)
+
+	if err != nil {
+		return shttp.Error(err, fmt.Sprintf("error while retrieving customer: %v", err))
+	}
+
+	if customer == nil {
+		slog.Errorf("error while looking for stripe customer: %s", subscription.Customer.ID)
+		return shttp.NotFound()
 	}
 
 	store := user.NewStore()
 	usr, err := store.UserByEmail(req.Context(), []string{customer.Email})
 
 	if err != nil {
-		slog.Errorf("error while retrieving user from stripe email: %s, err: %v", customer.Email, err)
-		return shttp.Error(err)
+		return shttp.Error(err, fmt.Sprintf("error while retrieving user from stripe email: %s, err: %v", customer.Email, err))
 	}
 
-	if usr == nil {
-		slog.Errorf("user not found with stripe email: %s, customer: %v", customer.Email, customer)
-		return shttp.NotFound()
+	if usr != nil {
+		meta := usr.Metadata
+		meta.PackageName = config.PackageFree
+		meta.SeatsPurchased = 0
+
+		if err := store.UpdateSubscription(req.Context(), usr.ID, meta); err != nil {
+			return shttp.Error(err, fmt.Sprintf("error while downgrading subscription: %v", err))
+		}
 	}
 
-	meta := usr.Metadata
-	meta.PackageName = packageName
-	meta.StripeCustomerID = customer.ID
-	meta.SeatsPurchased = int(quantity)
-
-	if err := store.UpdateSubscription(req.Context(), usr.ID, meta); err != nil {
-		slog.Errorf("error while updating subscription: %v", err)
-		return shttp.Error(err)
+	if err := store.DeleteSelfHostedLicense(req.Context(), customer.Email); err != nil {
+		return shttp.Error(err, fmt.Sprintf("error while deleting self-hosted license for %s: %v", customer.Email, err))
 	}
 
 	return shttp.OK()
+}
+
+const mailTemplateLicense = `
+<p>Thank you for subscribing to Stormkit!</p>
+<p>
+	Your license key is ready. Copy it and paste it into your self-hosted
+	instance under <strong>Admin &rsaquo; License</strong>.
+</p>
+<p><strong>%s</strong></p>
+<p>
+	If you have any questions, feel free to reach out to us at
+	<a href="mailto:hello@stormkit.io">hello@stormkit.io</a>.
+</p>
+<p>The Stormkit Team</p>`
+
+// SendSelfHostedLicense generates or updates a license for a self-hosted customer and
+// emails the key on first creation. On subscription deletion it is a no-op.
+func SendSelfHostedLicense(req *shttp.RequestContext, customer *stripe.Customer, subscription stripe.Subscription) *shttp.Response {
+	packageName, quantity := selfHostedPlan(subscription)
+	store := user.NewStore()
+
+	existing, err := store.License(req.Context(), user.LicenseParams{Email: customer.Email})
+
+	if err != nil {
+		return shttp.Error(err, fmt.Sprintf("error while looking up license for %s: %v", customer.Email, err))
+	}
+
+	if existing != nil {
+		if err := store.UpdateSelfHostedLicense(req.Context(), customer.Email, int(quantity), packageName); err != nil {
+			return shttp.Error(err, fmt.Sprintf("error while updating license for %s: %v", customer.Email, err))
+		}
+
+		return shttp.OK()
+	}
+
+	meta := map[string]any{"email": customer.Email}
+
+	if customer.ID != "" {
+		meta["stripeCustomerId"] = customer.ID
+	}
+
+	license, err := store.GenerateSelfHostedLicense(req.Context(), int(quantity), packageName, meta)
+
+	if err != nil {
+		return shttp.Error(err, fmt.Sprintf("error while generating license: %v", err))
+	}
+
+	if err := mailer.SendEmail(mailer.SendEmailParams{
+		To:      customer.Email,
+		Subject: "Your Stormkit License Key",
+		Body:    fmt.Sprintf(mailTemplateLicense, license.Key),
+	}); err != nil {
+		// Roll back the license row so the next Stripe retry can recreate it
+		// and attempt the email again.
+		if deleteErr := store.DeleteSelfHostedLicense(req.Context(), customer.Email); deleteErr != nil {
+			slog.Errorf("error while rolling back license for %s after email failure: %v", customer.Email, deleteErr)
+		}
+
+		return shttp.Error(err, fmt.Sprintf("error while sending license email to %s: %v", customer.Email, err))
+	}
+
+	return shttp.OK()
+}
+
+// selfHostedPlan resolves the package name and seat count from a subscription's items.
+func selfHostedPlan(subscription stripe.Subscription) (packageName string, quantity int64) {
+	packageName = config.PackageFree
+
+	if subscription.Items == nil {
+		return
+	}
+
+	for _, sub := range subscription.Items.Data {
+		if pck := productIDToPackage[sub.Plan.Product.ID]; pck != "" {
+			packageName = pck
+			quantity = sub.Quantity
+		}
+	}
+
+	return
 }

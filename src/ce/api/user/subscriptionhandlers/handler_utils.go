@@ -8,6 +8,7 @@ import (
 
 type StripeClient interface {
 	Customers(string, *stripe.CustomerParams) (*stripe.Customer, error)
+	Subscriptions(string, *stripe.SubscriptionParams) (*stripe.Subscription, error)
 }
 
 type Stripe struct {
@@ -30,4 +31,8 @@ func stripeClient() StripeClient {
 
 func (s *Stripe) Customers(customerID string, params *stripe.CustomerParams) (*stripe.Customer, error) {
 	return s.client.Customers.Get(customerID, params)
+}
+
+func (s *Stripe) Subscriptions(subscriptionID string, params *stripe.SubscriptionParams) (*stripe.Subscription, error) {
+	return s.client.Subscriptions.Get(subscriptionID, params)
 }

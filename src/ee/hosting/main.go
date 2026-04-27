@@ -66,6 +66,11 @@ func main() {
 
 	if conn := database.Connection(); conn != nil {
 		migrations.Up(conn, database.Config)
+
+		if config.IsStormkitCloud() {
+			migrations.DecryptLicenseKeys(conn)
+		}
+
 		admin.InstallDependencies(context.Background())
 	}
 

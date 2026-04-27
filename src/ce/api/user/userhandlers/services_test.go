@@ -43,8 +43,6 @@ func (s *ServicesSuite) TestServices_StormkitCloud() {
 		"DELETE:/user",
 		"GET:/user",
 		"GET:/user/emails",
-		"GET:/user/license",
-		"POST:/user/license",
 		"PUT:/user/access-token",
 	}
 

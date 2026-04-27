@@ -1,13 +1,11 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useContext, useMemo, useState } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Alert from "@mui/material/Alert";
 import Button from "@mui/material/Button";
-import Link from "@mui/material/Link";
 import CircularProgress, {
   CircularProgressProps,
 } from "@mui/material/CircularProgress";
-import LaunchIcon from "@mui/icons-material/Launch";
 import { grey, orange } from "@mui/material/colors";
 import { formattedBytes } from "~/utils/helpers/string";
 import { AuthContext } from "~/pages/auth/Auth.context";
@@ -18,12 +16,11 @@ import CardHeader from "~/components/CardHeader";
 import CardRow from "~/components/CardRow";
 import CardFooter from "~/components/CardFooter";
 import UserAvatar from "~/components/UserAvatar";
-import CopyBox from "~/components/CopyBox";
-import api from "~/utils/api/Api";
+import UpgradeButton from "~/components/UpgradeButton";
 import { deleteUser } from "../actions";
 
 function CircularProgressWithLabel(
-  props: CircularProgressProps & { value: number }
+  props: CircularProgressProps & { value: number },
 ) {
   return (
     <Box sx={{ position: "relative", display: "inline-flex" }}>
@@ -107,16 +104,6 @@ interface Props {
   metrics?: UserMetrics;
 }
 
-const portalLink = {
-  dev: "https://billing.stripe.com/p/login/test_4gw9CvdOF3eabhSeUU",
-  prod: "https://billing.stripe.com/p/login/9AQ7sKfcx2Or41ibII",
-}[process.env.NODE_ENV === "development" ? "dev" : "prod"];
-
-const paymentLink = {
-  premium: "https://buy.stripe.com/7sY3cwebC1TEesO8qXbAs06",
-  ultimate: "https://buy.stripe.com/eVacOwbDc3dW2IgdQU",
-};
-
 const formatNumber = (num: number) => {
   return num.toLocaleString("en-US");
 };
@@ -144,26 +131,14 @@ function SubscriptionDetails({
         <Typography variant="h2" sx={{ fontSize: 20, flex: 1 }}>
           Subscription details
         </Typography>
-        <Button
-          endIcon={<LaunchIcon />}
-          variant="contained"
-          color="secondary"
-          href={user?.package.id === "free" ? paymentLink.premium : portalLink}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Manage subscription
-        </Button>
+        <UpgradeButton
+          fullWidth={false}
+          text={user?.package.id !== "free" ? "Manage subscription" : undefined}
+        />
       </Box>
       {edition !== "cloud" ? (
         <Alert color="warning" sx={{ mx: 4, mb: 4 }}>
-          <Typography>
-            Visit your Cloud Account on{" "}
-            <Link href="https://app.stormkit.io" target="_blank">
-              app.stormkit.io
-            </Link>{" "}
-            to manage your subscription.
-          </Typography>
+          <Typography>Visit the admin area to manage your license.</Typography>
         </Alert>
       ) : metrics ? (
         <>
@@ -217,128 +192,6 @@ function SubscriptionDetails({
   );
 }
 
-interface UseFetchLicenseProps {
-  edition?: "cloud" | "self-hosted" | "development";
-  user?: User;
-  refreshToken: number;
-}
-
-const useFetchLicense = ({
-  edition,
-  user,
-  refreshToken,
-}: UseFetchLicenseProps) => {
-  const [license, setLicense] = useState<string>("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string>();
-
-  useEffect(() => {
-    if (edition !== "cloud" || user?.package.id === "free") {
-      setLoading(false);
-      return;
-    }
-
-    api
-      .fetch<{ license: License | null }>("/user/license")
-      .then(({ license }) => {
-        if (license) {
-          setLicense(license.raw);
-        }
-      })
-      .catch(() => {
-        setError("Something went wrong while fetching license");
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, [refreshToken, edition, user?.package?.id]);
-
-  return { license, error, loading };
-};
-
-function License({ edition, user }: SubscriptionDetailsProps) {
-  const [generateError, setGenerateError] = useState<string>();
-  const [generateLoading, setGenerateLoading] = useState(false);
-  const [refreshToken, setRefreshToken] = useState(0);
-  const { license, loading, error } = useFetchLicense({
-    edition,
-    refreshToken,
-    user,
-  });
-
-  if (edition !== "cloud") {
-    return;
-  }
-
-  return (
-    <Box>
-      <Typography variant="h2" sx={{ fontSize: 20, flex: 1, p: 4 }}>
-        Self-Hosted License
-      </Typography>
-      {error || generateError ? (
-        <Alert color="error" sx={{ mx: 4, mb: 4 }}>
-          <Typography>{error || generateError}</Typography>
-        </Alert>
-      ) : user?.package.id === "free" ? (
-        <Alert color="warning" sx={{ mx: 4, mb: 4 }}>
-          <Typography>
-            Upgrade your package to issue a Self-Hosted License.
-          </Typography>
-        </Alert>
-      ) : !license && !loading ? (
-        <Alert
-          color="info"
-          sx={{ mx: 4, mb: 4, display: "flex", alignItems: "center" }}
-        >
-          <Typography>
-            No Self-Hosted License found.{" "}
-            <Button
-              variant="text"
-              color="secondary"
-              size="small"
-              loading={generateLoading}
-              sx={{ m: 0 }}
-              onClick={() => {
-                setGenerateLoading(true);
-                setGenerateError(undefined);
-
-                api
-                  .post<{ key?: string; error?: string }>("/user/license")
-                  .then(({ key, error }) => {
-                    if (key) {
-                      setRefreshToken(Date.now());
-                    } else if (error) {
-                      setGenerateError(error);
-                    }
-                  })
-                  .catch(() => {
-                    setGenerateError(
-                      "Something went wrong while issuing license"
-                    );
-                  })
-                  .finally(() => {
-                    setGenerateLoading(false);
-                  });
-              }}
-            >
-              Click here to issue one.
-            </Button>
-          </Typography>
-        </Alert>
-      ) : (
-        <Box sx={{ mx: 4, mb: 4 }}>
-          <CopyBox
-            type="password"
-            variant="filled"
-            label="License Key"
-            value={license}
-          />
-        </Box>
-      )}
-    </Box>
-  );
-}
-
 export default function UserProfile({ user, metrics }: Props) {
   const { details } = useContext(RootContext);
   const memberSince = useMemo(() => {
@@ -387,7 +240,6 @@ export default function UserProfile({ user, metrics }: Props) {
         metrics={metrics}
         edition={details?.stormkit?.edition}
       />
-      <License user={user} edition={details?.stormkit?.edition} />
       <CardFooter>
         <Button
           variant="outlined"
@@ -416,7 +268,7 @@ export default function UserProfile({ user, metrics }: Props) {
               .catch(() => {
                 setLoading(false);
                 setError(
-                  "Something went wrong while deleting your account please contact us via email or discord."
+                  "Something went wrong while deleting your account please contact us via email or discord.",
                 );
               });
           }}

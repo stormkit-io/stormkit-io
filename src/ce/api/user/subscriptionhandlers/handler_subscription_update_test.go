@@ -26,11 +26,8 @@ type HandlerUpdateSubscriptionSuite struct {
 	customer   *stripe.Customer
 }
 
-func (s *HandlerUpdateSubscriptionSuite) SetupSuite() {
-	s.mockClient = mocks.StripeClient{}
-}
-
 func (s *HandlerUpdateSubscriptionSuite) BeforeTest(suiteName, _ string) {
+	s.mockClient = mocks.StripeClient{}
 	s.conn = databasetest.InitTx(suiteName)
 	s.Factory = factory.New(s.conn)
 	s.user = s.MockUser(map[string]any{
@@ -84,26 +81,43 @@ func (s *HandlerUpdateSubscriptionSuite) Test_UpdateSubscription_Success() {
 	s.Equal(config.PackagePremium, updatedUser.Metadata.PackageName)
 }
 
-func (s *HandlerUpdateSubscriptionSuite) Test_UpdateSubscription_UserNotFound() {
-	// Mock stripe customer with non-existent email
-	customer := &stripe.Customer{
-		ID:    "cus_test123",
-		Email: "nonexistent@example.com",
-	}
-
-	// Mock stripe subscription
+func (s *HandlerUpdateSubscriptionSuite) Test_CancelSubscription_DowngradesCloudUser() {
 	subscription := stripe.Subscription{
 		ID:       "sub_test123",
+		Status:   stripe.SubscriptionStatusCanceled,
+		Customer: s.customer,
+	}
+
+	s.mockClient.On("Customers", s.customer.ID, (*stripe.CustomerParams)(nil)).Return(s.customer, nil)
+
+	response := subscriptionhandlers.CancelSubscription(s.req, subscription)
+
+	s.Equal(http.StatusOK, response.Status)
+
+	store := user.NewStore()
+	updatedUser, err := store.UserByID(s.user.ID)
+	s.NoError(err)
+	s.Equal(config.PackageFree, updatedUser.Metadata.PackageName)
+}
+
+func (s *HandlerUpdateSubscriptionSuite) Test_CancelSubscription_NoCloudUser() {
+	customer := &stripe.Customer{
+		ID:    "cus_selfhosted123",
+		Email: "selfhosted@example.com",
+	}
+
+	subscription := stripe.Subscription{
+		ID:       "sub_test123",
+		Status:   stripe.SubscriptionStatusCanceled,
 		Customer: customer,
 	}
 
 	s.mockClient.On("Customers", customer.ID, (*stripe.CustomerParams)(nil)).Return(customer, nil)
 
-	// Call the function
-	response := subscriptionhandlers.UpdateSubscription(s.req, subscription)
+	// No license in DB for this email — DeleteSelfHostedLicense should be a no-op.
+	response := subscriptionhandlers.CancelSubscription(s.req, subscription)
 
-	// Assert error
-	s.Equal(http.StatusNotFound, response.Status)
+	s.Equal(http.StatusOK, response.Status)
 }
 
 func (s *HandlerUpdateSubscriptionSuite) Test_UpdateSubscription_CustomerNotFound() {

@@ -13,7 +13,6 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
-	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
@@ -29,7 +28,6 @@ type License struct {
 	Key      string         `json:"key"`
 	Version  string         `json:"version"`
 	Seats    int            `json:"seats"`
-	UserID   types.ID       `json:"userId,omitempty"`
 	Premium  bool           `json:"premium"`  // Enables premium features
 	Ultimate bool           `json:"ultimate"` // Enables ultimate features
 	Metadata map[string]any `json:"metadata,omitempty"`
@@ -38,7 +36,6 @@ type License struct {
 type NewLicenseArgs struct {
 	Seats    int
 	Key      string
-	UserID   types.ID
 	Premium  bool
 	Ultimate bool
 	Metadata map[string]any
@@ -54,7 +51,6 @@ func NewLicense(args NewLicenseArgs) *License {
 	return &License{
 		Key:      key,
 		Seats:    args.Seats,
-		UserID:   args.UserID,
 		Version:  LicenseVersion20250926,
 		Premium:  args.Premium,
 		Ultimate: args.Ultimate,
@@ -141,13 +137,15 @@ func FreeLicense() *License {
 	})
 }
 
+const validationURL = "https://api.stormkit.io/v1/license/check"
+
 // ValidateLicense checks if the provided license key is valid by calling the Stormkit API.
 func ValidateLicense(key string) (*License, error) {
-	url := fmt.Sprintf("https://api.stormkit.io/v1/license/check?token=%s", key)
 	headers := make(http.Header)
 	headers.Set("Content-Type", "application/json")
 	response, err := shttp.
-		NewRequestV2(shttp.MethodGet, url).
+		NewRequestV2(shttp.MethodPost, validationURL).
+		Payload(map[string]any{"token": key}).
 		Headers(headers).
 		WithExponentialBackoff(5*time.Minute, 10).
 		Do()
@@ -196,11 +194,6 @@ func ValidateLicense(key string) (*License, error) {
 		Ultimate: data.License.Ultimate,
 		Key:      key,
 	}, nil
-}
-
-// Token encrypts the claims and creates an encrypted string from it.
-func (l *License) Token() string {
-	return fmt.Sprintf("%s:%s", l.UserID.String(), l.Key)
 }
 
 // IsEmpty returns true if the license is empty (i.e. has no key and zero seats).

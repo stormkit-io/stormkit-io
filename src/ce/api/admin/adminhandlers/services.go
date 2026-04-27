@@ -45,8 +45,7 @@ func Services(r *shttp.Router) *shttp.Service {
 		s.NewEndpoint("/admin/cloud").
 			Handler(shttp.MethodPost, "/impersonate", user.WithAdmin(handlerImpersonate)).
 			Handler(shttp.MethodGet, "/app", user.WithAdmin(handlerAdminAppGet)).
-			Handler(shttp.MethodDelete, "/app", user.WithAdmin(handlerAdminAppDelete)).
-			Handler(shttp.MethodPost, "/license", user.WithAdmin(handlerLicenseGenerate))
+			Handler(shttp.MethodDelete, "/app", user.WithAdmin(handlerAdminAppDelete))
 	}
 
 	return s

@@ -22,6 +22,7 @@ type userStatement struct {
 	updatePersonalAccessToken string
 	selectLicense             string
 	insertLicense             string
+	updateLicense             string
 	deleteLicense             string
 	updateLastLogin           string
 	userMetrics               string
@@ -190,7 +191,7 @@ var ustmt = &userStatement{
 
 	selectLicense: `
 		SELECT
-			license_key, license_version, is_premium, is_ultimate, number_of_seats, user_id
+			license_key, license_version, is_premium, is_ultimate, number_of_seats
 		FROM
 			licenses
 		WHERE
@@ -199,13 +200,23 @@ var ustmt = &userStatement{
 
 	insertLicense: `
 		INSERT INTO licenses
-			(license_key, license_version, is_premium, is_ultimate, number_of_seats, user_id, metadata)
+			(license_key, license_version, is_premium, is_ultimate, number_of_seats, metadata)
 		VALUES
-			($1, $2, $3, $4, $5, $6, $7);
+			($1, $2, $3, $4, $5, $6);
+	`,
+
+	updateLicense: `
+		UPDATE licenses
+		SET
+			is_premium = $1,
+			is_ultimate = $2,
+			number_of_seats = $3
+		WHERE
+			metadata->>'email' = $4;
 	`,
 
 	deleteLicense: `
-		DELETE FROM licenses WHERE user_id = $1;
+		DELETE FROM licenses WHERE metadata->>'email' = $1;
 	`,
 
 	updateLastLogin: `

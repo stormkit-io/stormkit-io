@@ -42,6 +42,36 @@ func (_m *StripeClient) Customers(_a0 string, _a1 *stripe.CustomerParams) (*stri
 	return r0, r1
 }
 
+// Subscriptions provides a mock function with given fields: _a0, _a1
+func (_m *StripeClient) Subscriptions(_a0 string, _a1 *stripe.SubscriptionParams) (*stripe.Subscription, error) {
+	ret := _m.Called(_a0, _a1)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Subscriptions")
+	}
+
+	var r0 *stripe.Subscription
+	var r1 error
+	if rf, ok := ret.Get(0).(func(string, *stripe.SubscriptionParams) (*stripe.Subscription, error)); ok {
+		return rf(_a0, _a1)
+	}
+	if rf, ok := ret.Get(0).(func(string, *stripe.SubscriptionParams) *stripe.Subscription); ok {
+		r0 = rf(_a0, _a1)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*stripe.Subscription)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(string, *stripe.SubscriptionParams) error); ok {
+		r1 = rf(_a0, _a1)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // NewStripeClient creates a new instance of StripeClient. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewStripeClient(t interface {

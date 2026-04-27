@@ -166,14 +166,9 @@ func (s *UserStoreSuite) Test_UpdateSubscription() {
 	s.Equal(config.PackageUltimate, updatedUser.Metadata.PackageName)
 
 	// Now let's generate a license for self-hosted
-	license, err := store.GenerateSelfHostedLicense(ctx, 5, usr.ID, config.PackagePremium, nil)
+	license, err := store.GenerateSelfHostedLicense(ctx, 5, config.PackagePremium, nil)
 	s.NoError(err)
 	s.NotNil(license)
-
-	license, err = store.LicenseByUserID(ctx, license.UserID)
-	s.NoError(err)
-	s.NotNil(license)
-	s.Equal(5, license.Seats)
 
 	var metadata []byte
 

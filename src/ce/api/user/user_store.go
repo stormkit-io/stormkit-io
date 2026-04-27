@@ -324,7 +324,6 @@ func (s *Store) selectLicense(ctx context.Context, query string, params ...any) 
 		&license.Premium,
 		&license.Ultimate,
 		&license.Seats,
-		&license.UserID,
 	)
 
 	if err != nil {
@@ -335,45 +334,53 @@ func (s *Store) selectLicense(ctx context.Context, query string, params ...any) 
 		return nil, err
 	}
 
-	license.Key = utils.DecryptToString(license.Key)
 	return &license, nil
 }
 
-// LicenseByToken returns the license key by the given token.
-func (s *Store) LicenseByToken(ctx context.Context, token string) (*admin.License, error) {
-	pieces := strings.SplitN(token, ":", 2)
-
-	if len(pieces) != 2 {
-		return nil, errors.New("invalid-token")
-	}
-
-	userID, key := utils.StringToID(pieces[0]), pieces[1]
-	license, err := s.LicenseByUserID(ctx, userID)
-
-	if err != nil || license == nil {
-		return nil, err
-	}
-
-	if license.Key != key {
-		return nil, errors.New("invalid-token")
-	}
-
-	return license, nil
+type LicenseParams struct {
+	Token  string
+	UserID types.ID
+	Email  string
 }
 
-// LicenseByUserID returns the license key by the given user id.
-func (s *Store) LicenseByUserID(ctx context.Context, userID types.ID) (*admin.License, error) {
-	var wr bytes.Buffer
+func hashLicenseKey(key string) string {
+	return utils.SHA256Hash([]byte(key))
+}
 
-	data := map[string]any{
-		"where": "user_id = $1",
+// License returns the license key by the given token.
+func (s *Store) License(ctx context.Context, args LicenseParams) (*admin.License, error) {
+	params := []any{}
+	where := []string{}
+	data := map[string]any{}
+
+	if args.UserID != 0 {
+		params = append(params, args.UserID)
+		where = append(where, "user_id = $1")
 	}
+
+	if args.Token != "" {
+		params = append(params, hashLicenseKey(args.Token))
+		where = append(where, fmt.Sprintf("license_key = $%d", len(params)))
+	}
+
+	if args.Email != "" {
+		params = append(params, args.Email)
+		where = append(where, fmt.Sprintf("metadata->>'email' = $%d", len(params)))
+	}
+
+	if len(where) == 0 {
+		return nil, errors.New("invalid-arguments")
+	}
+
+	data["where"] = strings.Join(where, " AND ")
+
+	var wr bytes.Buffer
 
 	if err := s.selectLicenseTmpl.Execute(&wr, data); err != nil {
 		return nil, err
 	}
 
-	return s.selectLicense(ctx, wr.String(), userID)
+	return s.selectLicense(ctx, wr.String(), params...)
 }
 
 // InsertEmails inserts given email addresses for the user.
@@ -776,22 +783,34 @@ func (s *Store) UpdateSubscription(ctx context.Context, userID types.ID, meta Us
 		return err
 	}
 
-	// Remove license if the package is not premium or ultimate
-	if meta.PackageName != config.PackagePremium && meta.PackageName != config.PackageUltimate {
-		_, err = s.Exec(ctx, ustmt.deleteLicense, userID)
-		return err
-	}
+	return err
+}
+
+// DeleteSelfHostedLicense removes the self-hosted license for the given email.
+func (s *Store) DeleteSelfHostedLicense(ctx context.Context, email string) error {
+	_, err := s.Exec(ctx, ustmt.deleteLicense, email)
+	return err
+}
+
+// UpdateSelfHostedLicense updates the plan and seat count of an existing self-hosted license
+// identified by the owner's email stored in the license metadata.
+func (s *Store) UpdateSelfHostedLicense(ctx context.Context, email string, quantity int, packageName string) error {
+	_, err := s.Exec(ctx, ustmt.updateLicense,
+		packageName == config.PackagePremium,
+		packageName == config.PackageUltimate,
+		quantity,
+		email,
+	)
 
 	return err
 }
 
 // GenerateSelfHostedLicense will generate a license with the user's api key. If the user
 // has an api key it will be used, otherwise a new api key will be generated.
-func (s *Store) GenerateSelfHostedLicense(ctx context.Context, quantity int, userID types.ID, packageName string, meta map[string]any) (*admin.License, error) {
+func (s *Store) GenerateSelfHostedLicense(ctx context.Context, quantity int, packageName string, meta map[string]any) (*admin.License, error) {
 	// Generate a new license using the apiKey.value
 	license := admin.NewLicense(admin.NewLicenseArgs{
 		Seats:    quantity,
-		UserID:   userID,
 		Premium:  packageName == config.PackagePremium,
 		Ultimate: packageName == config.PackageUltimate,
 		Metadata: meta,
@@ -803,18 +822,12 @@ func (s *Store) GenerateSelfHostedLicense(ctx context.Context, quantity int, use
 		return nil, err
 	}
 
-	// Make sure to delete the previous license
-	if _, err = s.Exec(ctx, ustmt.deleteLicense, userID); err != nil {
-		return nil, err
-	}
-
 	_, err = s.Exec(ctx, ustmt.insertLicense,
-		utils.EncryptToString(license.Key),
+		hashLicenseKey(license.Key),
 		license.Version,
 		license.Premium,
 		license.Ultimate,
 		license.Seats,
-		null.NewInt(int64(userID), userID > 0),
 		md,
 	)
 

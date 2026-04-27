@@ -62,7 +62,6 @@ func (s *ServicesSuite) Test_Services_Cloud() {
 		"GET:/admin/users/pending",
 		"GET:/admin/users/sign-up-mode",
 		"POST:/admin/cloud/impersonate",
-		"POST:/admin/cloud/license",
 		"POST:/admin/domains",
 		"POST:/admin/git/configure",
 		"POST:/admin/git/github/manifest",

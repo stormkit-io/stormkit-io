@@ -73,8 +73,9 @@ func (s *LicenseSuite) Test_FetchingLicenseFromDB_Success() {
 	headers := make(http.Header)
 	headers.Set("Content-Type", "application/json")
 
-	s.mockRequest.On("URL", "https://api.stormkit.io/v1/license/check?token=abcd-efgh-ijkl-mnop").Return(s.mockRequest).Once()
-	s.mockRequest.On("Method", http.MethodGet).Return(s.mockRequest).Once()
+	s.mockRequest.On("URL", "https://api.stormkit.io/v1/license/check").Return(s.mockRequest).Once()
+	s.mockRequest.On("Method", http.MethodPost).Return(s.mockRequest).Once()
+	s.mockRequest.On("Payload", map[string]any{"token": "abcd-efgh-ijkl-mnop"}).Return(s.mockRequest).Once()
 	s.mockRequest.On("Headers", headers).Return(s.mockRequest).Once()
 	s.mockRequest.On("WithExponentialBackoff", 5*time.Minute, 10).Return(s.mockRequest).Once()
 	s.mockRequest.On("Do").Return(&shttp.HTTPResponse{
@@ -117,8 +118,9 @@ func (s *LicenseSuite) Test_FetchingLicenseFromDB_FailMoreUsers() {
 	headers := make(http.Header)
 	headers.Set("Content-Type", "application/json")
 
-	s.mockRequest.On("URL", "https://api.stormkit.io/v1/license/check?token=abcd-efgh-ijkl-mnop").Return(s.mockRequest).Once()
-	s.mockRequest.On("Method", http.MethodGet).Return(s.mockRequest).Once()
+	s.mockRequest.On("URL", "https://api.stormkit.io/v1/license/check").Return(s.mockRequest).Once()
+	s.mockRequest.On("Method", http.MethodPost).Return(s.mockRequest).Once()
+	s.mockRequest.On("Payload", map[string]any{"token": "abcd-efgh-ijkl-mnop"}).Return(s.mockRequest).Once()
 	s.mockRequest.On("Headers", headers).Return(s.mockRequest).Once()
 	s.mockRequest.On("WithExponentialBackoff", 5*time.Minute, 10).Return(s.mockRequest).Once()
 	s.mockRequest.On("Do").Return(&shttp.HTTPResponse{
@@ -157,8 +159,9 @@ func (s *LicenseSuite) Test_FetchingLicenseFromDB_ExpiredLicense() {
 	headers := make(http.Header)
 	headers.Set("Content-Type", "application/json")
 
-	s.mockRequest.On("URL", "https://api.stormkit.io/v1/license/check?token=abcd-efgh-ijkl-mnop").Return(s.mockRequest).Once()
-	s.mockRequest.On("Method", http.MethodGet).Return(s.mockRequest).Once()
+	s.mockRequest.On("URL", "https://api.stormkit.io/v1/license/check").Return(s.mockRequest).Once()
+	s.mockRequest.On("Method", http.MethodPost).Return(s.mockRequest).Once()
+	s.mockRequest.On("Payload", map[string]any{"token": "abcd-efgh-ijkl-mnop"}).Return(s.mockRequest).Once()
 	s.mockRequest.On("Headers", headers).Return(s.mockRequest).Once()
 	s.mockRequest.On("WithExponentialBackoff", 5*time.Minute, 10).Return(s.mockRequest).Once()
 	s.mockRequest.On("Do").Return(&shttp.HTTPResponse{
