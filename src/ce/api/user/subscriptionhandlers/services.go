@@ -11,5 +11,8 @@ func Services(r *shttp.Router) *shttp.Service {
 	s.NewEndpoint("/user/subscription").
 		Handler(shttp.MethodPost, "/update", shttp.WithRateLimit(handlerSubscriptionUpdate))
 
+	s.NewEndpoint("/billing").
+		Handler(shttp.MethodGet, "/checkout", HandleSelfHostedCheckout)
+
 	return s
 }

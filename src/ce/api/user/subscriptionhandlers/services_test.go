@@ -1,26 +1,30 @@
 package subscriptionhandlers_test
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/subscriptionhandlers"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
+	"github.com/stretchr/testify/suite"
 )
 
-func TestServices(t *testing.T) {
-	r := shttp.NewRouter()
-	s := r.RegisterService(subscriptionhandlers.Services)
+type ServicesSuite struct {
+	suite.Suite
+}
 
-	if s == nil {
-		t.Fatalf("Was expecting service not to be nil")
-	}
+func (s *ServicesSuite) Test_Services_SelfHosted() {
+	services := shttp.NewRouter().RegisterService(subscriptionhandlers.Services)
+
+	s.NotNil(services)
 
 	handlers := []string{
+		"GET:/billing/checkout",
 		"POST:/user/subscription/update",
 	}
 
-	if reflect.DeepEqual(s.Handlers(), handlers) == false {
-		t.Fatalf("Handlers are not registered correctly")
-	}
+	s.Equal(handlers, services.HandlerKeys())
+}
+
+func TestServicesSuite(t *testing.T) {
+	suite.Run(t, new(ServicesSuite))
 }
