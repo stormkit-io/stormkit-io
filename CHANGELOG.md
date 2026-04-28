@@ -1,5 +1,28 @@
 # Changelog
 
+## v2026.04.25.4...v2026.04.28.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.25.4...v2026.04.28.1)
+
+### 🚀 Enhancements
+
+- Add billing checkout redirect endpoint ([#209](https://github.com/stormkit-io/stormkit-io/pull/209))
+- Add SMTP config and mailer utility ([#210](https://github.com/stormkit-io/stormkit-io/pull/210))
+- Pass client_reference_id in self-hosted checkout ([#211](https://github.com/stormkit-io/stormkit-io/pull/211))
+- Self-hosted license generation via Stripe checkout ([#212](https://github.com/stormkit-io/stormkit-io/pull/212))
+
+### 🩹 Fixes
+
+- Invalid SQL in function trigger bulk update ([#208](https://github.com/stormkit-io/stormkit-io/pull/208))
+
+### 🏡 Chore
+
+- Update changelog for v2026.04.25.4 ([#207](https://github.com/stormkit-io/stormkit-io/pull/207))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.04.25.3...v2026.04.25.4
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.25.3...v2026.04.25.4)
