@@ -143,12 +143,13 @@ func (c *SMTPConfig) IsConfigured() bool {
 
 // StripeConfig represents the stripe configuration.
 type StripeConfig struct {
-	ClientID            string
-	ClientSecret        string
-	WebhooksSecret      string
-	CustomerPortalLink  string
-	PaymentLinkPremium  string
-	PaymentLinkUltimate string
+	ClientID                string
+	ClientSecret            string
+	WebhooksSecret          string
+	CustomerPortalLink      string
+	PaymentLinkPremiumCloud string
+	PaymentLinkPremiumSH    string
+	PaymentLinkUltimateSH   string
 }
 
 type ReportingConfig struct {
@@ -267,12 +268,13 @@ func New() *Config {
 		},
 
 		Stripe: &StripeConfig{
-			ClientID:            os.Getenv("STRIPE_CLIENT_ID"),
-			ClientSecret:        secrets["STRIPE_SECRET"],
-			WebhooksSecret:      secrets["STRIPE_WH_SECRET"],
-			CustomerPortalLink:  os.Getenv("STRIPE_CUSTOMER_PORTAL_LINK"),
-			PaymentLinkPremium:  os.Getenv("STRIPE_PAYMENT_LINK_PREMIUM"),
-			PaymentLinkUltimate: os.Getenv("STRIPE_PAYMENT_LINK_ULTIMATE"),
+			ClientID:                os.Getenv("STRIPE_CLIENT_ID"),
+			ClientSecret:            secrets["STRIPE_SECRET"],
+			WebhooksSecret:          secrets["STRIPE_WH_SECRET"],
+			CustomerPortalLink:      os.Getenv("STRIPE_CUSTOMER_PORTAL_LINK"),
+			PaymentLinkPremiumCloud: os.Getenv("STRIPE_PAYMENT_LINK_PREMIUM_CLOUD"),
+			PaymentLinkPremiumSH:    os.Getenv("STRIPE_PAYMENT_LINK_PREMIUM_SH"),
+			PaymentLinkUltimateSH:   os.Getenv("STRIPE_PAYMENT_LINK_ULTIMATE_SH"),
 		},
 
 		SMTP: &SMTPConfig{

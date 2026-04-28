@@ -34,31 +34,53 @@ func (s *HandlerSelfHostedCheckoutSuite) Test_RedirectsToPortal() {
 	s.Equal("https://billing.stripe.com/p/login/test", response.Header().Get("Location"))
 }
 
-func (s *HandlerSelfHostedCheckoutSuite) Test_RedirectsToPremium() {
+func (s *HandlerSelfHostedCheckoutSuite) Test_RedirectsToCloudPremium() {
 	config.Get().Stripe = &config.StripeConfig{
-		PaymentLinkPremium: "https://buy.stripe.com/premium_test",
+		PaymentLinkPremiumCloud: "https://buy.stripe.com/cloud_premium_test",
 	}
 
 	response := shttptest.Request(s.handler(), shttp.MethodGet, "/billing/checkout?plan=premium", nil)
 
 	s.Equal(http.StatusFound, response.Code)
-	s.Equal("https://buy.stripe.com/premium_test", response.Header().Get("Location"))
+	s.Equal("https://buy.stripe.com/cloud_premium_test", response.Header().Get("Location"))
 }
 
-func (s *HandlerSelfHostedCheckoutSuite) Test_RedirectsToPremiumWithRef() {
+func (s *HandlerSelfHostedCheckoutSuite) Test_RedirectsToCloudPremiumWithRef() {
 	config.Get().Stripe = &config.StripeConfig{
-		PaymentLinkPremium: "https://buy.stripe.com/premium_test",
+		PaymentLinkPremiumCloud: "https://buy.stripe.com/cloud_premium_test",
 	}
 
 	response := shttptest.Request(s.handler(), shttp.MethodGet, "/billing/checkout?plan=premium&ref=user%40example.com", nil)
 
 	s.Equal(http.StatusFound, response.Code)
-	s.Equal("https://buy.stripe.com/premium_test?client_reference_id=selfhosted%3Auser%40example.com&prefilled_email=user%40example.com", response.Header().Get("Location"))
+	s.Equal("https://buy.stripe.com/cloud_premium_test?client_reference_id=user%40example.com&prefilled_email=user%40example.com", response.Header().Get("Location"))
+}
+
+func (s *HandlerSelfHostedCheckoutSuite) Test_RedirectsToSelfHostedPremium() {
+	config.Get().Stripe = &config.StripeConfig{
+		PaymentLinkPremiumSH: "https://buy.stripe.com/sh_premium_test",
+	}
+
+	response := shttptest.Request(s.handler(), shttp.MethodGet, "/billing/checkout?plan=premium&edition=self-hosted", nil)
+
+	s.Equal(http.StatusFound, response.Code)
+	s.Equal("https://buy.stripe.com/sh_premium_test", response.Header().Get("Location"))
+}
+
+func (s *HandlerSelfHostedCheckoutSuite) Test_RedirectsToSelfHostedPremiumWithRef() {
+	config.Get().Stripe = &config.StripeConfig{
+		PaymentLinkPremiumSH: "https://buy.stripe.com/sh_premium_test",
+	}
+
+	response := shttptest.Request(s.handler(), shttp.MethodGet, "/billing/checkout?plan=premium&edition=self-hosted&ref=user%40example.com", nil)
+
+	s.Equal(http.StatusFound, response.Code)
+	s.Equal("https://buy.stripe.com/sh_premium_test?client_reference_id=user%40example.com&prefilled_email=user%40example.com", response.Header().Get("Location"))
 }
 
 func (s *HandlerSelfHostedCheckoutSuite) Test_RedirectsToUltimate() {
 	config.Get().Stripe = &config.StripeConfig{
-		PaymentLinkUltimate: "https://buy.stripe.com/ultimate_test",
+		PaymentLinkUltimateSH: "https://buy.stripe.com/ultimate_test",
 	}
 
 	response := shttptest.Request(s.handler(), shttp.MethodGet, "/billing/checkout?plan=ultimate", nil)
@@ -69,13 +91,13 @@ func (s *HandlerSelfHostedCheckoutSuite) Test_RedirectsToUltimate() {
 
 func (s *HandlerSelfHostedCheckoutSuite) Test_RedirectsToUltimateWithRef() {
 	config.Get().Stripe = &config.StripeConfig{
-		PaymentLinkUltimate: "https://buy.stripe.com/ultimate_test",
+		PaymentLinkUltimateSH: "https://buy.stripe.com/ultimate_test",
 	}
 
 	response := shttptest.Request(s.handler(), shttp.MethodGet, "/billing/checkout?plan=ultimate&ref=user%40example.com", nil)
 
 	s.Equal(http.StatusFound, response.Code)
-	s.Equal("https://buy.stripe.com/ultimate_test?client_reference_id=selfhosted%3Auser%40example.com&prefilled_email=user%40example.com", response.Header().Get("Location"))
+	s.Equal("https://buy.stripe.com/ultimate_test?client_reference_id=user%40example.com&prefilled_email=user%40example.com", response.Header().Get("Location"))
 }
 
 func (s *HandlerSelfHostedCheckoutSuite) Test_BadRequestOnInvalidPlan() {

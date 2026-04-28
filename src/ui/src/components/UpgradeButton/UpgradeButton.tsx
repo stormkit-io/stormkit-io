@@ -4,6 +4,7 @@ import LaunchIcon from "@mui/icons-material/Launch";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import { AuthContext } from "~/pages/auth/Auth.context";
+import { RootContext } from "~/pages/Root.context";
 import { subscriptionLink } from "~/utils/billing";
 
 interface Props {
@@ -18,8 +19,9 @@ export default function UpgradeButton({
   variant = "contained",
 }: Props) {
   const { user } = useContext(AuthContext);
+  const { details } = useContext(RootContext);
   const Icon = text === "Upgrade to enterprise" ? LockIcon : LaunchIcon;
-  const href = subscriptionLink(user?.package.id, user?.email);
+  const href = subscriptionLink(user?.package.id, user?.email, details?.stormkit?.edition);
 
   if (variant === "text") {
     return (

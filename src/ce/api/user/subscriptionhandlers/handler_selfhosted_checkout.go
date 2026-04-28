@@ -1,7 +1,6 @@
 package subscriptionhandlers
 
 import (
-	"fmt"
 	"net/http"
 	"net/url"
 
@@ -10,15 +9,18 @@ import (
 )
 
 const (
-	planPortal   = "portal"
-	planPremium  = "premium"
-	planUltimate = "ultimate"
+	planPortal        = "portal"
+	planPremium       = "premium"
+	planUltimate      = "ultimate"
+	editionSelfHosted = "self-hosted"
 )
 
-// HandleSelfHostedCheckout redirects self-hosted users to the appropriate Stripe page.
+// HandleSelfHostedCheckout redirects users to the appropriate Stripe page.
+// The edition parameter determines whether to use the self-hosted or cloud payment link.
 func HandleSelfHostedCheckout(req *shttp.RequestContext) *shttp.Response {
 	plan := req.Request.URL.Query().Get("plan")
 	ref := req.Request.URL.Query().Get("ref")
+	edition := req.Request.URL.Query().Get("edition")
 	stripe := config.Get().Stripe
 
 	if stripe == nil {
@@ -31,9 +33,13 @@ func HandleSelfHostedCheckout(req *shttp.RequestContext) *shttp.Response {
 	case planPortal:
 		redirectURL = stripe.CustomerPortalLink
 	case planPremium:
-		redirectURL = withClientReferenceID(stripe.PaymentLinkPremium, ref)
+		if edition == editionSelfHosted {
+			redirectURL = withStripeParams(stripe.PaymentLinkPremiumSH, ref)
+		} else {
+			redirectURL = withStripeParams(stripe.PaymentLinkPremiumCloud, ref)
+		}
 	case planUltimate:
-		redirectURL = withClientReferenceID(stripe.PaymentLinkUltimate, ref)
+		redirectURL = withStripeParams(stripe.PaymentLinkUltimateSH, ref)
 	}
 
 	if redirectURL == "" {
@@ -45,7 +51,7 @@ func HandleSelfHostedCheckout(req *shttp.RequestContext) *shttp.Response {
 	return nil
 }
 
-func withClientReferenceID(baseURL, ref string) string {
+func withStripeParams(baseURL, ref string) string {
 	if ref == "" {
 		return baseURL
 	}
@@ -57,7 +63,7 @@ func withClientReferenceID(baseURL, ref string) string {
 	}
 
 	q := u.Query()
-	q.Set("client_reference_id", fmt.Sprintf("selfhosted:%s", ref))
+	q.Set("client_reference_id", ref)
 	q.Set("prefilled_email", ref)
 	u.RawQuery = q.Encode()
 
