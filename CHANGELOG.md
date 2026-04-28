@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.04.28.3...v2026.04.28.4
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.28.3...v2026.04.28.4)
+
+### 🩹 Fixes
+
+- Use From address as SMTP envelope sender ([d270164](https://github.com/stormkit-io/stormkit-io/commit/d270164))
+
+### 🏡 Chore
+
+- Update changelog for v2026.04.28.3 ([#217](https://github.com/stormkit-io/stormkit-io/pull/217))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.04.28.2...v2026.04.28.3
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.28.2...v2026.04.28.3)
