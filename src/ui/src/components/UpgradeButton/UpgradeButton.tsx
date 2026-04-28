@@ -19,7 +19,7 @@ export default function UpgradeButton({
 }: Props) {
   const { user } = useContext(AuthContext);
   const Icon = text === "Upgrade to enterprise" ? LockIcon : LaunchIcon;
-  const href = subscriptionLink(user?.package.id);
+  const href = subscriptionLink(user?.package.id, user?.email);
 
   if (variant === "text") {
     return (

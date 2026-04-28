@@ -3,7 +3,7 @@ import type { RenderResult } from "@testing-library/react";
 import { render } from "@testing-library/react";
 import { AuthContext } from "~/pages/auth/Auth.context";
 import mockUser from "~/testing/data/mock_user";
-import { portalLink, paymentLink } from "~/utils/billing";
+import { subscriptionLink } from "~/utils/billing";
 import UpgradeButton from "./UpgradeButton";
 
 interface Props {
@@ -24,26 +24,29 @@ describe("~/components/UpgradeButton/UpgradeButton", () => {
   };
 
   describe("free user", () => {
+    let user: User;
+
     beforeEach(() => {
-      createWrapper({ user: mockUser({ packageId: "free" }) });
+      user = mockUser({ packageId: "free" });
+      createWrapper({ user });
     });
 
     it("should show upgrade text", () => {
       expect(wrapper.getByText("Upgrade to enterprise")).toBeTruthy();
     });
 
-    it("should link to the premium payment page", () => {
+    it("should link to the premium checkout page", () => {
       const link = wrapper.getByRole("link");
-      expect(link.getAttribute("href")).toBe(paymentLink.premium);
+      expect(link.getAttribute("href")).toBe(subscriptionLink(user.package.id, user.email));
     });
   });
 
   describe("paid user", () => {
+    let user: User;
+
     beforeEach(() => {
-      createWrapper({
-        user: mockUser({ packageId: "premium" }),
-        text: "Manage subscription",
-      });
+      user = mockUser({ packageId: "premium" });
+      createWrapper({ user, text: "Manage subscription" });
     });
 
     it("should show manage subscription text", () => {
@@ -52,24 +55,23 @@ describe("~/components/UpgradeButton/UpgradeButton", () => {
 
     it("should link to the billing portal", () => {
       const link = wrapper.getByRole("link");
-      expect(link.getAttribute("href")).toBe(portalLink);
+      expect(link.getAttribute("href")).toBe(subscriptionLink(user.package.id, user.email));
     });
   });
 
   describe("text variant", () => {
     it("should render as a link element for free user", () => {
-      createWrapper({ user: mockUser({ packageId: "free" }), variant: "text" });
+      const user = mockUser({ packageId: "free" });
+      createWrapper({ user, variant: "text" });
       const link = wrapper.getByRole("link");
-      expect(link.getAttribute("href")).toBe(paymentLink.premium);
+      expect(link.getAttribute("href")).toBe(subscriptionLink(user.package.id, user.email));
     });
 
     it("should render as a link element for paid user", () => {
-      createWrapper({
-        user: mockUser({ packageId: "premium" }),
-        variant: "text",
-      });
+      const user = mockUser({ packageId: "premium" });
+      createWrapper({ user, variant: "text" });
       const link = wrapper.getByRole("link");
-      expect(link.getAttribute("href")).toBe(portalLink);
+      expect(link.getAttribute("href")).toBe(subscriptionLink(user.package.id, user.email));
     });
   });
 });

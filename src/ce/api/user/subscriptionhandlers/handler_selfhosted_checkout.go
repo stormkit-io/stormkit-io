@@ -58,6 +58,7 @@ func withClientReferenceID(baseURL, ref string) string {
 
 	q := u.Query()
 	q.Set("client_reference_id", fmt.Sprintf("selfhosted:%s", ref))
+	q.Set("prefilled_email", ref)
 	u.RawQuery = q.Encode()
 
 	return u.String()

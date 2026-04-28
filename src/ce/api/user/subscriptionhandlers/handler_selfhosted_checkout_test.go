@@ -53,7 +53,7 @@ func (s *HandlerSelfHostedCheckoutSuite) Test_RedirectsToPremiumWithRef() {
 	response := shttptest.Request(s.handler(), shttp.MethodGet, "/billing/checkout?plan=premium&ref=user%40example.com", nil)
 
 	s.Equal(http.StatusFound, response.Code)
-	s.Equal("https://buy.stripe.com/premium_test?client_reference_id=selfhosted%3Auser%40example.com", response.Header().Get("Location"))
+	s.Equal("https://buy.stripe.com/premium_test?client_reference_id=selfhosted%3Auser%40example.com&prefilled_email=user%40example.com", response.Header().Get("Location"))
 }
 
 func (s *HandlerSelfHostedCheckoutSuite) Test_RedirectsToUltimate() {
@@ -75,7 +75,7 @@ func (s *HandlerSelfHostedCheckoutSuite) Test_RedirectsToUltimateWithRef() {
 	response := shttptest.Request(s.handler(), shttp.MethodGet, "/billing/checkout?plan=ultimate&ref=user%40example.com", nil)
 
 	s.Equal(http.StatusFound, response.Code)
-	s.Equal("https://buy.stripe.com/ultimate_test?client_reference_id=selfhosted%3Auser%40example.com", response.Header().Get("Location"))
+	s.Equal("https://buy.stripe.com/ultimate_test?client_reference_id=selfhosted%3Auser%40example.com&prefilled_email=user%40example.com", response.Header().Get("Location"))
 }
 
 func (s *HandlerSelfHostedCheckoutSuite) Test_BadRequestOnInvalidPlan() {
