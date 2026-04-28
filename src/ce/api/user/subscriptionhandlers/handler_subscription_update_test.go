@@ -62,7 +62,7 @@ func (s *HandlerUpdateSubscriptionSuite) Test_UpdateSubscription_Success() {
 				{
 					Plan: &stripe.Plan{
 						Product: &stripe.Product{
-							ID: "prod_THDhiOfzmRa6xD", // Premium package
+							ID: "prod_UQ3S5tzO70RHPK", // Cloud premium package
 						},
 					},
 					Quantity: 5,
@@ -86,6 +86,17 @@ func (s *HandlerUpdateSubscriptionSuite) Test_CancelSubscription_DowngradesCloud
 		ID:       "sub_test123",
 		Status:   stripe.SubscriptionStatusCanceled,
 		Customer: s.customer,
+		Items: &stripe.SubscriptionItemList{
+			Data: []*stripe.SubscriptionItem{
+				{
+					Plan: &stripe.Plan{
+						Product: &stripe.Product{
+							ID: "prod_UQ3S5tzO70RHPK", // Cloud premium package
+						},
+					},
+				},
+			},
+		},
 	}
 
 	s.mockClient.On("Customers", s.customer.ID, (*stripe.CustomerParams)(nil)).Return(s.customer, nil)

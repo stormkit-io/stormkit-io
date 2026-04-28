@@ -15,7 +15,11 @@ import (
 	"github.com/stripe/stripe-go/v81/webhook"
 )
 
-var productIDToPackage = map[string]string{
+var cloudProductIDToPackage = map[string]string{
+	"prod_UQ3S5tzO70RHPK": config.PackagePremium,
+}
+
+var selfHostedProductIDToPackage = map[string]string{
 	// test
 	"prod_THDhiOfzmRa6xD_test": config.PackagePremium,
 	"prod_Rw6no7lokoLIVD_test": config.PackageUltimate,
@@ -86,8 +90,8 @@ func handlerSubscriptionUpdate(req *shttp.RequestContext) *shttp.Response {
 }
 
 // UpdateSubscription updates the subscription of the user based on the provided subscription info.
-// For cloud users it updates their account metadata. For self-hosted customers (no cloud account)
-// it generates or updates a license and emails it on first creation.
+// For self-hosted products it generates or updates a license and emails it on first creation.
+// For cloud products it updates the cloud account metadata.
 func UpdateSubscription(req *shttp.RequestContext, subscription stripe.Subscription) *shttp.Response {
 	client := stripeClient()
 	customer, err := client.Customers(subscription.Customer.ID, nil)
@@ -106,6 +110,10 @@ func UpdateSubscription(req *shttp.RequestContext, subscription stripe.Subscript
 		return shttp.NotFound()
 	}
 
+	if isSelfHosted(subscription) {
+		return SendSelfHostedLicense(req, customer, subscription)
+	}
+
 	store := user.NewStore()
 	usr, err := store.UserByEmail(req.Context(), []string{customer.Email})
 
@@ -113,37 +121,37 @@ func UpdateSubscription(req *shttp.RequestContext, subscription stripe.Subscript
 		return shttp.Error(err, fmt.Sprintf("error while retrieving user from stripe email: %s, err: %v", customer.Email, err))
 	}
 
-	if usr != nil {
-		packageName := config.PackageFree
-		quantity := int64(0)
-
-		if subscription.Items != nil {
-			for _, sub := range subscription.Items.Data {
-				if pck := productIDToPackage[sub.Plan.Product.ID]; pck != "" {
-					packageName = pck
-					quantity = sub.Quantity
-				}
-			}
-		}
-
-		meta := usr.Metadata
-		meta.PackageName = packageName
-		meta.StripeCustomerID = customer.ID
-		meta.SeatsPurchased = int(quantity)
-
-		if err := store.UpdateSubscription(req.Context(), usr.ID, meta); err != nil {
-			return shttp.Error(err, fmt.Sprintf("error while updating subscription: %v", err))
-		}
-
+	if usr == nil {
+		slog.Errorf("cloud subscription event for unknown user: %s", customer.Email)
 		return shttp.OK()
 	}
 
-	// No cloud account — self-hosted customer.
-	return SendSelfHostedLicense(req, customer, subscription)
+	packageName := config.PackageFree
+	quantity := int64(0)
+
+	if subscription.Items != nil {
+		for _, sub := range subscription.Items.Data {
+			if pck := cloudProductIDToPackage[sub.Plan.Product.ID]; pck != "" {
+				packageName = pck
+				quantity = sub.Quantity
+			}
+		}
+	}
+
+	meta := usr.Metadata
+	meta.PackageName = packageName
+	meta.StripeCustomerID = customer.ID
+	meta.SeatsPurchased = int(quantity)
+
+	if err := store.UpdateSubscription(req.Context(), usr.ID, meta); err != nil {
+		return shttp.Error(err, fmt.Sprintf("error while updating subscription: %v", err))
+	}
+
+	return shttp.OK()
 }
 
-// CancelSubscription downgrades a cloud user to the free tier and removes any
-// self-hosted license associated with the customer, if they exist.
+// CancelSubscription downgrades a cloud user to the free tier or deletes the
+// self-hosted license, depending on the product associated with the subscription.
 func CancelSubscription(req *shttp.RequestContext, subscription stripe.Subscription) *shttp.Response {
 	client := stripeClient()
 	customer, err := client.Customers(subscription.Customer.ID, nil)
@@ -157,6 +165,16 @@ func CancelSubscription(req *shttp.RequestContext, subscription stripe.Subscript
 		return shttp.NotFound()
 	}
 
+	if isSelfHosted(subscription) {
+		store := user.NewStore()
+
+		if err := store.DeleteSelfHostedLicense(req.Context(), customer.Email); err != nil {
+			return shttp.Error(err, fmt.Sprintf("error while deleting self-hosted license for %s: %v", customer.Email, err))
+		}
+
+		return shttp.OK()
+	}
+
 	store := user.NewStore()
 	usr, err := store.UserByEmail(req.Context(), []string{customer.Email})
 
@@ -164,18 +182,17 @@ func CancelSubscription(req *shttp.RequestContext, subscription stripe.Subscript
 		return shttp.Error(err, fmt.Sprintf("error while retrieving user from stripe email: %s, err: %v", customer.Email, err))
 	}
 
-	if usr != nil {
-		meta := usr.Metadata
-		meta.PackageName = config.PackageFree
-		meta.SeatsPurchased = 0
-
-		if err := store.UpdateSubscription(req.Context(), usr.ID, meta); err != nil {
-			return shttp.Error(err, fmt.Sprintf("error while downgrading subscription: %v", err))
-		}
+	if usr == nil {
+		slog.Errorf("cloud cancellation event for unknown user: %s", customer.Email)
+		return shttp.OK()
 	}
 
-	if err := store.DeleteSelfHostedLicense(req.Context(), customer.Email); err != nil {
-		return shttp.Error(err, fmt.Sprintf("error while deleting self-hosted license for %s: %v", customer.Email, err))
+	meta := usr.Metadata
+	meta.PackageName = config.PackageFree
+	meta.SeatsPurchased = 0
+
+	if err := store.UpdateSubscription(req.Context(), usr.ID, meta); err != nil {
+		return shttp.Error(err, fmt.Sprintf("error while downgrading subscription: %v", err))
 	}
 
 	return shttp.OK()
@@ -243,6 +260,21 @@ func SendSelfHostedLicense(req *shttp.RequestContext, customer *stripe.Customer,
 	return shttp.OK()
 }
 
+// isSelfHosted reports whether the subscription contains a self-hosted product.
+func isSelfHosted(subscription stripe.Subscription) bool {
+	if subscription.Items == nil {
+		return false
+	}
+
+	for _, item := range subscription.Items.Data {
+		if _, ok := selfHostedProductIDToPackage[item.Plan.Product.ID]; ok {
+			return true
+		}
+	}
+
+	return false
+}
+
 // selfHostedPlan resolves the package name and seat count from a subscription's items.
 func selfHostedPlan(subscription stripe.Subscription) (packageName string, quantity int64) {
 	packageName = config.PackageFree
@@ -252,7 +284,7 @@ func selfHostedPlan(subscription stripe.Subscription) (packageName string, quant
 	}
 
 	for _, sub := range subscription.Items.Data {
-		if pck := productIDToPackage[sub.Plan.Product.ID]; pck != "" {
+		if pck := selfHostedProductIDToPackage[sub.Plan.Product.ID]; pck != "" {
 			packageName = pck
 			quantity = sub.Quantity
 		}
