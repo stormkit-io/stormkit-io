@@ -1,5 +1,22 @@
 # Changelog
 
+## v2026.04.28.1...v2026.04.28.2
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.28.1...v2026.04.28.2)
+
+### 🚀 Enhancements
+
+- Route self-hosted billing through api.stormkit.io deeplink ([#214](https://github.com/stormkit-io/stormkit-io/pull/214))
+
+### 🏡 Chore
+
+- Update changelog for v2026.04.28.1 ([#213](https://github.com/stormkit-io/stormkit-io/pull/213))
+- Remove executed cloud migration ([ca95a1f](https://github.com/stormkit-io/stormkit-io/commit/ca95a1f))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.04.25.4...v2026.04.28.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.25.4...v2026.04.28.1)
