@@ -1,5 +1,22 @@
 # Changelog
 
+## v2026.04.28.2...v2026.04.28.3
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.28.2...v2026.04.28.3)
+
+### 🚀 Enhancements
+
+- Separate cloud and self-hosted Stripe products ([#216](https://github.com/stormkit-io/stormkit-io/pull/216))
+
+### 🏡 Chore
+
+- Update changelog for v2026.04.28.2 ([#215](https://github.com/stormkit-io/stormkit-io/pull/215))
+- Install dependencies directly through npm ([f3e4498](https://github.com/stormkit-io/stormkit-io/commit/f3e4498))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.04.28.1...v2026.04.28.2
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.28.1...v2026.04.28.2)
