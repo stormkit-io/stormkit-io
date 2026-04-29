@@ -9,6 +9,7 @@ import (
 	"path"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/integrations"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -211,6 +212,26 @@ func (s *FilesysSuite) Test_Invoke() {
 	s.Equal("text/html", result.Headers.Get("content-type"))
 }
 
+func (s *FilesysSuite) invokeWithRetry(client integrations.ClientInterface, args integrations.InvokeArgs) (*integrations.InvokeResult, error) {
+	deadline := time.Now().Add(3 * time.Second)
+
+	for time.Now().Before(deadline) {
+		result, err := client.Invoke(args)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if result.Headers.Get("Retry-After") == "" {
+			return result, nil
+		}
+
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	return nil, fmt.Errorf("service did not become ready within 3s")
+}
+
 func (s *FilesysSuite) Test_Invoke_WithServerCmd() {
 	sys.DefaultCommand = nil
 
@@ -240,7 +261,7 @@ func (s *FilesysSuite) Test_Invoke_WithServerCmd() {
 	reqURL := &url.URL{}
 	fileName := path.Join(s.tmpdir, "index.js")
 
-	result, err := client.Invoke(integrations.InvokeArgs{
+	result, err := s.invokeWithRetry(client, integrations.InvokeArgs{
 		URL:          reqURL,
 		ARN:          fmt.Sprintf("local:%s:my_handler", fileName),
 		Method:       shttp.MethodGet,

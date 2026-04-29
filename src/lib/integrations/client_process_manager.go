@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/goccy/go-yaml"
 	"github.com/stormkit-io/stormkit-io/src/lib/html"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/shutdown"
@@ -25,16 +24,10 @@ import (
 	"go.uber.org/zap"
 )
 
-type ServerConfig struct {
-	WorkDir string   `yaml:"workdir"`
-	Setup   []string `yaml:"setup"`
-	Stop    []string `yaml:"stop"`
-}
-
 type ProcessManager struct {
-	mux           sync.Mutex
+	servicesMux   sync.Mutex
+	portMux       sync.Mutex
 	services      map[string]*Service
-	waitGroup     map[string]*sync.WaitGroup
 	customPortMap map[int]*Service
 }
 
@@ -46,14 +39,13 @@ type Service struct {
 	timer        *time.Timer
 	file         *os.File
 	args         *InvokeArgs
-	serverConfig *ServerConfig
 	filePointer  int64
 	port         int
 	isCustomPort bool // Whether the service is using a custom port from environment variables
 	maxIdle      int  // The max idle time in minutes
 	killed       bool // Whether the service has been killed
 	started      bool // Whether the service has been started
-	isSettingUp  bool // Whether the service is currently setting up (running setup script)
+	isNixWrapped bool // Whether the server command is wrapped with nix develop
 }
 
 func (s *Service) Pid() int {
@@ -65,45 +57,35 @@ func (s *Service) Pid() int {
 }
 
 func (s *Service) Kill() {
-	if s.cmd == nil || s.killed {
+	s.pm.servicesMux.Lock()
+	delete(s.pm.services, s.arn)
+	s.pm.servicesMux.Unlock()
+
+	s.pm.portMux.Lock()
+	delete(s.pm.customPortMap, s.port)
+	s.pm.portMux.Unlock()
+
+	if s.killed {
 		slog.Debug(slog.LogOpts{
-			Msg:     "service is already killed or not started yet",
+			Msg:     "service is already killed",
 			Level:   slog.DL2,
 			Payload: []zap.Field{zap.String("arn", s.arn)},
 		})
+
 		return
 	}
 
-	if s.serverConfig != nil && s.serverConfig.Stop != nil {
-		for _, script := range s.serverConfig.Stop {
-			slog.Debug(slog.LogOpts{
-				Msg:     "running stop script for service",
-				Level:   slog.DL2,
-				Payload: []zap.Field{zap.String("arn", s.arn)},
-			})
+	s.killed = true
 
-			cmd := sys.Command(s.ctx, sys.CommandOpts{
-				String: script,
-				Dir:    s.cmd.Dir,
-				Env:    s.cmd.Env,
-				Stdout: s.cmd.Stdout,
-				Stderr: s.cmd.Stderr,
-			})
-
-			if err := cmd.Run(); err != nil {
-				slog.Errorf("error while running stop script: %s", err.Error())
-			}
-		}
-
-		if s.cmd != nil && !utils.IsPortInUse(s.port) {
-			s.cmd.Process = nil
-		}
-
+	// If this is happening,
+	if s.cmd == nil {
 		slog.Debug(slog.LogOpts{
-			Msg:     "finished running stop script for service",
+			Msg:     "service not started yet",
 			Level:   slog.DL2,
 			Payload: []zap.Field{zap.String("arn", s.arn)},
 		})
+
+		return
 	}
 
 	if s.cmd.Process != nil {
@@ -132,14 +114,6 @@ func (s *Service) Kill() {
 			slog.Errorf("error while removing log file: %s", err.Error())
 		}
 	}
-
-	s.pm.mux.Lock()
-	delete(s.pm.services, s.arn)
-	delete(s.pm.waitGroup, s.arn)
-	delete(s.pm.customPortMap, s.port)
-	s.pm.mux.Unlock()
-
-	s.killed = true
 }
 
 func (s *Service) processLogs(input io.ReadSeeker, start int64) error {
@@ -204,7 +178,6 @@ func (s *Service) logger() {
 func NewProcessManager() *ProcessManager {
 	pm := &ProcessManager{
 		services:      map[string]*Service{},
-		waitGroup:     map[string]*sync.WaitGroup{},
 		customPortMap: map[int]*Service{},
 	}
 
@@ -224,58 +197,14 @@ func (pm *ProcessManager) QueueLog(args *InvokeArgs, data string) {
 	})
 }
 
-func (pm *ProcessManager) hasSetupScript(workDir string) bool {
-	return file.Exists(path.Join(workDir, "stormkit.server.yml"))
-}
-
-type RunSetupScriptArgs struct {
-	InvokeArgs *InvokeArgs
-	WorkDir    string
-	Vars       []string
-	LogFile    *os.File
-	Config     *ServerConfig
-}
-
-// runSetupScript runs the setup script if it exists in the given work directory.
-func (pm *ProcessManager) runSetupScript(ctx context.Context, args RunSetupScriptArgs) error {
-	for _, script := range args.Config.Setup {
-		slog.Debug(slog.LogOpts{
-			Msg:     "running setup script",
-			Level:   slog.DL2,
-			Payload: []zap.Field{zap.String("script", script)},
-		})
-
-		pm.QueueLog(args.InvokeArgs, script)
-
-		cmd := sys.Command(ctx, sys.CommandOpts{
-			Env:    args.Vars,
-			Dir:    args.WorkDir,
-			Stdout: args.LogFile,
-			Stderr: args.LogFile,
-			String: os.Expand(script, func(name string) string {
-				return args.InvokeArgs.EnvVariables[name]
-			}),
-		})
-
-		if err := cmd.Run(); err != nil {
-			slog.Errorf("error while running setup script %s: %s", script, err.Error())
-			return err
-		}
-
-		slog.Debug(slog.LogOpts{
-			Msg:     "setup script finished successfully",
-			Level:   slog.DL2,
-			Payload: []zap.Field{zap.String("script", script)},
-		})
-	}
-
-	return nil
+func hasNixFlake(workDir string) bool {
+	return file.Exists(path.Join(workDir, "flake.nix"))
 }
 
 // BuildServerCommand wraps command with nix develop when flake.nix is present in workDir,
 // so that all nix-provided libraries are available at runtime.
 func (pm *ProcessManager) BuildServerCommand(command, workDir string) string {
-	if file.Exists(path.Join(workDir, "flake.nix")) {
+	if hasNixFlake(workDir) {
 		return `nix --extra-experimental-features "nix-command flakes" develop --command sh -c ` + command
 	}
 
@@ -333,9 +262,9 @@ func (pm *ProcessManager) Start(ctx context.Context, args *InvokeArgs, workDir s
 			Payload: []zap.Field{zap.String("arn", service.arn)},
 		})
 
-		pm.mux.Lock()
+		pm.portMux.Lock()
 		prev := pm.customPortMap[service.port]
-		pm.mux.Unlock()
+		pm.portMux.Unlock()
 
 		// Kill the previous service on the same port if it exists.
 		if prev != nil && prev.arn != service.arn {
@@ -353,65 +282,12 @@ func (pm *ProcessManager) Start(ctx context.Context, args *InvokeArgs, workDir s
 		}
 	}
 
-	lockFile := path.Join(workDir, "stormkit.lock")
-
-	if pm.hasSetupScript(workDir) {
-		yml, err := os.ReadFile(path.Join(workDir, "stormkit.server.yml"))
-
-		if err != nil {
-			return nil, err
-		}
-
-		config := ServerConfig{}
-
-		if err := yaml.Unmarshal(yml, &config); err != nil {
-			return nil, err
-		}
-
-		service.serverConfig = &config
-		service.isSettingUp = true
-
-		if config.WorkDir != "" {
-			workDir = path.Join(workDir, config.WorkDir)
-
-			// Make sure directory exists
-			if err := os.MkdirAll(workDir, 0776); err != nil {
-				return nil, fmt.Errorf("cannot create work directory: %s", err.Error())
-			}
-		}
-	}
-
 	go func(s *Service) {
-		if s.serverConfig != nil && !file.Exists(lockFile) {
-			// We need a different context because the request context is canceled as soon as the response is sent.
-			// I guess the optimal way here would be if the Kill method is called, we would cancel the context.
-			err := pm.runSetupScript(context.TODO(), RunSetupScriptArgs{
-				InvokeArgs: args,
-				Vars:       vars,
-				WorkDir:    workDir,
-				LogFile:    s.file,
-				Config:     s.serverConfig,
-			})
+		s.isNixWrapped = hasNixFlake(workDir)
 
-			s.isSettingUp = false
-
-			slog.Debug(slog.LogOpts{
-				Msg:     "finished running setup script for service",
-				Level:   slog.DL2,
-				Payload: []zap.Field{zap.String("arn", s.arn)},
-			})
-
-			if err != nil {
-				pm.QueueLog(args, err.Error())
-				return
-			}
-
-			if err := os.WriteFile(lockFile, []byte(""), 0755); err != nil {
-				slog.Errorf("error while removing stormkit.server.yml file: %s", err.Error())
-			}
+		if s.killed {
+			return
 		}
-
-		s.isSettingUp = false
 
 		service.cmd = sys.Command(ctx, sys.CommandOpts{
 			String:      pm.BuildServerCommand(args.Command, workDir),
@@ -424,7 +300,6 @@ func (pm *ProcessManager) Start(ctx context.Context, args *InvokeArgs, workDir s
 
 		if err := s.cmd.Start(); err != nil {
 			pm.QueueLog(args, err.Error())
-			s.killed = true
 			return
 		}
 
@@ -487,6 +362,9 @@ func (pm *ProcessManager) Invoke(args InvokeArgs, workDir string) (*InvokeResult
 			Level:   slog.DL2,
 			Payload: []zap.Field{zap.String("arn", args.ARN)},
 		})
+
+		service.Kill()
+		service = nil
 	}
 
 	if !args.IsPublished && args.EnvVariables["PORT"] != "" {
@@ -517,56 +395,41 @@ func (pm *ProcessManager) Invoke(args InvokeArgs, workDir string) (*InvokeResult
 	})
 
 	if service == nil {
-		slog.Debug(slog.LogOpts{
-			Msg:   "service not found, starting a new one",
-			Level: slog.DL2,
-		})
+		pm.servicesMux.Lock()
+		service = pm.services[args.ARN]
+		pm.servicesMux.Unlock()
 
-		var err error
+		if service == nil {
+			slog.Debug(slog.LogOpts{
+				Msg:   "service not found, starting a new one",
+				Level: slog.DL2,
+			})
 
-		service, err = pm.Start(context.TODO(), &args, workDir)
+			var err error
 
-		if err != nil {
-			return nil, err
-		}
+			service, err = pm.Start(context.TODO(), &args, workDir)
 
-		pm.addService(service, args.ARN)
-	}
+			if err != nil {
+				return nil, err
+			}
 
-	if service != nil && service.isSettingUp {
-		return &InvokeResult{
-			StatusCode: http.StatusOK,
-			Headers: http.Header{
-				"Retry-After":  []string{"5"},
-				"Content-Type": []string{"text/html"},
-			},
-			Body: html.MustRender(html.RenderArgs{
-				PageTitle:   "Stormkit - Setting up service",
-				PageHead:    `<meta http-equiv="refresh" content="5">`,
-				PageContent: `<h1 class="text-center">Service is currently being set up, please try again later.</h1>`,
-			}),
-		}, nil
-	}
+			pm.servicesMux.Lock()
+			existing := pm.services[args.ARN]
+			pm.services[args.ARN] = service
+			pm.servicesMux.Unlock()
 
-	// Wait for service to start with a timeout
-	if service != nil && !service.started {
-		timeout := time.After(10 * time.Second)
-		ticker := time.NewTicker(100 * time.Millisecond)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-timeout:
-				goto serviceNotReadyYet
-			case <-ticker.C:
-				if service.started {
-					goto serviceNotReadyYet
-				}
+			if existing != nil {
+				existing.Kill()
 			}
 		}
+
+		if service.isCustomPort {
+			pm.portMux.Lock()
+			pm.customPortMap[service.port] = service
+			pm.portMux.Unlock()
+		}
 	}
 
-serviceNotReadyYet:
 	if service != nil && !service.started {
 		slog.Debug(slog.LogOpts{
 			Msg:     "service is not ready yet",
@@ -588,13 +451,34 @@ serviceNotReadyYet:
 		}, nil
 	}
 
+	if service != nil && service.isNixWrapped && !utils.IsPortInUse(service.port) {
+		slog.Debug(slog.LogOpts{
+			Msg:     "nix is installing dependencies",
+			Level:   slog.DL2,
+			Payload: []zap.Field{zap.String("arn", args.ARN)},
+		})
+
+		return &InvokeResult{
+			StatusCode: http.StatusOK,
+			Headers: http.Header{
+				"Retry-After":  []string{"5"},
+				"Content-Type": []string{"text/html"},
+			},
+			Body: html.MustRender(html.RenderArgs{
+				PageTitle:   "Stormkit - Installing dependencies",
+				PageHead:    `<meta http-equiv="refresh" content="5">`,
+				PageContent: `<h1 class="text-center">Installing dependencies, please wait...</h1>`,
+			}),
+		}, nil
+	}
+
 	return pm.requestWithRetry(args, pm.GetService(args.ARN))
 }
 
 func (pm *ProcessManager) KillAll() error {
-	pm.mux.Lock()
+	pm.servicesMux.Lock()
 	services := pm.services
-	pm.mux.Unlock()
+	pm.servicesMux.Unlock()
 
 	slog.Debug(slog.LogOpts{
 		Msg:     "killing all services",
@@ -617,8 +501,8 @@ func (pm *ProcessManager) KillAll() error {
 
 // GetService returns a service for the given ARN.
 func (pm *ProcessManager) GetService(ARN string) *Service {
-	pm.mux.Lock()
-	defer pm.mux.Unlock()
+	pm.servicesMux.Lock()
+	defer pm.servicesMux.Unlock()
 
 	service := pm.services[ARN]
 
@@ -645,17 +529,6 @@ func (pm *ProcessManager) GetService(ARN string) *Service {
 	}
 
 	return service
-}
-
-// addService adds a service with the given ARN.
-func (pm *ProcessManager) addService(service *Service, ARN string) {
-	pm.mux.Lock()
-	defer pm.mux.Unlock()
-	pm.services[ARN] = service
-
-	if service.isCustomPort {
-		pm.customPortMap[service.port] = service
-	}
 }
 
 // waitForPort polls via TCP dial until the port is accepting connections or the timeout elapses.

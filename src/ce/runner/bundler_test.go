@@ -194,7 +194,8 @@ func (s *BundlerSuite) Test_Bundle_CopiesFlakeNix_WholeDir() {
 
 func (s *BundlerSuite) Test_Bundle_CopiesFlakeNix_ToServerDir() {
 	// flake.nix in workDir, server output is a dist subdirectory.
-	// findDistDir auto-detects "dist", so flake.nix is copied there.
+	// flake files must appear at workDir root in ServerDirs so the zip
+	// places them at the top level — not nested inside dist/.
 	distDir := path.Join(s.config.Repo.Dir, "dist")
 	s.NoError(os.MkdirAll(distDir, 0774))
 	s.NoError(os.WriteFile(path.Join(distDir, "server"), []byte("binary"), 0775))
@@ -204,15 +205,19 @@ func (s *BundlerSuite) Test_Bundle_CopiesFlakeNix_ToServerDir() {
 	s.config.Build.ServerCmd = "./dist/server"
 
 	bundler := runner.NewBundler(s.config)
-	_, err := bundler.Bundle(context.Background())
+	artifacts, err := bundler.Bundle(context.Background())
 
 	s.NoError(err)
-	s.FileExists(path.Join(distDir, "flake.nix"))
-	s.FileExists(path.Join(distDir, "flake.lock"))
+	s.FileExists(path.Join(s.config.Repo.Dir, "flake.nix"))
+	s.FileExists(path.Join(s.config.Repo.Dir, "flake.lock"))
+	s.Contains(artifacts.ServerDirs, "flake.nix")
+	s.Contains(artifacts.ServerDirs, "flake.lock")
 }
 
 func (s *BundlerSuite) Test_Bundle_CopiesFlakeNix_FromRepoDirToServerDir() {
-	// flake.nix is in repoDir but workDir is a subdirectory (SK_CWD case)
+	// flake.nix is in repoDir but workDir is a subdirectory (SK_CWD case).
+	// The file must be copied to workDir root and listed in ServerDirs so
+	// it lands at the top level of the zip, not nested inside dist/.
 	subDir := path.Join(s.config.Repo.Dir, "app")
 	serverDir := path.Join(subDir, "dist")
 	s.NoError(os.MkdirAll(serverDir, 0774))
@@ -224,10 +229,11 @@ func (s *BundlerSuite) Test_Bundle_CopiesFlakeNix_FromRepoDirToServerDir() {
 	s.config.Build.ServerCmd = "./dist/server"
 
 	bundler := runner.NewBundler(s.config)
-	_, err := bundler.Bundle(context.Background())
+	artifacts, err := bundler.Bundle(context.Background())
 
 	s.NoError(err)
-	s.FileExists(path.Join(serverDir, "flake.nix"))
+	s.FileExists(path.Join(subDir, "flake.nix"))
+	s.Contains(artifacts.ServerDirs, "flake.nix")
 }
 
 func (s *BundlerSuite) Test_Bundle_NextServer_AlternativeSyntax() {

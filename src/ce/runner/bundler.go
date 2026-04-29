@@ -531,14 +531,14 @@ func (b Bundler) bundleServerSide() ([]string, string, error) {
 		additionalDeps = append(additionalDeps, packageName)
 	}
 
+	b.copyNixFlake(b.workDir)
+
 	for _, dir := range b.serverDirs {
 		absolutePath := filepath.Join(b.workDir, dir)
 
 		if dir == "" || !file.Exists(absolutePath) {
 			continue
 		}
-
-		b.copyNixFlake(absolutePath)
 
 		deps, err := b.bundleDependencies(absolutePath, additionalDeps...)
 
@@ -549,6 +549,12 @@ func (b Bundler) bundleServerSide() ([]string, string, error) {
 
 		serverDirs = append(serverDirs, deps...)
 		serverDirs = append(serverDirs, trim(dir))
+	}
+
+	for _, name := range []string{"flake.nix", "flake.lock"} {
+		if file.Exists(filepath.Join(b.workDir, name)) {
+			serverDirs = append(serverDirs, name)
+		}
 	}
 
 	return serverDirs, functionHandler, nil

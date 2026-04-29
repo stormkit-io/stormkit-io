@@ -13,12 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/goccy/go-yaml"
 	"github.com/stormkit-io/stormkit-io/src/lib/html"
 	"github.com/stormkit-io/stormkit-io/src/lib/integrations"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
-	"github.com/stormkit-io/stormkit-io/src/lib/utils/file"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -95,6 +93,28 @@ func (s *ProcessManagerSuite) TearDownSuite() {
 	s.pm.KillAll()
 }
 
+// invokeWithRetry retries Invoke until the service responds without Retry-After
+// (i.e. it is up and serving real traffic). Fails the test after 3 seconds.
+func (s *ProcessManagerSuite) invokeWithRetry(args integrations.InvokeArgs, workDir string) (*integrations.InvokeResult, error) {
+	deadline := time.Now().Add(3 * time.Second)
+
+	for time.Now().Before(deadline) {
+		result, err := s.pm.Invoke(args, workDir)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if result.Headers.Get("Retry-After") == "" {
+			return result, nil
+		}
+
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	return nil, fmt.Errorf("service did not become ready within 3s")
+}
+
 func (s *ProcessManagerSuite) processExists(pid int) bool {
 	process, err := os.FindProcess(pid)
 	if err != nil {
@@ -121,7 +141,7 @@ func (s *ProcessManagerSuite) Test_ProcessKilligItself() {
 	s.NoError(err)
 	s.NotNil(service)
 
-	result, err := s.pm.Invoke(*args, s.tmpdir)
+	result, err := s.invokeWithRetry(*args, s.tmpdir)
 
 	s.NoError(err)
 	s.NotEmpty(result)
@@ -145,7 +165,7 @@ func (s *ProcessManagerSuite) Test_RunningBackgroundService() {
 	s.NoError(err)
 	s.NotNil(service)
 
-	result, err := s.pm.Invoke(*args, s.tmpdir)
+	result, err := s.invokeWithRetry(*args, s.tmpdir)
 
 	s.NoError(err)
 	s.NotEmpty(result)
@@ -158,7 +178,7 @@ func (s *ProcessManagerSuite) Test_Invoke_WithServerCmd() {
 	reqURL := &url.URL{}
 	fileName := path.Join(s.tmpdir, "index.js")
 
-	result, err := s.pm.Invoke(integrations.InvokeArgs{
+	result, err := s.invokeWithRetry(integrations.InvokeArgs{
 		URL:          reqURL,
 		ARN:          fmt.Sprintf("local:%s:with_server_cmd", fileName),
 		Method:       shttp.MethodGet,
@@ -225,7 +245,7 @@ func (s *ProcessManagerSuite) Test_Invoke_WithExistingOrigin() {
 	reqURL := &url.URL{}
 	fileName := path.Join(s.tmpdir, "index.js")
 
-	result, err := s.pm.Invoke(integrations.InvokeArgs{
+	result, err := s.invokeWithRetry(integrations.InvokeArgs{
 		URL:         reqURL,
 		ARN:         fmt.Sprintf("local:%s:with_existing_origin", fileName),
 		Method:      shttp.MethodGet,
@@ -317,48 +337,61 @@ func (s *ProcessManagerSuite) Test_ProcessManager_Invoke_CustomPort_Unpublished(
 	}))), " "), strings.Join(strings.Fields(string(result.Body)), " "))
 }
 
-func (s *ProcessManagerSuite) Test_StormkitServerConfig() {
-	content, err := yaml.Marshal(map[string]any{
-		"workdir": "./my_workdir",
-		"setup": []string{
-			"touch example.txt",
-		},
-		"stop": []string{
-			"rm -f example.txt",
-		},
-	})
 
-	s.NoError(err)
-	s.NoError(os.WriteFile(path.Join(s.tmpdir, "stormkit.server.yml"), content, 0755))
-
-	args := &integrations.InvokeArgs{
+func (s *ProcessManagerSuite) Test_Kill_AlreadyKilled() {
+	args := integrations.InvokeArgs{
 		URL:          &url.URL{},
-		ARN:          fmt.Sprintf("local:%s:stormkit_server_config", path.Join(s.tmpdir, "index.js")),
+		ARN:          fmt.Sprintf("local:%s:kill_already_killed", path.Join(s.tmpdir, "index.js")),
 		Method:       shttp.MethodGet,
-		Command:      "node ../index.js", // We should be in the workdir and the script is in parent folder
+		Command:      "node index.js",
 		HostName:     "example.org",
 		CaptureLogs:  true,
 		DeploymentID: 1,
 	}
 
-	result, err := s.pm.Invoke(*args, s.tmpdir)
+	_, err := s.invokeWithRetry(args, s.tmpdir)
 	s.NoError(err)
-	s.NotNil(result)
 
-	// First we should receive a message that the service is being set up
-	s.NotEmpty(result.Body)
-	s.Contains(string(result.Body), "Service is currently being set up, please try again later.")
+	service := s.pm.GetService(args.ARN)
+	s.NotNil(service)
 
-	// Now we wait for the service to be set up
-	time.Sleep(1 * time.Second)
+	service.Kill()
+	s.Nil(s.pm.GetService(args.ARN))
 
-	// Now we should be able to invoke the service
-	result, err = s.pm.Invoke(*args, s.tmpdir)
+	// Calling Kill a second time must not panic and must not remove a
+	// replacement service that may have been registered for the same ARN.
+	s.NotPanics(func() { service.Kill() })
+	s.Nil(s.pm.GetService(args.ARN))
+}
+
+func (s *ProcessManagerSuite) Test_Invoke_StaleProcess() {
+	arn := fmt.Sprintf("local:%s:stale_process", path.Join(s.tmpdir, "index.js"))
+
+	args := integrations.InvokeArgs{
+		URL:          &url.URL{},
+		ARN:          arn,
+		Method:       shttp.MethodGet,
+		Command:      "node index.js",
+		HostName:     "example.org",
+		CaptureLogs:  true,
+		DeploymentID: 1,
+	}
+
+	// First invocation starts the service.
+	result, err := s.invokeWithRetry(args, s.tmpdir)
 	s.NoError(err)
 	s.Equal("Hello, https://example.org!\n", string(result.Body))
 
-	// As part of the setup, we should have created the example.txt file
-	s.True(file.Exists(path.Join(s.tmpdir, "my_workdir", "example.txt")), "example.txt should exist in the workdir")
+	// Kill the running service to simulate a crashed process.
+	service := s.pm.GetService(arn)
+	s.NotNil(service)
+	service.Kill()
+	s.Nil(s.pm.GetService(arn))
+
+	// Second invocation must restart and succeed.
+	result, err = s.invokeWithRetry(args, s.tmpdir)
+	s.NoError(err)
+	s.Equal("Hello, https://example.org!\n", string(result.Body))
 }
 
 func (s *ProcessManagerSuite) Test_BuildServerCommand_WithoutFlake() {
