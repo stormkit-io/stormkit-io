@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.04.29.1...v2026.04.29.2
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.29.1...v2026.04.29.2)
+
+### 🩹 Fixes
+
+- Quote nix server command for sh -c ([534e942](https://github.com/stormkit-io/stormkit-io/commit/534e942))
+
+### 🏡 Chore
+
+- Update changelog for v2026.04.29.1 ([#220](https://github.com/stormkit-io/stormkit-io/pull/220))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.04.28.4...v2026.04.29.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.28.4...v2026.04.29.1)
