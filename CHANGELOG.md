@@ -1,5 +1,22 @@
 # Changelog
 
+## v2026.04.28.4...v2026.04.29.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.28.4...v2026.04.29.1)
+
+### 🩹 Fixes
+
+- Nix deployment path and process manager reliability ([#219](https://github.com/stormkit-io/stormkit-io/pull/219))
+- Make sure cache invalidations are lowercase ([9b5450f](https://github.com/stormkit-io/stormkit-io/commit/9b5450f))
+
+### 🏡 Chore
+
+- Update changelog for v2026.04.28.4 ([#218](https://github.com/stormkit-io/stormkit-io/pull/218))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.04.28.3...v2026.04.28.4
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.28.3...v2026.04.28.4)
