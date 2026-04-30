@@ -805,7 +805,14 @@ func (b Bundler) Zip(artifacts *Artifacts) error {
 	apiZip := filepath.Join(b.distDir, "sk-api.zip")
 	migrationsZip := filepath.Join(b.distDir, "sk-migrations.zip")
 
-	if b.migrationsDir != "" && file.Exists(filepath.Join(b.workDir, b.migrationsDir)) {
+	if b.migrationsDir != "" {
+		if !file.Exists(filepath.Join(b.workDir, b.migrationsDir)) {
+			b.reporter.AddStep("database migrations")
+			b.reporter.AddLine(fmt.Sprintf(`Schema migration path "%s" does not exist or is not accessible relative to the working directory. Please verify the path in your configuration.`, b.migrationsDir))
+
+			return fmt.Errorf("schema migration path %q not found", b.migrationsDir)
+		}
+
 		if err := zip(migrationsZip, []string{b.migrationsDir}, false, "*.sql"); err != nil {
 			return err
 		}

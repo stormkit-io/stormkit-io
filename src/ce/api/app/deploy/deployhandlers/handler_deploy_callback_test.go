@@ -561,7 +561,7 @@ func (s *HandlerDeployCallbackSuite) Test_RunMigrations() {
 		Content: zipContent,
 	}, nil).Once()
 
-	results, err := deployhandlers.RunMigrations(context.Background(), deployhandlers.RunMigrationsArgs{
+	messages, results, err := deployhandlers.RunMigrations(context.Background(), deployhandlers.RunMigrationsArgs{
 		DeploymentID:   6,
 		EnvID:          env.ID,
 		Branch:         env.Branch,
@@ -570,6 +570,7 @@ func (s *HandlerDeployCallbackSuite) Test_RunMigrations() {
 
 	s.Error(err, "pq: relation \"test_users\" does not exist")
 	s.NotEmpty(results)
+	s.Empty(messages)
 
 	store, err := env.SchemaConf.Store(buildconf.SchemaAccessTypeMigrations)
 	s.NoError(err)
@@ -634,6 +635,29 @@ func (s *HandlerDeployCallbackSuite) Test_RunMigrations_Failed_FileDoesNotExist(
 	d, err := deploy.NewStore().DeploymentByID(context.Background(), depl.ID)
 	s.NoError(err)
 	s.Equal("migrations file not found at location: local:/path/to/migrations.zip", d.Error.ValueOrZero())
+}
+
+func (s *HandlerDeployCallbackSuite) Test_RunMigrations_NonDefaultBranch() {
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app, map[string]any{
+		"SchemaConf": &buildconf.SchemaConf{
+			MigrationsEnabled: true,
+		},
+	})
+
+	messages, results, err := deployhandlers.RunMigrations(context.Background(), deployhandlers.RunMigrationsArgs{
+		DeploymentID:   6,
+		EnvID:          env.ID,
+		Branch:         "feature/some-branch",
+		MigrationsFile: "local:/path/to/migrations.zip",
+	})
+
+	s.NoError(err)
+	s.Empty(results)
+	s.Len(messages, 1)
+	s.Contains(messages[0], "feature/some-branch")
+	s.Contains(messages[0], env.Branch)
 }
 
 func TestCallbackHandler(t *testing.T) {

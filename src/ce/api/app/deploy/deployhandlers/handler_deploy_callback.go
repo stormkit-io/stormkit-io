@@ -183,12 +183,14 @@ func UpdateExit(req *shttp.RequestContext, data deployCallbackRequest) *shttp.Re
 		logs := []string{}
 		logs = append(logs, deploy.LogStep("database migrations"))
 
-		results, err := RunMigrations(req.Context(), RunMigrationsArgs{
+		messages, results, err := RunMigrations(req.Context(), RunMigrationsArgs{
 			DeploymentID:   data.deployment.ID,
 			EnvID:          data.deployment.EnvID,
 			Branch:         data.deployment.Branch,
 			MigrationsFile: data.Result.Migrations.Location,
 		})
+
+		logs = append(logs, messages...)
 
 		// If there was an error and no migrations were applied, set the deployment error
 		if err != nil && len(results) == 0 {
@@ -212,7 +214,7 @@ func UpdateExit(req *shttp.RequestContext, data deployCallbackRequest) *shttp.Re
 			logs = append(logs, fmt.Sprintf("%s (%dms) %s%s", result.FileName, result.Duration.Milliseconds(), tickOrCross, errorMsg))
 		}
 
-		if len(results) == 0 {
+		if len(results) == 0 && len(messages) == 0 {
 			logs = append(logs, "No new migrations to apply.")
 		}
 
@@ -257,25 +259,27 @@ type RunMigrationsArgs struct {
 }
 
 // RunMigrations runs database migrations for the given environment.
-func RunMigrations(ctx context.Context, args RunMigrationsArgs) ([]*buildconf.MigrationResult, error) {
+func RunMigrations(ctx context.Context, args RunMigrationsArgs) ([]string, []*buildconf.MigrationResult, error) {
 	env, err := buildconf.NewStore().EnvironmentByID(ctx, args.EnvID)
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if env == nil {
-		return nil, fmt.Errorf("deployment environment not found: %d", args.EnvID)
+		return nil, nil, fmt.Errorf("deployment environment not found: %d", args.EnvID)
 	}
 
 	// Migrations not enabled
 	if env.SchemaConf == nil || !env.SchemaConf.MigrationsEnabled {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	// Skip migrations as we're not on the default branch
 	if env.Branch != args.Branch {
-		return nil, nil
+		msg := fmt.Sprintf("Migrations skipped: branch %q is not the default branch %q.", args.Branch, env.Branch)
+
+		return []string{msg}, nil, nil
 	}
 
 	migrationsZip, err := integrations.Client().GetFile(integrations.GetFileArgs{
@@ -283,27 +287,27 @@ func RunMigrations(ctx context.Context, args RunMigrationsArgs) ([]*buildconf.Mi
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("error while fetching migrations file: %s", err.Error())
+		return nil, nil, fmt.Errorf("error while fetching migrations file: %s", err.Error())
 	}
 
 	if migrationsZip == nil {
-		return nil, fmt.Errorf("migrations file not found at location: %s", args.MigrationsFile)
+		return nil, nil, fmt.Errorf("migrations file not found at location: %s", args.MigrationsFile)
 	}
 
 	store, err := env.SchemaConf.Store(buildconf.SchemaAccessTypeMigrations)
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	defer store.Close()
 
 	if err := store.EnsureMigrationsTable(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if err := store.AdvisoryLock(int64(env.ID)); err != nil {
-		return nil, errors.New("failed to acquire advisory lock for running migrations; this may be caused by simultaneous deployments")
+		return nil, nil, errors.New("failed to acquire advisory lock for running migrations; this may be caused by simultaneous deployments")
 	}
 
 	defer store.AdvisoryUnlock(int64(env.ID))
@@ -311,7 +315,7 @@ func RunMigrations(ctx context.Context, args RunMigrationsArgs) ([]*buildconf.Mi
 	migrations, err := store.Migrations(ctx)
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	results := []*buildconf.MigrationResult{}
@@ -347,7 +351,7 @@ func RunMigrations(ctx context.Context, args RunMigrationsArgs) ([]*buildconf.Mi
 		return nil
 	})
 
-	return results, err
+	return nil, results, err
 }
 
 // LockDeployment is called when the deployment is complete. A deployment is complete

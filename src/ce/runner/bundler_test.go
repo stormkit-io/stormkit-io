@@ -480,6 +480,18 @@ func (s *BundlerSuite) Test_Zip() {
 	}
 }
 
+func (s *BundlerSuite) Test_Zip_MigrationPathDoesNotExist() {
+	bundler := runner.NewBundler(s.config)
+	artifacts, err := bundler.Bundle(context.Background())
+
+	s.NoError(err)
+
+	err = bundler.Zip(artifacts)
+
+	s.Error(err)
+	s.Contains(err.Error(), "migrations")
+}
+
 func (s *BundlerSuite) Test_ParseHeaders() {
 	headers := `
 		# a path:
