@@ -1,5 +1,26 @@
 # Changelog
 
+## v2026.04.29.2...v2026.04.30.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.29.2...v2026.04.30.1)
+
+### 🚀 Enhancements
+
+- Show info modal for non-admin self-hosted users on upgrade ([#222](https://github.com/stormkit-io/stormkit-io/pull/222))
+- Configurable artifact retention days ([#223](https://github.com/stormkit-io/stormkit-io/pull/223))
+
+### 📖 Documentation
+
+- Add system configuration page for self-hosting ([#224](https://github.com/stormkit-io/stormkit-io/pull/224))
+
+### 🏡 Chore
+
+- Update changelog for v2026.04.29.2 ([#221](https://github.com/stormkit-io/stormkit-io/pull/221))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.04.29.1...v2026.04.29.2
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.29.1...v2026.04.29.2)
