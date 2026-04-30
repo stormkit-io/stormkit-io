@@ -20,7 +20,9 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodGet, "/mise", user.WithAdmin(handlerMise)).
 		Handler(shttp.MethodPost, "/mise", user.WithAdmin(handlerMiseUpdate)).
 		Handler(shttp.MethodGet, "/proxies", user.WithAdmin(handlerProxies)).
-		Handler(shttp.MethodPut, "/proxies", user.WithAdmin(handlerProxiesUpdate))
+		Handler(shttp.MethodPut, "/proxies", user.WithAdmin(handlerProxiesUpdate)).
+		Handler(shttp.MethodGet, "/settings", user.WithAdmin(handlerSystemSettings)).
+		Handler(shttp.MethodPut, "/settings", user.WithAdmin(handlerSystemSettingsUpdate))
 
 	s.NewEndpoint("/admin/license").
 		Handler(shttp.MethodPost, "", user.WithAdmin(handlerLicenseSet))

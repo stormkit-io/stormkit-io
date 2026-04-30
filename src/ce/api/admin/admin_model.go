@@ -49,8 +49,9 @@ type AdminUserConfig struct {
 }
 
 type SystemConfig struct {
-	AutoInstall bool     `json:"autoInstall"` // Whether to install runtimes automatically or not. Default is true.
-	Runtimes    []string `json:"runtimes"`    // The list of runtimes to install in format <name>@<version>
+	AutoInstall          bool     `json:"autoInstall"`          // Whether to install runtimes automatically or not. Default is true.
+	Runtimes             []string `json:"runtimes"`             // The list of runtimes to install in format <name>@<version>
+	ArtifactRetentionDays int     `json:"artifactRetentionDays"` // Number of days to retain deployment artifacts. Default is 30.
 }
 
 type ProxyRule struct {
@@ -468,8 +469,9 @@ func AddRuntimes(ctx context.Context, runtimes []string) error {
 
 func defaultSystemConfig() *SystemConfig {
 	cfg := &SystemConfig{
-		AutoInstall: true,
-		Runtimes:    []string{},
+		AutoInstall:           true,
+		Runtimes:              []string{},
+		ArtifactRetentionDays: 30,
 	}
 
 	// Backwards compatibility: if the NODE_VERSION environment variable is set, we assume

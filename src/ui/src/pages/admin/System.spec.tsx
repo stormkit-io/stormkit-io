@@ -62,10 +62,17 @@ describe("~/pages/admin/System.tsx", () => {
       });
   };
 
+  const fetchSystemSettingsScope = (artifactRetentionDays = 30) => {
+    return nock(process.env.API_DOMAIN || "")
+      .get("/admin/system/settings")
+      .reply(200, { artifactRetentionDays });
+  };
+
   beforeEach(async () => {
     const scope = fetchRuntimesScope(["node@24", "python@3"]);
     const scopeVersion = fetchMiseVersionScope();
     const scopeDomains = fetchDomainsScope();
+    const scopeSettings = fetchSystemSettingsScope();
 
     createWrapper();
 
@@ -73,6 +80,7 @@ describe("~/pages/admin/System.tsx", () => {
       expect(scopeVersion.isDone()).toBe(true);
       expect(scope.isDone()).toBe(true);
       expect(scopeDomains.isDone()).toBe(true);
+      expect(scopeSettings.isDone()).toBe(true);
     });
   });
 
@@ -433,12 +441,17 @@ describe("~/pages/admin/System.tsx", () => {
         .get("/admin/domains")
         .reply(500, { error: "Internal server error" });
 
+      const errorSettingsScope = nock(process.env.API_DOMAIN || "")
+        .get("/admin/system/settings")
+        .reply(200, { artifactRetentionDays: 30 });
+
       const errorWrapper = render(<AdminSystem />);
 
       await waitFor(() => {
         expect(errorScope.isDone()).toBe(true);
         expect(errorMiseScope.isDone()).toBe(true);
         expect(errorDomainsScope.isDone()).toBe(true);
+        expect(errorSettingsScope.isDone()).toBe(true);
       });
 
       await waitFor(() => {
@@ -501,6 +514,89 @@ describe("~/pages/admin/System.tsx", () => {
         expect(
           wrapper.getByText(
             "An error occurred while updating domains. Make sure specified domains are valid.",
+          ),
+        ).toBeTruthy();
+      });
+    });
+  });
+
+  describe("SystemSettings", () => {
+    it("should render system settings form", async () => {
+      await waitFor(() => {
+        expect(wrapper.getByText("System settings")).toBeTruthy();
+        expect(
+          wrapper.getByText(
+            "Configure system-wide settings for your Stormkit instance",
+          ),
+        ).toBeTruthy();
+        expect(wrapper.getByLabelText("Artifact retention days")).toBeTruthy();
+        expect(
+          wrapper.getByText(
+            "Number of days to retain unpublished deployment artifacts before they are deleted",
+          ),
+        ).toBeTruthy();
+      });
+    });
+
+    it("should display fetched artifact retention days", async () => {
+      await waitFor(() => {
+        const field = wrapper.getByDisplayValue("30");
+        expect(field).toBeTruthy();
+      });
+    });
+
+    it("should submit system settings successfully", async () => {
+      const putScope = nock(process.env.API_DOMAIN || "")
+        .put("/admin/system/settings", { artifactRetentionDays: 60 })
+        .reply(200, { artifactRetentionDays: 60 });
+
+      await waitFor(() => {
+        const field = wrapper.getByLabelText("Artifact retention days");
+        fireEvent.change(field, { target: { value: "60" } });
+      });
+
+      const saveButtons = wrapper.getAllByText("Save");
+      fireEvent.click(saveButtons[2]); // Third save button is for system settings
+
+      await waitFor(() => {
+        expect(putScope.isDone()).toBe(true);
+        expect(
+          wrapper.getByText("System settings saved successfully."),
+        ).toBeTruthy();
+      });
+    });
+
+    it("should show validation error for invalid retention days", async () => {
+      await waitFor(() => {
+        const field = wrapper.getByLabelText("Artifact retention days");
+        fireEvent.change(field, { target: { value: "abc" } });
+      });
+
+      const saveButtons = wrapper.getAllByText("Save");
+      fireEvent.click(saveButtons[2]); // Third save button is for system settings
+
+      await waitFor(() => {
+        expect(
+          wrapper.getByText(
+            "Artifact retention days must be a positive number.",
+          ),
+        ).toBeTruthy();
+      });
+    });
+
+    it("should handle system settings update error", async () => {
+      const putScope = nock(process.env.API_DOMAIN || "")
+        .put("/admin/system/settings")
+        .reply(500, { error: "Internal server error" });
+
+      const saveButtons = wrapper.getAllByText("Save");
+      fireEvent.click(saveButtons[2]); // Third save button is for system settings
+
+      await waitFor(() => {
+        expect(putScope.isDone()).toBe(true);
+        expect(
+          wrapper.getByText(
+            "An error occurred while updating system settings.",
           ),
         ).toBeTruthy();
       });

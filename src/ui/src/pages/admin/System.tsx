@@ -509,12 +509,113 @@ function Domains() {
   );
 }
 
+const useFetchSystemSettings = () => {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>();
+  const [artifactRetentionDays, setArtifactRetentionDays] = useState(30);
+
+  useEffect(() => {
+    Api.fetch<{ artifactRetentionDays: number }>("/admin/system/settings")
+      .then(({ artifactRetentionDays }) => {
+        setArtifactRetentionDays(artifactRetentionDays);
+      })
+      .catch(() => {
+        setError("Something went wrong while fetching system settings");
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, []);
+
+  return { loading, error, artifactRetentionDays };
+};
+
+function SystemSettings() {
+  const { error, loading, artifactRetentionDays: days } = useFetchSystemSettings();
+  const [updateError, setUpdateError] = useState<string>();
+  const [updateSuccess, setUpdateSuccess] = useState<string>();
+  const [updateLoading, setUpdateLoading] = useState(false);
+  const [artifactRetentionDays, setArtifactRetentionDays] = useState(String(days));
+
+  useEffect(() => {
+    setArtifactRetentionDays(String(days));
+  }, [days]);
+
+  return (
+    <Card
+      error={error || updateError}
+      success={updateSuccess}
+      loading={loading}
+      sx={{ mt: 4, backgroundColor: "container.transparent" }}
+      contentPadding={false}
+      component="form"
+    >
+      <CardHeader
+        title="System settings"
+        subtitle="Configure system-wide settings for your Stormkit instance"
+      />
+      <CardRow>
+        <TextField
+          label="Artifact retention days"
+          variant="filled"
+          name="artifactRetentionDays"
+          value={artifactRetentionDays}
+          slotProps={{ inputLabel: { shrink: true } }}
+          helperText="Number of days to retain unpublished deployment artifacts before they are deleted"
+          fullWidth
+          onChange={e => {
+            setArtifactRetentionDays(e.target.value);
+            setUpdateError(undefined);
+            setUpdateSuccess(undefined);
+          }}
+        />
+      </CardRow>
+      <CardFooter>
+        <Button
+          variant="contained"
+          color="secondary"
+          type="submit"
+          loading={updateLoading}
+          onClick={e => {
+            e.preventDefault();
+
+            const days = parseInt(artifactRetentionDays, 10);
+
+            if (!days || days <= 0) {
+              setUpdateError("Artifact retention days must be a positive number.");
+              return;
+            }
+
+            setUpdateLoading(true);
+
+            Api.put("/admin/system/settings", { artifactRetentionDays: days })
+              .then(() => {
+                setUpdateSuccess("System settings saved successfully.");
+              })
+              .catch(() => {
+                setUpdateError(
+                  "An error occurred while updating system settings.",
+                );
+              })
+              .finally(() => {
+                setUpdateLoading(false);
+              });
+          }}
+        >
+          Save
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+}
+
 export default function System() {
   return (
     <Box>
       <Runtimes />
       <Mise />
       <Domains />
+      <SystemSettings />
     </Box>
   );
 }

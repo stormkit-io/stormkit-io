@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/integrations"
@@ -14,7 +15,7 @@ import (
 
 type KeyContextNumberOfDeploymentsToDelete struct{}
 
-// RemoveDeploymentArtifactsManually removes the artifacts of expired deployments.
+// RemoveDeploymentArtifactsManually removes the artifacts of expired, non-published deployments.
 // An expired deployment is a deployment that has not been used for more than 30 days.
 // Overwrite the numberOfDays to set a custom expiration time.
 func RemoveDeploymentArtifactsManually(ctx context.Context, numberOfDays int) ([]string, error) {
@@ -71,7 +72,15 @@ func RemoveDeploymentArtifactsManually(ctx context.Context, numberOfDays int) ([
 
 // RemoveDeploymentArtifacts is a job to remove the artifacts of expired deployments.
 func RemoveDeploymentArtifacts(ctx context.Context) error {
-	idsToBeMarked, err := RemoveDeploymentArtifactsManually(ctx, 30)
+	retentionDays := 30
+
+	vc, err := admin.Store().Config(ctx)
+
+	if err == nil && vc.SystemConfig != nil && vc.SystemConfig.ArtifactRetentionDays > 0 {
+		retentionDays = vc.SystemConfig.ArtifactRetentionDays
+	}
+
+	idsToBeMarked, err := RemoveDeploymentArtifactsManually(ctx, retentionDays)
 
 	if err != nil {
 		return err
