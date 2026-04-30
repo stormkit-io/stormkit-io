@@ -1,6 +1,6 @@
 import { describe, expect, beforeEach, it } from "vitest";
 import type { RenderResult } from "@testing-library/react";
-import { render } from "@testing-library/react";
+import { render, fireEvent } from "@testing-library/react";
 import { AuthContext } from "~/pages/auth/Auth.context";
 import { RootContext } from "~/pages/Root.context";
 import mockUser from "~/testing/data/mock_user";
@@ -32,69 +32,101 @@ const createWrapper = ({ user, edition, text, variant }: Props): RenderResult =>
 describe("~/components/UpgradeButton/UpgradeButton", () => {
   let wrapper: RenderResult;
 
-  describe("cloud free user", () => {
-    let user: User;
+  describe("cloud edition", () => {
+    describe("free user", () => {
+      let user: User;
 
-    beforeEach(() => {
-      user = mockUser({ packageId: "free" });
-      wrapper = createWrapper({ user, edition: "cloud" });
+      beforeEach(() => {
+        user = mockUser({ packageId: "free" });
+        wrapper = createWrapper({ user, edition: "cloud" });
+      });
+
+      it("should show upgrade text", () => {
+        expect(wrapper.getByText("Upgrade to enterprise")).toBeTruthy();
+      });
+
+      it("should link to the cloud premium checkout page", () => {
+        const link = wrapper.getByRole("link");
+        expect(link.getAttribute("href")).toBe(subscriptionLink(user.package.id, user.email, "cloud"));
+      });
     });
 
-    it("should show upgrade text", () => {
-      expect(wrapper.getByText("Upgrade to enterprise")).toBeTruthy();
+    describe("paid user", () => {
+      let user: User;
+
+      beforeEach(() => {
+        user = mockUser({ packageId: "premium" });
+        wrapper = createWrapper({ user, edition: "cloud", text: "Manage subscription" });
+      });
+
+      it("should show manage subscription text", () => {
+        expect(wrapper.getByText("Manage subscription")).toBeTruthy();
+      });
+
+      it("should link to the billing portal", () => {
+        const link = wrapper.getByRole("link");
+        expect(link.getAttribute("href")).toBe(subscriptionLink(user.package.id, user.email, "cloud"));
+      });
     });
 
-    it("should link to the cloud premium checkout page", () => {
-      const link = wrapper.getByRole("link");
-      expect(link.getAttribute("href")).toBe(subscriptionLink(user.package.id, user.email, "cloud"));
+    describe("text variant", () => {
+      it("should render as a link element for free user", () => {
+        const user = mockUser({ packageId: "free" });
+        wrapper = createWrapper({ user, edition: "cloud", variant: "text" });
+        const link = wrapper.getByRole("link");
+        expect(link.getAttribute("href")).toBe(subscriptionLink(user.package.id, user.email, "cloud"));
+      });
+
+      it("should render as a link element for paid user", () => {
+        const user = mockUser({ packageId: "premium" });
+        wrapper = createWrapper({ user, edition: "cloud", variant: "text" });
+        const link = wrapper.getByRole("link");
+        expect(link.getAttribute("href")).toBe(subscriptionLink(user.package.id, user.email, "cloud"));
+      });
     });
   });
 
-  describe("self-hosted free user", () => {
-    let user: User;
+  describe("self-hosted edition", () => {
+    describe("non-admin user", () => {
+      let user: User;
 
-    beforeEach(() => {
-      user = mockUser({ packageId: "free" });
-      wrapper = createWrapper({ user, edition: "self-hosted" });
+      beforeEach(() => {
+        user = mockUser({ packageId: "free", isAdmin: false });
+        wrapper = createWrapper({ user, edition: "self-hosted" });
+      });
+
+      it("should show upgrade text", () => {
+        expect(wrapper.getByText("Upgrade to enterprise")).toBeTruthy();
+      });
+
+      it("should not render a link", () => {
+        expect(wrapper.queryByRole("link")).toBeNull();
+      });
+
+      it("should open info modal on click", () => {
+        fireEvent.click(wrapper.getByRole("button", { name: /upgrade to enterprise/i }));
+        expect(wrapper.getByText("In self-hosted environments, the license is managed by admins.")).toBeTruthy();
+      });
+
+      it("should close info modal on close button click", () => {
+        fireEvent.click(wrapper.getByRole("button", { name: /upgrade to enterprise/i }));
+        fireEvent.click(wrapper.getByRole("button", { name: /close/i }));
+        expect(wrapper.queryByText("In self-hosted environments, the license is managed by admins.")).toBeNull();
+      });
     });
 
-    it("should link to the self-hosted premium checkout page", () => {
-      const link = wrapper.getByRole("link");
-      expect(link.getAttribute("href")).toBe(subscriptionLink(user.package.id, user.email, "self-hosted"));
-    });
-  });
+    describe("admin user", () => {
+      let user: User;
 
-  describe("paid user", () => {
-    let user: User;
+      beforeEach(() => {
+        user = mockUser({ packageId: "free", isAdmin: true });
+        wrapper = createWrapper({ user, edition: "self-hosted" });
+      });
 
-    beforeEach(() => {
-      user = mockUser({ packageId: "premium" });
-      wrapper = createWrapper({ user, text: "Manage subscription" });
-    });
-
-    it("should show manage subscription text", () => {
-      expect(wrapper.getByText("Manage subscription")).toBeTruthy();
-    });
-
-    it("should link to the billing portal", () => {
-      const link = wrapper.getByRole("link");
-      expect(link.getAttribute("href")).toBe(subscriptionLink(user.package.id, user.email, undefined));
-    });
-  });
-
-  describe("text variant", () => {
-    it("should render as a link element for free user", () => {
-      const user = mockUser({ packageId: "free" });
-      wrapper = createWrapper({ user, variant: "text" });
-      const link = wrapper.getByRole("link");
-      expect(link.getAttribute("href")).toBe(subscriptionLink(user.package.id, user.email, undefined));
-    });
-
-    it("should render as a link element for paid user", () => {
-      const user = mockUser({ packageId: "premium" });
-      wrapper = createWrapper({ user, variant: "text" });
-      const link = wrapper.getByRole("link");
-      expect(link.getAttribute("href")).toBe(subscriptionLink(user.package.id, user.email, undefined));
+      it("should link to the self-hosted checkout page", () => {
+        const link = wrapper.getByRole("link");
+        expect(link.getAttribute("href")).toBe(subscriptionLink(user.package.id, user.email, "self-hosted"));
+      });
     });
   });
 });
