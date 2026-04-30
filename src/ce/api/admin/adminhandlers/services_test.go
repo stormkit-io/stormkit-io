@@ -26,6 +26,7 @@ func (s *ServicesSuite) Test_Services_SelfHosted() {
 		"GET:/admin/system/mise",
 		"GET:/admin/system/proxies",
 		"GET:/admin/system/runtimes",
+		"GET:/admin/system/settings",
 		"GET:/admin/users/pending",
 		"GET:/admin/users/sign-up-mode",
 		"POST:/admin/domains",
@@ -39,6 +40,7 @@ func (s *ServicesSuite) Test_Services_SelfHosted() {
 		"POST:/admin/users/manage",
 		"POST:/admin/users/sign-up-mode",
 		"PUT:/admin/system/proxies",
+		"PUT:/admin/system/settings",
 	}
 
 	s.Equal(handlers, services.HandlerKeys())
@@ -59,6 +61,7 @@ func (s *ServicesSuite) Test_Services_Cloud() {
 		"GET:/admin/system/mise",
 		"GET:/admin/system/proxies",
 		"GET:/admin/system/runtimes",
+		"GET:/admin/system/settings",
 		"GET:/admin/users/pending",
 		"GET:/admin/users/sign-up-mode",
 		"POST:/admin/cloud/impersonate",
@@ -73,6 +76,7 @@ func (s *ServicesSuite) Test_Services_Cloud() {
 		"POST:/admin/users/manage",
 		"POST:/admin/users/sign-up-mode",
 		"PUT:/admin/system/proxies",
+		"PUT:/admin/system/settings",
 	}
 
 	s.Equal(handlers, services.HandlerKeys())
