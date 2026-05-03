@@ -4,7 +4,7 @@ date: 2026-01-30
 description: A technical deep dive into migrating Stormkit's infrastructure from AWS to Hetzner with zero downtime. Learn about database migrations, multi-ENI routing challenges, and keeping serverless functions running while switching cloud providers.
 author-name: Savas Vedova
 author-tw: @savasvedova
-author-img: https://pbs.twimg.com/profile_images/1681635649298874370/IMQmYpcA_400x400.jpg
+author-img: https://pbs.twimg.com/profile_images/1993991074138779648/Up6HP-Jw_reasonably_small.jpg
 ---
 
 Recently, we completed a full infrastructure migration from AWS to Hetzner. Zero downtime. Production websites kept humming. Users didn't notice a thing. Here's how we pulled it off—and the rabbit holes we fell into along the way 🐇

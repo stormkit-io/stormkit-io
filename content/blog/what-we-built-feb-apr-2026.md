@@ -4,7 +4,7 @@ date: 2026-05-03
 description: A look at everything we shipped over the last three months — a full public API, MCP server, built-in authentication, Nix runtime support, networking improvements, and self-hosted billing.
 author-name: Savas Vedova
 author-tw: @savasvedova
-author-img: https://pbs.twimg.com/profile_images/1681635649298874370/IMQmYpcA_400x400.jpg
+author-img: https://pbs.twimg.com/profile_images/1993991074138779648/Up6HP-Jw_reasonably_small.jpg
 ---
 
 The past three months have been some of our most productive. We shipped a full public API, built an MCP server for AI agents, introduced a hosted authentication layer, added Nix runtime support, hardened our networking stack, and gave self-hosted customers a complete billing lifecycle. Here's the full rundown.

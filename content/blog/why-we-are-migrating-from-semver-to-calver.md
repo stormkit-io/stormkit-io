@@ -4,7 +4,7 @@ date: 2026-02-28
 description: Learn why Stormkit is moving from Semantic Versioning to Calendar Versioning. Discover how CalVer enables faster deployments, better transparency for self-hosted users, and aligns with our continuous delivery philosophy.
 author-name: Savas Vedova
 author-tw: @savasvedova
-author-img: https://pbs.twimg.com/profile_images/1681635649298874370/IMQmYpcA_400x400.jpg
+author-img: https://pbs.twimg.com/profile_images/1993991074138779648/Up6HP-Jw_reasonably_small.jpg
 ---
 
 Today, we're announcing a significant change to how we version Stormkit: we're migrating from Semantic Versioning (SemVer) to Calendar Versioning (CalVer). This might seem like a minor technical decision, but it reflects a fundamental shift in how we think about software releases and customer value.

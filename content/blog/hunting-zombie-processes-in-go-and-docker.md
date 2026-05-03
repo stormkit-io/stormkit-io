@@ -4,7 +4,7 @@ date: 2025-04-16
 description: A technical deep dive into debugging zombie processes in a Go and Docker setup, detailing how I fixed a server crash caused by Node.js process leaks in Stormkit. Learn about process groups, SIGCHLD handling, and using Tini for zombie reaping.
 author-name: Savas Vedova
 author-tw: @savasvedova
-author-img: https://pbs.twimg.com/profile_images/1681635649298874370/IMQmYpcA_400x400.jpg
+author-img: https://pbs.twimg.com/profile_images/1993991074138779648/Up6HP-Jw_reasonably_small.jpg
 ---
 
 Last week, I wrestled with a nasty issue: zombie processes crashing my demo server 🧟‍♂️ If you’ve dealt with process management in Go or Docker, you might find this journey relatable. Here’s the technical deep dive into how I tracked down and fixed it.
