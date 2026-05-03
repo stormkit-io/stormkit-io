@@ -39,6 +39,8 @@ We built **SkAuth** — a hosted authentication layer that any application runni
 - A UI for managing authenticated users, with a secondary navigation panel
 - A `GET /v1/auth/users` public API endpoint for retrieving your user list
 
+> SkAuth is currently behind a feature flag. Reach out if you'd like early access.
+
 ## Nix Runtime Support
 
 Server-side deployments now support **Nix** as a runtime environment:
