@@ -262,7 +262,8 @@ func (s *RequestContextSuite) Test_Success_JWT() {
 }
 
 func (s *RequestContextSuite) Test_License() {
-	config.SetIsSelfHosted(false)
+	config.SetIsStormkitCloud(true)
+	defer config.SetIsStormkitCloud(false)
 
 	usr := s.MockUser(map[string]any{"Metadata": user.UserMeta{
 		SeatsPurchased: 10,
