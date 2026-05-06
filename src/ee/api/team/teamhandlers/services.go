@@ -22,8 +22,5 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodGet, "/stats", user.WithAuth(handlerTeamStats)).
 		Handler(shttp.MethodGet, "/stats/domains", user.WithAuth(handleTeamStatsDomains))
 
-	s.NewEndpoint("/teams").
-		Handler(shttp.MethodGet, "", user.WithAuth(handlerTeamsGet))
-
 	return s
 }

@@ -160,6 +160,8 @@ func mcpDispatch(req *RequestContextMCP, id any, params *toolCallParams) *shttp.
 		resp = mcpUpdateEnvironment(req, id, params.Arguments)
 	case "list_domains":
 		resp = mcpListDomains(req, params.Arguments)
+	case "list_teams":
+		resp = mcpListTeams(req)
 	default:
 		return jsonRPCError(id, rpcErrMethodUnknown, "unknown tool: "+params.Name)
 	}

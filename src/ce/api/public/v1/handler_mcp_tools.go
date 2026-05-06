@@ -291,6 +291,15 @@ func mcpAllTools() []mcpToolDef {
 				"additionalProperties": false,
 			},
 		},
+		{
+			Name:        "list_teams",
+			Description: "Return all teams the authenticated user belongs to.",
+			InputSchema: map[string]any{
+				"type":                 "object",
+				"properties":          map[string]any{},
+				"additionalProperties": false,
+			},
+		},
 	}
 }
 
@@ -687,4 +696,8 @@ func mcpListDeployments(req *RequestContextMCP, args map[string]any) *shttp.Resp
 	})
 
 	return handlerDeploymentList(req.RequestContext)
+}
+
+func mcpListTeams(req *RequestContextMCP) *shttp.Response {
+	return handlerTeamList(req.RequestContext)
 }

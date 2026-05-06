@@ -8,7 +8,7 @@ interface MockFetchTeamProps {
 }
 
 export const mockFetchTeam = ({ status = 200, response }: MockFetchTeamProps) =>
-  nock(endpoint).get("/teams").reply(status, response);
+  nock(endpoint).get("/v1/teams").reply(status, { teams: response });
 
 interface MockCreateTeamProps {
   name: string;

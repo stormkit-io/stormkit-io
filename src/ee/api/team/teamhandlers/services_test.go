@@ -24,7 +24,6 @@ func (s *ServicesSuite) Test_Services() {
 		"GET:/team/members",
 		"GET:/team/stats",
 		"GET:/team/stats/domains",
-		"GET:/teams",
 		"PATCH:/team",
 		"POST:/team",
 		"POST:/team/enroll",
@@ -39,22 +38,12 @@ func (s *ServicesSuite) Test_EE() {
 	services := shttp.NewRouter().RegisterService(teamhandlers.Services)
 	s.NotNil(services)
 
-	handlers := map[string]int{
-		"GET:/teams": http.StatusUnauthorized,
-	}
-
 	// All handlers are EE only
 	for k, fn := range services.HandlerFuncs() {
-		status := handlers[k]
-
-		if status == 0 {
-			status = http.StatusPaymentRequired
-		}
-
 		s.Equal(
-			status,
+			http.StatusPaymentRequired,
 			fn(shttp.NewRequestContext(nil)).Status,
-			"handler %s should return %d", k, status,
+			"handler %s should return 402", k,
 		)
 	}
 }

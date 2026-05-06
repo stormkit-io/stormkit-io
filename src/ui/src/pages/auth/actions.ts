@@ -181,8 +181,8 @@ export const useFetchTeams = ({ user, refreshToken }: FetchTeamsProps) => {
     setError("");
 
     api
-      .fetch<Team[]>("/teams")
-      .then(teams => {
+      .fetch<{ teams: Team[] }>("/v1/teams")
+      .then(({ teams }) => {
         setTeams(teams);
       })
       .catch(res => {

@@ -74,6 +74,9 @@ func Services(r *shttp.Router) *shttp.Service {
 		Middleware(volumes.LimitRequestBody()).
 		Handler(shttp.MethodPost, "", WithAPIKey(handlerVolumesPost, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
+	s.NewEndpoint("/v1/teams").
+		Handler(shttp.MethodGet, "", WithAPIKey(handlerTeamList, &Opts{MinimumScope: apikey.SCOPE_USER}))
+
 	s.NewEndpoint("/v1/mcp").
 		Handler(shttp.MethodPost, "", WithAPIKey(handlerMCP, &Opts{MinimumScope: apikey.SCOPE_USER})).
 		Handler(shttp.MethodGet, "", WithAPIKey(handlerMCPStream, &Opts{MinimumScope: apikey.SCOPE_USER}))
