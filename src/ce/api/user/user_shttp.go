@@ -38,7 +38,7 @@ func (r *RequestContext) License() *admin.License {
 // License returns the license associated with the given user.
 // For self-hosted instances, it returns the instance license.
 func License(user *User) *admin.License {
-	if config.IsSelfHosted() {
+	if config.IsSelfHosted() || config.IsDevelopment() {
 		return admin.CurrentLicense()
 	}
 
