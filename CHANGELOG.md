@@ -1,5 +1,29 @@
 # Changelog
 
+## v2026.04.30.1...v2026.05.06.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.30.1...v2026.05.06.1)
+
+### 🚀 Enhancements
+
+- Fail build when schema migration path is invalid ([#226](https://github.com/stormkit-io/stormkit-io/pull/226))
+- Add Feb–Apr 2026 recap blog post ([#227](https://github.com/stormkit-io/stormkit-io/pull/227))
+- Expose GET /v1/teams in public API ([#230](https://github.com/stormkit-io/stormkit-io/pull/230))
+
+### 📖 Documentation
+
+- Note SkAuth is behind a feature flag ([#228](https://github.com/stormkit-io/stormkit-io/pull/228))
+
+### 🏡 Chore
+
+- Update changelog for v2026.04.30.1 ([#225](https://github.com/stormkit-io/stormkit-io/pull/225))
+- Switch highlighter ([af6e89b](https://github.com/stormkit-io/stormkit-io/commit/af6e89b))
+- Update author profile picture across blog posts ([#229](https://github.com/stormkit-io/stormkit-io/pull/229))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.04.29.2...v2026.04.30.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.29.2...v2026.04.30.1)
