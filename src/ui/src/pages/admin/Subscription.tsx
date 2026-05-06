@@ -32,7 +32,7 @@ export default function Subscription() {
         />
         <CardRow>
           <Box sx={{ display: "flex", alignItems: "center" }}>
-            <Typography variant="h2" color="text.secondary" sx={{ width: 120 }}>
+            <Typography variant="h3" color="text.secondary" sx={{ width: 120 }}>
               Plan
             </Typography>
             <Typography>
@@ -42,7 +42,7 @@ export default function Subscription() {
         </CardRow>
         <CardRow>
           <Box sx={{ display: "flex", alignItems: "center" }}>
-            <Typography variant="h2" color="text.secondary" sx={{ width: 120 }}>
+            <Typography variant="h3" color="text.secondary" sx={{ width: 120 }}>
               Purchased Seats
             </Typography>
             <Typography>
@@ -52,7 +52,7 @@ export default function Subscription() {
         </CardRow>
         <CardRow>
           <Box sx={{ display: "flex", alignItems: "center" }}>
-            <Typography variant="h2" color="text.secondary" sx={{ width: 120 }}>
+            <Typography variant="h3" color="text.secondary" sx={{ width: 120 }}>
               Remaining seats
             </Typography>
             <Typography>
@@ -73,7 +73,7 @@ export default function Subscription() {
           e.preventDefault();
           const form = e.target as HTMLFormElement;
           const data = Object.fromEntries(
-            new FormData(form).entries()
+            new FormData(form).entries(),
           ) as Record<string, string>;
 
           if (!data.licenseKey) {
