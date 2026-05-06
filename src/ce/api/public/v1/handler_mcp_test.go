@@ -292,6 +292,7 @@ func (s *HandlerMCPSuite) Test_ToolsList_ReturnsExpectedTools() {
 		"create_environment",
 		"update_environment",
 		"list_domains",
+		"list_teams",
 	}, names)
 }
 
