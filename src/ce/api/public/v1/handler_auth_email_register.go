@@ -3,6 +3,7 @@ package publicapiv1
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
@@ -13,6 +14,33 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"golang.org/x/crypto/bcrypt"
 )
+
+// generateVerificationToken creates a signed JWT to be stored as the verification token.
+func generateVerificationToken(env *buildconf.Env) (string, error) {
+	jti, err := utils.SecureRandomToken(16)
+
+	if err != nil {
+		return "", err
+	}
+
+	return user.JWT(jwt.MapClaims{
+		"exp": time.Now().Add(24 * time.Hour).Unix(),
+		"prv": skauth.ProviderEmail,
+		"jti": jti,
+	}, env.AuthConf.Secret)
+}
+
+// sendVerificationEmail emails the verification link for the given token.
+func sendVerificationEmail(req *shttp.RequestContext, env *buildconf.Env, email, token string) error {
+	u := req.URL()
+	verifyLink := fmt.Sprintf("%s://%s/_stormkit/auth/verify?token=%s", u.Scheme, u.Host, token)
+
+	return env.MailerConf.Send(buildconf.SendEmailParams{
+		To:      email,
+		Subject: "Verify your email address",
+		Body:    fmt.Sprintf(`<p>Click the link below to verify your email address:</p><p><a href="%s">%s</a></p>`, verifyLink, verifyLink),
+	})
+}
 
 // HandlerAuthEmailRegister registers a new user with email and password.
 // On success it returns a JSON response with a session token:
@@ -93,6 +121,16 @@ func HandlerAuthEmailRegister(req *shttp.RequestContext) *shttp.Response {
 		ProviderName: skauth.ProviderEmail,
 	}
 
+	if env.MailerConf != nil {
+		verificationToken, err := generateVerificationToken(env)
+
+		if err != nil {
+			return shttp.Error(err, fmt.Sprintf("failed to generate verification token: %s", err.Error()))
+		}
+
+		oauth.VerificationToken = verificationToken
+	}
+
 	usr := skauth.User{
 		Email: email,
 	}
@@ -103,6 +141,17 @@ func HandlerAuthEmailRegister(req *shttp.RequestContext) *shttp.Response {
 		}
 
 		return shttp.Error(err, fmt.Sprintf("failed to register user: %s", err.Error()))
+	}
+
+	if env.MailerConf != nil {
+		if err := sendVerificationEmail(req, env, email, oauth.VerificationToken); err != nil {
+			return shttp.Error(err, fmt.Sprintf("failed to send verification email: %s", err.Error()))
+		}
+
+		return &shttp.Response{
+			Status: http.StatusCreated,
+			Data:   map[string]any{"verificationRequired": true, "email": email, "userId": usr.ID},
+		}
 	}
 
 	sessionToken, err := user.JWT(jwt.MapClaims{

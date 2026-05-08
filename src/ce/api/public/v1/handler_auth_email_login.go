@@ -91,6 +91,13 @@ func HandlerAuthEmailLogin(req *shttp.RequestContext) *shttp.Response {
 		return shttp.BadRequest(map[string]any{"errors": []string{"invalid email or password"}})
 	}
 
+	if env.MailerConf != nil && authUser.VerifiedAt.IsZero() {
+		return &shttp.Response{
+			Status: http.StatusForbidden,
+			Data:   map[string]any{"errors": []string{"please verify your email address before logging in"}},
+		}
+	}
+
 	sessionToken, err := user.JWT(jwt.MapClaims{
 		"uid": authUser.ID,
 		"eid": fmt.Sprintf("%d", envID),

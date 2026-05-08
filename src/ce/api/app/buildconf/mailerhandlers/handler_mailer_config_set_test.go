@@ -29,7 +29,7 @@ func (s *HandlerMailerConfigSetSuite) BeforeTest(suiteName, _ string) {
 
 func (s *HandlerMailerConfigSetSuite) AfterTest(_, _ string) {
 	s.conn.CloseTx()
-	mailerhandlers.SendMail = smtp.SendMail
+	buildconf.SendMailFunc = smtp.SendMail
 }
 
 func (s *HandlerMailerConfigSetSuite) Test_Success() {

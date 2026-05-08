@@ -106,14 +106,15 @@ type Client interface {
 }
 
 type OAuth struct {
-	ID           types.ID
-	AccountID    string
-	ProviderName string
-	CreatedAt    utils.Unix
-	AccessToken  string
-	RefreshToken string
-	TokenType    string
-	Expiry       utils.Unix
+	ID                types.ID
+	AccountID         string
+	ProviderName      string
+	CreatedAt         utils.Unix
+	AccessToken       string
+	RefreshToken      string
+	TokenType         string
+	Expiry            utils.Unix
+	VerificationToken string
 }
 
 type User struct {
@@ -124,6 +125,7 @@ type User struct {
 	Avatar       string     `json:"avatar,omitempty"`
 	CreatedAt    utils.Unix `json:"createdAt"`
 	LastLoginAt  utils.Unix `json:"lastLoginAt,omitempty"`
+	VerifiedAt   utils.Unix `json:"verifiedAt,omitempty"`
 	PasswordHash string     `json:"-"`
 }
 

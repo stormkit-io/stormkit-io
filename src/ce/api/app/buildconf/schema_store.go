@@ -24,6 +24,7 @@ var schemaStmt = struct {
 	selectMigrations      string
 	insertOAuth           string
 	insertAuthUser        string
+	verifyEmailUser       string
 }{
 	createAuthTable: `
 		CREATE TABLE IF NOT EXISTS stormkit_auth_users (
@@ -45,6 +46,8 @@ var schemaStmt = struct {
 			token_type TEXT NOT NULL,
 			provider_name TEXT NOT NULL,
 			expiry TIMESTAMPTZ NULL,
+			verified_at TIMESTAMPTZ NULL,
+			verification_token TEXT NULL,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			UNIQUE (user_id, provider_name)
 		);
@@ -94,9 +97,9 @@ var schemaStmt = struct {
 
 	insertOAuth: `
 		INSERT INTO stormkit_auth_providers (
-			user_id, account_id, access_token, refresh_token, token_type, provider_name, expiry
+			user_id, account_id, access_token, refresh_token, token_type, provider_name, expiry, verification_token
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7
+			$1, $2, $3, $4, $5, $6, $7, NULLIF($8, '')
 		);
 	`,
 
@@ -107,6 +110,13 @@ var schemaStmt = struct {
 			$1, $2, $3, $4
 		) RETURNING
 			user_id;
+	`,
+
+	verifyEmailUser: `
+		UPDATE stormkit_auth_providers
+		SET verified_at = NOW(), verification_token = NULL
+		WHERE verification_token = $1 AND provider_name = 'email'
+		RETURNING user_id;
 	`,
 }
 
@@ -126,7 +136,7 @@ var sqlTemplates = struct {
 			u.avatar,
 			u.created_at,
 			u.last_login_at
-			{{- if .WithHash}}, p.access_token AS password_hash{{end}}
+			{{- if .WithHash}}, p.access_token AS password_hash, p.verified_at{{end}}
 		FROM
 			stormkit_auth_users u
 			{{- if .WithHash}}
@@ -606,6 +616,7 @@ func (s *schemaStore) InsertAuthUser(ctx context.Context, oauth *skauth.OAuth, u
 		oauth.TokenType,
 		oauth.ProviderName,
 		oauth.Expiry,
+		oauth.VerificationToken,
 	)
 
 	if err != nil {
@@ -755,6 +766,7 @@ func (s *schemaStore) AuthUserByEmail(ctx context.Context, p AuthUserByEmailPara
 		&authUser.CreatedAt,
 		&authUser.LastLoginAt,
 		&encryptedHash,
+		&authUser.VerifiedAt,
 	)
 
 	if err == sql.ErrNoRows {
@@ -768,6 +780,24 @@ func (s *schemaStore) AuthUserByEmail(ctx context.Context, p AuthUserByEmailPara
 	authUser.PasswordHash = utils.DecryptToString(encryptedHash)
 
 	return authUser, nil
+}
+
+// VerifyEmailUser stamps verified_at and clears the verification token for the provider
+// matching the given token. Returns the user ID on success, or 0 if the token is not found.
+func (s *schemaStore) VerifyEmailUser(ctx context.Context, token string) (types.ID, error) {
+	if s.conf == nil {
+		return 0, fmt.Errorf("schema configuration is required to verify auth user")
+	}
+
+	var userID types.ID
+
+	err := s.Conn.QueryRowContext(ctx, schemaStmt.verifyEmailUser, token).Scan(&userID)
+
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+
+	return userID, err
 }
 
 // Close closes the schema store and its underlying database connection.

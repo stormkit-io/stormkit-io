@@ -63,6 +63,12 @@ func (s *WithSKAuthSuite) hostWithSKAuth() *hosting.Host {
 	}
 }
 
+func (s *WithSKAuthSuite) newGetRequest(host *hosting.Host, path string) *hosting.RequestContext {
+	rq := s.newRequest(host, path)
+	rq.RequestContext.Method = http.MethodGet
+	return rq
+}
+
 func (s *WithSKAuthSuite) newPostRequest(host *hosting.Host, path string, body any) *hosting.RequestContext {
 	var buf bytes.Buffer
 
@@ -241,6 +247,37 @@ func (s *WithSKAuthSuite) Test_LoginPath_MissingEnv() {
 		"email":    "test@example.com",
 		"password": "supersecret123",
 	})
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.NotNil(res)
+	s.Equal(http.StatusBadRequest, res.Status)
+}
+
+// Test_VerifyPath_MethodNotAllowed checks that /_stormkit/auth/verify rejects non-GET requests.
+func (s *WithSKAuthSuite) Test_VerifyPath_MethodNotAllowed() {
+	req := s.newPostRequest(s.hostWithSKAuth(), "/_stormkit/auth/verify", nil)
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.NotNil(res)
+	s.Equal(http.StatusMethodNotAllowed, res.Status)
+}
+
+// Test_VerifyPath_MissingToken checks that /_stormkit/auth/verify returns 400 when no token is provided.
+func (s *WithSKAuthSuite) Test_VerifyPath_MissingToken() {
+	req := s.newGetRequest(s.hostWithSKAuth(), "/_stormkit/auth/verify")
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.NotNil(res)
+	s.Equal(http.StatusBadRequest, res.Status)
+}
+
+// Test_VerifyPath_MissingEnv checks that /_stormkit/auth/verify returns 400 when the host
+// has no EnvID configured (envId injected as 0 triggers validation failure in the handler).
+func (s *WithSKAuthSuite) Test_VerifyPath_MissingEnv() {
+	req := s.newGetRequest(s.hostWithSKAuth(), "/_stormkit/auth/verify?token=some-token")
 	res, err := hosting.WithSKAuth(req)
 
 	s.NoError(err)

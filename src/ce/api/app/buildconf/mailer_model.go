@@ -2,11 +2,24 @@ package buildconf
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/smtp"
 	"net/url"
+	"strings"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
+
+// SendMailFunc is the underlying SMTP send function, replaceable in tests.
+var SendMailFunc = smtp.SendMail
+
+type SendEmailParams struct {
+	To      string // semicolon-separated list of recipients
+	From    string // falls back to mc.Username when empty
+	Subject string
+	Body    string
+}
 
 type MailerConf struct {
 	EnvID    types.ID `json:"-"`
@@ -63,6 +76,36 @@ func (mc *MailerConf) UnmarshalJSON(data []byte) error {
 	mc.Port = hash["port"]
 
 	return nil
+}
+
+// SanitizeHeader strips carriage returns and newlines from an SMTP header value
+// to prevent header injection attacks.
+func SanitizeHeader(v string) string {
+	return strings.NewReplacer("\r", "", "\n", "").Replace(v)
+}
+
+// Send delivers an HTML email using the environment's SMTP configuration.
+// The SMTP envelope sender is always mc.Username; p.From controls the display From header only.
+func (mc *MailerConf) Send(p SendEmailParams) error {
+	fromHeader := SanitizeHeader(utils.GetString(p.From, mc.Username))
+	port := utils.GetString(mc.Port, "587")
+	mime := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
+	msg := []byte(
+		fmt.Sprintf("From: %s\n", fromHeader) +
+			fmt.Sprintf("Subject: %s\n", SanitizeHeader(p.Subject)) +
+			mime +
+			fmt.Sprintf("<html><body>%s</body></html>", p.Body),
+	)
+
+	auth := smtp.PlainAuth("", mc.Username, mc.Password, mc.Host)
+
+	to := strings.Split(p.To, ";")
+
+	for i := range to {
+		to[i] = strings.TrimSpace(to[i])
+	}
+
+	return SendMailFunc(mc.Host+":"+port, auth, mc.Username, to, msg)
 }
 
 type Email struct {

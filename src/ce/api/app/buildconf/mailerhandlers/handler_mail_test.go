@@ -29,7 +29,7 @@ func (s *MailerSuite) BeforeTest(suiteName, _ string) {
 
 func (s *MailerSuite) AfterTest(_, _ string) {
 	s.conn.CloseTx()
-	mailerhandlers.SendMail = smtp.SendMail
+	buildconf.SendMailFunc = smtp.SendMail
 }
 
 func (s *MailerSuite) Test_Success() {
@@ -45,7 +45,7 @@ func (s *MailerSuite) Test_Success() {
 		},
 	})
 
-	mailerhandlers.SendMail = func(addr string, a smtp.Auth, from string, to []string, msg []byte) error {
+	buildconf.SendMailFunc = func(addr string, a smtp.Auth, from string, to []string, msg []byte) error {
 		mime := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
 		s.Equal("smtp.gmail.com:587", addr)
 		s.Equal("test", from)
@@ -90,7 +90,7 @@ func (s *MailerSuite) Test_ShouldFail_NoConfig() {
 	app := s.MockApp(usr)
 	env := s.MockEnv(app)
 
-	mailerhandlers.SendMail = func(addr string, a smtp.Auth, from string, to []string, msg []byte) error {
+	buildconf.SendMailFunc = func(addr string, a smtp.Auth, from string, to []string, msg []byte) error {
 		called = true
 		return nil
 	}
