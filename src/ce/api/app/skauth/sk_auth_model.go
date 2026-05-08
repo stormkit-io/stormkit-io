@@ -117,13 +117,14 @@ type OAuth struct {
 }
 
 type User struct {
-	ID          types.ID   `json:"id,string"`
-	FirstName   string     `json:"firstName"`
-	LastName    string     `json:"lastName"`
-	Email       string     `json:"email"`
-	Avatar      string     `json:"avatar,omitempty"`
-	CreatedAt   utils.Unix `json:"createdAt"`
-	LastLoginAt utils.Unix `json:"lastLoginAt,omitempty"`
+	ID           types.ID   `json:"id,string"`
+	FirstName    string     `json:"firstName"`
+	LastName     string     `json:"lastName"`
+	Email        string     `json:"email"`
+	Avatar       string     `json:"avatar,omitempty"`
+	CreatedAt    utils.Unix `json:"createdAt"`
+	LastLoginAt  utils.Unix `json:"lastLoginAt,omitempty"`
+	PasswordHash string     `json:"-"`
 }
 
 // JSON returns a map representation of the user for API responses.

@@ -86,7 +86,8 @@ func Services(r *shttp.Router) *shttp.Service {
 			Handler(shttp.MethodGet, "", HandlerAuthRedirect).
 			Handler(shttp.MethodGet, "/session", HandlerSession).
 			Handler(shttp.MethodGet, "/callback", HandlerAuthCallback).
-			Handler(shttp.MethodPost, "/register", HandlerAuthEmailRegister)
+			Handler(shttp.MethodPost, "/register", HandlerAuthEmailRegister).
+			Handler(shttp.MethodPost, "/login", HandlerAuthEmailLogin)
 
 		s.NewEndpoint("/v1/auth/users").
 			Handler(shttp.MethodGet, "", WithAPIKey(HandlerAuthUsersList, &Opts{MinimumScope: apikey.SCOPE_ENV}))

@@ -23,7 +23,7 @@ var schemaStmt = struct {
 	createMigrationsTable string
 	selectMigrations      string
 	insertOAuth           string
-	insertAuthUser string
+	insertAuthUser        string
 }{
 	createAuthTable: `
 		CREATE TABLE IF NOT EXISTS stormkit_auth_users (
@@ -711,6 +711,63 @@ func (s *schemaStore) ListAuthUsers(ctx context.Context, from, limit int) ([]*sk
 	}
 
 	return users, nil
+}
+
+type AuthUserByEmailParams struct {
+	Email    string
+	Provider string
+}
+
+// AuthUserByEmail retrieves an auth user by email together with their stored password hash.
+// The hash is decrypted and placed in User.PasswordHash.
+func (s *schemaStore) AuthUserByEmail(ctx context.Context, p AuthUserByEmailParams) (*skauth.User, error) {
+	if s.conf == nil {
+		return nil, fmt.Errorf("schema configuration is required to retrieve auth user")
+	}
+
+	buf := bytes.Buffer{}
+
+	err := sqlTemplates.selectAuthUsers.Execute(&buf, map[string]any{
+		"WhereField": "email",
+		"WithHash":   true,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to render selectAuthUsers template: %w", err)
+	}
+
+	row, err := s.QueryRow(ctx, buf.String(), p.Email, p.Provider)
+
+	if err != nil {
+		return nil, err
+	}
+
+	authUser := &skauth.User{}
+
+	var encryptedHash string
+
+	err = row.Scan(
+		&authUser.ID,
+		&authUser.FirstName,
+		&authUser.LastName,
+		&authUser.Email,
+		&authUser.Avatar,
+		&authUser.CreatedAt,
+		&authUser.LastLoginAt,
+		&encryptedHash,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	authUser.PasswordHash = utils.DecryptToString(encryptedHash)
+
+	return authUser, nil
 }
 
 // Close closes the schema store and its underlying database connection.

@@ -207,6 +207,47 @@ func (s *WithSKAuthSuite) Test_RegisterPath_MissingEnv() {
 	s.Equal(http.StatusBadRequest, res.Status)
 }
 
+// Test_LoginPath_SKAuthDisabled checks that /_stormkit/auth/login is a no-op when SKAuth is not configured.
+func (s *WithSKAuthSuite) Test_LoginPath_SKAuthDisabled() {
+	host := &hosting.Host{
+		Name:   "www.stormkit.io",
+		Config: &appconf.Config{},
+	}
+
+	req := s.newPostRequest(host, "/_stormkit/auth/login", map[string]any{
+		"email":    "test@example.com",
+		"password": "supersecret123",
+	})
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.Nil(res)
+}
+
+// Test_LoginPath_MethodNotAllowed checks that /_stormkit/auth/login rejects non-POST requests.
+func (s *WithSKAuthSuite) Test_LoginPath_MethodNotAllowed() {
+	req := s.newRequest(s.hostWithSKAuth(), "/_stormkit/auth/login")
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.NotNil(res)
+	s.Equal(http.StatusMethodNotAllowed, res.Status)
+}
+
+// Test_LoginPath_MissingEnv checks that /_stormkit/auth/login returns 400 when the
+// host has no EnvID configured (envId injected as 0 triggers validation failure).
+func (s *WithSKAuthSuite) Test_LoginPath_MissingEnv() {
+	req := s.newPostRequest(s.hostWithSKAuth(), "/_stormkit/auth/login", map[string]any{
+		"email":    "test@example.com",
+		"password": "supersecret123",
+	})
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.NotNil(res)
+	s.Equal(http.StatusBadRequest, res.Status)
+}
+
 func TestWithSKAuth(t *testing.T) {
 	suite.Run(t, new(WithSKAuthSuite))
 }

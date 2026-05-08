@@ -23,7 +23,7 @@ func WithSKAuth(req *RequestContext) (*shttp.Response, error) {
 		return nil, nil
 	}
 
-	if path == "/_stormkit/auth/register" {
+	if path == "/_stormkit/auth/register" || path == "/_stormkit/auth/login" {
 		if req.Method != http.MethodPost {
 			return &shttp.Response{
 				Status: http.StatusMethodNotAllowed,
@@ -38,6 +38,10 @@ func WithSKAuth(req *RequestContext) (*shttp.Response, error) {
 		q.Set("envId", req.Host.Config.EnvID.String())
 		reqURL.RawQuery = q.Encode()
 		req.ResetQuery()
+
+		if path == "/_stormkit/auth/login" {
+			return publicapiv1.HandlerAuthEmailLogin(req.RequestContext), nil
+		}
 
 		return publicapiv1.HandlerAuthEmailRegister(req.RequestContext), nil
 	}
