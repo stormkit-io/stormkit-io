@@ -45,29 +45,27 @@ func HandlerMail(req *app.RequestContext) *shttp.Response {
 	}
 
 	config := env.MailerConf
+	from := data.From
 
-	if config == nil {
-		return &shttp.Response{
-			Status: http.StatusBadRequest,
-			Data:   map[string]string{"error": "Mailer is not yet configured."},
-		}
-	}
+	if config != nil {
+		from = utils.GetString(data.From, config.Username)
 
-	if err := config.Send(buildconf.SendEmailParams{
-		To:      data.To,
-		From:    data.From,
-		Subject: data.Subject,
-		Body:    data.Body,
-	}); err != nil {
-		return &shttp.Response{
-			Status: http.StatusInternalServerError,
-			Data:   map[string]string{"error": err.Error()},
+		if err := config.Send(buildconf.SendEmailParams{
+			To:      data.To,
+			From:    data.From,
+			Subject: data.Subject,
+			Body:    data.Body,
+		}); err != nil {
+			return &shttp.Response{
+				Status: http.StatusInternalServerError,
+				Data:   map[string]string{"error": err.Error()},
+			}
 		}
 	}
 
 	email := buildconf.Email{
 		EnvID:   req.EnvID,
-		From:    utils.GetString(data.From, config.Username),
+		From:    from,
 		To:      data.To,
 		Body:    data.Body,
 		Subject: data.Subject,

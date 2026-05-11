@@ -76,7 +76,7 @@ func (s *mailerStore) UpsertConfig(ctx context.Context, cnf *MailerConf) error {
 
 // InsertMail inserts a sent email to the database. This is mostly for auditing.
 func (s *mailerStore) InsertEmail(ctx context.Context, mail Email) error {
-	_, err := s.Exec(ctx, mstmt.insertEmail, mail.EnvID, mail.To, mail.From, mail.Body, mail.Subject)
+	_, err := s.Exec(ctx, mstmt.insertEmail, mail.EnvID, mail.To, mail.From, mail.Subject, mail.Body)
 	return err
 }
 

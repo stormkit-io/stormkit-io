@@ -17,6 +17,7 @@ func (s *ServicesSuite) Test_Services() {
 	s.NotNil(services)
 
 	handlers := []string{
+		"GET:/mailer",
 		"GET:/mailer/config",
 		"POST:/mailer",
 		"POST:/mailer/config",

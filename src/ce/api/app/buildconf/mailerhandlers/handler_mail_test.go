@@ -82,9 +82,11 @@ func (s *MailerSuite) Test_Success() {
 	emails, err := buildconf.MailerStore().Emails(context.Background(), env.ID)
 	s.NoError(err)
 	s.Len(emails, 1)
+	s.Equal("Hello", emails[0].Subject)
+	s.Equal("Welcome to my world!", emails[0].Body)
 }
 
-func (s *MailerSuite) Test_ShouldFail_NoConfig() {
+func (s *MailerSuite) Test_NoConfig_StoresEmail() {
 	called := false
 	usr := s.MockUser()
 	app := s.MockApp(usr)
@@ -102,7 +104,8 @@ func (s *MailerSuite) Test_ShouldFail_NoConfig() {
 		map[string]any{
 			"appId":   app.ID.String(),
 			"envId":   env.ID.String(),
-			"to":      "joe@stormkit.io; jane@stormkit.io",
+			"to":      "joe@stormkit.io",
+			"from":    "sender@example.com",
 			"subject": "Hello",
 			"body":    "Welcome to my world!",
 		},
@@ -111,9 +114,16 @@ func (s *MailerSuite) Test_ShouldFail_NoConfig() {
 		},
 	)
 
-	s.Equal(http.StatusBadRequest, response.Code)
-	s.JSONEq(`{ "error": "Mailer is not yet configured." }`, response.String())
+	s.Equal(http.StatusOK, response.Code)
 	s.False(called)
+
+	emails, err := buildconf.MailerStore().Emails(context.Background(), env.ID)
+	s.NoError(err)
+	s.Len(emails, 1)
+	s.Equal("joe@stormkit.io", emails[0].To)
+	s.Equal("sender@example.com", emails[0].From)
+	s.Equal("Hello", emails[0].Subject)
+	s.Equal("Welcome to my world!", emails[0].Body)
 }
 
 func TestMailerSuite(t *testing.T) {
