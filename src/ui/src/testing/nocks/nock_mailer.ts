@@ -61,6 +61,34 @@ export const mockSetMailerConfig = ({
     .reply(status, response);
 };
 
+export interface MockEmail {
+  id: string;
+  envId: string;
+  from: string;
+  to: string;
+  subject: string;
+  body: string;
+  sentAt: number;
+}
+
+interface MockFetchEmailsProps {
+  appId?: string;
+  envId?: string;
+  status?: number;
+  response?: { emails: MockEmail[] };
+}
+
+export const mockFetchEmails = ({
+  appId = "",
+  envId = "",
+  status = 200,
+  response = { emails: [] },
+}: MockFetchEmailsProps) => {
+  return nock(endpoint)
+    .get(`/mailer?appId=${appId}&envId=${envId}`)
+    .reply(status, response);
+};
+
 interface MockSendTestEmailProps {
   appId: string;
   envId: string;
