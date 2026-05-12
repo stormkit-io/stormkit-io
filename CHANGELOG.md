@@ -1,5 +1,24 @@
 # Changelog
 
+## v2026.05.06.1...v2026.05.12.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.06.1...v2026.05.12.1)
+
+### 🚀 Enhancements
+
+- Add email/password login endpoint ([#232](https://github.com/stormkit-io/stormkit-io/pull/232))
+- Add email verification for SKAuth email provider ([#233](https://github.com/stormkit-io/stormkit-io/pull/233))
+- Log all emails and expose GET /mailer endpoint ([#235](https://github.com/stormkit-io/stormkit-io/pull/235))
+- Add SKAuth magic link provider ([#237](https://github.com/stormkit-io/stormkit-io/pull/237))
+
+### 🏡 Chore
+
+- Update changelog for v2026.05.06.1 ([#231](https://github.com/stormkit-io/stormkit-io/pull/231))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.04.30.1...v2026.05.06.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.04.30.1...v2026.05.06.1)
