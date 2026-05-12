@@ -210,6 +210,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
     it("should display authentication providers", async () => {
       await waitFor(() => {
         expect(wrapper.getByText("Email")).toBeTruthy();
+        expect(wrapper.getByText("Magic Link")).toBeTruthy();
         expect(wrapper.getByText("Google")).toBeTruthy();
         expect(wrapper.getByText("X / Twitter (OAuth 2.0)")).toBeTruthy();
       });
@@ -223,7 +224,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
 
     it("should display correct status for disabled provider", async () => {
       await waitFor(() => {
-        expect(wrapper.getByText("disabled")).toBeTruthy();
+        expect(wrapper.getAllByText("disabled").length).toBeGreaterThan(0);
       });
     });
 

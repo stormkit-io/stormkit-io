@@ -17,14 +17,16 @@ import (
 )
 
 var schemaStmt = struct {
-	selectSchema          string
-	selectTables          string
-	createAuthTable       string
-	createMigrationsTable string
-	selectMigrations      string
-	insertOAuth           string
-	insertAuthUser        string
-	verifyEmailUser       string
+	selectSchema           string
+	selectTables           string
+	createAuthTable        string
+	createMigrationsTable  string
+	selectMigrations       string
+	insertOAuth            string
+	insertAuthUser         string
+	verifyEmailUser        string
+	updateMagicLinkToken   string
+	consumeMagicLinkToken  string
 }{
 	createAuthTable: `
 		CREATE TABLE IF NOT EXISTS stormkit_auth_users (
@@ -41,8 +43,8 @@ var schemaStmt = struct {
 			auth_id SERIAL PRIMARY KEY NOT NULL,
 			user_id BIGINT NOT NULL REFERENCES stormkit_auth_users(user_id) ON DELETE CASCADE,
 			account_id TEXT,
-			access_token TEXT NOT NULL,
-			refresh_token TEXT NOT NULL,
+			access_token TEXT,
+			refresh_token TEXT,
 			token_type TEXT NOT NULL,
 			provider_name TEXT NOT NULL,
 			expiry TIMESTAMPTZ NULL,
@@ -118,6 +120,19 @@ var schemaStmt = struct {
 		WHERE verification_token = $1 AND provider_name = 'email'
 		RETURNING user_id;
 	`,
+
+	updateMagicLinkToken: `
+		UPDATE stormkit_auth_providers
+		SET verification_token = $1
+		WHERE user_id = $2 AND provider_name = 'magiclink';
+	`,
+
+	consumeMagicLinkToken: `
+		UPDATE stormkit_auth_providers
+		SET verified_at = NOW(), verification_token = NULL
+		WHERE verification_token = $1 AND provider_name = 'magiclink'
+		RETURNING user_id;
+	`,
 }
 
 var sqlTemplates = struct {
@@ -130,10 +145,10 @@ var sqlTemplates = struct {
 	selectAuthUsers: template.Must(template.New("selectAuthUsers").Parse(`
 		SELECT
 			u.user_id,
-			u.first_name,
-			u.last_name,
+			COALESCE(u.first_name, '') AS first_name,
+			COALESCE(u.last_name, '') AS last_name,
 			u.email,
-			u.avatar,
+			COALESCE(u.avatar, '') AS avatar,
 			u.created_at,
 			u.last_login_at
 			{{- if .WithHash}}, p.access_token AS password_hash, p.verified_at{{end}}
@@ -611,8 +626,8 @@ func (s *schemaStore) InsertAuthUser(ctx context.Context, oauth *skauth.OAuth, u
 	_, err = tx.ExecContext(ctx, schemaStmt.insertOAuth,
 		user.ID,
 		oauth.AccountID,
-		utils.EncryptToString(oauth.AccessToken),
-		utils.EncryptToString(oauth.RefreshToken),
+		null.NewString(utils.EncryptToString(oauth.AccessToken), oauth.AccessToken != ""),
+		null.NewString(utils.EncryptToString(oauth.RefreshToken), oauth.RefreshToken != ""),
 		oauth.TokenType,
 		oauth.ProviderName,
 		oauth.Expiry,
@@ -755,7 +770,7 @@ func (s *schemaStore) AuthUserByEmail(ctx context.Context, p AuthUserByEmailPara
 
 	authUser := &skauth.User{}
 
-	var encryptedHash string
+	var encryptedHash null.String
 
 	err = row.Scan(
 		&authUser.ID,
@@ -777,7 +792,7 @@ func (s *schemaStore) AuthUserByEmail(ctx context.Context, p AuthUserByEmailPara
 		return nil, err
 	}
 
-	authUser.PasswordHash = utils.DecryptToString(encryptedHash)
+	authUser.PasswordHash = utils.DecryptToString(encryptedHash.String)
 
 	return authUser, nil
 }
@@ -792,6 +807,57 @@ func (s *schemaStore) VerifyEmailUser(ctx context.Context, token string) (types.
 	var userID types.ID
 
 	err := s.Conn.QueryRowContext(ctx, schemaStmt.verifyEmailUser, token).Scan(&userID)
+
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+
+	return userID, err
+}
+
+// UpsertMagicLinkUser finds or creates a user by email and sets a new magic link token
+// on their magiclink provider record. Returns the user ID.
+func (s *schemaStore) UpsertMagicLinkUser(ctx context.Context, email, token string) (types.ID, error) {
+	if s.conf == nil {
+		return 0, fmt.Errorf("schema configuration is required to upsert magic link user")
+	}
+
+	existing, err := s.AuthUserByEmail(ctx, AuthUserByEmailParams{
+		Email:    email,
+		Provider: skauth.ProviderMagicLink,
+	})
+
+	if err != nil {
+		return 0, err
+	}
+
+	if existing != nil {
+		_, err = s.Exec(ctx, schemaStmt.updateMagicLinkToken, token, existing.ID)
+		return existing.ID, err
+	}
+
+	user := &skauth.User{Email: email}
+
+	err = s.InsertAuthUser(ctx, &skauth.OAuth{
+		AccountID:         email,
+		ProviderName:      skauth.ProviderMagicLink,
+		TokenType:         skauth.ProviderMagicLink,
+		VerificationToken: token,
+	}, user)
+
+	return user.ID, err
+}
+
+// ConsumeMagicLinkToken validates and consumes a magic link token. On success it stamps
+// verified_at, clears the token, and returns the user ID. Returns 0 if not found.
+func (s *schemaStore) ConsumeMagicLinkToken(ctx context.Context, token string) (types.ID, error) {
+	if s.conf == nil {
+		return 0, fmt.Errorf("schema configuration is required to consume magic link token")
+	}
+
+	var userID types.ID
+
+	err := s.Conn.QueryRowContext(ctx, schemaStmt.consumeMagicLinkToken, token).Scan(&userID)
 
 	if err == sql.ErrNoRows {
 		return 0, nil

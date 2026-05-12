@@ -81,6 +81,50 @@ func (m *skAuthMiddleware) handleVerify() (*shttp.Response, error) {
 	return m.renderVerifyPage(http.StatusOK, head, ""), nil
 }
 
+func (m *skAuthMiddleware) handleMagicLinkRequest() (*shttp.Response, error) {
+	m.injectEnvID()
+
+	resp := publicapiv1.HandlerAuthMagicLinkRequest(m.req.RequestContext)
+
+	if resp.Status != 0 && resp.Status != http.StatusOK {
+		return resp, nil
+	}
+
+	return &shttp.Response{Status: http.StatusCreated}, nil
+}
+
+func (m *skAuthMiddleware) handleMagicLinkVerify() (*shttp.Response, error) {
+	m.injectEnvID()
+
+	resp := publicapiv1.HandlerAuthMagicLinkVerify(m.req.RequestContext)
+
+	if resp.Status != 0 && resp.Status != http.StatusOK {
+		errMsg := "magic link verification failed"
+
+		if d, ok := resp.Data.(map[string]any); ok {
+			if errs, ok := d["errors"].([]string); ok && len(errs) > 0 {
+				errMsg = errs[0]
+			}
+		}
+
+		return m.renderVerifyPage(resp.Status, "", errMsg), nil
+	}
+
+	data, ok := resp.Data.(map[string]any)
+
+	if !ok {
+		return m.renderVerifyPage(http.StatusInternalServerError, "", "magic link verification failed"), nil
+	}
+
+	head := fmt.Sprintf(
+		`<script>localStorage.setItem('skauth', JSON.stringify('%s'));window.location.href="%s?verified=true";</script>`,
+		data["token"],
+		m.req.Host.Config.SKAuth.SuccessURL,
+	)
+
+	return m.renderVerifyPage(http.StatusOK, head, ""), nil
+}
+
 func (m *skAuthMiddleware) handleCallback() (*shttp.Response, error) {
 	var head, content string
 
@@ -148,6 +192,14 @@ func WithSKAuth(req *RequestContext) (*shttp.Response, error) {
 
 	if path == "/_stormkit/auth/verify" {
 		return m.handleVerify()
+	}
+
+	if path == "/_stormkit/auth/magic" {
+		if m.req.Query().Get("token") != "" {
+			return m.handleMagicLinkVerify()
+		}
+
+		return m.handleMagicLinkRequest()
 	}
 
 	return m.handleCallback()

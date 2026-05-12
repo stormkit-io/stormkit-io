@@ -14,11 +14,13 @@ import (
 const ProviderGoogle = "google"
 const ProviderX = "x"
 const ProviderEmail = "email"
+const ProviderMagicLink = "magiclink"
 
 var Providers = []string{
 	ProviderGoogle,
 	ProviderX,
 	ProviderEmail,
+	ProviderMagicLink,
 }
 
 type OAuthToken struct {
@@ -79,6 +81,8 @@ func (p *Provider) Client() Client {
 		p.cachedClient = NewXClient(p.Data.ClientID, p.Data.ClientSecret)
 	case ProviderEmail:
 		p.cachedClient = NewEmailClient()
+	case ProviderMagicLink:
+		p.cachedClient = NewMagicLinkClient()
 	}
 
 	return p.cachedClient

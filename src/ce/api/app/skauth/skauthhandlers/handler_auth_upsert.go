@@ -63,7 +63,7 @@ func handlerAuthUpsert(req *app.RequestContext) *shttp.Response {
 	data.ProviderName = strings.TrimSpace(strings.ToLower(data.ProviderName))
 
 	switch data.ProviderName {
-	case skauth.ProviderEmail:
+	case skauth.ProviderEmail, skauth.ProviderMagicLink:
 		return handleEmailProvider(req, data, env)
 	default:
 		return handleOAuthProvider(req, data, env)

@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import XIcon from "@mui/icons-material/X";
 import GoogleIcon from "@mui/icons-material/Google";
 import EmailIcon from "@mui/icons-material/Email";
-import Link from "@mui/material/Link";
+import LinkIcon from "@mui/icons-material/Link";
+import MuiLink from "@mui/material/Link";
 import api from "~/utils/api/Api";
 
 export interface Field {
@@ -12,7 +13,7 @@ export interface Field {
   helperText?: string;
 }
 
-type AuthProviderID = "email" | "google" | "x";
+type AuthProviderID = "email" | "magiclink" | "google" | "x";
 
 export interface AuthProvider {
   id: AuthProviderID;
@@ -40,13 +41,13 @@ const allProviders: AuthProvider[] = [
       "Enable this provider to allow users to register and sign in with an email and password.",
       <>
         Use the{" "}
-        <Link
+        <MuiLink
           href="https://www.stormkit.io/docs/features/authentication"
           target="_blank"
           rel="noreferrer noopener"
         >
           Stormkit Auth API
-        </Link>{" "}
+        </MuiLink>{" "}
         to register and authenticate users programmatically.
       </>,
       <>
@@ -54,6 +55,27 @@ const allProviders: AuthProvider[] = [
         <code>/_stormkit/auth/register</code> with a JSON body containing{" "}
         <code>email</code> and <code>password</code> fields. On success, a JWT
         token is returned.
+      </>,
+    ],
+  },
+  {
+    id: "magiclink",
+    icon: LinkIcon,
+    name: "Magic Link",
+    drawerTitle: "Magic Link Settings",
+    drawerDesc: "Allow passwordless sign-in via a one-time link sent by email.",
+    steps: [
+      "Enable this provider to allow users to sign in with a magic link sent to their email address.",
+      <>
+        Send a <code>GET</code> request to{" "}
+        <code>/_stormkit/auth/magic?email=user@example.com</code>. A one-time
+        sign-in link will be sent to that address. The endpoint returns{" "}
+        <code>201</code> with no content.
+      </>,
+      <>
+        The link redirects the user to{" "}
+        <code>/_stormkit/auth/magic?token=&lt;token&gt;</code>, which exchanges
+        the token for a session JWT stored in <code>localStorage</code>.
       </>,
     ],
   },
@@ -72,14 +94,14 @@ const allProviders: AuthProvider[] = [
     steps: [
       <>
         Go to{" "}
-        <Link
+        <MuiLink
           type="button"
           href="https://console.developers.google.com/apis/credentials"
           target="_blank"
           rel="noreferrer noopener"
         >
           https://console.developers.google.com/apis/credentials
-        </Link>
+        </MuiLink>
       </>,
       "Create a new OAuth 2.0 Client ID credential.",
       "Select 'Web application' as the Application type.",
@@ -103,14 +125,14 @@ const allProviders: AuthProvider[] = [
     steps: [
       <>
         Go to{" "}
-        <Link
+        <MuiLink
           type="button"
           href="https://developer.x.com/en/portal/dashboard"
           target="_blank"
           rel="noreferrer noopener"
         >
           https://developer.x.com/en/portal/dashboard
-        </Link>{" "}
+        </MuiLink>{" "}
         and create a new project.
       </>,
       "Click 'Set up' under 'User authentication settings' section.",

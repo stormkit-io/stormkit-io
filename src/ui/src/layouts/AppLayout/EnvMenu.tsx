@@ -103,12 +103,14 @@ export default function EnvMenu() {
             <Box key={item.path}>
               <Box
                 sx={{
-                  borderBottom: item.children ? undefined : "1px solid",
+                  borderBottom:
+                    item.children && item.isActive ? undefined : "1px solid",
                   borderColor: "container.border",
                 }}
               >
                 <MenuLink
                   item={item}
+                  borderRadius={0}
                   sx={{
                     flex: 1,
                     mx: 2,
@@ -133,6 +135,7 @@ export default function EnvMenu() {
                       dot
                       key={child.path}
                       item={child}
+                      borderRadius={0}
                       sx={{
                         mx: 2,
                         py: 1,
@@ -140,6 +143,9 @@ export default function EnvMenu() {
                         borderColor: "container.border",
                         display: "flex",
                         alignItems: "center",
+                        "&:last-child": {
+                          borderBottom: "none",
+                        },
                       }}
                     />
                   ))}

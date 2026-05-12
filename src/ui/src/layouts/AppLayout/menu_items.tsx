@@ -124,6 +124,18 @@ export const envMenuItems = ({
     path: `${envPath}/mailer`,
     icon: Icon(MailIcon),
     isActive: pathname.includes("/mailer"),
+    children: [
+      {
+        text: "Configuration",
+        path: `${envPath}/mailer`,
+        isActive: pathname.endsWith("/mailer"),
+      },
+      {
+        text: "Sent Emails",
+        path: `${envPath}/mailer/emails`,
+        isActive: pathname.endsWith("/mailer/emails"),
+      },
+    ],
   });
 
   if (env.published?.length) {

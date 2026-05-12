@@ -285,6 +285,37 @@ func (s *WithSKAuthSuite) Test_VerifyPath_MissingEnv() {
 	s.Equal(http.StatusBadRequest, res.Status)
 }
 
+// Test_MagicPath_RequestMissingEmail checks that GET /_stormkit/auth/magic without
+// an email param returns 400.
+func (s *WithSKAuthSuite) Test_MagicPath_RequestMissingEmail() {
+	req := s.newGetRequest(s.hostWithSKAuth(), "/_stormkit/auth/magic")
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.NotNil(res)
+	s.Equal(http.StatusBadRequest, res.Status)
+}
+
+// Test_MagicPath_RequestInvalidEmail checks that a malformed email returns 400.
+func (s *WithSKAuthSuite) Test_MagicPath_RequestInvalidEmail() {
+	req := s.newGetRequest(s.hostWithSKAuth(), "/_stormkit/auth/magic?email=not-an-email")
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.NotNil(res)
+	s.Equal(http.StatusBadRequest, res.Status)
+}
+
+// Test_MagicPath_VerifyInvalidToken checks that an invalid token returns 400.
+func (s *WithSKAuthSuite) Test_MagicPath_VerifyInvalidToken() {
+	req := s.newGetRequest(s.hostWithSKAuth(), "/_stormkit/auth/magic?token=bad-token")
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.NotNil(res)
+	s.Equal(http.StatusBadRequest, res.Status)
+}
+
 func TestWithSKAuth(t *testing.T) {
 	suite.Run(t, new(WithSKAuthSuite))
 }

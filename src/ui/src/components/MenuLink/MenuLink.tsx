@@ -16,10 +16,17 @@ interface Props {
   item: Path;
   inline?: boolean;
   dot?: boolean;
+  borderRadius?: number;
   sx?: SxProps;
 }
 
-export default function MenuLink({ item, sx, inline, dot = false }: Props) {
+export default function MenuLink({
+  item,
+  sx,
+  inline,
+  borderRadius = 1,
+  dot = false,
+}: Props) {
   return (
     <Typography
       component="div"
@@ -35,8 +42,8 @@ export default function MenuLink({ item, sx, inline, dot = false }: Props) {
           display: "inline-flex",
           position: "relative",
           alignItems: "center",
+          borderRadius,
           justifyContent: "space-between",
-          borderRadius: 1,
           transition: "background-color 0.2s ease, color 0.2s ease",
           bgcolor:
             item.isActive && !item.children?.length
@@ -51,7 +58,7 @@ export default function MenuLink({ item, sx, inline, dot = false }: Props) {
         }}
       >
         <span>
-          {item.icon ?? (dot ? <Dot sx={{ mr: 2 }} /> : null)}
+          {item.icon ?? (dot ? <Dot sx={{ pl: 0.25, mr: 2.75 }} /> : null)}
           {item.text}
         </span>
         {item.children && (

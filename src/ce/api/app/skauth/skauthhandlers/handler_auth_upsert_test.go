@@ -275,6 +275,30 @@ func (s *HandlerAuthUpsertSuite) Test_Success_EmailProvider_NoClientCredentials(
 	s.Equal(skauth.ProviderData{}, provider.Data, "Email provider should store no OAuth credentials")
 }
 
+func (s *HandlerAuthUpsertSuite) Test_Success_MagicLinkProvider() {
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/skauth",
+		map[string]any{
+			"envId":        s.env.ID,
+			"providerName": skauth.ProviderMagicLink,
+			"status":       true,
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(s.usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+
+	provider, err := skauth.NewStore().Provider(context.Background(), s.env.ID, skauth.ProviderMagicLink)
+	s.NoError(err)
+	s.NotNil(provider, "Magic link provider should be saved")
+	s.True(provider.Status)
+	s.Equal(skauth.ProviderData{}, provider.Data, "Magic link provider should have no OAuth credentials")
+}
+
 func TestHandlerUpsertSuite(t *testing.T) {
 	suite.Run(t, &HandlerAuthUpsertSuite{})
 }

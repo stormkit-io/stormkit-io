@@ -25,7 +25,7 @@ var mstmt = struct {
 	`,
 
 	upsertConfig: `
-		UPDATE apps_build_conf SET mailer_conf = $1 WHERE env_id = $2;	
+		UPDATE apps_build_conf SET mailer_conf = $1 WHERE env_id = $2;
 	`,
 
 	selectEmails: `
@@ -74,7 +74,7 @@ func (s *mailerStore) UpsertConfig(ctx context.Context, cnf *MailerConf) error {
 	return err
 }
 
-// InsertMail inserts a sent email to the database. This is mostly for auditing.
+// InsertEmail inserts a sent email to the database.
 func (s *mailerStore) InsertEmail(ctx context.Context, mail Email) error {
 	_, err := s.Exec(ctx, mstmt.insertEmail, mail.EnvID, mail.To, mail.From, mail.Subject, mail.Body)
 	return err

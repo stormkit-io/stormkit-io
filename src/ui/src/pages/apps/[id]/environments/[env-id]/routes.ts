@@ -46,6 +46,13 @@ const routes: Array<RouteProps> = [
     ),
   },
   {
+    path: "/mailer/emails",
+    element: Async(
+      () =>
+        import("~/pages/apps/[id]/environments/[env-id]/mailer/SentEmails"),
+    ),
+  },
+  {
     path: "/auth",
     element: Async(
       () => import("~/pages/apps/[id]/environments/[env-id]/skauth"),
