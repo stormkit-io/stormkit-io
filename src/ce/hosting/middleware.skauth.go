@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/html"
 	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -176,6 +177,23 @@ func (m *skAuthMiddleware) renderVerifyPage(status int, head, content string) *s
 func WithSKAuth(req *RequestContext) (*shttp.Response, error) {
 	if req.Host.Config.SKAuth == nil {
 		return nil, nil
+	}
+
+	// Strip the header to prevent clients from spoofing it.
+	req.Header.Del("X-User-Id")
+
+	if bearer := user.ParseBearer(req.Header.Get("Authorization")); bearer != "" {
+		claims := user.ParseJWT(&user.ParseJWTArgs{
+			Bearer:  bearer,
+			Secret:  req.Host.Config.SKAuth.Secret,
+			MaxMins: req.Host.Config.SKAuth.TTL,
+		})
+
+		if claims != nil {
+			if userID, ok := claims["uid"].(string); ok && userID != "" {
+				req.Header.Set("X-User-Id", userID)
+			}
+		}
 	}
 
 	path := req.URL().Path

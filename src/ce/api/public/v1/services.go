@@ -84,11 +84,7 @@ func Services(r *shttp.Router) *shttp.Service {
 	if config.IsDevelopment() || config.IsSelfHosted() {
 		s.NewEndpoint("/v1/auth").
 			Handler(shttp.MethodGet, "", HandlerAuthRedirect).
-			Handler(shttp.MethodGet, "/session", HandlerSession).
-			Handler(shttp.MethodGet, "/callback", HandlerAuthCallback).
-			Handler(shttp.MethodGet, "/verify", HandlerAuthVerify).
-			Handler(shttp.MethodPost, "/register", HandlerAuthEmailRegister).
-			Handler(shttp.MethodPost, "/login", HandlerAuthEmailLogin)
+			Handler(shttp.MethodGet, "/callback", HandlerAuthCallback)
 
 		s.NewEndpoint("/v1/auth/users").
 			Handler(shttp.MethodGet, "", WithAPIKey(HandlerAuthUsersList, &Opts{MinimumScope: apikey.SCOPE_ENV}))

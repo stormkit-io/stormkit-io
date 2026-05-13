@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -11,11 +12,14 @@ import (
 	"testing"
 	"time"
 
+	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/ce/hosting"
 	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
+	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -314,6 +318,92 @@ func (s *WithSKAuthSuite) Test_MagicPath_VerifyInvalidToken() {
 	s.NoError(err)
 	s.NotNil(res)
 	s.Equal(http.StatusBadRequest, res.Status)
+}
+
+func (s *WithSKAuthSuite) generateBearer(userID types.ID, secret string) string {
+	token, err := user.JWT(jwt.MapClaims{"uid": userID}, secret)
+	s.Require().NoError(err)
+	return fmt.Sprintf("Bearer %s", token)
+}
+
+// Test_UserIDStripped checks that X-User-Id is removed when SKAuth is configured
+// to prevent clients from spoofing the header.
+func (s *WithSKAuthSuite) Test_UserIDStripped() {
+	req := s.newRequest(s.hostWithSKAuth(), "/some/path")
+	req.Header.Set("X-User-Id", "spoofed-id")
+
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.Nil(res)
+	s.Empty(req.Header.Get("X-User-Id"))
+}
+
+// Test_UserIDNotStrippedWhenSKAuthDisabled checks that X-User-Id is left untouched
+// when SKAuth is not configured.
+func (s *WithSKAuthSuite) Test_UserIDNotStrippedWhenSKAuthDisabled() {
+	host := &hosting.Host{
+		Name:   "www.stormkit.io",
+		Config: &appconf.Config{},
+	}
+
+	req := s.newRequest(host, "/some/path")
+	req.Header.Set("X-User-Id", "some-id")
+
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.Nil(res)
+	s.Equal("some-id", req.Header.Get("X-User-Id"))
+}
+
+// Test_UserIDInjected checks that a valid bearer token results in X-User-Id being set.
+func (s *WithSKAuthSuite) Test_UserIDInjected() {
+	userID := types.ID(42)
+	req := s.newRequest(s.hostWithSKAuth(), "/api/data")
+	req.Header.Set("Authorization", s.generateBearer(userID, "test-secret"))
+
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.Nil(res)
+	s.Equal(userID.String(), req.Header.Get("X-User-Id"))
+}
+
+// Test_UserIDNotInjectedOnInvalidToken checks that an invalid token leaves X-User-Id unset.
+func (s *WithSKAuthSuite) Test_UserIDNotInjectedOnInvalidToken() {
+	req := s.newRequest(s.hostWithSKAuth(), "/api/data")
+	req.Header.Set("Authorization", "Bearer invalid.jwt.token")
+
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.Nil(res)
+	s.Empty(req.Header.Get("X-User-Id"))
+}
+
+// Test_UserIDNotInjectedOnWrongSecret checks that a token signed with a different secret is rejected.
+func (s *WithSKAuthSuite) Test_UserIDNotInjectedOnWrongSecret() {
+	req := s.newRequest(s.hostWithSKAuth(), "/api/data")
+	req.Header.Set("Authorization", s.generateBearer(types.ID(1), "wrong-secret"))
+
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.Nil(res)
+	s.Empty(req.Header.Get("X-User-Id"))
+}
+
+// Test_UserIDNotInjectedWhenNoAuthHeader checks that requests without an Authorization
+// header do not get X-User-Id injected.
+func (s *WithSKAuthSuite) Test_UserIDNotInjectedWhenNoAuthHeader() {
+	req := s.newRequest(s.hostWithSKAuth(), "/api/data")
+
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.Nil(res)
+	s.Empty(req.Header.Get("X-User-Id"))
 }
 
 func TestWithSKAuth(t *testing.T) {
