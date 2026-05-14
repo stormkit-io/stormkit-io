@@ -1,4 +1,4 @@
-package publicapiv1
+package hosting
 
 import (
 	"fmt"
@@ -12,63 +12,20 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
-func generateMagicLinkToken(env *buildconf.Env) (string, error) {
-	jti, err := utils.SecureRandomToken(16)
+func (m *skAuthMiddleware) magicLinkRequest() *shttp.Response {
+	req := m.req.RequestContext
 
-	if err != nil {
-		return "", err
-	}
-
-	return user.JWT(jwt.MapClaims{
-		"exp": time.Now().Add(15 * time.Minute).Unix(),
-		"prv": skauth.ProviderMagicLink,
-		"jti": jti,
-	}, env.AuthConf.Secret)
-}
-
-func sendMagicLinkEmail(req *shttp.RequestContext, env *buildconf.Env, email, token string) error {
-	u := req.URL()
-	link := fmt.Sprintf("%s://%s/_stormkit/auth/magic?token=%s", u.Scheme, u.Host, token)
-
-	params := buildconf.SendEmailParams{
-		To:      email,
-		Subject: "Your magic link",
-		Body:    fmt.Sprintf(`<p>Click the link below to sign in. The link expires in 15 minutes.</p><p><a href="%s">%s</a></p>`, link, link),
-	}
-
-	if err := buildconf.MailerStore().InsertEmail(req.Context(), buildconf.Email{
-		EnvID:   env.ID,
-		To:      email,
-		Subject: params.Subject,
-		Body:    params.Body,
-	}); err != nil {
-		return err
-	}
-
-	if env.MailerConf != nil {
-		return env.MailerConf.Send(params)
-	}
-
-	return nil
-}
-
-// HandlerAuthMagicLinkRequest handles a magic link sign-in request.
-// It finds or creates the user, stores a short-lived token, and emails the link.
-// POST /v1/auth/magiclink
-func HandlerAuthMagicLinkRequest(req *shttp.RequestContext) *shttp.Response {
 	body := &struct {
-		EnvID string `json:"envId"`
 		Email string `json:"email"`
 	}{}
 
-	// Ignore parse errors — the fields may arrive as query params instead of a JSON body.
 	_ = req.Post(body)
 
-	envID := utils.StringToID(utils.GetString(body.EnvID, req.FormValue("envId"), req.Query().Get("envId")))
+	envID := m.req.Host.Config.EnvID
 	email := utils.GetString(body.Email, req.Query().Get("email"))
 
 	if envID == 0 {
-		return shttp.BadRequest(map[string]any{"errors": []string{"envId is required"}})
+		return shttp.NotFound()
 	}
 
 	if !utils.IsValidEmail(email) {
@@ -118,20 +75,19 @@ func HandlerAuthMagicLinkRequest(req *shttp.RequestContext) *shttp.Response {
 	return shttp.OK()
 }
 
-// HandlerAuthMagicLinkVerify validates a magic link token and returns a session.
-// GET /v1/auth/magiclink?token=&envId=
-func HandlerAuthMagicLinkVerify(req *shttp.RequestContext) *shttp.Response {
+func (m *skAuthMiddleware) magicLinkVerify() *shttp.Response {
+	req := m.req.RequestContext
+
 	token := req.Query().Get("token")
-	envIDStr := req.Query().Get("envId")
 
 	if token == "" {
 		return shttp.BadRequest(map[string]any{"errors": []string{"token is required"}})
 	}
 
-	envID := utils.StringToID(envIDStr)
+	envID := m.req.Host.Config.EnvID
 
 	if envID == 0 {
-		return shttp.BadRequest(map[string]any{"errors": []string{"envId is required"}})
+		return shttp.NotFound()
 	}
 
 	env, err := buildconf.NewStore().EnvironmentByID(req.Context(), envID)
@@ -197,4 +153,44 @@ func HandlerAuthMagicLinkVerify(req *shttp.RequestContext) *shttp.Response {
 	return &shttp.Response{
 		Data: map[string]any{"token": sessionToken, "email": authUser.Email, "userId": authUser.ID},
 	}
+}
+
+func generateMagicLinkToken(env *buildconf.Env) (string, error) {
+	jti, err := utils.SecureRandomToken(16)
+
+	if err != nil {
+		return "", err
+	}
+
+	return user.JWT(jwt.MapClaims{
+		"exp": time.Now().Add(15 * time.Minute).Unix(),
+		"prv": skauth.ProviderMagicLink,
+		"jti": jti,
+	}, env.AuthConf.Secret)
+}
+
+func sendMagicLinkEmail(req *shttp.RequestContext, env *buildconf.Env, email, token string) error {
+	u := req.URL()
+	link := fmt.Sprintf("%s://%s/_stormkit/auth/magic?token=%s", u.Scheme, u.Host, token)
+
+	params := buildconf.SendEmailParams{
+		To:      email,
+		Subject: "Your magic link",
+		Body:    fmt.Sprintf(`<p>Click the link below to sign in. The link expires in 15 minutes.</p><p><a href="%s">%s</a></p>`, link, link),
+	}
+
+	if err := buildconf.MailerStore().InsertEmail(req.Context(), buildconf.Email{
+		EnvID:   env.ID,
+		To:      email,
+		Subject: params.Subject,
+		Body:    params.Body,
+	}); err != nil {
+		return err
+	}
+
+	if env.MailerConf != nil {
+		return env.MailerConf.Send(params)
+	}
+
+	return nil
 }

@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"strings"
 
-	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/html"
 	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
@@ -16,14 +15,6 @@ type skAuthMiddleware struct {
 	req *RequestContext
 }
 
-func (m *skAuthMiddleware) injectEnvID() {
-	reqURL := m.req.URL()
-	q := reqURL.Query()
-	q.Set("envId", m.req.Host.Config.EnvID.String())
-	reqURL.RawQuery = q.Encode()
-	m.req.ResetQuery()
-}
-
 func (m *skAuthMiddleware) handleRegisterLogin(path string) (*shttp.Response, error) {
 	if m.req.Method != http.MethodPost {
 		return &shttp.Response{
@@ -32,15 +23,11 @@ func (m *skAuthMiddleware) handleRegisterLogin(path string) (*shttp.Response, er
 		}, nil
 	}
 
-	// Inject the environment ID from the host config so the handler can
-	// look up the environment without requiring it in the request body.
-	m.injectEnvID()
-
 	if path == "/_stormkit/auth/login" {
-		return publicapiv1.HandlerAuthEmailLogin(m.req.RequestContext), nil
+		return m.login(), nil
 	}
 
-	return publicapiv1.HandlerAuthEmailRegister(m.req.RequestContext), nil
+	return m.register(), nil
 }
 
 func (m *skAuthMiddleware) handleVerify() (*shttp.Response, error) {
@@ -51,9 +38,7 @@ func (m *skAuthMiddleware) handleVerify() (*shttp.Response, error) {
 		}, nil
 	}
 
-	m.injectEnvID()
-
-	resp := publicapiv1.HandlerAuthVerify(m.req.RequestContext)
+	resp := m.verifyEmail()
 
 	if resp.Status != 0 && resp.Status != http.StatusOK {
 		errMsg := "verification failed"
@@ -83,9 +68,7 @@ func (m *skAuthMiddleware) handleVerify() (*shttp.Response, error) {
 }
 
 func (m *skAuthMiddleware) handleMagicLinkRequest() (*shttp.Response, error) {
-	m.injectEnvID()
-
-	resp := publicapiv1.HandlerAuthMagicLinkRequest(m.req.RequestContext)
+	resp := m.magicLinkRequest()
 
 	if resp.Status != 0 && resp.Status != http.StatusOK {
 		return resp, nil
@@ -95,9 +78,7 @@ func (m *skAuthMiddleware) handleMagicLinkRequest() (*shttp.Response, error) {
 }
 
 func (m *skAuthMiddleware) handleMagicLinkVerify() (*shttp.Response, error) {
-	m.injectEnvID()
-
-	resp := publicapiv1.HandlerAuthMagicLinkVerify(m.req.RequestContext)
+	resp := m.magicLinkVerify()
 
 	if resp.Status != 0 && resp.Status != http.StatusOK {
 		errMsg := "magic link verification failed"

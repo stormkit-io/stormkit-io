@@ -203,8 +203,8 @@ func (s *WithSKAuthSuite) Test_RegisterPath_MethodNotAllowed() {
 	s.Equal(http.StatusMethodNotAllowed, res.Status)
 }
 
-// Test_RegisterPath_MissingEnv checks that /_stormkit/auth/register returns 400 when the
-// host has no EnvID configured (envId injected as 0 triggers validation failure).
+// Test_RegisterPath_MissingEnv checks that /_stormkit/auth/register returns 404 when the
+// host has no EnvID configured — the env lookup finds nothing and auth is unavailable.
 func (s *WithSKAuthSuite) Test_RegisterPath_MissingEnv() {
 	req := s.newPostRequest(s.hostWithSKAuth(), "/_stormkit/auth/register", map[string]any{
 		"email":    "test@example.com",
@@ -214,7 +214,7 @@ func (s *WithSKAuthSuite) Test_RegisterPath_MissingEnv() {
 
 	s.NoError(err)
 	s.NotNil(res)
-	s.Equal(http.StatusBadRequest, res.Status)
+	s.Equal(http.StatusNotFound, res.Status)
 }
 
 // Test_LoginPath_SKAuthDisabled checks that /_stormkit/auth/login is a no-op when SKAuth is not configured.
@@ -244,8 +244,8 @@ func (s *WithSKAuthSuite) Test_LoginPath_MethodNotAllowed() {
 	s.Equal(http.StatusMethodNotAllowed, res.Status)
 }
 
-// Test_LoginPath_MissingEnv checks that /_stormkit/auth/login returns 400 when the
-// host has no EnvID configured (envId injected as 0 triggers validation failure).
+// Test_LoginPath_MissingEnv checks that /_stormkit/auth/login returns 404 when the
+// host has no EnvID configured — the env lookup finds nothing and auth is unavailable.
 func (s *WithSKAuthSuite) Test_LoginPath_MissingEnv() {
 	req := s.newPostRequest(s.hostWithSKAuth(), "/_stormkit/auth/login", map[string]any{
 		"email":    "test@example.com",
@@ -255,7 +255,7 @@ func (s *WithSKAuthSuite) Test_LoginPath_MissingEnv() {
 
 	s.NoError(err)
 	s.NotNil(res)
-	s.Equal(http.StatusBadRequest, res.Status)
+	s.Equal(http.StatusNotFound, res.Status)
 }
 
 // Test_VerifyPath_MethodNotAllowed checks that /_stormkit/auth/verify rejects non-GET requests.
@@ -278,46 +278,37 @@ func (s *WithSKAuthSuite) Test_VerifyPath_MissingToken() {
 	s.Equal(http.StatusBadRequest, res.Status)
 }
 
-// Test_VerifyPath_MissingEnv checks that /_stormkit/auth/verify returns 400 when the host
-// has no EnvID configured (envId injected as 0 triggers validation failure in the handler).
+// Test_VerifyPath_MissingEnv checks that /_stormkit/auth/verify returns 404 when the host
+// has no EnvID configured — the env lookup finds nothing and auth is unavailable.
 func (s *WithSKAuthSuite) Test_VerifyPath_MissingEnv() {
 	req := s.newGetRequest(s.hostWithSKAuth(), "/_stormkit/auth/verify?token=some-token")
 	res, err := hosting.WithSKAuth(req)
 
 	s.NoError(err)
 	s.NotNil(res)
-	s.Equal(http.StatusBadRequest, res.Status)
+	s.Equal(http.StatusNotFound, res.Status)
 }
 
-// Test_MagicPath_RequestMissingEmail checks that GET /_stormkit/auth/magic without
-// an email param returns 400.
-func (s *WithSKAuthSuite) Test_MagicPath_RequestMissingEmail() {
-	req := s.newGetRequest(s.hostWithSKAuth(), "/_stormkit/auth/magic")
+// Test_MagicPath_MissingEnv checks that GET /_stormkit/auth/magic returns 404 when
+// the host has no EnvID configured — the zero-envId guard fires first.
+func (s *WithSKAuthSuite) Test_MagicPath_MissingEnv() {
+	req := s.newGetRequest(s.hostWithSKAuth(), "/_stormkit/auth/magic?email=user@example.com")
 	res, err := hosting.WithSKAuth(req)
 
 	s.NoError(err)
 	s.NotNil(res)
-	s.Equal(http.StatusBadRequest, res.Status)
+	s.Equal(http.StatusNotFound, res.Status)
 }
 
-// Test_MagicPath_RequestInvalidEmail checks that a malformed email returns 400.
-func (s *WithSKAuthSuite) Test_MagicPath_RequestInvalidEmail() {
-	req := s.newGetRequest(s.hostWithSKAuth(), "/_stormkit/auth/magic?email=not-an-email")
-	res, err := hosting.WithSKAuth(req)
-
-	s.NoError(err)
-	s.NotNil(res)
-	s.Equal(http.StatusBadRequest, res.Status)
-}
-
-// Test_MagicPath_VerifyInvalidToken checks that an invalid token returns 400.
+// Test_MagicPath_VerifyInvalidToken checks that a token submitted against a host with no
+// EnvID configured returns 404 — the zero-envId guard fires before token validation.
 func (s *WithSKAuthSuite) Test_MagicPath_VerifyInvalidToken() {
 	req := s.newGetRequest(s.hostWithSKAuth(), "/_stormkit/auth/magic?token=bad-token")
 	res, err := hosting.WithSKAuth(req)
 
 	s.NoError(err)
 	s.NotNil(res)
-	s.Equal(http.StatusBadRequest, res.Status)
+	s.Equal(http.StatusNotFound, res.Status)
 }
 
 func (s *WithSKAuthSuite) generateBearer(userID types.ID, secret string) string {
