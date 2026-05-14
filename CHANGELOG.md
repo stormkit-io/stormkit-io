@@ -1,5 +1,26 @@
 # Changelog
 
+## v2026.05.12.1...v2026.05.14.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.12.1...v2026.05.14.1)
+
+### 🚀 Enhancements
+
+- Inject X-User-Id header from SKAuth bearer token ([#239](https://github.com/stormkit-io/stormkit-io/pull/239))
+- Add shared session endpoint for admin access ([#240](https://github.com/stormkit-io/stormkit-io/pull/240))
+
+### 💅 Refactors
+
+- Move SKAuth handlers from publicapiv1 to hosting ([#241](https://github.com/stormkit-io/stormkit-io/pull/241))
+
+### 🏡 Chore
+
+- Update changelog for v2026.05.12.1 ([#238](https://github.com/stormkit-io/stormkit-io/pull/238))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.05.06.1...v2026.05.12.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.06.1...v2026.05.12.1)
