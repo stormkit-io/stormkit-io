@@ -25,6 +25,7 @@ func (s *ServicesSuite) TestServices_SelfHosted() {
 		"DELETE:/user",
 		"GET:/user",
 		"GET:/user/emails",
+		"POST:/user/shared-session",
 		"PUT:/user/access-token",
 	}
 
@@ -43,6 +44,7 @@ func (s *ServicesSuite) TestServices_StormkitCloud() {
 		"DELETE:/user",
 		"GET:/user",
 		"GET:/user/emails",
+		"POST:/user/shared-session",
 		"PUT:/user/access-token",
 	}
 

@@ -158,3 +158,7 @@ export const usePersonalAccessTokenState = ({
 export const deleteUser = async () => {
   return await api.delete(`/user`);
 };
+
+export const createSharedSession = async (hours: number) => {
+  return await api.post<{ token: string }>("/user/shared-session", { hours });
+};

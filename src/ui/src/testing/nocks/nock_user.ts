@@ -96,3 +96,16 @@ export const mockAdminRegister = ({
   payload,
 }: MockAdminRegisterProps) =>
   nock(endpoint).post("/auth/admin/register", payload).reply(status, response);
+
+interface MockCreateSharedSessionProps {
+  status?: number;
+  payload?: { hours: number };
+  response?: { token: string };
+}
+
+export const mockCreateSharedSession = ({
+  status = 200,
+  payload = { hours: 1 },
+  response = { token: "mock-session-token" },
+}: MockCreateSharedSessionProps) =>
+  nock(endpoint).post("/user/shared-session", payload).reply(status, response);

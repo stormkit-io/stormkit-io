@@ -14,6 +14,7 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodGet, "", user.WithAuth(handlerUserSession)).
 		Handler(shttp.MethodGet, "/emails", user.WithAuth(handlerUserEmails)).
 		Handler(shttp.MethodPut, "/access-token", user.WithAuth(handlerUpdatePersonalAccessToken)).
+		Handler(shttp.MethodPost, "/shared-session", user.WithAuth(handlerUserSharedSession)).
 		Handler(shttp.MethodDelete, "", user.WithAuth(handlerUserDelete))
 
 	return s

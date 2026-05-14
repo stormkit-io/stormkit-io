@@ -113,6 +113,10 @@ const routes: Array<ExtendedRouterProps> = [
     element: Async(() => import("~/pages/user/account"), centerLayout),
   },
   {
+    path: "/user/account/share",
+    element: Async(() => import("~/pages/user/account"), centerLayout),
+  },
+  {
     path: "/user/payment/success",
     element: <RedirectPaymentSuccess />,
   },

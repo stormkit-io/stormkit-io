@@ -150,7 +150,7 @@ func (u User) JSON() map[string]any {
 	packageName := utils.GetString(u.Metadata.PackageName, config.PackageFree)
 	seats := utils.GetInt(u.Metadata.SeatsPurchased, 1)
 
-	if config.IsSelfHosted() {
+	if config.IsSelfHosted() || config.IsDevelopment() {
 		license := admin.CurrentLicense()
 		seats = utils.GetInt(license.Seats, 1)
 
