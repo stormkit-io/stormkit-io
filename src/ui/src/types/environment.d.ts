@@ -19,6 +19,7 @@ declare type BuildConfig = {
   serverCmd?: string;
   serverFolder?: string; // @deprecated: use distFolder instead.
   statusChecks?: StatusCheck[];
+  priorityPattern?: string;
   vars: Record<string, string>;
 };
 

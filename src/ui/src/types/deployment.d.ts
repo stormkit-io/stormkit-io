@@ -79,6 +79,7 @@ declare type DeploymentV2 = {
     envId: string;
     percentage: number;
   }[];
+  isPriority?: boolean;
 };
 
 interface CDNFile {

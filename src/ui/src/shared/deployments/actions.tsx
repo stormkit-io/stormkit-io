@@ -5,6 +5,7 @@ import StopIcon from "@mui/icons-material/StopCircle";
 import PreviewIcon from "@mui/icons-material/Preview";
 import ArticleIcon from "@mui/icons-material/Article";
 import ManifestIcon from "@mui/icons-material/ReceiptLong";
+import PriorityIcon from "@mui/icons-material/FastForwardOutlined";
 import api from "~/utils/api/Api";
 
 interface DeleteForeverProps {
@@ -124,6 +125,18 @@ export const restartDeployment = ({
   return api.post(`/v1/deployments/${deploymentId}/restart`, { envId });
 };
 
+interface PrioritizeDeploymentProps {
+  envId: string;
+  deploymentId: string;
+}
+
+export const prioritizeDeployment = ({
+  envId,
+  deploymentId,
+}: PrioritizeDeploymentProps): Promise<void> => {
+  return api.post(`/v1/deployments/${deploymentId}/prioritize`, { envId });
+};
+
 interface WithMenuItemsProps {
   omittedItems: Array<"view-details">;
   deployment: DeploymentV2;
@@ -131,6 +144,7 @@ interface WithMenuItemsProps {
   onManifestClick: () => void;
   onStateChangeClick: () => void;
   onRestartClick: () => void;
+  onPrioritizeClick: () => void;
 }
 
 export const useWithMenuItems = ({
@@ -140,6 +154,7 @@ export const useWithMenuItems = ({
   onManifestClick,
   onStateChangeClick,
   onRestartClick,
+  onPrioritizeClick,
 }: WithMenuItemsProps) => {
   return useMemo(() => {
     const items = [];
@@ -176,6 +191,15 @@ export const useWithMenuItems = ({
         icon: <PreviewIcon />,
         disabled: deployment.status !== "success",
         href: deployment.previewUrl,
+      },
+      {
+        text: "Run next",
+        icon: <PriorityIcon />,
+        onClick: onPrioritizeClick,
+        disabled:
+          deployment.status !== "running" ||
+          Boolean(deployment.commit?.message) ||
+          deployment.isPriority,
       },
       {
         text: "Restart",

@@ -91,6 +91,19 @@ func mcpAllTools() []mcpToolDef {
 			},
 		},
 		{
+			Name:        "prioritize_deployment",
+			Description: "Move a queued deployment to the front of the build queue. Only deployments that are still waiting to be picked up by a worker can be reordered.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"deploymentId": map[string]any{"type": "string", "description": "Deployment ID to prioritize."},
+					"envId":        map[string]any{"type": "string", "description": "Environment the deployment belongs to."},
+				},
+				"required":             []string{"deploymentId", "envId"},
+				"additionalProperties": false,
+			},
+		},
+		{
 			Name:        "stop_deployment",
 			Description: "Stop a running deployment.",
 			InputSchema: map[string]any{
@@ -244,6 +257,7 @@ func mcpAllTools() []mcpToolDef {
 					"headersFile":        map[string]any{"type": "string", "description": "Path to a headers file (relative to repo root)."},
 					"redirectsFile":      map[string]any{"type": "string", "description": "Path to a redirects file (relative to repo root)."},
 					"previewLinks":       map[string]any{"type": "boolean", "description": "Generate preview links for each deployment."},
+					"priorityPattern":    map[string]any{"type": "string", "description": "Regex matched against the commit message of auto-deploys; matching deployments are automatically routed to the priority queue. Leave empty to disable."},
 					"envVars":            map[string]any{"type": "object", "description": "Environment variables to set or update.", "additionalProperties": map[string]any{"type": "string"}},
 					"redirects": map[string]any{
 						"type":        "array",
@@ -428,6 +442,18 @@ func mcpStopDeployment(req *RequestContextMCP, args map[string]any) *shttp.Respo
 	}
 
 	return handlerDeploymentStop(req.RequestContext)
+}
+
+func mcpPrioritizeDeployment(req *RequestContextMCP, args map[string]any) *shttp.Response {
+	if resp := req.withEnv(args); resp != nil {
+		return resp
+	}
+
+	if resp := req.withDeploymentID(args); resp != nil {
+		return resp
+	}
+
+	return handlerDeploymentPrioritize(req.RequestContext)
 }
 
 func mcpCreateApp(req *RequestContextMCP, id any, args map[string]any) *shttp.Response {
@@ -644,6 +670,7 @@ func mcpUpdateEnvironment(req *RequestContextMCP, id any, args map[string]any) *
 	setString("headers", &update.Headers)
 	setString("headersFile", &update.HeadersFile)
 	setString("redirectsFile", &update.RedirectsFile)
+	setString("priorityPattern", &update.PriorityPattern)
 	setBool("autoDeploy", &update.AutoDeploy)
 	setBool("autoPublish", &update.AutoPublish)
 	setBool("previewLinks", &update.PreviewLinks)

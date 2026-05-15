@@ -231,6 +231,7 @@ func (s *DeployStartTestSuite) Test_Zip() {
 	  "stoppedManually": false,
 	  "isAutoDeploy": false,
 	  "isAutoPublish": false,
+	  "isPriority": false,
 	  "published": [],
 	  "previewUrl": "http://{{ .displayName }}--{{ .id }}.stormkit:8888",
 	  "detailsUrl": "/apps/{{ .appId }}/environments/{{ .envId }}/deployments/{{ .id }}",

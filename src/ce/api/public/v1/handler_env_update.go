@@ -1,6 +1,8 @@
 package publicapiv1
 
 import (
+	"regexp"
+
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appcache"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
@@ -34,6 +36,7 @@ type EnvUpdateRequest struct {
 	ServerCmd          *string                 `json:"serverCmd,omitempty"`
 	ServerFolder       *string                 `json:"serverFolder,omitempty"`
 	StatusChecks       []buildconf.StatusCheck `json:"statusChecks,omitempty"`
+	PriorityPattern    *string                 `json:"priorityPattern,omitempty"`
 	EnvVars            map[string]string       `json:"envVars,omitempty"`
 }
 
@@ -145,6 +148,18 @@ func handlerEnvUpdate(req *RequestContext) *shttp.Response {
 
 	if data.StatusChecks != nil {
 		env.Data.StatusChecks = data.StatusChecks
+	}
+
+	if data.PriorityPattern != nil {
+		if *data.PriorityPattern != "" {
+			if _, err := regexp.Compile(*data.PriorityPattern); err != nil {
+				return shttp.BadRequest(map[string]any{
+					"errors": []string{"priorityPattern is not a valid regular expression: " + err.Error()},
+				})
+			}
+		}
+
+		env.Data.PriorityPattern = *data.PriorityPattern
 	}
 
 	if data.EnvVars != nil {

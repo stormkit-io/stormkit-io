@@ -11,7 +11,7 @@ import { timeSince } from "~/utils/helpers/date";
 import CommitInfo from "./CommitInfo";
 import PublishModal from "./PublishModal";
 import ManifestModal from "./ManifestModal";
-import { deleteForever, stopDeployment } from "./actions";
+import { deleteForever, stopDeployment, prioritizeDeployment } from "./actions";
 import { useWithMenuItems, restartDeployment } from "./actions";
 import { formattedDate } from "~/utils/helpers/deployments";
 
@@ -61,6 +61,14 @@ export default function DeploymentRow({
         navigate(
           `/apps/${deployment.appId}/environments/${deployment.envId}/deployments/${deployment.id}`,
         );
+        setRefreshToken(Date.now());
+      });
+    },
+    onPrioritizeClick: () => {
+      prioritizeDeployment({
+        deploymentId: deployment.id,
+        envId: deployment.envId,
+      }).then(() => {
         setRefreshToken(Date.now());
       });
     },

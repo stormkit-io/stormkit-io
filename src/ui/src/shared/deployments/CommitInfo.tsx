@@ -85,6 +85,19 @@ export default function CommitInfo({
             </Span>
           ) : null}
 
+          {deployment.isPriority && (
+            <Chip
+              color="warning"
+              label="priority"
+              size="small"
+              sx={{
+                ml: 1,
+                fontSize: 11,
+                height: 20,
+                lineHeight: 1,
+              }}
+            />
+          )}
           {deployment.published?.length > 0 && (
             <Chip
               color={deployment.published.length ? "success" : "info"}

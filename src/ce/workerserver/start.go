@@ -78,7 +78,6 @@ func Server(serverOpts ...ServerOpts) (*asynq.Server, *asynq.ServeMux) {
 	mux.HandleFunc(tasks.DeploymentStart, HandleDeploymentStart)
 	mux.HandleFunc(tasks.TriggerFunctionHttp, HandleFunctionTrigger)
 
-	priority := 10
 	concurrency := 10
 
 	if runner := config.Get().Runner; runner != nil && runner.Concurrency > 0 {
@@ -88,7 +87,8 @@ func Server(serverOpts ...ServerOpts) (*asynq.Server, *asynq.ServeMux) {
 	slog.Infof("worker server up and running with concurrency=%d", concurrency)
 
 	return tasks.NewServer(map[string]int{
-		tasks.QueueApiWebWS:      priority,
-		tasks.QueueDeployService: priority,
+		tasks.QueueDeployServicePriority: 3,
+		tasks.QueueApiWebWS:              2,
+		tasks.QueueDeployService:         1,
 	}, concurrency), mux
 }

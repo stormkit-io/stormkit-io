@@ -160,7 +160,7 @@ func (s *Store) scanRows(rows *sql.Rows, err error) ([]*Deployment, error) {
 			&d.Commit.ID, &d.Commit.Author, &d.Commit.Message,
 			&d.GithubRunID, &d.Error, &d.IsAutoDeploy,
 			&d.ShouldPublish, &d.PullRequestNumber, &d.BuildManifest,
-			&d.APIPathPrefix, &d.IsImmutable, &d.UploadResult, &d.MigrationsFolder,
+			&d.APIPathPrefix, &d.IsImmutable, &d.UploadResult, &d.IsPriority, &d.MigrationsFolder,
 			&d.StatusChecksPassed, &d.StatusChecks, &d.Logs,
 			&d.DisplayName, &d.CheckoutRepo, &d.Published,
 		)
@@ -271,7 +271,7 @@ func (s *Store) InsertDeployment(ctx context.Context, d *Deployment) error {
 		d.IsAutoDeploy, d.PullRequestNumber,
 		d.Commit.ID, d.IsFork, d.ShouldPublish, repo,
 		d.APIPathPrefix, webhookEvent, d.Commit.Author,
-		d.MigrationsFolder,
+		d.MigrationsFolder, d.IsPriority,
 	}
 
 	row, err := s.QueryRow(ctx, stmt.insertDeployment, params...)
@@ -348,6 +348,12 @@ func (s *Store) IsDeploymentAlreadyBuilt(ctx context.Context, commitID string) (
 	}
 
 	return count > 0, nil
+}
+
+// PrioritizeDeployment marks a deployment as priority in the database.
+func (s *Store) PrioritizeDeployment(ctx context.Context, deploymentID types.ID) error {
+	_, err := s.Exec(ctx, stmt.prioritizeDeployment, deploymentID)
+	return err
 }
 
 // StopDeployment stops a deployment by updating the stopped_at field

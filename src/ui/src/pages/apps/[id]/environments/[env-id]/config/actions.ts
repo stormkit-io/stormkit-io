@@ -62,6 +62,7 @@ export const prepareBuildObject = (values: FormValues): BuildConfig => {
     apiFolder: values["build.apiFolder"],
     apiPathPrefix: values["build.apiPathPrefix"],
     previewLinks: values["build.previewLinks"] === "on",
+    priorityPattern: values["build.priorityPattern"]?.trim() || "",
     statusChecks,
     redirects,
     vars,
@@ -111,6 +112,7 @@ export const buildFormValues = (
     autoDeployCommits: env.autoDeployCommits || undefined,
     "build.statusChecks": JSON.stringify(env.build.statusChecks),
     "build.previewLinks": env.build.previewLinks ? "on" : "off",
+    "build.priorityPattern": env.build.priorityPattern || "",
     "build.headersFile": env.build.headersFile,
     "build.redirectsFile": env.build.redirectsFile,
     "build.apiFolder": env.build.apiFolder,
@@ -145,6 +147,7 @@ export interface FormValues {
   autoPublish?: "on" | "off";
   autoDeployBranches?: string;
   autoDeployCommits?: string;
+  "build.priorityPattern"?: string;
   "build.statusChecks"?: string;
   "build.previewLinks"?: "on" | "off";
   "build.buildCmd"?: string;
@@ -215,6 +218,7 @@ export const updateEnvironment = ({
       apiFolder: build.apiFolder,
       apiPathPrefix: build.apiPathPrefix,
       previewLinks: build.previewLinks,
+      priorityPattern: build.priorityPattern,
       statusChecks: build.statusChecks,
       redirects: build.redirects,
       envVars: build.vars,
