@@ -272,6 +272,25 @@ export default function TabConfigGeneral({
         </>
       )}
 
+      <Box sx={{ mb: 4 }}>
+        <TextField
+          variant="filled"
+          name="build.priorityPattern"
+          label="Priority deployment pattern"
+          defaultValue={env?.build?.priorityPattern || ""}
+          placeholder="hotfix|urgent|critical"
+          InputProps={{
+            endAdornment: (
+              <Typography component="code" sx={{ ml: 1 }}>
+                /i
+              </Typography>
+            ),
+          }}
+          fullWidth
+          helperText="When a commit message matches this regex, the deployment is automatically prioritized in the queue. Example: hotfix|urgent"
+        />
+      </Box>
+
       <CardFooter
         sx={{
           display: "flex",

@@ -62,6 +62,7 @@ func (s *HandlerMyDeploymentsSuite) responseTemplate() (*template.Template, erro
 					"logs": {{ index $record "logs" }},
 					"isAutoDeploy": false,
 					"isAutoPublish": false,
+					"isPriority": false,
 					"repo": "github/svedova/react-minimal",
 					"snapshot": {
 						"env": "",

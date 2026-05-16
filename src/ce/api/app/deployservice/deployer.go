@@ -3,6 +3,7 @@ package deployservice
 import (
 	"context"
 	"fmt"
+	"regexp"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
@@ -73,6 +74,12 @@ func (dd *DefaultDeployer) Deploy(ctx context.Context, a *app.App, d *deploy.Dep
 	)
 
 	if !d.IsRestart {
+		if d.IsAutoDeploy && d.BuildConfig != nil && d.BuildConfig.PriorityPattern != "" {
+			if matched, _ := regexp.MatchString(d.BuildConfig.PriorityPattern, d.Commit.Message.ValueOrZero()); matched {
+				d.IsPriority = true
+			}
+		}
+
 		store := deploy.NewStore()
 
 		// Insert the deployment first, so we can have an ID.
@@ -119,20 +126,35 @@ func (dd *DefaultDeployer) Deploy(ctx context.Context, a *app.App, d *deploy.Dep
 		Config: config.Get().Runner,
 	}
 
-	return dd.sendPayloadToRedis(ctx, payload)
+	queue := tasks.QueueDeployService
+
+	if d.IsPriority {
+		queue = tasks.QueueDeployServicePriority
+	}
+
+	return dd.sendPayloadToRedis(ctx, sendPayloadToRedisParams{message: payload, queue: queue})
 }
 
-func (dd *DefaultDeployer) sendPayloadToRedis(ctx context.Context, message DeploymentMessage) error {
-	encrypted, err := message.Encrypt()
+type sendPayloadToRedisParams struct {
+	message DeploymentMessage
+	queue   string
+}
+
+func (dd *DefaultDeployer) sendPayloadToRedis(ctx context.Context, p sendPayloadToRedisParams) error {
+	encrypted, err := p.message.Encrypt()
 
 	if err != nil {
 		return err
 	}
 
+	if p.queue == "" {
+		p.queue = tasks.QueueDeployService
+	}
+
 	info, err := tasks.Enqueue(ctx, tasks.DeploymentStart, encrypted, &tasks.EnqueueOptions{
 		MaxRetry:  10,
-		QueueName: tasks.QueueDeployService,
-		TaskID:    fmt.Sprintf("deployment-%s", message.Build.DeploymentID),
+		QueueName: p.queue,
+		TaskID:    fmt.Sprintf("deployment-%s", p.message.Build.DeploymentID),
 	})
 
 	if err != nil {

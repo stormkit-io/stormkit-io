@@ -114,7 +114,7 @@ export default function EnvMenu() {
                   sx={{
                     flex: 1,
                     mx: 2,
-                    p: 2,
+                    p: 1.5,
                     display: "flex",
                     alignItems: "center",
                   }}
@@ -138,7 +138,7 @@ export default function EnvMenu() {
                       borderRadius={0}
                       sx={{
                         mx: 2,
-                        py: 1,
+                        py: 1.25,
                         borderBottom: "1px solid",
                         borderColor: "container.border",
                         display: "flex",

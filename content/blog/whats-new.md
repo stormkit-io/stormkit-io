@@ -5,6 +5,10 @@ description: Discover the latest changes and improvements to Stormkit. Stay up-t
 
 Follow the latest developments on Stormkit.
 
+## May 16th, 2026
+
+Introducing **Priority Deployments**: move any queued deployment to the front of the build queue with a single click — without cancelling other waiting builds. You can also configure a commit message pattern per environment so that matching auto-deploys are automatically routed to the priority queue (e.g. `hotfix|urgent|critical`). Prioritized deployments are marked with a **priority** label in the deployment list. [Learn more](/docs/deployments/priority-deployments).
+
 ## March 23rd, 2026
 
 New public API endpoint to [create an application](/docs/api/apps). Use a team-level API key to provision a new app linked to a GitHub, GitLab, or Bitbucket repository — or create a bare application with no repository attached. Combined with the existing environments and deployments endpoints, the full app lifecycle can now be managed programmatically.

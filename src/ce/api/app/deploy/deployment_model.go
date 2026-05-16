@@ -97,6 +97,7 @@ type Deployment struct {
 	WebhookEvent       any            `json:"-"` // The webhook event that triggers the deployment
 	MigrationsFolder   null.String    `json:"migrationsFolder,omitempty"`
 	UploadResult       *UploadResult  `json:"uploadResult,omitempty"`
+	IsPriority         bool           `json:"isPriority,omitempty"`
 
 	// GithubRunID is the associated run id with the deployment.
 	// It is obtained by printing $GITHUB_RUN_ID in GitHub actions.
@@ -675,6 +676,7 @@ func (d *Deployment) JSON(withLogs bool) map[string]any {
 		"duration":           calculateDuration(d.CreatedAt, d.StoppedAt),
 		"published":          []map[string]any{},
 		"uploadResult":       uploadResult,
+		"isPriority":         d.IsPriority,
 		"commit": map[string]any{
 			"sha":     d.Commit.ID.Ptr(),
 			"author":  d.Commit.Author.Ptr(),

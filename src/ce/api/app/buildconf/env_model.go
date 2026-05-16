@@ -185,22 +185,23 @@ type StatusCheck struct {
 
 // BuildConf is the struct that represents the JSON data
 type BuildConf struct {
-	PreviewLinks  null.Bool            `json:"previewLinks,omitempty"`  // Whether preview links are enabled or not.
-	Redirects     []redirects.Redirect `json:"redirects,omitempty"`     // The redirects defined from UI. When defined, this one will take precedence over redirects file.
-	APIFolder     string               `json:"apiFolder,omitempty"`     // Path to api folder (from repository root).
-	APIPathPrefix string               `json:"apiPathPrefix,omitempty"` // Path prefix in the URL that will be used to call api functions, default: /api
-	RedirectsFile string               `json:"redirectsFile,omitempty"` // Path to the redirects file.
-	ErrorFile     string               `json:"errorFile,omitempty"`     // When specified, we'll load this file instead of the default 404.html or error.html
-	Headers       string               `json:"headers,omitempty"`       // Custom headers set from the UI.
-	HeadersFile   string               `json:"headersFile,omitempty"`   // Path to the headers file. The path is relative to working dir.
-	DistFolder    string               `json:"distFolder,omitempty"`    // DistFolder is the client dist folder.
-	ServerFolder  string               `json:"serverFolder,omitempty"`  // The server folder to upload to the server side
-	Cmd           string               `json:"cmd,omitempty"`           // Deprecated. Declared only for retro compability.
-	InstallCmd    string               `json:"installCmd,omitempty"`    // The install command to install the dependencies.
-	BuildCmd      string               `json:"buildCmd,omitempty"`      // The build command to build the application.
-	ServerCmd     string               `json:"serverCmd,omitempty"`     // The command to spawn the server. This is a self-hosted only feature.
-	Vars          map[string]string    `json:"vars,omitempty"`          // The environment variables that will be injected to the application.
-	StatusChecks  []StatusCheck        `json:"statusChecks,omitempty"`  // StatusChecks is an array of commands that will be executed after the deployment is complete.
+	PreviewLinks    null.Bool            `json:"previewLinks,omitempty"`    // Whether preview links are enabled or not.
+	Redirects       []redirects.Redirect `json:"redirects,omitempty"`       // The redirects defined from UI. When defined, this one will take precedence over redirects file.
+	APIFolder       string               `json:"apiFolder,omitempty"`       // Path to api folder (from repository root).
+	APIPathPrefix   string               `json:"apiPathPrefix,omitempty"`   // Path prefix in the URL that will be used to call api functions, default: /api
+	RedirectsFile   string               `json:"redirectsFile,omitempty"`   // Path to the redirects file.
+	ErrorFile       string               `json:"errorFile,omitempty"`       // When specified, we'll load this file instead of the default 404.html or error.html
+	Headers         string               `json:"headers,omitempty"`         // Custom headers set from the UI.
+	HeadersFile     string               `json:"headersFile,omitempty"`     // Path to the headers file. The path is relative to working dir.
+	DistFolder      string               `json:"distFolder,omitempty"`      // DistFolder is the client dist folder.
+	ServerFolder    string               `json:"serverFolder,omitempty"`    // The server folder to upload to the server side
+	Cmd             string               `json:"cmd,omitempty"`             // Deprecated. Declared only for retro compability.
+	InstallCmd      string               `json:"installCmd,omitempty"`      // The install command to install the dependencies.
+	BuildCmd        string               `json:"buildCmd,omitempty"`        // The build command to build the application.
+	ServerCmd       string               `json:"serverCmd,omitempty"`       // The command to spawn the server. This is a self-hosted only feature.
+	Vars            map[string]string    `json:"vars,omitempty"`            // The environment variables that will be injected to the application.
+	StatusChecks    []StatusCheck        `json:"statusChecks,omitempty"`    // StatusChecks is an array of commands that will be executed after the deployment is complete.
+	PriorityPattern string               `json:"priorityPattern,omitempty"` // PriorityPattern is a regex matched against the commit message to auto-prioritize deployments.
 }
 
 type InterpolatedVarsOpts struct {

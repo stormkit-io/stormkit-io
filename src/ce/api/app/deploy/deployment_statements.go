@@ -28,6 +28,7 @@ type statement struct {
 	markArtifactsAsDeleted   string
 	publish                  string
 	updateUserMetrics        string
+	prioritizeDeployment     string
 }
 
 var stmt = &statement{
@@ -40,7 +41,7 @@ var stmt = &statement{
 			d.commit_id, d.commit_author, d.commit_message, d.github_run_id,
 			d.error, d.is_auto_deploy,
 			d.auto_publish, d.pull_request_number,
-			d.build_manifest, d.api_path_prefix, d.is_immutable, d.upload_result,
+			d.build_manifest, d.api_path_prefix, d.is_immutable, d.upload_result, d.is_priority,
 			d.migrations_folder, d.status_checks_passed,
 			{{ if .logs }} d.status_checks, d.logs {{ else }} '', '' {{ end }},
 			a.display_name, COALESCE(a.repo, ''),
@@ -76,13 +77,15 @@ var stmt = &statement{
 			app_id, config_snapshot, branch, env_name, env_id,
 			is_auto_deploy, pull_request_number,
 			commit_id, is_fork, auto_publish, checkout_repo,
-			api_path_prefix, webhook_event, commit_author, migrations_folder
+			api_path_prefix, webhook_event, commit_author, migrations_folder,
+			is_priority
 		)
 		VALUES (
 			$1, $2, $3, $4, $5,
 			$6, $7,
 			$8, $9, $10, $11,
-			$12, $13, $14, $15
+			$12, $13, $14, $15,
+			$16
 		)
 		RETURNING
 			deployment_id,
@@ -230,6 +233,11 @@ var stmt = &statement{
 			(env_id, deployment_id, percentage_released)
 		VALUES
 			{{ generateValues 3 (len .records) }};
+	`,
+
+	prioritizeDeployment: `
+		UPDATE deployments SET is_priority = TRUE
+		WHERE deployment_id = $1 AND exit_code IS NULL;
 	`,
 
 	updateUserMetrics: `

@@ -10,14 +10,16 @@ import (
 )
 
 var (
-	QueueDeployService = "deploy-service"
-	QueueApiWebWS      = "workerserver" // default queue
-	Ping               = "ping"
+	QueueDeployService         = "deploy-service"
+	QueueDeployServicePriority = "deploy-service-priority"
+	QueueApiWebWS              = "workerserver" // default queue
+	Ping                       = "ping"
 )
 
 func init() {
 	if config.IsTest() {
 		QueueDeployService = "test-deploy-service"
+		QueueDeployServicePriority = "test-deploy-service-priority"
 	}
 }
 
@@ -34,6 +36,12 @@ type EnqueueOptions struct {
 }
 type TaskClient interface {
 	Enqueue(task *asynq.Task, opts ...asynq.Option) (*asynq.TaskInfo, error)
+}
+
+type TaskInspector interface {
+	GetTaskInfo(queue, taskID string) (*asynq.TaskInfo, error)
+	DeleteTask(queue, taskID string) error
+	DeleteQueue(queue string, force bool) error
 }
 
 var client *asynq.Client
@@ -71,16 +79,17 @@ func NewServer(queues map[string]int, concurrency int) *asynq.Server {
 	return asynq.NewServer(
 		asynq.RedisClientOpt{Addr: config.Get().RedisAddr},
 		asynq.Config{
-			LogLevel:    logLevel,
-			Concurrency: concurrency,
-			Queues:      queues,
+			LogLevel:       logLevel,
+			Concurrency:    concurrency,
+			Queues:         queues,
+			StrictPriority: true,
 		},
 	)
 }
 
 // Inspector is a singleton method which creates a new asynq inspector and
 // returns it in subsequent calls.
-func Inspector() *asynq.Inspector {
+var Inspector = func() TaskInspector {
 	if inspector == nil {
 		inspector = asynq.NewInspector(asynq.RedisClientOpt{Addr: config.Get().RedisAddr})
 	}

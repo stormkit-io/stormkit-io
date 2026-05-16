@@ -28,6 +28,7 @@ const toRequestObject = (environment: Environment) => {
         buildCmd: environment.build.buildCmd || "",
         serverCmd: environment.build.serverCmd || "",
         vars: environment.build.vars,
+        priorityPattern: environment.build.priorityPattern || "",
       },
     }),
   );
@@ -59,6 +60,7 @@ const toUpdateRequestObject = (environment: Environment) => {
       apiFolder: environment.build.apiFolder,
       apiPathPrefix: environment.build.apiPathPrefix,
       previewLinks: environment.build.previewLinks !== false,
+      priorityPattern: environment.build.priorityPattern || "",
       statusChecks: environment.build.statusChecks,
       redirects: environment.build.redirects,
       envVars: environment.build.vars,
