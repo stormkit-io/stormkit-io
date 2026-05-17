@@ -285,6 +285,7 @@ func (s *HandlerMCPSuite) Test_ToolsList_ReturnsExpectedTools() {
 		"publish_deployment",
 		"delete_deployment",
 		"restart_deployment",
+		"prioritize_deployment",
 		"list_deployments",
 		"stop_deployment",
 		"list_apps",
