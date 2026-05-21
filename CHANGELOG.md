@@ -1,5 +1,17 @@
 # Changelog
 
+## v2026.05.21.1...v2026.05.21.2
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.21.1...v2026.05.21.2)
+
+### 🩹 Fixes
+
+- Disable aws-chunked encoding for Alibaba OSS ([#248](https://github.com/stormkit-io/stormkit-io/pull/248))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.05.16.1...v2026.05.21.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.16.1...v2026.05.21.1)
