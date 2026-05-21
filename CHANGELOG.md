@@ -1,5 +1,22 @@
 # Changelog
 
+## v2026.05.16.1...v2026.05.21.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.16.1...v2026.05.21.1)
+
+### 🏡 Chore
+
+- Update changelog for v2026.05.16.1 ([#245](https://github.com/stormkit-io/stormkit-io/pull/245))
+- Add debug logs to 500 responses ([429dacb](https://github.com/stormkit-io/stormkit-io/commit/429dacb))
+
+### ✅ Tests
+
+- Add prioritize_deployment to MCP tools list test ([#246](https://github.com/stormkit-io/stormkit-io/pull/246))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.05.14.1...v2026.05.16.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.14.1...v2026.05.16.1)
