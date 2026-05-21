@@ -113,7 +113,7 @@ func deployZip(req *app.RequestContext) *shttp.Response {
 	unzipDir := path.Join(tmpDir, "app")
 
 	if err := os.MkdirAll(unzipDir, os.ModePerm); err != nil {
-		return shttp.Error(err)
+		return shttp.Error(err, fmt.Sprintf("error while creating unzip dir: %s", err.Error()))
 	}
 
 	unzipOpts := file.UnzipOpts{
@@ -131,7 +131,7 @@ func deployZip(req *app.RequestContext) *shttp.Response {
 	env, err := buildconf.NewStore().EnvironmentByID(req.Context(), req.EnvID)
 
 	if err != nil {
-		return shttp.Error(err)
+		return shttp.Error(err, fmt.Sprintf("error while fetching environment: %s, envId: %s", err.Error(), req.EnvID.String()))
 	}
 
 	manifest := &deploy.BuildManifest{}
@@ -175,7 +175,7 @@ func deployZip(req *app.RequestContext) *shttp.Response {
 	store := deploy.NewStore()
 
 	if err := store.InsertDeployment(req.Context(), d); err != nil {
-		return shttp.Error(err)
+		return shttp.Error(err, fmt.Sprintf("error while inserting deployment to store: %s, deploymentID: %s", err.Error(), d.ID.String()))
 	}
 
 	args := runner.UploadArgs{
@@ -195,19 +195,19 @@ func deployZip(req *app.RequestContext) *shttp.Response {
 	result, err := runner.NewUploader(config.Get().Runner).Upload(args)
 
 	if err != nil {
-		return shttp.Error(err)
+		return shttp.Error(err, fmt.Sprintf("error while uploading files: %s, deploymentID: %s", err.Error(), d.ID.String()))
 	}
 
 	d.IsImmutable = null.BoolFrom(true)
 	d.ExitCode = null.IntFrom(0)
 
 	if err := store.UpdateDeploymentResult(req.Context(), d, *result); err != nil {
-		return shttp.Error(err)
+		return shttp.Error(err, fmt.Sprintf("error while updating deployment result: %s, deploymentID: %s", err.Error(), d.ID.String()))
 	}
 
 	if d.ShouldPublish {
 		if err := deploy.AutoPublishIfNecessary(req.Context(), d); err != nil {
-			return shttp.Error(err)
+			return shttp.Error(err, fmt.Sprintf("error while auto-publishing deployment: %s, deploymentID: %s", err.Error(), d.ID.String()))
 		}
 	}
 
