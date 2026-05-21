@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go/middleware"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/integrations"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
@@ -131,6 +132,57 @@ func (s *AlibabaSuite) Test_Upload() {
 	s.Empty(result.Server.Location)
 	s.Equal(result.Client.Location, "alibaba:test-bucket/123/789/sk-client.zip")
 	s.Equal(result.Migrations.Location, "alibaba:test-bucket/123/789/sk-migrations.zip")
+}
+
+func (s *AlibabaSuite) Test_Upload_DisablesAWSChunkedEncoding() {
+	var sawPutObject bool
+
+	client, err := integrations.Alibaba(integrations.ClientArgs{
+		Middlewares: []func(stack *middleware.Stack) error{
+			func(stack *middleware.Stack) error {
+				return stack.Finalize.Add(
+					middleware.FinalizeMiddlewareFunc("AssertStripped", func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
+						opName := awsmiddleware.GetOperationName(ctx)
+
+						if opName != "PutObject" {
+							return middleware.FinalizeOutput{}, middleware.Metadata{}, errors.New("unexpected op: " + opName)
+						}
+
+						req, ok := fi.Request.(*smithyhttp.Request)
+						s.True(ok)
+						s.NotEqual("aws-chunked", req.Header.Get("Content-Encoding"))
+						s.Empty(req.Header.Get("X-Amz-Decoded-Content-Length"))
+						s.Empty(req.Header.Get("X-Amz-Trailer"))
+						s.Empty(req.Header.Get("X-Amz-Sdk-Checksum-Algorithm"))
+						s.NotEqual("STREAMING-UNSIGNED-PAYLOAD-TRAILER", req.Header.Get("X-Amz-Content-Sha256"))
+						s.NotEqual("STREAMING-AWS4-HMAC-SHA256-PAYLOAD", req.Header.Get("X-Amz-Content-Sha256"))
+
+						sawPutObject = true
+
+						return middleware.FinalizeOutput{
+							Result: &s3.PutObjectOutput{},
+						}, middleware.Metadata{}, nil
+					}),
+					middleware.Before,
+				)
+			},
+		},
+	})
+	s.NoError(err)
+
+	clientZip := path.Join(s.tmpdir, "sk-client.zip")
+	s.NoError(os.WriteFile(clientZip, make([]byte, 150), 0664))
+
+	_, err = client.Upload(integrations.UploadArgs{
+		AppID:        types.ID(1),
+		EnvID:        types.ID(2),
+		DeploymentID: types.ID(3),
+		ClientZip:    clientZip,
+		BucketName:   "test-bucket",
+	})
+
+	s.NoError(err)
+	s.True(sawPutObject, "expected PutObject to be intercepted")
 }
 
 func TestAlibabaClient(t *testing.T) {

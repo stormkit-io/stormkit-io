@@ -15,11 +15,36 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	awsconf "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/smithy-go/middleware"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
+
+// disableAWSChunkedEncoding removes the SDK's flexible-checksum middlewares
+// so S3 requests are sent as plain signed PUTs without "aws-chunked"
+// transfer encoding.
+//
+// Why: recent aws-sdk-go-v2 versions enable "default integrity protections"
+// for PutObject/UploadPart, which forces Content-Encoding: aws-chunked +
+// STREAMING-UNSIGNED-PAYLOAD-TRAILER. Aliyun OSS rejects that combination
+// with InvalidArgument ("aws-chunked encoding is not supported with the
+// specified x-amz-content-sha256 value"), breaking multipart zip uploads.
+//
+// Stripping the resulting headers after the fact does not work — the trailer
+// middleware also wraps the request body in chunked-encoding framing. We
+// remove the three middlewares responsible (SetupInputContext,
+// ComputeInputPayloadChecksum, AddInputChecksumTrailer) so the chunked-
+// encoding setup never runs. Per-part integrity is still provided by the
+// Content-MD5 header added via smithyhttp.AddContentChecksumMiddleware.
+func disableAWSChunkedEncoding(stack *middleware.Stack) error {
+	_, _ = stack.Initialize.Remove("AWSChecksum:SetupInputContext")
+	_, _ = stack.Finalize.Remove("AWSChecksum:ComputeInputPayloadChecksum")
+	_, _ = stack.Finalize.Remove("addInputChecksumTrailer")
+
+	return nil
+}
 
 func init() {
 	slog.Debug(slog.LogOpts{
@@ -107,7 +132,7 @@ func Alibaba(args ClientArgs) (*AlibabaClient, error) {
 		ClientArgs{
 			AccessKey:   args.AccessKey,
 			SecretKey:   args.SecretKey,
-			Middlewares: append(args.Middlewares, smithyhttp.AddContentChecksumMiddleware),
+			Middlewares: append(args.Middlewares, smithyhttp.AddContentChecksumMiddleware, disableAWSChunkedEncoding),
 		}, &AWSOptions{
 			awsConf: &cfg,
 			s3Only:  true,
