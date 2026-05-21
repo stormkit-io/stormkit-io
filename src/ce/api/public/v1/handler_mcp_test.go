@@ -16,6 +16,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deployservice"
 	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -53,6 +54,11 @@ type HandlerMCPSuite struct {
 }
 
 func (s *HandlerMCPSuite) BeforeTest(suiteName, _ string) {
+	// Reset edition to development — earlier tests in the same package (e.g.
+	// TestServices/Test_Services_StormkitCloud) leak the cloud edition through
+	// the shared package-level `edition` variable.
+	config.SetIsStormkitCloud(false)
+
 	s.conn = databasetest.InitTx(suiteName)
 	s.Factory = factory.New(s.conn)
 	s.mockDeployer = &mocks.Deployer{}
@@ -294,7 +300,89 @@ func (s *HandlerMCPSuite) Test_ToolsList_ReturnsExpectedTools() {
 		"update_environment",
 		"list_domains",
 		"list_teams",
+		"enable_database_integration",
+		"configure_database_integration",
 	}, names)
+}
+
+func (s *HandlerMCPSuite) Test_ToolsList_HidesDatabaseToolsOnCloud() {
+	config.SetIsStormkitCloud(true)
+	defer config.SetIsStormkitCloud(false)
+
+	usr := s.MockUser()
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpBody(1, "tools/list", map[string]any{}))
+	env := s.rpcOK(resp)
+
+	result := env["result"].(map[string]any)
+	tools := result["tools"].([]any)
+
+	names := make([]string, 0, len(tools))
+
+	for _, t := range tools {
+		names = append(names, t.(map[string]any)["name"].(string))
+	}
+
+	s.NotContains(names, "enable_database_integration")
+	s.NotContains(names, "configure_database_integration")
+}
+
+func (s *HandlerMCPSuite) Test_EnableDatabaseIntegration_RejectedOnCloud() {
+	config.SetIsStormkitCloud(true)
+	defer config.SetIsStormkitCloud(false)
+
+	usr := s.MockUser()
+	key := s.userKey(usr)
+	appl := s.MockApp(usr)
+	env := s.MockEnv(appl)
+
+	resp := s.post(key.Value, mcpToolCall(1, "enable_database_integration", map[string]any{
+		"envId": fmt.Sprint(env.ID),
+	}))
+
+	errObj := s.rpcError(resp)
+	s.EqualValues(-32601, errObj["code"])
+}
+
+func (s *HandlerMCPSuite) Test_EnableDatabaseIntegration_MissingEnvID() {
+	usr := s.MockUser()
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "enable_database_integration", map[string]any{}))
+	envelope := s.rpcOK(resp)
+
+	result := envelope["result"].(map[string]any)
+	s.True(result["isError"].(bool), "expected an isError tool response")
+}
+
+func (s *HandlerMCPSuite) Test_ConfigureDatabaseIntegration_PartialUpdate() {
+	usr := s.MockUser()
+	key := s.userKey(usr)
+	appl := s.MockApp(usr)
+	env := s.MockEnv(appl, map[string]any{
+		"SchemaConf": &buildconf.SchemaConf{
+			SchemaName:        buildconf.SchemaName(appl.ID, 0),
+			MigrationsEnabled: true,
+			MigrationsFolder:  "db/migrations",
+			InjectEnvVars:     true,
+		},
+	})
+
+	// Send only injectEnvVars: false — the other two fields must be preserved.
+	resp := s.post(key.Value, mcpToolCall(1, "configure_database_integration", map[string]any{
+		"envId":         fmt.Sprint(env.ID),
+		"injectEnvVars": false,
+	}))
+
+	s.rpcOK(resp)
+
+	stored, err := buildconf.NewStore().EnvironmentByID(context.Background(), env.ID)
+	s.NoError(err)
+	s.NotNil(stored.SchemaConf)
+	s.False(stored.SchemaConf.InjectEnvVars, "injectEnvVars should have flipped to false")
+	s.True(stored.SchemaConf.MigrationsEnabled, "migrationsEnabled must be preserved when omitted")
+	s.Equal("db/migrations", stored.SchemaConf.MigrationsFolder, "migrationsFolder must be preserved when omitted")
 }
 
 func (s *HandlerMCPSuite) Test_UnknownTool() {

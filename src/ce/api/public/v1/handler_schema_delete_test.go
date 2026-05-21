@@ -1,4 +1,4 @@
-package schemahandlers_test
+package publicapiv1_test
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/schemahandlers"
+	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/team"
@@ -31,6 +31,7 @@ type HandlerSchemaDeleteSuite struct {
 func (s *HandlerSchemaDeleteSuite) BeforeTest(suiteName, _ string) {
 	s.conn = databasetest.InitTx(suiteName)
 	s.Factory = factory.New(s.conn)
+	config.SetIsSelfHosted(true)
 
 	// Create test user and app
 	s.usr = s.MockUser(nil)
@@ -53,9 +54,9 @@ func (s *HandlerSchemaDeleteSuite) Test_Success() {
 	})
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(schemahandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodDelete,
-		fmt.Sprintf("/schema?envId=%d", env.ID),
+		fmt.Sprintf("/v1/schema?envId=%d", env.ID),
 		nil,
 		map[string]string{
 			"Authorization": usertest.Authorization(s.usr.ID),
@@ -89,9 +90,9 @@ func (s *HandlerSchemaDeleteSuite) Test_Success_AuditLogs() {
 	})
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(schemahandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodDelete,
-		fmt.Sprintf("/schema?envId=%d", env.ID),
+		fmt.Sprintf("/v1/schema?envId=%d", env.ID),
 		nil,
 		map[string]string{
 			"Authorization": usertest.Authorization(s.usr.ID),
@@ -142,9 +143,9 @@ func (s *HandlerSchemaDeleteSuite) Test_Forbidden_NoWriteAccess() {
 	})
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(schemahandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodDelete,
-		fmt.Sprintf("/schema?envId=%d", env.ID),
+		fmt.Sprintf("/v1/schema?envId=%d", env.ID),
 		nil,
 		map[string]string{
 			"Authorization": usertest.Authorization(viewerUser.ID),

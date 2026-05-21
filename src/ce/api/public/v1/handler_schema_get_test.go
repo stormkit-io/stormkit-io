@@ -1,4 +1,4 @@
-package schemahandlers_test
+package publicapiv1_test
 
 import (
 	"context"
@@ -7,8 +7,9 @@ import (
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/schemahandlers"
+	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -29,6 +30,7 @@ type HandlerSchemaGetSuite struct {
 func (s *HandlerSchemaGetSuite) BeforeTest(suiteName, _ string) {
 	s.conn = databasetest.InitTx(suiteName)
 	s.Factory = factory.New(s.conn)
+	config.SetIsSelfHosted(true)
 
 	// Create test user, app, and environment
 	s.usr = s.MockUser(nil)
@@ -74,9 +76,9 @@ func (s *HandlerSchemaGetSuite) Test_Success_WithTables() {
 	s.NoError(buildconf.NewStore().SaveSchemaConf(context.Background(), s.env.ID, s.env.SchemaConf))
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(schemahandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodGet,
-		fmt.Sprintf("/schema?envId=%d", s.env.ID),
+		fmt.Sprintf("/v1/schema?envId=%d", s.env.ID),
 		nil,
 		map[string]string{
 			"Authorization": usertest.Authorization(s.usr.ID),
@@ -107,9 +109,9 @@ func (s *HandlerSchemaGetSuite) Test_Success_WithTables() {
 
 func (s *HandlerSchemaGetSuite) Test_Success_EmptySchema() {
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(schemahandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodGet,
-		fmt.Sprintf("/schema?envId=%d", s.env.ID),
+		fmt.Sprintf("/v1/schema?envId=%d", s.env.ID),
 		nil,
 		map[string]string{
 			"Authorization": usertest.Authorization(s.usr.ID),
@@ -134,9 +136,9 @@ func (s *HandlerSchemaGetSuite) Test_MissingSchema() {
 	})
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(schemahandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodGet,
-		fmt.Sprintf("/schema?envId=%d", newEnv.ID),
+		fmt.Sprintf("/v1/schema?envId=%d", newEnv.ID),
 		nil,
 		map[string]string{
 			"Authorization": usertest.Authorization(s.usr.ID),
@@ -152,9 +154,9 @@ func (s *HandlerSchemaGetSuite) Test_MissingEnvId() {
 	app := s.MockApp(usr, nil)
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(schemahandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodGet,
-		fmt.Sprintf("/schema?appId=%d", app.ID),
+		fmt.Sprintf("/v1/schema?appId=%d", app.ID),
 		nil,
 		map[string]string{
 			"Authorization": usertest.Authorization(usr.ID),

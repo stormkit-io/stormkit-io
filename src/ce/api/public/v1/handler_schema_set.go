@@ -1,4 +1,4 @@
-package schemahandlers
+package publicapiv1
 
 import (
 	"errors"
@@ -11,6 +11,8 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 )
 
+// handlerSchemaSet creates the per-environment Postgres schema and stores the
+// generated credentials on the environment's build config.
 func handlerSchemaSet(req *app.RequestContext) *shttp.Response {
 	name := buildconf.SchemaName(req.App.ID, req.EnvID)
 
@@ -35,7 +37,6 @@ func handlerSchemaSet(req *app.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	// Store creds in build config
 	if creds != nil {
 		if err := buildconf.NewStore().SaveSchemaConf(req.Context(), req.EnvID, creds); err != nil {
 			if err := buildconf.SchemaStore().DropSchema(req.Context(), name); err != nil {

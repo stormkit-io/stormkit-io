@@ -1,4 +1,4 @@
-package schemahandlers_test
+package publicapiv1_test
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/schemahandlers"
+	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
@@ -31,6 +31,7 @@ type HandlerSchemaSetSuite struct {
 func (s *HandlerSchemaSetSuite) BeforeTest(suiteName, _ string) {
 	s.conn = databasetest.InitTx(suiteName)
 	s.Factory = factory.New(s.conn)
+	config.SetIsSelfHosted(true)
 
 	// Create test user, app, and environment
 	s.usr = s.MockUser(nil)
@@ -57,9 +58,9 @@ func (s *HandlerSchemaSetSuite) Test_Success_CreateSchema() {
 	schemaName := buildconf.SchemaName(s.app.ID, s.env.ID)
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(schemahandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodPost,
-		"/schema",
+		"/v1/schema",
 		map[string]any{
 			"envId": s.env.ID,
 		},
@@ -104,9 +105,9 @@ func (s *HandlerSchemaSetSuite) Test_Success_CreateSchema_AuditLogs() {
 	schemaName := buildconf.SchemaName(s.app.ID, s.env.ID)
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(schemahandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodPost,
-		"/schema",
+		"/v1/schema",
 		map[string]any{
 			"envId": s.env.ID,
 		},
@@ -152,9 +153,9 @@ func (s *HandlerSchemaSetSuite) Test_Success_SchemaAlreadyExists() {
 
 	// Try to create again - should succeed with IF NOT EXISTS
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(schemahandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodPost,
-		"/schema",
+		"/v1/schema",
 		map[string]any{
 			"envId": s.env.ID,
 		},
@@ -169,9 +170,9 @@ func (s *HandlerSchemaSetSuite) Test_Success_SchemaAlreadyExists() {
 
 func (s *HandlerSchemaSetSuite) Test_MissingEnvId() {
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(schemahandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodPost,
-		"/schema",
+		"/v1/schema",
 		nil,
 		map[string]string{
 			"Authorization": usertest.Authorization(s.usr.ID),

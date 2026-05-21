@@ -1,4 +1,4 @@
-package schemahandlers
+package publicapiv1
 
 import (
 	"net/http"
@@ -10,6 +10,8 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 )
 
+// handlerSchemaDelete drops the environment's schema and clears its
+// configuration. Requires write access on the team.
 func handlerSchemaDelete(req *app.RequestContext) *shttp.Response {
 	env, err := buildconf.NewStore().EnvironmentByID(req.Context(), req.EnvID)
 

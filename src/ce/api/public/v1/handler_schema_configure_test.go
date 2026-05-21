@@ -1,4 +1,4 @@
-package schemahandlers_test
+package publicapiv1_test
 
 import (
 	"context"
@@ -6,8 +6,9 @@ import (
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/schemahandlers"
+	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -27,6 +28,7 @@ type HandlerSchemaConfigureSuite struct {
 func (s *HandlerSchemaConfigureSuite) BeforeTest(suiteName, _ string) {
 	s.conn = databasetest.InitTx(suiteName)
 	s.Factory = factory.New(s.conn)
+	config.SetIsSelfHosted(true)
 
 	// Create test user, app, and environment
 	s.usr = s.MockUser(nil)
@@ -40,9 +42,9 @@ func (s *HandlerSchemaConfigureSuite) AfterTest(_, _ string) {
 
 func (s *HandlerSchemaConfigureSuite) Test_Success_EnableMigrations() {
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(schemahandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodPost,
-		"/schema/configure",
+		"/v1/schema/configure",
 		map[string]any{
 			"envId":             s.env.ID,
 			"appId":             s.app.ID,
@@ -68,9 +70,9 @@ func (s *HandlerSchemaConfigureSuite) Test_Success_EnableMigrations() {
 
 func (s *HandlerSchemaConfigureSuite) Test_Success_DisableMigrations() {
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(schemahandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodPost,
-		"/schema/configure",
+		"/v1/schema/configure",
 		map[string]any{
 			"envId":             s.env.ID,
 			"appId":             s.app.ID,
@@ -107,9 +109,9 @@ func (s *HandlerSchemaConfigureSuite) Test_Success_UpdateMigrationsFolder() {
 
 	// Update migrations path
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(schemahandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodPost,
-		"/schema/configure",
+		"/v1/schema/configure",
 		map[string]any{
 			"envId":             s.env.ID,
 			"appId":             s.app.ID,
@@ -137,9 +139,9 @@ func (s *HandlerSchemaConfigureSuite) Test_Success_UpdateMigrationsFolder() {
 
 func (s *HandlerSchemaConfigureSuite) Test_MissingEnvId() {
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(schemahandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodPost,
-		"/schema/configure",
+		"/v1/schema/configure",
 		map[string]any{
 			"appId":             s.app.ID,
 			"migrationsEnabled": true,
@@ -155,9 +157,9 @@ func (s *HandlerSchemaConfigureSuite) Test_MissingEnvId() {
 
 func (s *HandlerSchemaConfigureSuite) Test_Success_EnableInjectEnvVars() {
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(schemahandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodPost,
-		"/schema/configure",
+		"/v1/schema/configure",
 		map[string]any{
 			"envId":             s.env.ID,
 			"appId":             s.app.ID,
@@ -190,9 +192,9 @@ func (s *HandlerSchemaConfigureSuite) Test_Success_DisableInjectEnvVars() {
 
 	// Disable injectEnvVars
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(schemahandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodPost,
-		"/schema/configure",
+		"/v1/schema/configure",
 		map[string]any{
 			"envId":             s.env.ID,
 			"appId":             s.app.ID,
@@ -216,9 +218,9 @@ func (s *HandlerSchemaConfigureSuite) Test_Success_DisableInjectEnvVars() {
 
 func (s *HandlerSchemaConfigureSuite) Test_Success_EnableBothMigrationsAndInjectEnvVars() {
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(schemahandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodPost,
-		"/schema/configure",
+		"/v1/schema/configure",
 		map[string]any{
 			"envId":             s.env.ID,
 			"appId":             s.app.ID,
