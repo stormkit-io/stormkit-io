@@ -20,6 +20,8 @@ type statement struct {
 	syncAnalyticsReferrers          string
 	syncAnalyticsCountries          string
 	selectUserIDsWithoutAPIKeys     string
+	selectStaleSchemas              string
+	clearSchemaConf                 string
 }
 
 var stmt = &statement{
@@ -200,6 +202,23 @@ var stmt = &statement{
 			(aggregate_date, country_iso_code, domain_id)
 		DO UPDATE SET
 			visit_count = EXCLUDED.visit_count;
+	`,
+
+	selectStaleSchemas: `
+		SELECT
+			env_id, app_id, schema_conf
+		FROM
+			apps_build_conf
+		WHERE
+			deleted_at IS NOT NULL AND
+			schema_conf IS NOT NULL
+		ORDER BY
+			deleted_at ASC, env_id ASC
+		LIMIT 50;
+	`,
+
+	clearSchemaConf: `
+		UPDATE apps_build_conf SET schema_conf = NULL WHERE env_id = $1;
 	`,
 
 	selectUserIDsWithoutAPIKeys: `
