@@ -37,7 +37,7 @@ export const useFetchSchema = ({
     }
 
     api
-      .fetch<{ schema: Schema | null }>(`/schema?envId=${envId}`)
+      .fetch<{ schema: Schema | null }>(`/v1/schema?envId=${envId}`)
       .then(({ schema }) => {
         setSchema(schema);
       })
@@ -58,7 +58,7 @@ interface CreateSchemaProps {
 }
 
 export const createSchema = ({ appId, envId }: CreateSchemaProps) => {
-  return api.post<{ schema: string }>(`/schema`, {
+  return api.post<{ schema: string }>(`/v1/schema`, {
     appId,
     envId,
   });
@@ -70,7 +70,7 @@ interface DeleteSchemaProps {
 }
 
 export const deleteSchema = ({ appId, envId }: DeleteSchemaProps) => {
-  return api.delete(`/schema?appId=${appId}&envId=${envId}`);
+  return api.delete(`/v1/schema?appId=${appId}&envId=${envId}`);
 };
 
 interface UpdateSchemaProps {
@@ -88,7 +88,7 @@ export const updateSchema = ({
   migrationsEnabled,
   injectEnvVars,
 }: UpdateSchemaProps) => {
-  return api.post(`/schema/configure`, {
+  return api.post(`/v1/schema/configure`, {
     appId,
     envId,
     migrationsFolder,

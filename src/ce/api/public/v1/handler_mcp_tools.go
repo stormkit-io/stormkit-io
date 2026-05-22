@@ -6,10 +6,17 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/redirects"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"gopkg.in/guregu/null.v3"
 )
+
+// databaseIntegrationEnabled mirrors the REST-side gating in services.go —
+// the database integration is available only on dev and self-hosted builds.
+func databaseIntegrationEnabled() bool {
+	return config.IsDevelopment() || config.IsSelfHosted()
+}
 
 // ---------------------------------------------------------------------------
 // Tool manifest
@@ -22,7 +29,7 @@ type mcpToolDef struct {
 }
 
 func mcpAllTools() []mcpToolDef {
-	return []mcpToolDef{
+	tools := []mcpToolDef{
 		{
 			Name:        "deploy",
 			Description: "Trigger a new deployment for the given environment. Returns the deployment object including its ID.",
@@ -310,11 +317,45 @@ func mcpAllTools() []mcpToolDef {
 			Description: "Return all teams the authenticated user belongs to.",
 			InputSchema: map[string]any{
 				"type":                 "object",
-				"properties":          map[string]any{},
+				"properties":           map[string]any{},
 				"additionalProperties": false,
 			},
 		},
 	}
+
+	if databaseIntegrationEnabled() {
+		tools = append(tools,
+			mcpToolDef{
+				Name:        "enable_database_integration",
+				Description: "Provision a Postgres schema for the environment and store its credentials on the build config. Self-hosted only. Returns the schema name. Use configure_database_integration afterwards to toggle migrations or env-var injection.",
+				InputSchema: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"envId": map[string]any{"type": "string", "description": "Environment ID to enable the database integration for."},
+					},
+					"required":             []string{"envId"},
+					"additionalProperties": false,
+				},
+			},
+			mcpToolDef{
+				Name:        "configure_database_integration",
+				Description: "Update the database integration flags (migrations, env-var injection) for an environment that already has a schema provisioned. Omitted fields keep their current value.",
+				InputSchema: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"envId":             map[string]any{"type": "string", "description": "Environment ID."},
+						"injectEnvVars":     map[string]any{"type": "boolean", "description": "Inject DATABASE_URL and friends into the build/runtime env vars."},
+						"migrationsEnabled": map[string]any{"type": "boolean", "description": "Run migrations from migrationsFolder on every successful deployment."},
+						"migrationsFolder":  map[string]any{"type": "string", "description": "Repository path containing SQL migration files (relative to repo root)."},
+					},
+					"required":             []string{"envId"},
+					"additionalProperties": false,
+				},
+			},
+		)
+	}
+
+	return tools
 }
 
 // ---------------------------------------------------------------------------
@@ -727,4 +768,28 @@ func mcpListDeployments(req *RequestContextMCP, args map[string]any) *shttp.Resp
 
 func mcpListTeams(req *RequestContextMCP) *shttp.Response {
 	return handlerTeamList(req.RequestContext)
+}
+
+func mcpEnableDatabaseIntegration(req *RequestContextMCP, args map[string]any) *shttp.Response {
+	if resp := req.withEnv(args); resp != nil {
+		return resp
+	}
+
+	return handlerSchemaSet(req.asAppContext())
+}
+
+func mcpConfigureDatabaseIntegration(req *RequestContextMCP, id any, args map[string]any) *shttp.Response {
+	if resp := req.withEnv(args); resp != nil {
+		return resp
+	}
+
+	// Ship args through as the JSON body — handlerSchemaConfigure already
+	// treats missing keys as "leave the stored value untouched" thanks to the
+	// pointer fields on SchemaConfigureRequest, so no per-field plumbing is
+	// needed here.
+	if resp := req.setBody(id, args); resp != nil {
+		return resp
+	}
+
+	return handlerSchemaConfigure(req.asAppContext())
 }

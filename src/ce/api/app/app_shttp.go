@@ -181,9 +181,10 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 		}
 
 		// If the token does not start with SK_ use the traditional JWT approach.
+		// Forward opts so gating like Env/App/Admin applies to JWT callers too.
 		return WithApp(func(rc *RequestContext) *shttp.Response {
 			return handler(rc)
-		})(req)
+		}, options)(req)
 	}
 }
 

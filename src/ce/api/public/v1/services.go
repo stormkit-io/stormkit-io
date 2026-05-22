@@ -83,6 +83,12 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodGet, "", WithAPIKey(handlerMCPStream, &Opts{MinimumScope: apikey.SCOPE_USER}))
 
 	if config.IsDevelopment() || config.IsSelfHosted() {
+		s.NewEndpoint("/v1/schema").
+			Handler(shttp.MethodGet, "", app.WithAPIKey(handlerSchemaGet, &app.Opts{Env: true})).
+			Handler(shttp.MethodPost, "", app.WithAPIKey(handlerSchemaSet, &app.Opts{Env: true})).
+			Handler(shttp.MethodDelete, "", app.WithAPIKey(handlerSchemaDelete, &app.Opts{Env: true})).
+			Handler(shttp.MethodPost, "/configure", app.WithAPIKey(handlerSchemaConfigure, &app.Opts{Env: true}))
+
 		s.NewEndpoint("/v1/auth").
 			Handler(shttp.MethodGet, "", HandlerAuthRedirect).
 			Handler(shttp.MethodGet, "/callback", HandlerAuthCallback)

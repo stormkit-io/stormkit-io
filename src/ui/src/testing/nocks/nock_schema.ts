@@ -14,7 +14,7 @@ export const mockFetchSchema = ({
   status = 200,
   response = { schema: null },
 }: MockFetchSchemaProps) => {
-  return nock(endpoint).get(`/schema?envId=${envId}`).reply(status, response);
+  return nock(endpoint).get(`/v1/schema?envId=${envId}`).reply(status, response);
 };
 
 interface MockCreateSchemaProps {
@@ -31,7 +31,7 @@ export const mockCreateSchema = ({
   status = 200,
   response = { schema: `a${payload.appId}e${payload.envId}` },
 }: MockCreateSchemaProps) => {
-  return nock(endpoint).post("/schema", payload).reply(status, response);
+  return nock(endpoint).post("/v1/schema", payload).reply(status, response);
 };
 
 interface MockUpdateSchemaProps {
@@ -49,7 +49,7 @@ export const mockUpdateSchema = ({
   payload,
   status = 200,
 }: MockUpdateSchemaProps) => {
-  return nock(endpoint).post("/schema/configure", payload).reply(status, {});
+  return nock(endpoint).post("/v1/schema/configure", payload).reply(status, {});
 };
 
 interface MockDeleteSchemaProps {
@@ -65,6 +65,6 @@ export const mockDeleteSchema = ({
   status = 200,
 }: MockDeleteSchemaProps) => {
   return nock(endpoint)
-    .delete(`/schema?envId=${payload.envId}&appId=${payload.appId}`)
+    .delete(`/v1/schema?envId=${payload.envId}&appId=${payload.appId}`)
     .reply(status, {});
 };

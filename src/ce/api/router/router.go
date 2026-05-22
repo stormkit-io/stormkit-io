@@ -9,7 +9,6 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/buildconfhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/domainhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/mailerhandlers"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/schemahandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/snippetshandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy/deployhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/functiontrigger/functiontriggerhandlers"
@@ -74,7 +73,6 @@ func Get() *shttp.Router {
 	}
 
 	if config.IsDevelopment() || config.IsSelfHosted() {
-		r.RegisterService(schemahandlers.Services)
 		r.RegisterService(skauthhandlers.Services)
 	}
 

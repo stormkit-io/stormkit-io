@@ -1,4 +1,4 @@
-package schemahandlers
+package publicapiv1
 
 import (
 	"net/http"
@@ -8,6 +8,8 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 )
 
+// handlerSchemaGet returns the environment's schema along with its tables and
+// configuration. When no schema exists, "schema" is null.
 func handlerSchemaGet(req *app.RequestContext) *shttp.Response {
 	name := buildconf.SchemaName(req.App.ID, req.EnvID)
 
