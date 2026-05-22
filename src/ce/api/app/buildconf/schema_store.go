@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"fmt"
 	"regexp"
+	"strings"
 	"text/template"
 	"time"
 
@@ -480,6 +481,19 @@ func (s *schemaStore) DropSchema(ctx context.Context, schemaName string) error {
 	if _, err := s.Exec(ctx, buf.String()); err != nil {
 		return fmt.Errorf("failed to drop schema: %w", err)
 	}
+
+	// Close any cached per-schema connections — DROP terminated their backends.
+	suffix := "/" + schemaName
+
+	schemaStoreCache.Range(func(key, value any) bool {
+		if k, ok := key.(string); ok && strings.HasSuffix(k, suffix) {
+			if store, ok := value.(*schemaStore); ok {
+				_ = store.Close()
+			}
+		}
+
+		return true
+	})
 
 	return nil
 }
