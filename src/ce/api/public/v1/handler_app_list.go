@@ -44,7 +44,7 @@ func handlerAppList(req *RequestContext) *shttp.Response {
 
 	if !repoValid {
 		return shttp.BadRequest(map[string]any{
-			"errors": []string{"The 'repo' parameter must be in the format 'github/org/repo', 'gitlab/org/repo', or 'bitbucket/org/repo'"},
+			"errors": []string{"The 'repo' parameter must be in the format 'github/org/repo', 'gitlab/org/repo', 'bitbucket/org/repo', or 'file:///abs/path' for local repos"},
 		})
 	}
 

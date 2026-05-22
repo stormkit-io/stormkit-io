@@ -39,21 +39,6 @@ type RequestContext struct {
 	Token *apikey.Token
 }
 
-// Response returns a new app response.
-type Response struct {
-	App *MyApp `json:"app"`
-}
-
-// NewResponse returns a new App response.
-func NewResponse(app *MyApp) *shttp.Response {
-	return &shttp.Response{
-		Status: http.StatusOK,
-		Data: &Response{
-			App: app,
-		},
-	}
-}
-
 type Opts struct {
 	Env   bool // Require environment
 	App   bool // Require app

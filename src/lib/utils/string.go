@@ -103,10 +103,35 @@ func ParseSemver(version string) (major, minor, patch string) {
 //
 //   - https://github.com/owner/repo  (full URL, optional .git suffix)
 //   - github/owner/repo              (Stormkit style)
-//   - owner/repo                     (bare, provider will be empty)
+//   - file:///abs/path               (local repo on disk)
+//   - local/abs/path                 (Stormkit-style local repo)
+//   - owner/repo                     (bare, defaults to github)
 func ParseRepoWithProvider(raw string) (provider, ownerSlug string) {
 	raw = strings.TrimSpace(raw)
 	raw = strings.TrimSuffix(raw, ".git")
+
+	if strings.HasPrefix(raw, "file://") {
+		path := strings.TrimPrefix(raw, "file://")
+		path = strings.TrimPrefix(path, "/")
+		path = strings.TrimRight(path, "/")
+
+		if path == "" {
+			return "", ""
+		}
+
+		return "local", path
+	}
+
+	if strings.HasPrefix(strings.ToLower(raw), "local/") {
+		path := strings.TrimLeft(raw[len("local/"):], "/")
+		path = strings.TrimRight(path, "/")
+
+		if path == "" {
+			return "", ""
+		}
+
+		return "local", path
+	}
 
 	if strings.HasPrefix(raw, "https://") || strings.HasPrefix(raw, "http://") {
 		withoutScheme := strings.SplitN(raw, "://", 2)[1]

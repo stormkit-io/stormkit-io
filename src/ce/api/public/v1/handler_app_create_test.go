@@ -308,6 +308,54 @@ func (s *HandlerAppCreateSuite) Test_Forbidden_LowScopeKey() {
 	s.Equal(http.StatusForbidden, response.Code)
 }
 
+// Test_Success_RepoURL verifies that a full URL in `repo` derives the provider
+// and the `provider` field can be omitted.
+func (s *HandlerAppCreateSuite) Test_Success_RepoURL() {
+	keyValue, _ := s.teamKey()
+
+	response := shttptest.RequestWithHeaders(
+		s.handler(),
+		shttp.MethodPost,
+		"/v1/app",
+		map[string]any{
+			"repo": "https://github.com/owner/my-repo",
+		},
+		map[string]string{
+			"Authorization": keyValue,
+		},
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+
+	body := response.Map()
+	appData, _ := body["app"].(map[string]any)
+	s.Equal("github/owner/my-repo", appData["repo"])
+}
+
+// Test_Success_LocalRepo verifies that a file:// URL is accepted with no
+// `provider` field and stored under the local provider.
+func (s *HandlerAppCreateSuite) Test_Success_LocalRepo() {
+	keyValue, _ := s.teamKey()
+
+	response := shttptest.RequestWithHeaders(
+		s.handler(),
+		shttp.MethodPost,
+		"/v1/app",
+		map[string]any{
+			"repo": "file:///srv/repos/foo",
+		},
+		map[string]string{
+			"Authorization": keyValue,
+		},
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+
+	body := response.Map()
+	appData, _ := body["app"].(map[string]any)
+	s.Equal("file:///srv/repos/foo", appData["repo"])
+}
+
 func TestHandlerAppCreate(t *testing.T) {
 	suite.Run(t, &HandlerAppCreateSuite{})
 }

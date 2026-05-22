@@ -8,7 +8,6 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/redirects"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
-	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"gopkg.in/guregu/null.v3"
 )
 
@@ -146,7 +145,7 @@ func mcpAllTools() []mcpToolDef {
 					"teamId": map[string]any{"type": "string", "description": "Team ID to create the app under. Required."},
 					"repo": map[string]any{
 						"type":        "string",
-						"description": "Repository reference. Accepted formats: full URL (https://github.com/org/repo), Stormkit style (github/org/repo), or bare owner/repo.",
+						"description": "Repository reference. Accepted formats: full URL (https://github.com/org/repo), Stormkit style (github/org/repo), local repo (file:///abs/path or local/abs/path), or bare owner/repo.",
 					},
 					"displayName": map[string]any{"type": "string", "description": "Human-readable name for the app. Auto-generated if omitted."},
 				},
@@ -502,11 +501,8 @@ func mcpCreateApp(req *RequestContextMCP, id any, args map[string]any) *shttp.Re
 		return resp
 	}
 
-	provider, ownerSlug := utils.ParseRepoWithProvider(stringArg(args, "repo"))
-
 	body := appCreatePost{
-		Repo:        ownerSlug,
-		Provider:    provider,
+		Repo:        stringArg(args, "repo"),
 		DisplayName: stringArg(args, "displayName"),
 	}
 

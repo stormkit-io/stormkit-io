@@ -9,9 +9,11 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/bitbucket"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/github"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/gitlab"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/local"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/team"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/model"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp/shttperr"
@@ -44,8 +46,16 @@ func (a *appInsertPost) Validate() *shttperr.ValidationError {
 			bitbucket.ProviderName,
 		}
 
+		if config.IsDevelopment() {
+			providers = append(providers, local.ProviderName)
+		}
+
 		if !utils.InSliceString(providers, a.Provider) {
-			err.SetError("provider", "The provider can only be github, gitlab or bitbucket.")
+			if config.IsDevelopment() {
+				err.SetError("provider", "The provider can only be github, gitlab, bitbucket or local.")
+			} else {
+				err.SetError("provider", "The provider can only be github, gitlab or bitbucket.")
+			}
 		}
 	}
 
@@ -116,5 +126,10 @@ func handlerAppInsert(req *user.RequestContext) *shttp.Response {
 		}
 	}
 
-	return app.NewResponse(&app.MyApp{App: myApp})
+	return &shttp.Response{
+		Status: http.StatusOK,
+		Data: map[string]any{
+			"app": myApp.JSON(),
+		},
+	}
 }

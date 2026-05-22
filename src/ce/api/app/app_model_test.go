@@ -53,6 +53,20 @@ func (s *AppModelSuite) Test_Validate_InvalidRepoProvider() {
 	s.Equal(err.Errors["domain"], "")
 }
 
+func (s *AppModelSuite) Test_JSON_LocalRepo_ExposesFileURL() {
+	a := app.New(1)
+	a.Repo = "local/srv/repos/foo"
+
+	s.Equal("file:///srv/repos/foo", a.JSON()["repo"])
+}
+
+func (s *AppModelSuite) Test_JSON_GithubRepo_PreservesStorageForm() {
+	a := app.New(1)
+	a.Repo = "github/owner/my-repo"
+
+	s.Equal("github/owner/my-repo", a.JSON()["repo"])
+}
+
 func (s *AppModelSuite) Test_Cache_PrivateKey() {
 	a := app.New(1)
 	pk := a.PrivateKey(context.Background())

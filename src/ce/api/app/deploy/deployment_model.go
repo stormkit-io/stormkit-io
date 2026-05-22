@@ -10,6 +10,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/local"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
@@ -348,6 +349,10 @@ func (d *Deployment) Status() string {
 
 // RepoCloneURL returns the fully qualified repository name to clone the repository.
 func (d *Deployment) RepoCloneURL() string {
+	if local.IsLocal(d.CheckoutRepo) {
+		return local.CloneURL(d.CheckoutRepo)
+	}
+
 	pieces := strings.Split(d.CheckoutRepo, "/")
 
 	if len(pieces) >= 3 {

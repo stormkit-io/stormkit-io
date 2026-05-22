@@ -72,6 +72,10 @@ func (s *StringSuite) Test_ParseRepoWithProvider() {
 		{"gitlab/my-org/my-repo", "gitlab", "my-org/my-repo"},
 		{"bitbucket/my-org/my-repo", "bitbucket", "my-org/my-repo"},
 		{"my-org/my-repo", "github", "my-org/my-repo"},
+		{"file:///srv/repos/foo", "local", "srv/repos/foo"},
+		{"file:///srv/repos/foo/", "local", "srv/repos/foo"},
+		{"local/srv/repos/foo", "local", "srv/repos/foo"},
+		{"local//srv/repos/foo", "local", "srv/repos/foo"},
 	}
 
 	for _, tc := range cases {
