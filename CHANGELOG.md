@@ -1,5 +1,17 @@
 # Changelog
 
+## v2026.05.23.2...v2026.05.23.3
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.23.2...v2026.05.23.3)
+
+### 🏡 Chore
+
+- Update changelog for v2026.05.23.2 ([#258](https://github.com/stormkit-io/stormkit-io/pull/258))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.05.23.1...v2026.05.23.2
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.23.1...v2026.05.23.2)
