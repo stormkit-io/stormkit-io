@@ -177,6 +177,7 @@ type RunnerOpts struct {
 	Repo           RepoOpts
 	Build          BuildOpts
 	Uploader       *config.RunnerConfig
+	AutoInstall    bool
 	Reporter       *ReporterModel
 }
 
@@ -223,6 +224,11 @@ func Start(payload, rootDir string) error {
 	DeploymentIDEnc = utils.EncryptID(utils.StringToID(p.DeploymentID))
 
 	msg = normalize(msg)
+
+	if msg.Config == nil {
+		msg.Config = &deployservice.RunnerSettings{AutoInstall: true}
+	}
+
 	repoDir := path.Join(p.RootDir, "repo")
 	workDir := path.Join(repoDir, msg.Build.WorkDir)
 
@@ -255,7 +261,8 @@ func Start(payload, rootDir string) error {
 			StatusChecks:     msg.Build.StatusChecks,
 			EnvVars: msg.Build.Vars,
 		},
-		Uploader: msg.Config,
+		Uploader:    &msg.Config.RunnerConfig,
+		AutoInstall: msg.Config.AutoInstall,
 	}
 
 	if opts.Build.EnvVars == nil {

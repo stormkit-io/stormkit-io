@@ -8,18 +8,20 @@ import (
 )
 
 type StatusChecks struct {
-	workDir  string
-	repoDir  string
-	envVars  map[string]string
-	reporter *ReporterModel
+	workDir     string
+	repoDir     string
+	envVars     map[string]string
+	autoInstall bool
+	reporter    *ReporterModel
 }
 
 func NewStatusChecks(opts RunnerOpts) *StatusChecks {
 	return &StatusChecks{
-		workDir:  opts.WorkDir,
-		repoDir:  opts.Repo.Dir,
-		envVars:  opts.Build.EnvVars,
-		reporter: opts.Reporter,
+		workDir:     opts.WorkDir,
+		repoDir:     opts.Repo.Dir,
+		envVars:     opts.Build.EnvVars,
+		autoInstall: opts.AutoInstall,
+		reporter:    opts.Reporter,
 	}
 }
 
@@ -28,7 +30,7 @@ func NewStatusChecks(opts RunnerOpts) *StatusChecks {
 // env vars (e.g. CHROMIUM_EXECUTABLE_PATH) are available. The current PATH is
 // forwarded via env(1) so that mise-managed runtimes remain accessible.
 func (s *StatusChecks) buildCommand(command string) (string, []string) {
-	if nixFlakeDir(s.workDir, s.repoDir) != "" {
+	if s.autoInstall && nixFlakeDir(s.workDir, s.repoDir) != "" {
 		return "nix", []string{
 			"--extra-experimental-features", "nix-command flakes",
 			"develop",

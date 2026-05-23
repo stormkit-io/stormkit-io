@@ -66,6 +66,7 @@ type Bundler struct {
 	headersFile   string   // Relative path to the headers file (from working dir)
 	redirectsFile string   // Relative path to the redirects file (from working dir)
 	apiFolder     string   // Relative path to the api dir (from working dir)
+	autoInstall   bool
 	packageJson   *PackageJson
 	reporter      *ReporterModel
 }
@@ -332,6 +333,7 @@ func NewBundler(opts RunnerOpts) BundlerInterface {
 		redirectsFile: opts.Build.RedirectsFile,
 		serverCmd:     opts.Build.ServerCmd,
 		apiFolder:     opts.Build.APIFolder,
+		autoInstall:   opts.AutoInstall,
 		packageJson:   opts.Repo.PackageJson,
 		reporter:      opts.Reporter,
 	}
@@ -448,6 +450,10 @@ func (b Bundler) bundleServerSideStormkitSubfolder() ([]string, string, error) {
 // into destDir so the files are included in the server zip and available at runtime
 // for nix develop wrapping.
 func (b Bundler) copyNixFlake(destDir string) {
+	if !b.autoInstall {
+		return
+	}
+
 	flakeDir := nixFlakeDir(b.workDir, b.repoDir)
 
 	if flakeDir == "" {

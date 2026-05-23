@@ -27,9 +27,10 @@ func (s *BundlerSuite) BeforeTest(_, _ string) {
 	repoDir := path.Join(tmpDir, "repo")
 
 	s.config = runner.RunnerOpts{
-		RootDir:  tmpDir,
-		WorkDir:  repoDir,
-		Reporter: runner.NewReporter("https://example.com"),
+		RootDir:     tmpDir,
+		WorkDir:     repoDir,
+		Reporter:    runner.NewReporter("https://example.com"),
+		AutoInstall: true,
 		Repo: runner.RepoOpts{
 			Dir: repoDir,
 		},

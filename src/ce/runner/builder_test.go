@@ -25,8 +25,9 @@ func (s *BuildManagerSuite) BeforeTest(_, _ string) {
 	s.NoError(err)
 
 	s.config = runner.RunnerOpts{
-		RootDir:  tmpDir,
-		Reporter: runner.NewReporter("https://example.com"),
+		RootDir:     tmpDir,
+		Reporter:    runner.NewReporter("https://example.com"),
+		AutoInstall: true,
 		Repo: runner.RepoOpts{
 			Dir: path.Join(tmpDir, "repo"),
 		},
