@@ -1,5 +1,28 @@
 # Changelog
 
+## v2026.05.21.2...v2026.05.23.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.21.2...v2026.05.23.1)
+
+### 🚀 Enhancements
+
+- Expose schema endpoints via public v1 API ([#250](https://github.com/stormkit-io/stormkit-io/pull/250))
+- Drop Postgres schemas for soft-deleted envs ([#251](https://github.com/stormkit-io/stormkit-io/pull/251))
+- Honor AutoInstall when skipping runtimes/nix ([#255](https://github.com/stormkit-io/stormkit-io/pull/255))
+
+### 🔥 Performance
+
+- Lock-free config reads via atomic.Pointer ([#254](https://github.com/stormkit-io/stormkit-io/pull/254))
+
+### 🏡 Chore
+
+- Update changelog for v2026.05.21.1 ([#247](https://github.com/stormkit-io/stormkit-io/pull/247))
+- Update changelog for v2026.05.21.2 ([#249](https://github.com/stormkit-io/stormkit-io/pull/249))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.05.21.1...v2026.05.21.2
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.21.1...v2026.05.21.2)
