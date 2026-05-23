@@ -120,8 +120,9 @@ type DeployerConfig struct {
 }
 
 type TrackingConfig struct {
-	Prometheus     bool
-	PrometheusPort string
+	Prometheus             bool
+	PrometheusPort         string
+	SlowRequestThresholdMs int
 }
 
 func (dc DeployerConfig) IsLocal() bool {
@@ -327,8 +328,9 @@ func New() *Config {
 		},
 
 		Tracking: &TrackingConfig{
-			Prometheus:     isTrueString(os.Getenv("PROMETHEUS_METRICS")),
-			PrometheusPort: get(os.Getenv("PROMETHEUS_PORT"), "2112"),
+			Prometheus:             isTrueString(os.Getenv("PROMETHEUS_METRICS")),
+			PrometheusPort:         get(os.Getenv("PROMETHEUS_PORT"), "2112"),
+			SlowRequestThresholdMs: getInt(os.Getenv("STORMKIT_SLOW_REQUEST_THRESHOLD_MS"), 1000),
 		},
 
 		Env:       Env(),

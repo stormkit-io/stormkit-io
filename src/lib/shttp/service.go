@@ -13,6 +13,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/tracking"
+	"go.uber.org/zap"
 )
 
 func init() {
@@ -135,16 +136,41 @@ func (se *ServiceEndpoint) CatchAll(handler RequestFunc, devDomain string) *Serv
 	cnf := config.Get()
 	trackingEnabled := cnf.Tracking != nil && cnf.Tracking.Prometheus
 
+	slowThresholdMs := 0
+
+	if cnf.Tracking != nil {
+		slowThresholdMs = cnf.Tracking.SlowRequestThresholdMs
+	}
+
 	wrapper := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		req := requestContext(w, r)
 		res := handler(req)
 		se.Send(w, req, res)
 
+		elapsed := time.Since(start)
+		isDevHost := devDomain != "" && strings.HasSuffix(req.HostName(), devDomain)
+
 		// Record the response time if tracking is enabled
 		// and the request is not for the dev domain.
-		if trackingEnabled && devDomain != "" && !strings.HasSuffix(req.HostName(), devDomain) {
-			tracking.RecordResponseTime(r, res.Status, time.Since(start))
+		if trackingEnabled && !isDevHost {
+			tracking.RecordResponseTime(r, res.Status, elapsed)
+		}
+
+		if slowThresholdMs > 0 && !isDevHost && elapsed.Milliseconds() >= int64(slowThresholdMs) {
+			slog.Debug(slog.LogOpts{
+				Msg:   "slow request",
+				Level: slog.DL2,
+				Payload: []zap.Field{
+					zap.String("method", r.Method),
+					zap.String("host", req.HostName()),
+					zap.String("path", r.URL.Path),
+					zap.Int("status", res.Status),
+					zap.Int64("duration_ms", elapsed.Milliseconds()),
+					zap.String("remote", r.RemoteAddr),
+					zap.String("ua", r.UserAgent()),
+				},
+			})
 		}
 	})
 
