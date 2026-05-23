@@ -130,12 +130,9 @@ func (a *AWSClient) ZipDownloader(deploymentID, bucket, keyprefix string) (strin
 }
 
 func (a *AWSClient) serveFromZip(args GetFileArgs) (*GetFileResult, error) {
-	a.mux.Lock()
-	defer a.mux.Unlock()
-
-	if a.zipManager == nil {
+	a.zipOnce.Do(func() {
 		a.zipManager = NewZipManager(a.ZipDownloader)
-	}
+	})
 
 	return a.zipManager.GetFile(args)
 }

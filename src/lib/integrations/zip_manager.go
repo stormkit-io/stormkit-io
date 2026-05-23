@@ -1,8 +1,8 @@
 package integrations
 
 import (
+	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -32,11 +32,24 @@ func NewZip(key string, manager *ZipManager) *Zip {
 	return zip
 }
 
-// RemoveFolder removes the folder from the file system and also deletes
-// itself from the cache.
+// RemoveFolder is the timer callback. It takes the per-deployment lock so it
+// cannot race with a concurrent GetFile that is updating the timer or
+// downloading. If a reader reset the timer between it firing and us
+// acquiring the lock, Stop() returns true — put the timer back and skip the
+// deletion. Otherwise CompareAndDelete + RemoveAll.
 func (z *Zip) RemoveFolder() {
-	z.manager.mux.Lock()
-	defer z.manager.mux.Unlock()
+	lock := z.manager.didLock(z.cacheKey)
+	lock.Lock()
+	defer lock.Unlock()
+
+	if z.timer.Stop() {
+		z.timer.Reset(removeAfterInactivity)
+		return
+	}
+
+	if !z.manager.cache.CompareAndDelete(z.cacheKey, z) {
+		return
+	}
 
 	slog.Debug(slog.LogOpts{
 		Msg:   "Removing folder after inactivity",
@@ -52,21 +65,41 @@ func (z *Zip) RemoveFolder() {
 			slog.Errorf("error while removing zip folder: %s", err.Error())
 		}
 	}
-
-	delete(z.manager.cache, z.cacheKey)
 }
 
 type ZipManager struct {
 	download DownloadFunc
-	cache    map[string]*Zip // deployment id => location
-	mux      sync.Mutex
+	cache    sync.Map // deploymentID (string) -> *Zip
+	// locks holds one *sync.Mutex per deployment id. Held during cache
+	// check, optional download, and timer reset — released before the file
+	// read so large reads don't block other readers of the same deployment.
+	// Different deployments never contend with each other.
+	//
+	// Entries are intentionally never removed. Deleting a lock entry from
+	// the map while another goroutine has already obtained the pointer is
+	// unsafe: a later caller would see the entry missing and create a
+	// second mutex for the same deployment id, ending up with two
+	// goroutines that believe they are mutually excluded but are not.
+	// Bounded cleanup would require reference-counted handles, which is
+	// not worth the complexity at Stormkit's scale: each entry is roughly
+	// 30 bytes (sync.Map node + Mutex), so the steady-state footprint is
+	// well under 1 MB per ~30k distinct deployments seen by the process,
+	// and process restarts on upgrade reset the map.
+	locks sync.Map // deploymentID (string) -> *sync.Mutex
 }
 
 func NewZipManager(download DownloadFunc) *ZipManager {
-	return &ZipManager{
-		cache:    map[string]*Zip{},
-		download: download,
+	return &ZipManager{download: download}
+}
+
+func (zm *ZipManager) didLock(did string) *sync.Mutex {
+	if v, ok := zm.locks.Load(did); ok {
+		return v.(*sync.Mutex)
 	}
+
+	actual, _ := zm.locks.LoadOrStore(did, &sync.Mutex{})
+
+	return actual.(*sync.Mutex)
 }
 
 func (zm *ZipManager) folderDoesNotExist(folder string) bool {
@@ -78,33 +111,63 @@ func (zm *ZipManager) folderDoesNotExist(folder string) bool {
 	return os.IsNotExist(err)
 }
 
-// GetFile return a file for the given deployment and location. The location is
-// the fully qualified location name (e.g. aws:/bucket-name/key-prefix)
-// This method will download the zip if necessary. The downloader function is configured
-// when calling the `NewZipManager` method.
+// GetFile returns a file for the given deployment. The location is the fully
+// qualified location name in the form "aws:<bucket>/<key-prefix>".
+//
+// Flow:
+//  1. Acquire the per-deployment lock.
+//  2. Check the cache; download the zip on a miss. Other readers of the
+//     same deployment wait. Different deployments are independent.
+//  3. Reset the inactivity timer.
+//  4. Release the lock and read the file with no lock held — large reads
+//     do not block other readers of the same deployment.
 func (zm *ZipManager) GetFile(args GetFileArgs) (*GetFileResult, error) {
-	zm.mux.Lock()
-	defer zm.mux.Unlock()
-
-	var err error
-
 	did := args.DeploymentID.String()
 	pieces := strings.Split(strings.TrimPrefix(args.Location, "aws:"), "/")
 	bucket := pieces[0]
-	prefix := filepath.Join(pieces[1:]...) // Relative path
+	prefix := filepath.Join(pieces[1:]...)
 
-	if zm.cache[did] == nil || zm.folderDoesNotExist(zm.cache[did].Location) {
-		zm.cache[did] = NewZip(did, zm)
-		zm.cache[did].Location, err = zm.download(did, bucket, prefix)
+	lock := zm.didLock(did)
+	lock.Lock()
 
-		if err != nil {
-			return nil, err
+	var z *Zip
+
+	if v, ok := zm.cache.Load(did); ok {
+		z = v.(*Zip)
+
+		if zm.folderDoesNotExist(z.Location) {
+			z = nil
 		}
 	}
 
-	zm.cache[did].timer.Reset(removeAfterInactivity)
+	if z == nil {
+		z = NewZip(did, zm)
 
-	filePath := path.Join(zm.cache[did].Location, args.FileName)
+		loc, err := zm.download(did, bucket, prefix)
+
+		if err != nil {
+			z.timer.Stop()
+			lock.Unlock()
+			return nil, err
+		}
+
+		z.Location = loc
+		zm.cache.Store(did, z)
+	}
+
+	z.timer.Reset(removeAfterInactivity)
+	location := z.Location
+	lock.Unlock()
+
+	filePath := filepath.Join(location, args.FileName)
+
+	// Defense in depth: reject paths that escape the deployment directory.
+	rel, err := filepath.Rel(location, filePath)
+
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return nil, fmt.Errorf("file path %q escapes deployment directory", args.FileName)
+	}
+
 	data, err := os.ReadFile(filePath)
 
 	if err != nil {

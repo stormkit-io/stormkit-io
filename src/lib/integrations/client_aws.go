@@ -30,7 +30,7 @@ type AWSClient struct {
 	uploader       *manager.Uploader
 	downloader     *manager.Downloader
 	zipManager     *ZipManager
-	mux            sync.Mutex
+	zipOnce        sync.Once
 	providerPrefix string
 }
 
