@@ -15,7 +15,7 @@ type AdminDomainsSetRequest struct {
 }
 
 func handlerAdminDomainsSet(req *user.RequestContext) *shttp.Response {
-	cnf := admin.MustConfig()
+	cnf := admin.MustConfig().Clone()
 	data := AdminDomainsSetRequest{}
 
 	if err := req.Post(&data); err != nil {

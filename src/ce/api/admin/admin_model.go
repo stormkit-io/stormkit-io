@@ -208,6 +208,99 @@ func (c InstanceConfig) Value() (driver.Value, error) {
 	return json.Marshal(c)
 }
 
+// Clone returns a deep copy of vc such that the result can be mutated without
+// affecting the cached value returned by Config / MustConfig. Every pointer
+// field is duplicated, and every nested reference type (maps and slices) that
+// a caller could conceivably mutate is duplicated as well. Callers must invoke
+// this before editing any nested field of an InstanceConfig obtained from
+// Config or MustConfig.
+//
+// If you add a new reference-typed field (map, slice, channel, pointer) to
+// any of the sub-configs below, also duplicate it here — otherwise the cached
+// value will be mutated via the shared reference and concurrent readers will
+// race.
+func (vc InstanceConfig) Clone() InstanceConfig {
+	out := vc
+
+	if vc.AdminUserConfig != nil {
+		v := *vc.AdminUserConfig
+		out.AdminUserConfig = &v
+	}
+
+	if vc.VolumesConfig != nil {
+		v := *vc.VolumesConfig
+		out.VolumesConfig = &v
+	}
+
+	if vc.WorkerserverConfig != nil {
+		v := *vc.WorkerserverConfig
+		out.WorkerserverConfig = &v
+	}
+
+	if vc.SystemConfig != nil {
+		v := *vc.SystemConfig
+
+		if vc.SystemConfig.Runtimes != nil {
+			v.Runtimes = append([]string(nil), vc.SystemConfig.Runtimes...)
+		}
+
+		out.SystemConfig = &v
+	}
+
+	if vc.ProxyConfig != nil {
+		v := *vc.ProxyConfig
+
+		if vc.ProxyConfig.Rules != nil {
+			rules := make(map[string]*ProxyRule, len(vc.ProxyConfig.Rules))
+
+			for k, r := range vc.ProxyConfig.Rules {
+				if r == nil {
+					rules[k] = nil
+					continue
+				}
+
+				rc := *r
+
+				if r.Headers != nil {
+					rc.Headers = make(map[string]string, len(r.Headers))
+
+					for hk, hv := range r.Headers {
+						rc.Headers[hk] = hv
+					}
+				}
+
+				rules[k] = &rc
+			}
+
+			v.Rules = rules
+		}
+
+		out.ProxyConfig = &v
+	}
+
+	if vc.LicenseConfig != nil {
+		v := *vc.LicenseConfig
+		out.LicenseConfig = &v
+	}
+
+	if vc.AuthConfig != nil {
+		v := *vc.AuthConfig
+
+		if vc.AuthConfig.UserManagement.Whitelist != nil {
+			v.UserManagement.Whitelist = append([]string(nil), vc.AuthConfig.UserManagement.Whitelist...)
+		}
+
+		out.AuthConfig = &v
+	}
+
+	if vc.DomainConfig != nil {
+		v := *vc.DomainConfig
+		out.DomainConfig = &v
+	}
+
+	return out
+}
+
 func (vc InstanceConfig) IsEmpty() bool {
 	return vc.VolumesConfig == nil
 }
@@ -342,23 +435,18 @@ func (vc InstanceConfig) SetURL(domain string) {
 		return
 	}
 
-	if vc.DomainConfig == nil {
-		vc.DomainConfig = &DomainConfig{}
+	next := MustConfig().Clone()
+
+	if next.DomainConfig == nil {
+		next.DomainConfig = &DomainConfig{}
 	}
 
-	vc.DomainConfig.App = fmt.Sprintf("%s://stormkit.%s", parsed.Scheme, parsed.Host)
-	vc.DomainConfig.API = fmt.Sprintf("%s://api.%s", parsed.Scheme, parsed.Host)
-	vc.DomainConfig.Dev = fmt.Sprintf("%s://%s", parsed.Scheme, parsed.Host)
-	vc.DomainConfig.Health = fmt.Sprintf("%s://health.%s", parsed.Scheme, parsed.Host)
+	next.DomainConfig.App = fmt.Sprintf("%s://stormkit.%s", parsed.Scheme, parsed.Host)
+	next.DomainConfig.API = fmt.Sprintf("%s://api.%s", parsed.Scheme, parsed.Host)
+	next.DomainConfig.Dev = fmt.Sprintf("%s://%s", parsed.Scheme, parsed.Host)
+	next.DomainConfig.Health = fmt.Sprintf("%s://health.%s", parsed.Scheme, parsed.Host)
 
-	cachedConfigMux.Lock()
-
-	if cachedConfig == nil {
-		cachedConfig = &vc
-	}
-
-	cachedConfig.DomainConfig = vc.DomainConfig
-	cachedConfigMux.Unlock()
+	SetConfig(&next)
 }
 
 // PreviewURL returns the fully qualified api for the dev endpoint.

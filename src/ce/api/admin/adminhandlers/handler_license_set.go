@@ -38,6 +38,8 @@ func handlerLicenseSet(req *user.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
+	cnf = cnf.Clone()
+
 	if cnf.LicenseConfig == nil {
 		cnf.LicenseConfig = &admin.LicenseConfig{}
 	}
