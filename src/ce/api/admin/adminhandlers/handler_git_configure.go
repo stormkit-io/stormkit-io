@@ -41,6 +41,8 @@ func handlerGitConfigure(req *user.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
+	cnf = cnf.Clone()
+
 	if cnf.AuthConfig == nil {
 		cnf.AuthConfig = &admin.AuthConfig{}
 	}

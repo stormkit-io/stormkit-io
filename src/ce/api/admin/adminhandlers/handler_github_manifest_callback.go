@@ -63,6 +63,8 @@ func handlerGitHubManifestCallback(req *shttp.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
+	cnf = cnf.Clone()
+
 	if cnf.AuthConfig == nil {
 		cnf.AuthConfig = &admin.AuthConfig{}
 	}

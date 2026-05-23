@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/database"
@@ -222,7 +223,10 @@ type Config struct {
 	DbConfigTimeouts  *DbConfigTimeouts
 }
 
-var c *Config
+var (
+	cPtr     atomic.Pointer[Config]
+	cInitMux sync.Mutex
+)
 
 func init() {
 	if root := os.Getenv("STORMKIT_PROJECT_ROOT"); root != "" {
@@ -416,35 +420,43 @@ func New() *Config {
 	return config
 }
 
-var cnfMutex sync.Mutex
-
-// Get returns the config object.
+// Get returns the config object. Reads are lock-free via atomic.Pointer;
+// only the one-time lazy initialization takes a mutex.
 func Get() *Config {
-	cnfMutex.Lock()
-	defer cnfMutex.Unlock()
-
-	if c == nil {
-		Set(New())
-
-		slog.Infof("stormkit environment: %s", c.Env)
-		slog.Infof("stormkit version: %s", c.Version)
-		slog.Infof("stormkit edition: %v", edition)
+	if cfg := cPtr.Load(); cfg != nil {
+		return cfg
 	}
 
-	return c
+	cInitMux.Lock()
+	defer cInitMux.Unlock()
+
+	if cfg := cPtr.Load(); cfg != nil {
+		return cfg
+	}
+
+	cfg := validate(New())
+	utils.SetAppKey([]byte(AppSecret()))
+	cPtr.Store(cfg)
+
+	slog.Infof("stormkit environment: %s", cfg.Env)
+	slog.Infof("stormkit version: %s", cfg.Version)
+	slog.Infof("stormkit edition: %v", edition)
+
+	return cfg
 }
 
 // Set enables manipulating the Config package.
 func Set(config *Config) *Config {
-	c = validate(config)
+	cfg := validate(config)
 	utils.SetAppKey([]byte(AppSecret()))
+	cPtr.Store(cfg)
 
-	return c
+	return cfg
 }
 
 // Reset resets the config.
 func Reset() {
-	c = nil
+	cPtr.Store(nil)
 }
 
 // SetSMTP overrides the SMTP config. Intended for tests only.
@@ -453,7 +465,10 @@ func SetSMTP(smtp *SMTPConfig) {
 		panic("SetSMTP can only be used in test environments")
 	}
 
-	Get().SMTP = smtp
+	cur := Get()
+	next := *cur
+	next.SMTP = smtp
+	cPtr.Store(&next)
 }
 
 var _cachedSecrets map[string]string

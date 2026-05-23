@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/database"
@@ -57,10 +58,13 @@ func Store() *store {
 	}
 }
 
-var cachedConfig *InstanceConfig
-var cachedConfigMux = &sync.Mutex{}
+var cachedConfig atomic.Pointer[InstanceConfig]
 
 // MustConfig is like Config but logs an error if it fails.
+//
+// The returned InstanceConfig shares its pointer fields (AuthConfig,
+// DomainConfig, LicenseConfig, ...) with the cached canonical value. Callers
+// that intend to mutate any of these fields must call Clone() first.
 func MustConfig() InstanceConfig {
 	cnf, err := Store().Config(context.Background())
 
@@ -74,14 +78,14 @@ func MustConfig() InstanceConfig {
 var once sync.Once
 
 // Config returns the Volume Configuration for the given Stormkit instance.
+// The returned struct shares pointer fields with the cache; callers that want
+// to mutate must Clone() first. See MustConfig for the same contract.
 func (s *store) Config(ctx context.Context) (InstanceConfig, error) {
-	cachedConfigMux.Lock()
-	cnf := cachedConfig
-	cachedConfigMux.Unlock()
-
-	if cnf != nil {
+	if cnf := cachedConfig.Load(); cnf != nil {
 		return *cnf, nil
 	}
+
+	var cnf *InstanceConfig
 
 	row, err := s.QueryRow(ctx, stmt.selectConfig)
 
@@ -200,9 +204,7 @@ func (s *store) Config(ctx context.Context) (InstanceConfig, error) {
 		}
 	}
 
-	cachedConfigMux.Lock()
-	cachedConfig = cnf
-	cachedConfigMux.Unlock()
+	cachedConfig.Store(cnf)
 
 	return *cnf, nil
 }
@@ -260,9 +262,7 @@ func ResetCache(ctx context.Context, payload ...string) {
 		Level: slog.DL2,
 	})
 
-	cachedConfigMux.Lock()
-	cachedConfig = nil
-	cachedConfigMux.Unlock()
+	cachedConfig.Store(nil)
 
 	ResetLicense()
 }
@@ -274,9 +274,7 @@ func SetConfig(cnf *InstanceConfig) {
 		panic("admin.SetConfig can only be used in tests")
 	}
 
-	cachedConfigMux.Lock()
-	cachedConfig = cnf
-	cachedConfigMux.Unlock()
+	cachedConfig.Store(cnf)
 }
 
 func GetParsedURL(candidates ...string) *url.URL {

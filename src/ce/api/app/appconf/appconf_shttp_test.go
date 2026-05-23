@@ -38,7 +38,7 @@ func (s *ShttpSuite) AfterTest(_, _ string) {
 }
 
 func (s *ShttpSuite) Test_IsStormkitDev() {
-	admin.MustConfig().DomainConfig.Dev = "http://stormkit:8888"
+	{ cnf := admin.MustConfig().Clone(); cnf.DomainConfig.Dev = "http://stormkit:8888"; admin.SetConfig(&cnf) }
 
 	s.True(appconf.IsStormkitDev("my-app--1868181.stormkit:8888"))
 	s.True(appconf.IsStormkitDev("my-app.stormkit:8888"))
@@ -46,7 +46,7 @@ func (s *ShttpSuite) Test_IsStormkitDev() {
 	s.False(appconf.IsStormkitDev("my-app.com"))
 	s.False(appconf.IsStormkitDev("stormkit:8888"))
 
-	admin.MustConfig().DomainConfig.Dev = "http://stormkit.dev"
+	{ cnf := admin.MustConfig().Clone(); cnf.DomainConfig.Dev = "http://stormkit.dev"; admin.SetConfig(&cnf) }
 
 	s.True(appconf.IsStormkitDev("my-app--1868181.stormkit.dev"))
 	s.True(appconf.IsStormkitDev("my-app.stormkit.dev"))
@@ -56,7 +56,7 @@ func (s *ShttpSuite) Test_IsStormkitDev() {
 }
 
 func (s *ShttpSuite) Test_ParseHost() {
-	admin.MustConfig().DomainConfig.Dev = "http://stormkit.dev"
+	{ cnf := admin.MustConfig().Clone(); cnf.DomainConfig.Dev = "http://stormkit.dev"; admin.SetConfig(&cnf) }
 
 	customDomains := []string{
 		"dev.app",
@@ -96,13 +96,13 @@ func (s *ShttpSuite) Test_ParseHost() {
 }
 
 func (s *ShttpSuite) Test_IsStormkitDevStrict() {
-	admin.MustConfig().DomainConfig.Dev = "http://stormkit:8888"
+	{ cnf := admin.MustConfig().Clone(); cnf.DomainConfig.Dev = "http://stormkit:8888"; admin.SetConfig(&cnf) }
 	s.False(appconf.IsStormkitDevStrict("my-app--1868181.stormkit:8888"))
 	s.True(appconf.IsStormkitDevStrict("stormkit:8888"))
 }
 
 func (s *ShttpSuite) Test_FetchAppConf_ByDisplayName() {
-	admin.MustConfig().DomainConfig.Dev = "http://stormkit:8888"
+	{ cnf := admin.MustConfig().Clone(); cnf.DomainConfig.Dev = "http://stormkit:8888"; admin.SetConfig(&cnf) }
 
 	usr := s.MockUser()
 	apl := s.MockApp(usr, map[string]any{"DisplayName": "my-app"})
