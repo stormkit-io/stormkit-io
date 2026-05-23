@@ -1,5 +1,18 @@
 # Changelog
 
+## v2026.05.23.1...v2026.05.23.2
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.23.1...v2026.05.23.2)
+
+### 🏡 Chore
+
+- Update changelog for v2026.05.23.1 ([#256](https://github.com/stormkit-io/stormkit-io/pull/256))
+- Log slow requests at debug level ([#257](https://github.com/stormkit-io/stormkit-io/pull/257))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.05.21.2...v2026.05.23.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.21.2...v2026.05.23.1)
