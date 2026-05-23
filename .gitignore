@@ -52,3 +52,5 @@ release/
 bin/
 
 .overmind.sock
+
+.claude/
