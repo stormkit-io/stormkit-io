@@ -92,6 +92,29 @@ func (s *ZipManagerSuite) Test_Download_NotFound() {
 	s.Nil(file)
 }
 
+// Test_PathTraversal_Rejected verifies that a fileName containing ".."
+// segments cannot escape the deployment directory.
+func (s *ZipManagerSuite) Test_PathTraversal_Rejected() {
+	zipManager := integrations.NewZipManager(func(deploymentID, bucketname, keyprefix string) (string, error) {
+		return s.createFiles(), nil
+	})
+
+	_, err := zipManager.GetFile(integrations.GetFileArgs{
+		Location:     "my-bucket/my-key-prefix",
+		FileName:     "/index.html",
+		DeploymentID: types.ID(10),
+	})
+	s.NoError(err)
+
+	f, err := zipManager.GetFile(integrations.GetFileArgs{
+		Location:     "my-bucket/my-key-prefix",
+		FileName:     "../../../etc/passwd",
+		DeploymentID: types.ID(10),
+	})
+	s.Error(err)
+	s.Nil(f)
+}
+
 func TestZipManager(t *testing.T) {
 	suite.Run(t, &ZipManagerSuite{})
 }
