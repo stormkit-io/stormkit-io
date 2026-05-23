@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/lib/html"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/shutdown"
@@ -198,6 +199,10 @@ func (pm *ProcessManager) QueueLog(args *InvokeArgs, data string) {
 }
 
 func hasNixFlake(workDir string) bool {
+	if !admin.MustConfig().IsAutoInstallEnabled() {
+		return false
+	}
+
 	return file.Exists(path.Join(workDir, "flake.nix"))
 }
 

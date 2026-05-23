@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
@@ -123,7 +124,10 @@ func (dd *DefaultDeployer) Deploy(ctx context.Context, a *app.App, d *deploy.Dep
 			),
 		},
 
-		Config: config.Get().Runner,
+		Config: &RunnerSettings{
+			RunnerConfig: *config.Get().Runner,
+			AutoInstall:  admin.MustConfig().IsAutoInstallEnabled(),
+		},
 	}
 
 	queue := tasks.QueueDeployService

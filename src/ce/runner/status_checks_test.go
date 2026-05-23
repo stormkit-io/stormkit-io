@@ -28,9 +28,10 @@ func (s *StatusChecksSuite) BeforeTest(_, _ string) {
 	s.NoError(err)
 
 	s.config = runner.RunnerOpts{
-		Reporter: runner.NewReporter("https://example.com"),
-		RootDir:  tmpDir,
-		WorkDir:  path.Join(tmpDir, "repo"),
+		Reporter:    runner.NewReporter("https://example.com"),
+		RootDir:     tmpDir,
+		WorkDir:     path.Join(tmpDir, "repo"),
+		AutoInstall: true,
 		Build: runner.BuildOpts{
 			EnvVars: map[string]string{
 				"NODE_ENV": "production",

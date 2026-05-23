@@ -310,6 +310,13 @@ func (vc InstanceConfig) IsAuthEnabled() bool {
 	return vc.IsGithubEnabled() || vc.IsGitlabEnabled() || vc.IsBitbucketEnabled()
 }
 
+// IsAutoInstallEnabled returns whether the runner should automatically install
+// runtime dependencies (mise/flake.nix). Defaults to true when SystemConfig is
+// unset.
+func (vc InstanceConfig) IsAutoInstallEnabled() bool {
+	return vc.SystemConfig == nil || vc.SystemConfig.AutoInstall
+}
+
 // IsBitbucketEnabled returns whether the Bitbucket auth config is enabled or not.
 func (vc InstanceConfig) IsBitbucketEnabled() bool {
 	if vc.AuthConfig == nil {

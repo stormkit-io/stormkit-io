@@ -33,9 +33,10 @@ func (s *InstallerSuite) BeforeTest(_, _ string) {
 	s.NoError(err)
 
 	s.config = runner.RunnerOpts{
-		RootDir:  tmpDir,
-		WorkDir:  path.Join(tmpDir, "repo"),
-		Reporter: runner.NewReporter("http://example.com"),
+		RootDir:     tmpDir,
+		WorkDir:     path.Join(tmpDir, "repo"),
+		Reporter:    runner.NewReporter("http://example.com"),
+		AutoInstall: true,
 		Build: runner.BuildOpts{
 			EnvVars: map[string]string{},
 		},

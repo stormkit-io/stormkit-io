@@ -109,12 +109,13 @@ func (s *DeploySuite) Test_Deployment() {
 				"STORMKIT":          "true",
 			},
 		},
-		Config: &config.RunnerConfig{
-			Provider:      "filesys",
-			Concurrency:   0,
-			MaxGoRoutines: 25,
-		},
-		Canary: nil,
+		Config: func() *deployservice.RunnerSettings {
+			// Concurrency is `json:"-"` so it doesn't round-trip through the
+			// encrypted payload — zero it out on the expected value.
+			rc := *config.Get().Runner
+			rc.Concurrency = 0
+			return &deployservice.RunnerSettings{RunnerConfig: rc, AutoInstall: true}
+		}(),
 	}, message)
 
 	// Should also insert into database

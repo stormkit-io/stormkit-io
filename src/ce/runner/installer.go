@@ -76,6 +76,7 @@ type Installer struct {
 	hasPackageLockFile bool
 	runtime            string // The runtime that is going to be used to build the project
 	envVars            map[string]string
+	autoInstall        bool
 }
 
 // For testing purposes
@@ -99,6 +100,7 @@ func NewInstaller(opts RunnerOpts) InstallerInterface {
 		isYarn:             opts.Repo.IsYarn,
 		isBun:              opts.Repo.IsBun,
 		runtime:            opts.Repo.Runtime,
+		autoInstall:        opts.AutoInstall,
 	}
 
 	return p
@@ -157,6 +159,10 @@ func (p *Installer) installFlake(ctx context.Context, flakeDir string) error {
 
 // InstallRuntimeDependencies installs runtime dependencies using mise and flake.nix (if present).
 func (p *Installer) InstallRuntimeDependencies(ctx context.Context) ([]string, error) {
+	if !p.autoInstall {
+		return nil, nil
+	}
+
 	p.reporter.AddStep("install runtimes")
 
 	m := mise.Client()

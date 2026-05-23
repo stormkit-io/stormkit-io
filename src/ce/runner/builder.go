@@ -35,7 +35,8 @@ type Builder struct {
 	distDir     string
 	apiDir      string // Path to api dir
 	packageMngr string
-	envVars map[string]string
+	envVars     map[string]string
+	autoInstall bool
 	reporter    *ReporterModel
 }
 
@@ -54,7 +55,8 @@ func NewBuilder(opts RunnerOpts) BuilderInterface {
 		cmd:         opts.Build.BuildCmd,
 		distDir:     opts.Build.DistFolder,
 		apiDir:      opts.Build.APIFolder,
-		envVars: opts.Build.EnvVars,
+		envVars:     opts.Build.EnvVars,
+		autoInstall: opts.AutoInstall,
 		reporter:    opts.Reporter,
 	}
 
@@ -87,7 +89,13 @@ func (bm Builder) ExecCommands(ctx context.Context) error {
 		Stderr: bm.reporter.File(),
 	}
 
-	if flakeDir := nixFlakeDir(bm.workDir, bm.repoDir); flakeDir != "" {
+	flakeDir := ""
+
+	if bm.autoInstall {
+		flakeDir = nixFlakeDir(bm.workDir, bm.repoDir)
+	}
+
+	if flakeDir != "" {
 		opts.Name = "nix"
 		opts.Dir = flakeDir
 		opts.Args = []string{"--extra-experimental-features", "nix-command flakes", "develop", "--command", "sh", "-c", bm.cmd}
@@ -117,7 +125,7 @@ func (bm Builder) BuildApiIfNecessary(ctx context.Context) (bool, error) {
 		APIDir:         bm.apiDir,
 		OutputDir:      filepath.Join(".stormkit", "api"),
 		PackageManager: bm.packageMngr,
-		EnvVarsMap: bm.envVars,
+		EnvVarsMap:     bm.envVars,
 		Reporter:       bm.reporter,
 	})
 

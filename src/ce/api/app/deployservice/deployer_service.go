@@ -107,9 +107,15 @@ type DeploymentMessage struct {
 	// Build is the configuration regarding the deployment.
 	Build BuildConfig `json:"build"`
 
-	Config *config.RunnerConfig `json:"config"`
+	Config *RunnerSettings `json:"config"`
+}
 
-	Canary *bool `json:"canary,omitempty"`
+// RunnerSettings extends config.RunnerConfig with runtime-only fields that the
+// API derives at deploy time (e.g. system-wide flags from admin config).
+type RunnerSettings struct {
+	config.RunnerConfig
+
+	AutoInstall bool `json:"autoInstall"`
 }
 
 // NewDeploy returns a new Deployment object.
