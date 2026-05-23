@@ -330,7 +330,7 @@ func New() *Config {
 		Tracking: &TrackingConfig{
 			Prometheus:             isTrueString(os.Getenv("PROMETHEUS_METRICS")),
 			PrometheusPort:         get(os.Getenv("PROMETHEUS_PORT"), "2112"),
-			SlowRequestThresholdMs: getInt(os.Getenv("STORMKIT_SLOW_REQUEST_THRESHOLD_MS"), 1000),
+			SlowRequestThresholdMs: getInt(os.Getenv("STORMKIT_SLOW_REQUEST_THRESHOLD_MS"), 0),
 		},
 
 		Env:       Env(),
