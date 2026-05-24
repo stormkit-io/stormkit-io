@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.05.23.3...v2026.05.23.4
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.23.3...v2026.05.23.4)
+
+### 🔥 Performance
+
+- Lock-free ZipManager ([#259](https://github.com/stormkit-io/stormkit-io/pull/259))
+
+### 🏡 Chore
+
+- Update changelog for v2026.05.23.3 ([#260](https://github.com/stormkit-io/stormkit-io/pull/260))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.05.23.2...v2026.05.23.3
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.23.2...v2026.05.23.3)
