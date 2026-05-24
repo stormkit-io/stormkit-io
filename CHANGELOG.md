@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.05.23.4...v2026.05.24.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.23.4...v2026.05.24.1)
+
+### 🔥 Performance
+
+- Skip client-body timeout wrapping for bodyless requests ([#262](https://github.com/stormkit-io/stormkit-io/pull/262))
+
+### 🏡 Chore
+
+- Update changelog for v2026.05.23.4 ([#261](https://github.com/stormkit-io/stormkit-io/pull/261))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.05.23.3...v2026.05.23.4
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.23.3...v2026.05.23.4)
