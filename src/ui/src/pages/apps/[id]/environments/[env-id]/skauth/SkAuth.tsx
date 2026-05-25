@@ -198,11 +198,17 @@ export default function SkAuth() {
           setSaving(true);
           setSaveError(undefined);
 
+          const allowedOrigins = ((data.get("allowedOrigins") as string) || "")
+            .split("\n")
+            .map(line => line.trim())
+            .filter(Boolean);
+
           saveConfig({
             envId: env.id!,
             successUrl: (data.get("successUrl") as string) || "",
             tokenTtl: Number(data.get("tokenTtl") || 0),
             status: true,
+            allowedOrigins,
           })
             .then(() => {
               setSuccess("Settings saved successfully");
@@ -246,6 +252,26 @@ export default function SkAuth() {
             variant="filled"
             autoComplete="off"
             helperText="Token lifetime in minutes"
+            slotProps={{
+              inputLabel: {
+                shrink: true,
+              },
+            }}
+          />
+        </Box>
+
+        <Box sx={{ mb: 4 }}>
+          <TextField
+            label="Allowed origins"
+            name="allowedOrigins"
+            placeholder={"https://app.example.com\nhttps://dev.example.com"}
+            fullWidth
+            multiline
+            minRows={3}
+            defaultValue={(config?.allowedOrigins || []).join("\n")}
+            variant="filled"
+            autoComplete="off"
+            helperText="Optional. One origin per line (scheme + host, no path). When set, the magic-link POST endpoint only accepts requests from these origins, and the email link redirects the user back to the origin that initiated the flow (with the session token in the URL fragment as #skauth=…). Leave empty to keep the single-host behaviour."
             slotProps={{
               inputLabel: {
                 shrink: true,
