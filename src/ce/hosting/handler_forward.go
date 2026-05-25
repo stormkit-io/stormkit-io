@@ -12,6 +12,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
 	jobs "github.com/stormkit-io/stormkit-io/src/ce/workerserver"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/analytics"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
@@ -643,6 +644,23 @@ func injectHeaders(req *RequestContext, res *shttp.Response) *shttp.Response {
 	// If we're here, it probably means that the dynamic request returned no content.
 	if res.Headers.Get("content-type") == "" {
 		res.Headers.Set("content-type", "text/html; charset=utf-8")
+	}
+
+	// Apply user-configured custom headers last so they take precedence over
+	// any defaults set above. Matches against the request URL path so the
+	// same rules cover static, dynamic, SSR and proxied responses. An empty
+	// value (e.g. the `!Header-Name` negate syntax in _headers) removes the
+	// header rather than emitting it with an empty value.
+	if len(req.Host.Config.CustomHeaders) > 0 {
+		overrides := deploy.ApplyHeaders(strings.ToLower(req.URL().Path), nil, req.Host.Config.CustomHeaders)
+
+		for k, v := range overrides {
+			if v == "" {
+				res.Headers.Del(k)
+			} else {
+				res.Headers.Set(k, v)
+			}
+		}
 	}
 
 	return res

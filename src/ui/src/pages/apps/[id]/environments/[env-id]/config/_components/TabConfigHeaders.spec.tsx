@@ -39,7 +39,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabConfigHe
     expect(wrapper.getByText("Headers")).toBeTruthy();
     expect(
       wrapper.getByText(
-        "Configure your application's headers for static files."
+        "Configure response headers. Rules match against the request path and apply to static, SSR and proxied responses."
       )
     ).toBeTruthy();
 

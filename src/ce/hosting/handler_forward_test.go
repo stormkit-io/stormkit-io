@@ -296,6 +296,153 @@ func (s *HandlerForwardSuite) Test_ServeDynamic_ServerCmd() {
 	s.Equal("1", res.Headers.Get("x-sk-version"))
 }
 
+func (s *HandlerForwardSuite) Test_CustomHeaders_AppliedToDynamic() {
+	customHeaders, err := deploy.ParseHeaders("/api/*\nAccess-Control-Allow-Origin: *\nX-Custom: yes")
+	s.NoError(err)
+
+	host := &hosting.Host{
+		Name: "www.stormkit.io",
+		Request: &shttp.RequestContext{
+			Request: &http.Request{},
+		},
+		Config: &appconf.Config{
+			DeploymentID:     types.ID(1),
+			EnvID:            types.ID(1),
+			AppID:            types.ID(2),
+			FunctionLocation: "local:my-function/10",
+			ServerCmd:        "node index.js",
+			CustomHeaders:    customHeaders,
+		},
+	}
+
+	req := s.newRequest(host, "/api/users")
+
+	s.mockClient.On("Invoke", mock.Anything).Return(&integrations.InvokeResult{
+		Headers:    http.Header{"Content-Type": []string{"application/json"}},
+		StatusCode: http.StatusOK,
+		Body:       []byte(`{}`),
+	}, nil)
+
+	res := hosting.HandlerForward(req)
+
+	s.Equal(http.StatusOK, res.Status)
+	s.Equal("*", res.Headers.Get("Access-Control-Allow-Origin"))
+	s.Equal("yes", res.Headers.Get("X-Custom"))
+	s.Equal("application/json", res.Headers.Get("Content-Type"))
+}
+
+func (s *HandlerForwardSuite) Test_CustomHeaders_AppliedToStatic() {
+	customHeaders, err := deploy.ParseHeaders("/*\nX-Frame-Options: DENY")
+	s.NoError(err)
+
+	host := &hosting.Host{
+		Name: "www.stormkit.io",
+		Request: &shttp.RequestContext{
+			Request: &http.Request{},
+		},
+		Config: &appconf.Config{
+			DeploymentID:    types.ID(1),
+			EnvID:           types.ID(1),
+			StorageLocation: "local:/deployments/deployment-1",
+			StaticFiles: appconf.StaticFileConfig{
+				"/blog/index.html": &appconf.StaticFile{
+					FileName: "/blog/index.html",
+					Headers: map[string]string{
+						"content-type": "text/html; charset=utf-8",
+					},
+				},
+			},
+			CustomHeaders: customHeaders,
+		},
+	}
+
+	req := s.newRequest(host, "/blog")
+
+	s.mockClient.On("GetFile", integrations.GetFileArgs{
+		Location:     "local:/deployments/deployment-1",
+		FileName:     "/blog/index.html",
+		DeploymentID: types.ID(1),
+	}).Return(&integrations.GetFileResult{
+		Content: []byte("Hello world"),
+	}, nil)
+
+	res := hosting.HandlerForward(req)
+
+	s.Equal(http.StatusOK, res.Status)
+	s.Equal("DENY", res.Headers.Get("X-Frame-Options"))
+}
+
+func (s *HandlerForwardSuite) Test_CustomHeaders_EmptyValueDeletes() {
+	customHeaders, err := deploy.ParseHeaders("/*\n!X-Powered-By")
+	s.NoError(err)
+
+	host := &hosting.Host{
+		Name: "www.stormkit.io",
+		Request: &shttp.RequestContext{
+			Request: &http.Request{},
+		},
+		Config: &appconf.Config{
+			DeploymentID:     types.ID(1),
+			EnvID:            types.ID(1),
+			AppID:            types.ID(2),
+			FunctionLocation: "local:my-function/10",
+			ServerCmd:        "node index.js",
+			CustomHeaders:    customHeaders,
+		},
+	}
+
+	req := s.newRequest(host, "/")
+
+	returnHeaders := make(http.Header)
+	returnHeaders.Set("Content-Type", "text/html")
+	returnHeaders.Set("X-Powered-By", "Express")
+
+	s.mockClient.On("Invoke", mock.Anything).Return(&integrations.InvokeResult{
+		Headers:    returnHeaders,
+		StatusCode: http.StatusOK,
+		Body:       []byte(``),
+	}, nil)
+
+	res := hosting.HandlerForward(req)
+
+	s.Equal(http.StatusOK, res.Status)
+	_, present := res.Headers["X-Powered-By"]
+	s.False(present, "X-Powered-By should be removed, not emitted with empty value")
+}
+
+func (s *HandlerForwardSuite) Test_CustomHeaders_LocationDoesNotMatch() {
+	customHeaders, err := deploy.ParseHeaders("/api/*\nX-Custom: yes")
+	s.NoError(err)
+
+	host := &hosting.Host{
+		Name: "www.stormkit.io",
+		Request: &shttp.RequestContext{
+			Request: &http.Request{},
+		},
+		Config: &appconf.Config{
+			DeploymentID:     types.ID(1),
+			EnvID:            types.ID(1),
+			AppID:            types.ID(2),
+			FunctionLocation: "local:my-function/10",
+			ServerCmd:        "node index.js",
+			CustomHeaders:    customHeaders,
+		},
+	}
+
+	req := s.newRequest(host, "/not-api/users")
+
+	s.mockClient.On("Invoke", mock.Anything).Return(&integrations.InvokeResult{
+		Headers:    http.Header{"Content-Type": []string{"application/json"}},
+		StatusCode: http.StatusOK,
+		Body:       []byte(`{}`),
+	}, nil)
+
+	res := hosting.HandlerForward(req)
+
+	s.Equal(http.StatusOK, res.Status)
+	s.Equal("", res.Headers.Get("X-Custom"))
+}
+
 func (s *HandlerForwardSuite) Test_Redirects_Rewrite() {
 	s.mockClient.On("GetFile", integrations.GetFileArgs{
 		Location: "aws:my-bucket/my-key-prefix",

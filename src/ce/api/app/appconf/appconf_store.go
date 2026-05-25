@@ -361,6 +361,7 @@ func rowsToConfigs(rows *sql.Rows, err error) ([]*Config, error) {
 				}
 			}
 
+			cnf.CustomHeaders = customHeaders
 			cnf.Redirects = data.Redirects
 			cnf.ServerCmd = data.ServerCmd
 			cnf.ErrorFile = data.ErrorFile
@@ -387,14 +388,14 @@ func rowsToConfigs(rows *sql.Rows, err error) ([]*Config, error) {
 			// Backwards compatibility
 			for _, v := range buildManifest.CDNFiles {
 				staticFiles["/"+strings.TrimPrefix(strings.ToLower(v.Name), "/")] = &StaticFile{
-					Headers:  deploy.ApplyHeaders(v.Name, NormalizeHeaders(v.Name, v.Headers), customHeaders),
+					Headers:  NormalizeHeaders(v.Name, v.Headers),
 					FileName: v.Name,
 				}
 			}
 
 			for k, v := range buildManifest.StaticFiles {
 				staticFiles[strings.ToLower(k)] = &StaticFile{
-					Headers:  deploy.ApplyHeaders(k, v, customHeaders),
+					Headers:  v,
 					FileName: k,
 				}
 			}
