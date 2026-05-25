@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.05.25.2...v2026.05.25.3
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.25.2...v2026.05.25.3)
+
+### 🩹 Fixes
+
+- Apply custom headers to middleware-returned responses ([#271](https://github.com/stormkit-io/stormkit-io/pull/271))
+
+### 🏡 Chore
+
+- Update changelog for v2026.05.25.2 ([#270](https://github.com/stormkit-io/stormkit-io/pull/270))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.05.25.1...v2026.05.25.2
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.25.1...v2026.05.25.2)
