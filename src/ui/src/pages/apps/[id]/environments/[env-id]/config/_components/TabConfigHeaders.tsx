@@ -51,7 +51,7 @@ export default function TabConfigGeneral({
     >
       <CardHeader
         title="Headers"
-        subtitle="Configure your application's headers for static files."
+        subtitle="Configure response headers. Rules match against the request path and apply to static, SSR and proxied responses."
       />
       <Box sx={{ mb: 4 }}>
         <TextField

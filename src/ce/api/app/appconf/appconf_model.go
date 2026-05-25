@@ -2,6 +2,7 @@ package appconf
 
 import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/redirects"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
@@ -35,6 +36,7 @@ type Config struct {
 	CertValue        string                `json:"certValue,omitempty"`
 	DomainID         types.ID              `json:"domainId,omitempty"`
 	StaticFiles      StaticFileConfig      `json:"staticFiles,omitempty"`
+	CustomHeaders    []deploy.CustomHeader `json:"-"` // Parsed user-configured header rules; matched against request path at response time.
 	SKAuth           *buildconf.SKAuthConf `json:"-"`
 	AuthWall         string                `json:"authWall,omitempty"`     // Whether to display an auth wall or not. Possible values: dev | all
 	IsEnterprise     bool                  `json:"isEnterprise,omitempty"` // Whether the app is running in enterprise mode

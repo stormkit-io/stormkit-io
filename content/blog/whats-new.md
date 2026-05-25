@@ -5,6 +5,10 @@ description: Discover the latest changes and improvements to Stormkit. Stay up-t
 
 Follow the latest developments on Stormkit.
 
+## May 25th, 2026
+
+Custom headers now apply to **all** responses — not just static files. Rules defined in your `_headers` file or the Environment Config headers editor are matched against the request URL path and applied to static files, SSR, serverless functions, and proxied responses alike. User-configured headers take precedence over Stormkit's defaults. [Learn more](/docs/features/custom-headers).
+
 ## May 16th, 2026
 
 Introducing **Priority Deployments**: move any queued deployment to the front of the build queue with a single click — without cancelling other waiting builds. You can also configure a commit message pattern per environment so that matching auto-deploys are automatically routed to the priority queue (e.g. `hotfix|urgent|critical`). Prioritized deployments are marked with a **priority** label in the deployment list. [Learn more](/docs/deployments/priority-deployments).

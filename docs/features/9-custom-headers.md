@@ -15,7 +15,7 @@ To enable custom headers for your served files:
 
 Check out our [YouTube](https://www.youtube.com/watch?v=0-JE_MoXP68) video to see it in action.
 
-**Note: Custom headers are not applied to responses from serverless functions.**
+Rules are matched against the request URL path and apply to **all** responses — static files, SSR, serverless functions, and proxied responses. User-configured headers take precedence over Stormkit's defaults (e.g. `Cache-Control`, `Content-Type`).
 
 Header rules are structured in multi-line blocks. Each block begins with a URL or URL pattern that specifies where the rule's headers should take effect. Following this, header names and their corresponding values are listed on indented lines.
 
