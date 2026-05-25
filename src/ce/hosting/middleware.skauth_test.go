@@ -411,6 +411,88 @@ func (s *WithSKAuthSuite) Test_UserIDNotInjectedWhenNoAuthHeader() {
 	s.Empty(req.Header.Get("X-User-Id"))
 }
 
+// generateBearerIssuedAt signs a JWT with a forged "issued" claim so tests
+// can exercise expiry behavior without sleeping.
+func (s *WithSKAuthSuite) generateBearerIssuedAt(userID types.ID, secret string, issuedAt time.Time) string {
+	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"uid":    userID,
+		"issued": issuedAt.Unix(),
+	})
+
+	signed, err := tok.SignedString([]byte(secret))
+	s.Require().NoError(err)
+	return fmt.Sprintf("Bearer %s", signed)
+}
+
+// Test_Refresh_ValidToken checks that POSTing a still-valid bearer to
+// /_stormkit/auth/refresh returns a new JWT carrying the same uid.
+func (s *WithSKAuthSuite) Test_Refresh_ValidToken() {
+	host := s.hostWithSKAuth() // TTL = 10 min
+	req := s.newPostRequest(host, "/_stormkit/auth/refresh", nil)
+	req.Header.Set("Authorization", s.generateBearer(types.ID(42), "test-secret"))
+
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.Require().NotNil(res)
+	s.Equal(http.StatusOK, res.Status)
+
+	data, ok := res.Data.(map[string]any)
+	s.Require().True(ok)
+
+	newToken, ok := data["token"].(string)
+	s.Require().True(ok)
+	s.NotEmpty(newToken)
+
+	claims := user.ParseJWT(&user.ParseJWTArgs{
+		Bearer:  newToken,
+		Secret:  "test-secret",
+		MaxMins: 10,
+	})
+	s.Require().NotNil(claims)
+	s.Equal("42", claims["uid"])
+}
+
+// Test_Refresh_ExpiredToken checks that an expired bearer is rejected with
+// 401 — expired means expired, no grace window.
+func (s *WithSKAuthSuite) Test_Refresh_ExpiredToken() {
+	host := s.hostWithSKAuth() // TTL = 10 min
+	req := s.newPostRequest(host, "/_stormkit/auth/refresh", nil)
+	req.Header.Set("Authorization", s.generateBearerIssuedAt(types.ID(7), "test-secret", time.Now().Add(-30*time.Minute)))
+
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.Require().NotNil(res)
+	s.Equal(http.StatusUnauthorized, res.Status)
+}
+
+// Test_Refresh_MissingBearer checks that calls without an Authorization
+// header are rejected with 401.
+func (s *WithSKAuthSuite) Test_Refresh_MissingBearer() {
+	host := s.hostWithSKAuth()
+	req := s.newPostRequest(host, "/_stormkit/auth/refresh", nil)
+
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.Require().NotNil(res)
+	s.Equal(http.StatusUnauthorized, res.Status)
+}
+
+// Test_Refresh_WrongMethod checks that non-POST verbs on /refresh return 405.
+func (s *WithSKAuthSuite) Test_Refresh_WrongMethod() {
+	host := s.hostWithSKAuth()
+	req := s.newGetRequest(host, "/_stormkit/auth/refresh")
+	req.Header.Set("Authorization", s.generateBearer(types.ID(1), "test-secret"))
+
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.Require().NotNil(res)
+	s.Equal(http.StatusMethodNotAllowed, res.Status)
+}
+
 func TestWithSKAuth(t *testing.T) {
 	suite.Run(t, new(WithSKAuthSuite))
 }

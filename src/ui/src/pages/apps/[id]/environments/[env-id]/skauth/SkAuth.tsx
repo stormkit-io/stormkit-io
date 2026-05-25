@@ -16,7 +16,13 @@ import CardFooter from "~/components/CardFooter";
 import { RootContext } from "~/pages/Root.context";
 import Drawer from "./ProviderSettings";
 import { useFetchSchema } from "../database/actions";
-import { AuthProvider, saveConfig, useFetchProviders } from "./actions";
+import {
+  AuthProvider,
+  formatDuration,
+  parseDuration,
+  saveConfig,
+  useFetchProviders,
+} from "./actions";
 
 interface EmptyViewProps {
   isCloud?: boolean;
@@ -203,10 +209,21 @@ export default function SkAuth() {
             .map(line => line.trim())
             .filter(Boolean);
 
+          const ttlInput = ((data.get("tokenTtl") as string) || "").trim();
+          const tokenTtl = ttlInput ? parseDuration(ttlInput) : 0;
+
+          if (ttlInput && tokenTtl === null) {
+            setSaveError(
+              "Session TTL must be a duration like 7d, 12h, 30min, or 1w.",
+            );
+            setSaving(false);
+            return;
+          }
+
           saveConfig({
             envId: env.id!,
             successUrl: (data.get("successUrl") as string) || "",
-            tokenTtl: Number(data.get("tokenTtl") || 0),
+            tokenTtl: tokenTtl || 0,
             status: true,
             allowedOrigins,
           })
@@ -245,13 +262,14 @@ export default function SkAuth() {
           <TextField
             label="Session TTL"
             name="tokenTtl"
-            type="number"
-            placeholder="10"
+            placeholder="7d"
             fullWidth
-            defaultValue={config?.sessionTtl || ""}
+            defaultValue={
+              config?.sessionTtl ? formatDuration(config.sessionTtl) : ""
+            }
             variant="filled"
             autoComplete="off"
-            helperText="Token lifetime in minutes"
+            helperText="Token lifetime. Accepts e.g. 30min, 12h, 7d, 1w, 1mo."
             slotProps={{
               inputLabel: {
                 shrink: true,

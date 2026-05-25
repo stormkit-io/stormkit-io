@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/html"
 	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
@@ -226,5 +227,68 @@ func WithSKAuth(req *RequestContext) (*shttp.Response, error) {
 		return m.handleMagicLinkRequest()
 	}
 
+	if path == "/_stormkit/auth/refresh" {
+		return m.handleRefresh()
+	}
+
 	return m.handleCallback()
+}
+
+// handleRefresh trades a currently-valid skauth bearer for a freshly signed
+// one carrying the same uid claim. Expired bearers are rejected — the user
+// must re-run the magic-link flow. Clients call this proactively (e.g. on
+// app open and on a periodic timer) so the token never reaches its TTL while
+// the user is active.
+func (m *skAuthMiddleware) handleRefresh() (*shttp.Response, error) {
+	if m.req.Method != http.MethodPost {
+		return &shttp.Response{
+			Status: http.StatusMethodNotAllowed,
+			Data:   map[string]any{"errors": []string{"method not allowed"}},
+		}, nil
+	}
+
+	bearer := user.ParseBearer(m.req.Header.Get("Authorization"))
+
+	if bearer == "" {
+		return &shttp.Response{
+			Status: http.StatusUnauthorized,
+			Data:   map[string]any{"errors": []string{"missing bearer token"}},
+		}, nil
+	}
+
+	claims := user.ParseJWT(&user.ParseJWTArgs{
+		Bearer:  bearer,
+		Secret:  m.req.Host.Config.SKAuth.Secret,
+		MaxMins: m.req.Host.Config.SKAuth.TTL,
+	})
+
+	if claims == nil {
+		return &shttp.Response{
+			Status: http.StatusUnauthorized,
+			Data:   map[string]any{"errors": []string{"invalid or expired token"}},
+		}, nil
+	}
+
+	uid, _ := claims["uid"].(string)
+
+	if uid == "" {
+		return &shttp.Response{
+			Status: http.StatusUnauthorized,
+			Data:   map[string]any{"errors": []string{"invalid token claims"}},
+		}, nil
+	}
+
+	token, err := user.JWT(jwt.MapClaims{"uid": uid}, m.req.Host.Config.SKAuth.Secret)
+
+	if err != nil {
+		return &shttp.Response{
+			Status: http.StatusInternalServerError,
+			Data:   map[string]any{"errors": []string{"failed to sign token"}},
+		}, nil
+	}
+
+	return &shttp.Response{
+		Status: http.StatusOK,
+		Data:   map[string]any{"token": token},
+	}, nil
 }
