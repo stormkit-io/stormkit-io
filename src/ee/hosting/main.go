@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"strings"
 
@@ -20,6 +21,34 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/tracking"
 	"github.com/stormkit-io/stormkit-io/src/migrations"
 )
+
+// maybePProfListener exposes net/http/pprof on its own mux when
+// STORMKIT_PPROF_ADDR is set. The mux is dedicated (not DefaultServeMux)
+// so the pprof endpoints are reachable only on the configured address —
+// typically a loopback or admin-only interface (e.g. 127.0.0.1:6060).
+// Leave the env var unset in production unless actively debugging.
+func maybePProfListener() {
+	addr := os.Getenv("STORMKIT_PPROF_ADDR")
+
+	if addr == "" {
+		return
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+	go func() {
+		slog.Infof("pprof listening on %s", addr)
+
+		if err := http.ListenAndServe(addr, mux); err != nil {
+			slog.Errorf("pprof server error: %v", err)
+		}
+	}()
+}
 
 // nonMagic starts an http server.
 func nonMagic(handler http.Handler, port string) {
@@ -71,6 +100,8 @@ func main() {
 
 	// Register redis listeners
 	hosting.RegisterListeners()
+
+	maybePProfListener()
 
 	if c.Tracking != nil && c.Tracking.Prometheus {
 		tracking.Prometheus(tracking.PrometheusOpts{
