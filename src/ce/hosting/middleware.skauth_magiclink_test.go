@@ -9,9 +9,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/ce/hosting"
 	"github.com/stormkit-io/stormkit-io/src/lib/database"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
@@ -236,6 +238,50 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_Success() {
 	s.NoError(err)
 	s.Equal(http.StatusOK, res.Status)
 	s.Contains(string(res.Data.([]byte)), "localStorage.setItem('skauth'")
+}
+
+// Test_Verify_UIDClaimIsUUID confirms the session JWT carries the user's
+// UUID (not the internal numeric id) in the uid claim, which is what gets
+// forwarded to backend apps as the X-User-Id header.
+func (s *WithSKAuthMagicLinkSuite) Test_Verify_UIDClaimIsUUID() {
+	env, err := s.setupEnv()
+	s.Require().NoError(err)
+
+	_, err = hosting.WithSKAuth(s.magicRequest(s.hostFor(env.ID), "/_stormkit/auth/magic?email=uuidcheck@example.com"))
+	s.Require().NoError(err)
+
+	token := s.captureToken(env.ID)
+	s.Require().NotEmpty(token)
+
+	res, err := hosting.WithSKAuth(s.magicRequest(s.hostFor(env.ID), fmt.Sprintf("/_stormkit/auth/magic?token=%s", token)))
+	s.Require().NoError(err)
+	s.Require().Equal(http.StatusOK, res.Status)
+
+	body := string(res.Data.([]byte))
+	const marker = `JSON.stringify("`
+	idx := strings.Index(body, marker)
+	s.Require().GreaterOrEqual(idx, 0, "session token missing from response body")
+
+	start := idx + len(marker)
+	end := start
+
+	for end < len(body) && body[end] != '"' {
+		end++
+	}
+
+	sessionToken := body[start:end]
+	claims := user.ParseJWT(&user.ParseJWTArgs{
+		Bearer:  sessionToken,
+		Secret:  env.AuthConf.Secret,
+		MaxMins: 0,
+	})
+
+	s.Require().NotNil(claims, "session token should be parseable")
+
+	uid, ok := claims["uid"].(string)
+	s.Require().True(ok, "uid claim should be a string")
+	_, err = uuid.Parse(uid)
+	s.NoError(err, "uid claim should be a valid UUID, got %q", uid)
 }
 
 func (s *WithSKAuthMagicLinkSuite) Test_Verify_TokenConsumedOnce() {

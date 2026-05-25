@@ -32,6 +32,7 @@ var schemaStmt = struct {
 	createAuthTable: `
 		CREATE TABLE IF NOT EXISTS stormkit_auth_users (
 			user_id SERIAL PRIMARY KEY NOT NULL,
+			uuid UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
 			email TEXT NOT NULL UNIQUE,
 			first_name TEXT,
 			last_name TEXT,
@@ -112,7 +113,7 @@ var schemaStmt = struct {
 		) VALUES (
 			$1, $2, $3, $4
 		) RETURNING
-			user_id;
+			user_id, uuid;
 	`,
 
 	verifyEmailUser: `
@@ -146,6 +147,7 @@ var sqlTemplates = struct {
 	selectAuthUsers: template.Must(template.New("selectAuthUsers").Parse(`
 		SELECT
 			u.user_id,
+			u.uuid,
 			COALESCE(u.first_name, '') AS first_name,
 			COALESCE(u.last_name, '') AS last_name,
 			u.email,
@@ -631,7 +633,7 @@ func (s *schemaStore) InsertAuthUser(ctx context.Context, oauth *skauth.OAuth, u
 	// Defer rollback - will be a no-op if transaction is committed successfully
 	defer tx.Rollback()
 
-	err = tx.QueryRowContext(ctx, schemaStmt.insertAuthUser, user.Email, user.FirstName, user.LastName, user.Avatar).Scan(&user.ID)
+	err = tx.QueryRowContext(ctx, schemaStmt.insertAuthUser, user.Email, user.FirstName, user.LastName, user.Avatar).Scan(&user.ID, &user.UUID)
 
 	if err != nil {
 		return err
@@ -682,6 +684,7 @@ func (s *schemaStore) AuthUser(ctx context.Context, authID types.ID) (*skauth.Us
 
 	err = row.Scan(
 		&authUser.ID,
+		&authUser.UUID,
 		&authUser.FirstName,
 		&authUser.LastName,
 		&authUser.Email,
@@ -735,6 +738,7 @@ func (s *schemaStore) ListAuthUsers(ctx context.Context, from, limit int) ([]*sk
 
 		err = rows.Scan(
 			&u.ID,
+			&u.UUID,
 			&u.FirstName,
 			&u.LastName,
 			&u.Email,
@@ -788,6 +792,7 @@ func (s *schemaStore) AuthUserByEmail(ctx context.Context, p AuthUserByEmailPara
 
 	err = row.Scan(
 		&authUser.ID,
+		&authUser.UUID,
 		&authUser.FirstName,
 		&authUser.LastName,
 		&authUser.Email,
