@@ -1,5 +1,23 @@
 # Changelog
 
+## v2026.05.25.4...v2026.05.25.5
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.25.4...v2026.05.25.5)
+
+### 🚀 Enhancements
+
+- Emit UUID in X-User-Id header instead of internal id ([#276](https://github.com/stormkit-io/stormkit-io/pull/276))
+- Dedicated workDir field for build working directory ([#275](https://github.com/stormkit-io/stormkit-io/pull/275))
+
+### 🏡 Chore
+
+- Update changelog for v2026.05.25.3 ([#272](https://github.com/stormkit-io/stormkit-io/pull/272))
+- Update changelog for v2026.05.25.4 ([#274](https://github.com/stormkit-io/stormkit-io/pull/274))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.05.25.3...v2026.05.25.4
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.25.3...v2026.05.25.4)
