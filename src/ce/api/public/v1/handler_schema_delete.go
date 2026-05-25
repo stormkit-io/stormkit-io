@@ -28,13 +28,13 @@ func handlerSchemaDelete(req *app.RequestContext) *shttp.Response {
 		}
 	}
 
-	member, err := team.NewStore().TeamMember(req.Context(), req.App.TeamID, req.User.ID)
+	myTeam, err := team.NewStore().Team(req.Context(), req.App.TeamID, req.User.ID)
 
 	if err != nil {
 		return shttp.Error(err)
 	}
 
-	if member == nil || !team.HasWriteAccess(member.Role) {
+	if myTeam == nil || !team.HasWriteAccess(myTeam.CurrentUserRole) {
 		return shttp.Forbidden()
 	}
 
