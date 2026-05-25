@@ -22,7 +22,11 @@ export default function TabConfigGeneral({
   const [error, setError] = useState<string>();
   const [success, setSuccess] = useState<string>();
   const [isLoading, setLoading] = useState(false);
-  const [root, setRoot] = useState(env?.build?.vars?.["SK_CWD"] || "./");
+  // Fall back to the legacy SK_CWD env var so existing apps keep working
+  // until their next save migrates them to the typed workDir field.
+  const [root, setRoot] = useState(
+    env?.build?.workDir || env?.build?.vars?.["SK_CWD"] || "./"
+  );
 
   if (!env) {
     return <></>;
@@ -38,11 +42,12 @@ export default function TabConfigGeneral({
       onSubmit={e => {
         e.preventDefault();
 
-        if (!env.build.vars) {
-          env.build.vars = {};
-        }
+        env.build.workDir = root;
 
-        env.build.vars["SK_CWD"] = root;
+        // Drop the legacy var once we save — workDir is the source of truth.
+        if (env.build.vars?.["SK_CWD"]) {
+          delete env.build.vars["SK_CWD"];
+        }
 
         const values: FormValues = buildFormValues(
           env,

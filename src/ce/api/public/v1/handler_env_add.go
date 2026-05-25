@@ -23,6 +23,7 @@ type EnvAddRequest struct {
 	Branch             string                  `json:"branch"`
 	BuildCmd           string                  `json:"buildCmd,omitempty"`
 	DistFolder         string                  `json:"distFolder,omitempty"`
+	WorkDir            string                  `json:"workDir,omitempty"`
 	EnvVars            map[string]string       `json:"envVars,omitempty"`
 	ErrorFile          string                  `json:"errorFile,omitempty"`
 	Headers            string                  `json:"headers,omitempty"`
@@ -55,6 +56,7 @@ func handlerEnvAdd(req *RequestContext) *shttp.Response {
 			APIFolder:     utils.TrimPath(data.APIFolder),
 			APIPathPrefix: utils.TrimPath(data.APIPathPrefix),
 			DistFolder:    utils.TrimPath(data.DistFolder),
+			WorkDir:       utils.TrimPath(data.WorkDir),
 			ErrorFile:     utils.TrimPath(data.ErrorFile),
 			HeadersFile:   utils.TrimPath(data.HeadersFile),
 			ServerFolder:  utils.TrimPath(data.ServerFolder),

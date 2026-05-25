@@ -14,6 +14,7 @@ declare type BuildConfig = {
   redirects?: Redirect[];
   errorFile?: string;
   distFolder: string;
+  workDir?: string;
   buildCmd?: string;
   installCmd?: string;
   serverCmd?: string;

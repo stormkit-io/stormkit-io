@@ -101,6 +101,7 @@ Creates a new environment for an application.
 | `serverCmd`          | string                  | No       | Command to start the server (self-hosted only).                                                             |
 | `serverFolder`       | string                  | No       | Server-side upload folder.                                                                                  |
 | `statusChecks`       | `StatusCheck[]`         | No       | Post-deployment commands to run. See `StatusCheck` object below.                                            |
+| `workDir`            | string                  | No       | Working directory relative to the repository root where install/build commands run. Defaults to repo root.  |
 
 **`StatusCheck` object:**
 
@@ -180,6 +181,7 @@ All fields are **optional**. Only the fields you include will be updated.
 | `serverCmd`          | string                  | Command to start the server (self-hosted only).                                                                                              |
 | `serverFolder`       | string                  | Server-side upload folder.                                                                                                                   |
 | `statusChecks`       | `StatusCheck[]`         | Post-deployment commands to run. Replaces all existing checks. See `StatusCheck` in `POST /v1/env`.                                          |
+| `workDir`            | string                  | Working directory relative to the repository root where install/build commands run. Defaults to repo root.                                   |
 
 ### Response — 200 OK
 

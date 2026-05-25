@@ -49,8 +49,17 @@ func normalizeEnvVars(vars map[string]string) map[string]string {
 	return envVars
 }
 
-func normalize(msg *deployservice.DeploymentMessage) *deployservice.DeploymentMessage {
-	msg.Build.WorkDir = msg.Build.Vars["SK_CWD"]
+// Normalize applies post-decode adjustments to a DeploymentMessage before
+// the runner consumes it. Exported so tests in runner_test can exercise the
+// SK_CWD → WorkDir fallback without sitting in this package.
+func Normalize(msg *deployservice.DeploymentMessage) *deployservice.DeploymentMessage {
+	// Backwards compatibility: SK_CWD was the legacy way to configure the
+	// build working directory before the dedicated `workDir` field existed.
+	// Honor it only when workDir is unset so the typed field always wins.
+	if msg.Build.WorkDir == "" {
+		msg.Build.WorkDir = msg.Build.Vars["SK_CWD"]
+	}
+
 	msg.Build.Vars = normalizeEnvVars(msg.Build.Vars)
 	delete(msg.Build.Vars, "SK_CWD")
 	return msg
@@ -223,7 +232,7 @@ func Start(payload, rootDir string) error {
 
 	DeploymentIDEnc = utils.EncryptID(utils.StringToID(p.DeploymentID))
 
-	msg = normalize(msg)
+	msg = Normalize(msg)
 
 	if msg.Config == nil {
 		msg.Config = &deployservice.RunnerSettings{AutoInstall: true}
