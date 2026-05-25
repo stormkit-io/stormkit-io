@@ -63,6 +63,15 @@ func (s *CustomHeadersSuite) Test_ParseCustomHeaders_Success() {
 	s.Equal("/*", headers[0].Location)
 }
 
+func (s *CustomHeadersSuite) Test_ParseCustomHeaders_ValueWithColon() {
+	headers, err := deploy.ParseHeaders("/*\nAccess-Control-Allow-Origin: https://example.com")
+	s.NoError(err)
+	s.Len(headers, 1)
+	s.Equal("Access-Control-Allow-Origin", headers[0].Key)
+	s.Equal("https://example.com", headers[0].Value)
+	s.Equal("/*", headers[0].Location)
+}
+
 func (s *CustomHeadersSuite) Test_ParseCustomHeaders_Error() {
 	headers, err := deploy.ParseHeaders("/*\nX-Message Hello World!")
 	s.Error(err)

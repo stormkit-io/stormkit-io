@@ -31,7 +31,7 @@ type EnvUpdateRequest struct {
 	HeadersFile        *string                 `json:"headersFile,omitempty"`
 	InstallCmd         *string                 `json:"installCmd,omitempty"`
 	PreviewLinks       *bool                   `json:"previewLinks,omitempty"`
-	Redirects          []redirects.Redirect    `json:"redirects,omitempty"`
+	Redirects          *[]redirects.Redirect   `json:"redirects,omitempty"`
 	RedirectsFile      *string                 `json:"redirectsFile,omitempty"`
 	ServerCmd          *string                 `json:"serverCmd,omitempty"`
 	ServerFolder       *string                 `json:"serverFolder,omitempty"`
@@ -139,7 +139,7 @@ func handlerEnvUpdate(req *RequestContext) *shttp.Response {
 	}
 
 	if data.Redirects != nil {
-		env.Data.Redirects = data.Redirects
+		env.Data.Redirects = *data.Redirects
 
 		if errs := redirects.Validate(env.Data.Redirects); len(errs) > 0 {
 			return shttp.BadRequest(map[string]any{"errors": errs})

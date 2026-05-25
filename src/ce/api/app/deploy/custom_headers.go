@@ -79,7 +79,7 @@ func ParseHeaders(customHeaders string) ([]CustomHeader, error) {
 			continue
 		}
 
-		pieces := strings.Split(line, ":")
+		pieces := strings.SplitN(line, ":", 2)
 
 		if len(pieces) == 2 {
 			headers = append(headers, CustomHeader{
