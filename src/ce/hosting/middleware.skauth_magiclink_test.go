@@ -40,10 +40,15 @@ func (s *WithSKAuthMagicLinkSuite) AfterTest(_, _ string) {
 }
 
 func (s *WithSKAuthMagicLinkSuite) setupEnv() (*factory.MockEnv, error) {
+	return s.setupEnvWithOrigins(nil)
+}
+
+func (s *WithSKAuthMagicLinkSuite) setupEnvWithOrigins(allowed []string) (*factory.MockEnv, error) {
 	env := s.MockEnv(s.app, map[string]any{
 		"AuthConf": &buildconf.SKAuthConf{
-			Secret: "test-secret",
-			Status: true,
+			Secret:         "test-secret",
+			Status:         true,
+			AllowedOrigins: allowed,
 		},
 		"SchemaConf": &buildconf.SchemaConf{
 			SchemaName:        s.conn.Cfg.Schema,
@@ -94,6 +99,10 @@ func (s *WithSKAuthMagicLinkSuite) hostFor(envID types.ID) *hosting.Host {
 }
 
 func (s *WithSKAuthMagicLinkSuite) magicRequest(host *hosting.Host, path string) *hosting.RequestContext {
+	return s.magicRequestWith(host, path, http.MethodGet, "")
+}
+
+func (s *WithSKAuthMagicLinkSuite) magicRequestWith(host *hosting.Host, path, method, origin string) *hosting.RequestContext {
 	pieces := strings.SplitN(path, "?", 2)
 	rawPath := pieces[0]
 	query := ""
@@ -102,11 +111,17 @@ func (s *WithSKAuthMagicLinkSuite) magicRequest(host *hosting.Host, path string)
 		query = pieces[1]
 	}
 
+	header := make(http.Header)
+
+	if origin != "" {
+		header.Set("Origin", origin)
+	}
+
 	rq := &hosting.RequestContext{
 		Host: host,
 		RequestContext: shttp.NewRequestContext(&http.Request{
-			Method: http.MethodGet,
-			Header: make(http.Header),
+			Method: method,
+			Header: header,
 			URL: &url.URL{
 				Scheme:   "https",
 				Host:     host.Name,
@@ -242,6 +257,90 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_TokenConsumedOnce() {
 	second, err := hosting.WithSKAuth(s.magicRequest(s.hostFor(env.ID), path))
 	s.NoError(err)
 	s.Equal(http.StatusBadRequest, second.Status)
+}
+
+func (s *WithSKAuthMagicLinkSuite) Test_Request_NoOriginCheck_WhenAllowListEmpty() {
+	env, err := s.setupEnv()
+	s.Require().NoError(err)
+
+	rq := s.magicRequestWith(s.hostFor(env.ID), "/_stormkit/auth/magic?email=user@example.com", http.MethodPost, "https://other.example.com")
+	res, err := hosting.WithSKAuth(rq)
+
+	s.NoError(err)
+	s.Equal(http.StatusCreated, res.Status)
+}
+
+func (s *WithSKAuthMagicLinkSuite) Test_Request_AllowedOrigin_Accepted() {
+	env, err := s.setupEnvWithOrigins([]string{"https://app.example.com"})
+	s.Require().NoError(err)
+
+	rq := s.magicRequestWith(s.hostFor(env.ID), "/_stormkit/auth/magic?email=user@example.com", http.MethodPost, "https://app.example.com")
+	res, err := hosting.WithSKAuth(rq)
+
+	s.NoError(err)
+	s.Equal(http.StatusCreated, res.Status)
+}
+
+func (s *WithSKAuthMagicLinkSuite) Test_Request_DisallowedOrigin_Returns403() {
+	env, err := s.setupEnvWithOrigins([]string{"https://app.example.com"})
+	s.Require().NoError(err)
+
+	rq := s.magicRequestWith(s.hostFor(env.ID), "/_stormkit/auth/magic?email=user@example.com", http.MethodPost, "https://evil.example.com")
+	res, err := hosting.WithSKAuth(rq)
+
+	s.NoError(err)
+	s.Equal(http.StatusForbidden, res.Status)
+}
+
+func (s *WithSKAuthMagicLinkSuite) Test_Verify_CrossOrigin_RedirectsToInitiator() {
+	env, err := s.setupEnvWithOrigins([]string{"https://app.example.com"})
+	s.Require().NoError(err)
+
+	post := s.magicRequestWith(s.hostFor(env.ID), "/_stormkit/auth/magic?email=cross@example.com", http.MethodPost, "https://app.example.com")
+	_, err = hosting.WithSKAuth(post)
+	s.Require().NoError(err)
+
+	token := s.captureToken(env.ID)
+	s.Require().NotEmpty(token)
+
+	res, err := hosting.WithSKAuth(s.magicRequest(s.hostFor(env.ID), fmt.Sprintf("/_stormkit/auth/magic?token=%s", token)))
+
+	s.NoError(err)
+	s.Equal(http.StatusOK, res.Status)
+
+	body := string(res.Data.([]byte))
+	s.Contains(body, "https://app.example.com/dashboard#skauth=")
+	// Cross-origin path must not touch localStorage on the wrong host.
+	s.NotContains(body, "localStorage")
+}
+
+func (s *WithSKAuthMagicLinkSuite) Test_Verify_StaleRedirect_FallsBackToLocal() {
+	env, err := s.setupEnvWithOrigins([]string{"https://app.example.com"})
+	s.Require().NoError(err)
+
+	post := s.magicRequestWith(s.hostFor(env.ID), "/_stormkit/auth/magic?email=stale@example.com", http.MethodPost, "https://app.example.com")
+	_, err = hosting.WithSKAuth(post)
+	s.Require().NoError(err)
+
+	token := s.captureToken(env.ID)
+	s.Require().NotEmpty(token)
+
+	// Allow-list changes between POST and verify — drop the previously
+	// whitelisted origin. The stale rdr claim must not be trusted.
+	envStore := buildconf.NewStore()
+	stored, err := envStore.EnvironmentByID(context.Background(), env.ID)
+	s.Require().NoError(err)
+	stored.AuthConf.AllowedOrigins = nil
+	s.Require().NoError(envStore.SaveAuthConf(context.Background(), env.ID, stored.AuthConf))
+
+	res, err := hosting.WithSKAuth(s.magicRequest(s.hostFor(env.ID), fmt.Sprintf("/_stormkit/auth/magic?token=%s", token)))
+
+	s.NoError(err)
+	s.Equal(http.StatusOK, res.Status)
+
+	body := string(res.Data.([]byte))
+	s.Contains(body, "localStorage.setItem('skauth'")
+	s.NotContains(body, "https://app.example.com/dashboard#skauth=")
 }
 
 func truncateMagicLinkAuthTables() {
