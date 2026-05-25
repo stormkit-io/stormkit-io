@@ -1,5 +1,23 @@
 # Changelog
 
+## v2026.05.24.1...v2026.05.25.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.24.1...v2026.05.25.1)
+
+### 🚀 Enhancements
+
+- Opt-in pprof endpoint on hosting binary ([#264](https://github.com/stormkit-io/stormkit-io/pull/264))
+- Per-origin magic link redirect support ([#265](https://github.com/stormkit-io/stormkit-io/pull/265))
+- Allowed origins field on auth config UI ([#266](https://github.com/stormkit-io/stormkit-io/pull/266))
+
+### 🏡 Chore
+
+- Update changelog for v2026.05.24.1 ([#263](https://github.com/stormkit-io/stormkit-io/pull/263))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.05.23.4...v2026.05.24.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.23.4...v2026.05.24.1)
