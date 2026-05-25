@@ -720,7 +720,10 @@ func mcpUpdateEnvironment(req *RequestContextMCP, id any, args map[string]any) *
 		update.EnvVars = m
 	}
 
-	update.Redirects = parseRedirectsArg(args)
+	if r := parseRedirectsArg(args); r != nil {
+		update.Redirects = &r
+	}
+
 	update.StatusChecks = parseStatusChecksArg(args)
 
 	resp := req.setBody(id, update)
