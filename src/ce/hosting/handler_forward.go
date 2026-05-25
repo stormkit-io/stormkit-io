@@ -31,13 +31,19 @@ const SESSION_COOKIE_NAME = "stormkit_session"
 
 var stormkitServerHeaderOff = os.Getenv("STORMKIT_SERVER_HEADER") == "off"
 
-// HandlerForward forwards all requests
-func HandlerForward(req *RequestContext) *shttp.Response {
+// HandlerForward forwards all requests. The return value is named so that the
+// deferred finalize() can post-process every exit path (middleware
+// short-circuit, NotFound, error, or the main Handle() flow).
+func HandlerForward(req *RequestContext) (res *shttp.Response) {
 	rs := NewRequestServer(req)
 
-	// Send artifacts such as analytics record, logs, etc to redis queue
 	defer func() {
-		go rs.artifacts()
+		// Finalize the response (custom headers, snippets, analytics) so the
+		// same transforms apply uniformly regardless of which path produced it.
+		res = rs.finalize(res)
+
+		// Send artifacts to redis queue with the finalized response visible.
+		go rs.artifacts(res)
 	}()
 
 	slog.Debug(slog.LogOpts{
@@ -57,20 +63,20 @@ func HandlerForward(req *RequestContext) *shttp.Response {
 	}
 
 	for _, md := range middlewares {
-		res, err := md(req)
+		mres, err := md(req)
 
 		if err != nil {
 			return rs.Error(err)
 		}
 
-		if res != nil {
+		if mres != nil {
 			// We still want to be able to serve custom 404 pages
 			// when the proxy request returns 404.
-			if res.Status == http.StatusNotFound {
+			if mres.Status == http.StatusNotFound {
 				return rs.NotFound()
 			}
 
-			return res
+			return mres
 		}
 	}
 
@@ -81,6 +87,27 @@ func HandlerForward(req *RequestContext) *shttp.Response {
 	})
 
 	return rs.Handle()
+}
+
+// finalize applies post-handler transforms — custom headers, snippet
+// injection, analytics — uniformly to every response path.
+func (r *RequestServer) finalize(res *shttp.Response) *shttp.Response {
+	if res == nil || r.req.Host == nil || r.req.Host.Config == nil {
+		return res
+	}
+
+	res = injectHeaders(r.req, res)
+	res = injectSnippets(r.req, res)
+
+	if r.req.Host.Config.IsEnterprise {
+		contentType := strings.ToLower(res.Headers.Get("Content-Type"))
+
+		if strings.HasPrefix(contentType, "text/html") {
+			r.record = analyticsRecord(r.req, res)
+		}
+	}
+
+	return res
 }
 
 type FileMeta struct {
@@ -110,15 +137,15 @@ func NewRequestServer(req *RequestContext) *RequestServer {
 	return r
 }
 
-func (r *RequestServer) artifacts() {
+func (r *RequestServer) artifacts(res *shttp.Response) {
 	var data []byte
 
-	if r.res == nil || r.req == nil || r.req.Host == nil || r.req.Host.Config == nil {
+	if res == nil || r.req == nil || r.req.Host == nil || r.req.Host.Config == nil {
 		return
 	}
 
-	if r.res.Data != nil {
-		data, _ = r.res.Data.([]byte)
+	if res.Data != nil {
+		data, _ = res.Data.([]byte)
 	}
 
 	Queue(&jobs.HostingRecord{
@@ -130,7 +157,7 @@ func (r *RequestServer) artifacts() {
 		FunctionInvoked: r.fnInvoked,
 		Logs:            r.logs,
 		Analytics:       r.record,
-		TotalBandwidth:  int64(len(data)) + headersSize(r.res.Headers),
+		TotalBandwidth:  int64(len(data)) + headersSize(res.Headers),
 	})
 }
 
@@ -160,25 +187,11 @@ func (r *RequestServer) FileMeta() *FileMeta {
 }
 
 func (r *RequestServer) Handle() *shttp.Response {
-	defer func() {
-		r.res = injectHeaders(r.req, r.res)
-		r.res = injectSnippets(r.req, r.res)
-
-		if r.req.Host.Config.IsEnterprise {
-			contentType := strings.ToLower(r.res.Headers.Get("Content-Type"))
-
-			if strings.HasPrefix(contentType, "text/html") {
-				r.record = analyticsRecord(r.req, r.res)
-			}
-		}
-	}()
-
 	if r.fileMeta = r.FileMeta(); r.fileMeta != nil {
 		return r.Static()
 	}
 
 	return r.Dynamic()
-
 }
 
 func (r *RequestServer) Static() *shttp.Response {

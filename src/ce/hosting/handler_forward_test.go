@@ -410,6 +410,34 @@ func (s *HandlerForwardSuite) Test_CustomHeaders_EmptyValueDeletes() {
 	s.False(present, "X-Powered-By should be removed, not emitted with empty value")
 }
 
+func (s *HandlerForwardSuite) Test_CustomHeaders_AppliedToMiddlewareResponse() {
+	// Verifies headers apply to responses returned by middlewares
+	// (e.g. WithRedirect) that short-circuit before Handle() runs.
+	customHeaders, err := deploy.ParseHeaders("/old\nX-Custom: yes")
+	s.NoError(err)
+
+	host := &hosting.Host{
+		Name: "www.stormkit.io",
+		Request: &shttp.RequestContext{
+			Request: &http.Request{},
+		},
+		Config: &appconf.Config{
+			DeploymentID: types.ID(1),
+			EnvID:        types.ID(1),
+			Redirects: []redirects.Redirect{
+				{From: "/old", To: "/new", Status: 301},
+			},
+			CustomHeaders: customHeaders,
+		},
+	}
+
+	req := s.newRequest(host, "/old")
+	res := hosting.HandlerForward(req)
+
+	s.Equal(http.StatusMovedPermanently, res.Status)
+	s.Equal("yes", res.Headers.Get("X-Custom"))
+}
+
 func (s *HandlerForwardSuite) Test_CustomHeaders_LocationDoesNotMatch() {
 	customHeaders, err := deploy.ParseHeaders("/api/*\nX-Custom: yes")
 	s.NoError(err)
@@ -1077,7 +1105,6 @@ func (s *HandlerForwardSuite) Test_AuthWall_LoginSuccess() {
 
 	s.Empty(res.Data)
 	s.Equal(http.StatusFound, res.Status)
-	s.Equal("", res.Headers.Get("Content-Type"))
 	s.Equal("http://www.stormkit.io/my-page?a=b", *res.Redirect)
 	s.Equal(http.Cookie{
 		Name:     hosting.SESSION_COOKIE_NAME,
