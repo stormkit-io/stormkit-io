@@ -285,10 +285,42 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
           successUrl: "",
           tokenTtl: 0,
           status: true,
+          allowedOrigins: [],
         })
         .reply(200);
 
       fireEvent.submit(wrapper.getByRole("button", { name: "Save" }).closest("form")!);
+
+      await waitFor(() => {
+        expect(scope.isDone()).toBe(true);
+        expect(wrapper.getByText("Settings saved successfully")).toBeTruthy();
+      });
+    });
+
+    it("should submit allowed origins as a trimmed list", async () => {
+      const scope = nock(apiDomain)
+        .post("/skauth/config", {
+          envId: currentEnv.id,
+          successUrl: "",
+          tokenTtl: 0,
+          status: true,
+          allowedOrigins: [
+            "https://app.example.com",
+            "https://dev.example.com",
+          ],
+        })
+        .reply(200);
+
+      const input = wrapper.getByLabelText("Allowed origins") as HTMLTextAreaElement;
+      fireEvent.change(input, {
+        target: {
+          value: "https://app.example.com\n  https://dev.example.com  \n\n",
+        },
+      });
+
+      fireEvent.submit(
+        wrapper.getByRole("button", { name: "Save" }).closest("form")!,
+      );
 
       await waitFor(() => {
         expect(scope.isDone()).toBe(true);
