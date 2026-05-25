@@ -55,6 +55,7 @@ export const prepareBuildObject = (values: FormValues): BuildConfig => {
     serverCmd: values["build.serverCmd"]?.trim() || "",
     installCmd: values["build.installCmd"]?.trim() || "",
     distFolder: (values["build.distFolder"] || "").trim(),
+    workDir: (values["build.workDir"] || "").trim(),
     headers: values["build.headers"]?.trim() || "",
     headersFile: values["build.headersFile"],
     redirectsFile: values["build.redirectsFile"],
@@ -121,6 +122,7 @@ export const buildFormValues = (
     "build.serverCmd": env.build.serverCmd,
     "build.installCmd": env.build.installCmd,
     "build.distFolder": env.build.distFolder || env.build.serverFolder,
+    "build.workDir": env.build.workDir,
     "build.redirects": JSON.stringify(env.build.redirects),
     "build.vars": Object.keys(env.build?.vars || {})
       .filter(key => env.build.vars[key])
@@ -154,6 +156,7 @@ export interface FormValues {
   "build.serverCmd"?: string;
   "build.installCmd"?: string;
   "build.distFolder"?: string;
+  "build.workDir"?: string;
   "build.headers"?: string;
   "build.headersFile"?: string;
   "build.errorFile"?: string;
@@ -211,6 +214,7 @@ export const updateEnvironment = ({
       serverCmd: build.serverCmd,
       installCmd: build.installCmd,
       distFolder: build.distFolder,
+      workDir: build.workDir,
       headers: build.headers,
       headersFile: build.headersFile,
       redirectsFile: build.redirectsFile,

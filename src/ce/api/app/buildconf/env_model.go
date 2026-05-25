@@ -200,6 +200,7 @@ type BuildConf struct {
 	Headers         string               `json:"headers,omitempty"`         // Custom headers set from the UI.
 	HeadersFile     string               `json:"headersFile,omitempty"`     // Path to the headers file. The path is relative to working dir.
 	DistFolder      string               `json:"distFolder,omitempty"`      // DistFolder is the client dist folder.
+	WorkDir         string               `json:"workDir,omitempty"`         // Working directory relative to the repository root where install/build commands run. Falls back to the SK_CWD env var when unset.
 	ServerFolder    string               `json:"serverFolder,omitempty"`    // The server folder to upload to the server side
 	Cmd             string               `json:"cmd,omitempty"`             // Deprecated. Declared only for retro compability.
 	InstallCmd      string               `json:"installCmd,omitempty"`      // The install command to install the dependencies.

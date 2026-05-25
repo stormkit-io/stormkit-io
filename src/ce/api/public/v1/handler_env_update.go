@@ -26,6 +26,7 @@ type EnvUpdateRequest struct {
 	APIPathPrefix      *string                 `json:"apiPathPrefix,omitempty"`
 	BuildCmd           *string                 `json:"buildCmd,omitempty"`
 	DistFolder         *string                 `json:"distFolder,omitempty"`
+	WorkDir            *string                 `json:"workDir,omitempty"`
 	ErrorFile          *string                 `json:"errorFile,omitempty"`
 	Headers            *string                 `json:"headers,omitempty"`
 	HeadersFile        *string                 `json:"headersFile,omitempty"`
@@ -100,6 +101,10 @@ func handlerEnvUpdate(req *RequestContext) *shttp.Response {
 
 	if data.DistFolder != nil {
 		env.Data.DistFolder = utils.TrimPath(*data.DistFolder)
+	}
+
+	if data.WorkDir != nil {
+		env.Data.WorkDir = utils.TrimPath(*data.WorkDir)
 	}
 
 	if data.ErrorFile != nil {

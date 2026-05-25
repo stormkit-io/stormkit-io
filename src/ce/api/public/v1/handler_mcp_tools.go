@@ -194,6 +194,7 @@ func mcpAllTools() []mcpToolDef {
 					"installCmd":         map[string]any{"type": "string", "description": "Install command, e.g. 'npm install'."},
 					"distFolder":         map[string]any{"type": "string", "description": "Client output directory, e.g. 'dist'."},
 					"serverFolder":       map[string]any{"type": "string", "description": "Server output directory for self-hosted deployments."},
+					"workDir":            map[string]any{"type": "string", "description": "Working directory relative to the repository root where install/build commands run. Defaults to the repo root."},
 					"serverCmd":          map[string]any{"type": "string", "description": "Command to start the server process (self-hosted only)."},
 					"apiFolder":          map[string]any{"type": "string", "description": "Path to the API / serverless functions folder."},
 					"apiPathPrefix":      map[string]any{"type": "string", "description": "URL prefix used to route requests to API functions (default: /api)."},
@@ -255,6 +256,7 @@ func mcpAllTools() []mcpToolDef {
 					"buildCmd":           map[string]any{"type": "string", "description": "Build command, e.g. 'npm run build'."},
 					"installCmd":         map[string]any{"type": "string", "description": "Install command, e.g. 'npm install'."},
 					"distFolder":         map[string]any{"type": "string", "description": "Client output directory, e.g. 'dist'."},
+					"workDir":            map[string]any{"type": "string", "description": "Working directory relative to the repository root where install/build commands run. Defaults to the repo root."},
 					"apiFolder":          map[string]any{"type": "string", "description": "Path to the API / serverless functions folder."},
 					"apiPathPrefix":      map[string]any{"type": "string", "description": "URL prefix used to route requests to API functions (default: /api)."},
 					"serverCmd":          map[string]any{"type": "string", "description": "Command to start the server process (self-hosted only)."},
@@ -550,6 +552,7 @@ func mcpCreateEnvironment(req *RequestContextMCP, id any, args map[string]any) *
 		BuildCmd:      stringArg(args, "buildCmd"),
 		InstallCmd:    stringArg(args, "installCmd"),
 		DistFolder:    stringArg(args, "distFolder"),
+		WorkDir:       stringArg(args, "workDir"),
 		ServerFolder:  stringArg(args, "serverFolder"),
 		ServerCmd:     stringArg(args, "serverCmd"),
 		APIFolder:     stringArg(args, "apiFolder"),
@@ -703,6 +706,7 @@ func mcpUpdateEnvironment(req *RequestContextMCP, id any, args map[string]any) *
 	setString("buildCmd", &update.BuildCmd)
 	setString("installCmd", &update.InstallCmd)
 	setString("distFolder", &update.DistFolder)
+	setString("workDir", &update.WorkDir)
 	setString("apiFolder", &update.APIFolder)
 	setString("apiPathPrefix", &update.APIPathPrefix)
 	setString("serverCmd", &update.ServerCmd)

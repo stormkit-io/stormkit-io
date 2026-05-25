@@ -24,6 +24,7 @@ const toRequestObject = (environment: Environment) => {
         redirectsFile: environment.build.redirectsFile,
         redirects: environment.build.redirects,
         distFolder: environment.build.distFolder,
+        workDir: environment.build.workDir || "",
         installCmd: environment.build.installCmd || "",
         buildCmd: environment.build.buildCmd || "",
         serverCmd: environment.build.serverCmd || "",
@@ -53,6 +54,7 @@ const toUpdateRequestObject = (environment: Environment) => {
         environment.build.serverFolder ||
         ""
       ).trim(),
+      workDir: environment.build.workDir?.trim() || "",
       headers: environment.build.headers?.trim() || "",
       headersFile: environment.build.headersFile,
       redirectsFile: environment.build.redirectsFile,
