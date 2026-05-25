@@ -114,6 +114,7 @@ export const buildFormValues = (
     "build.statusChecks": JSON.stringify(env.build.statusChecks),
     "build.previewLinks": env.build.previewLinks ? "on" : "off",
     "build.priorityPattern": env.build.priorityPattern || "",
+    "build.headers": env.build.headers || "",
     "build.headersFile": env.build.headersFile,
     "build.redirectsFile": env.build.redirectsFile,
     "build.apiFolder": env.build.apiFolder,
