@@ -199,6 +199,15 @@ func WithSKAuth(req *RequestContext) (*shttp.Response, error) {
 		return nil, nil
 	}
 
+	// CORS preflight — respond 204 so the browser proceeds with the actual
+	// request. Per-path custom headers (e.g. Access-Control-Allow-Origin)
+	// are layered on by finalize() afterwards. Without this short-circuit
+	// the request would fall through to handlers that expect a JSON body
+	// and reject OPTIONS with 400, breaking the preflight.
+	if req.Method == http.MethodOptions {
+		return &shttp.Response{Status: http.StatusNoContent}, nil
+	}
+
 	m := &skAuthMiddleware{req: req}
 
 	if path == "/_stormkit/auth/register" || path == "/_stormkit/auth/login" {
