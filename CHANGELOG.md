@@ -1,5 +1,25 @@
 # Changelog
 
+## v2026.05.25.1...v2026.05.25.2
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.25.1...v2026.05.25.2)
+
+### 🚀 Enhancements
+
+- Apply custom headers to all responses ([#269](https://github.com/stormkit-io/stormkit-io/pull/269))
+
+### 🩹 Fixes
+
+- Parse header values with colons; clear redirects via MCP ([#268](https://github.com/stormkit-io/stormkit-io/pull/268))
+
+### 🏡 Chore
+
+- Update changelog for v2026.05.25.1 ([#267](https://github.com/stormkit-io/stormkit-io/pull/267))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.05.24.1...v2026.05.25.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.24.1...v2026.05.25.1)
