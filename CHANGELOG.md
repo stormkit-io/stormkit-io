@@ -1,5 +1,22 @@
 # Changelog
 
+## v2026.05.25.5...v2026.05.25.6
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.25.5...v2026.05.25.6)
+
+### 🩹 Fixes
+
+- Schema delete permission check uses user_id ([#278](https://github.com/stormkit-io/stormkit-io/pull/278))
+- Preserve env headers on build save ([#279](https://github.com/stormkit-io/stormkit-io/pull/279))
+
+### 🏡 Chore
+
+- Update changelog for v2026.05.25.5 ([#277](https://github.com/stormkit-io/stormkit-io/pull/277))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.05.25.4...v2026.05.25.5
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.25.4...v2026.05.25.5)
