@@ -1,5 +1,17 @@
 # Changelog
 
+## v2026.05.25.3...v2026.05.25.4
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.25.3...v2026.05.25.4)
+
+### 🩹 Fixes
+
+- Respond 204 to CORS preflight on skauth endpoints ([#273](https://github.com/stormkit-io/stormkit-io/pull/273))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.05.25.2...v2026.05.25.3
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.25.2...v2026.05.25.3)
