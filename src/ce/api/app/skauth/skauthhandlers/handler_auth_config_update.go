@@ -3,6 +3,7 @@ package skauthhandlers
 import (
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
@@ -11,9 +12,10 @@ import (
 )
 
 type AuthConfigUpdateRequest struct {
-	SuccessURL string `json:"successUrl"`
-	TTL        int    `json:"tokenTtl"`
-	Status     bool   `json:"status"`
+	SuccessURL     string   `json:"successUrl"`
+	TTL            int      `json:"tokenTtl"`
+	Status         bool     `json:"status"`
+	AllowedOrigins []string `json:"allowedOrigins"`
 }
 
 func handlerAuthConfigUpdate(req *app.RequestContext) *shttp.Response {
@@ -39,6 +41,12 @@ func handlerAuthConfigUpdate(req *app.RequestContext) *shttp.Response {
 				"hint":  "Provide a relative URL such as: /success",
 			})
 		}
+
+		// Normalize to a leading-slash path so it joins cleanly with
+		// an origin in the cross-origin redirect path.
+		if !strings.HasPrefix(data.SuccessURL, "/") {
+			data.SuccessURL = "/" + data.SuccessURL
+		}
 	}
 
 	store := buildconf.NewStore()
@@ -54,9 +62,35 @@ func handlerAuthConfigUpdate(req *app.RequestContext) *shttp.Response {
 		}
 	}
 
+	allowedOrigins := make([]string, 0, len(data.AllowedOrigins))
+
+	for _, raw := range data.AllowedOrigins {
+		origin := strings.TrimSpace(strings.TrimRight(raw, "/"))
+
+		if origin == "" {
+			continue
+		}
+
+		parsed, perr := url.Parse(origin)
+
+		// An allowed origin must be exactly scheme + host (no path, query,
+		// fragment, or userinfo). Anything else can never match a browser
+		// Origin header and would silently misconfigure the allow-list.
+		if perr != nil || !parsed.IsAbs() || parsed.Host == "" ||
+			parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.User != nil {
+			return shttp.BadRequest(map[string]any{
+				"error": fmt.Sprintf("Allowed origin %q must be a scheme + host only (no path, query, fragment, or userinfo).", raw),
+				"hint":  "Provide values like https://app.example.com",
+			})
+		}
+
+		allowedOrigins = append(allowedOrigins, origin)
+	}
+
 	env.AuthConf.SuccessURL = data.SuccessURL
 	env.AuthConf.TTL = data.TTL
 	env.AuthConf.Status = data.Status
+	env.AuthConf.AllowedOrigins = allowedOrigins
 
 	err = store.SaveAuthConf(req.Context(), req.EnvID, env.AuthConf)
 

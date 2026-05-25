@@ -2,6 +2,7 @@ package hosting
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	jwt "github.com/golang-jwt/jwt/v5"
@@ -42,6 +43,13 @@ func (m *skAuthMiddleware) magicLinkRequest() *shttp.Response {
 		return shttp.NotFound()
 	}
 
+	origin := strings.TrimRight(m.req.Header.Get("Origin"), "/")
+	matched := isAllowedOrigin(origin, env.AuthConf.AllowedOrigins)
+
+	if len(env.AuthConf.AllowedOrigins) > 0 && !matched {
+		return shttp.Forbidden()
+	}
+
 	prv, err := skauth.NewStore().Provider(req.Context(), envID, skauth.ProviderMagicLink)
 
 	if err != nil {
@@ -52,7 +60,13 @@ func (m *skAuthMiddleware) magicLinkRequest() *shttp.Response {
 		return shttp.NotFound()
 	}
 
-	token, err := generateMagicLinkToken(env)
+	redirectOrigin := ""
+
+	if matched {
+		redirectOrigin = origin
+	}
+
+	token, err := generateMagicLinkToken(env, redirectOrigin)
 
 	if err != nil {
 		return shttp.Error(err, fmt.Sprintf("failed to generate magic link token: %s", err.Error()))
@@ -110,8 +124,18 @@ func (m *skAuthMiddleware) magicLinkVerify() *shttp.Response {
 		return shttp.NotFound()
 	}
 
-	if claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: token, Secret: env.AuthConf.Secret}); claims == nil {
+	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: token, Secret: env.AuthConf.Secret})
+
+	if claims == nil {
 		return shttp.BadRequest(map[string]any{"errors": []string{"invalid or expired magic link token"}})
+	}
+
+	redirectOrigin, _ := claims["rdr"].(string)
+
+	// Re-validate at click time in case the allow-list changed between
+	// request and verify; don't trust a stale claim.
+	if redirectOrigin != "" && !isAllowedOrigin(redirectOrigin, env.AuthConf.AllowedOrigins) {
+		redirectOrigin = ""
 	}
 
 	store, err := env.SchemaConf.Store(buildconf.SchemaAccessTypeAppUser)
@@ -150,23 +174,49 @@ func (m *skAuthMiddleware) magicLinkVerify() *shttp.Response {
 		return shttp.Error(err, fmt.Sprintf("failed to generate session token: %s", err.Error()))
 	}
 
-	return &shttp.Response{
-		Data: map[string]any{"token": sessionToken, "email": authUser.Email, "userId": authUser.ID},
+	data := map[string]any{"token": sessionToken, "email": authUser.Email, "userId": authUser.ID}
+
+	if redirectOrigin != "" {
+		data["redirect"] = redirectOrigin
 	}
+
+	return &shttp.Response{Data: data}
 }
 
-func generateMagicLinkToken(env *buildconf.Env) (string, error) {
+func generateMagicLinkToken(env *buildconf.Env, redirectOrigin string) (string, error) {
 	jti, err := utils.SecureRandomToken(16)
 
 	if err != nil {
 		return "", err
 	}
 
-	return user.JWT(jwt.MapClaims{
+	claims := jwt.MapClaims{
 		"exp": time.Now().Add(15 * time.Minute).Unix(),
 		"prv": skauth.ProviderMagicLink,
 		"jti": jti,
-	}, env.AuthConf.Secret)
+	}
+
+	if redirectOrigin != "" {
+		claims["rdr"] = redirectOrigin
+	}
+
+	return user.JWT(claims, env.AuthConf.Secret)
+}
+
+// isAllowedOrigin returns true if origin (scheme + host, no trailing slash)
+// exactly matches an entry in list. Empty origin or empty list returns false.
+func isAllowedOrigin(origin string, list []string) bool {
+	if origin == "" || len(list) == 0 {
+		return false
+	}
+
+	for _, allowed := range list {
+		if strings.TrimRight(allowed, "/") == origin {
+			return true
+		}
+	}
+
+	return false
 }
 
 func sendMagicLinkEmail(req *shttp.RequestContext, env *buildconf.Env, email, token string) error {

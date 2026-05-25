@@ -33,6 +33,12 @@ type SKAuthConf struct {
 	SuccessURL string
 	Status     bool // Whether the authentication is enabled or not.
 	TTL        int  // in minutes
+	// AllowedOrigins is an opt-in allow-list of origins (scheme + host, e.g.
+	// "https://app.example.com") permitted to initiate the magic-link flow
+	// cross-origin. When non-empty, POSTs to /_stormkit/auth/magic must
+	// carry a matching Origin header and the user is redirected back to
+	// that origin after clicking the email link.
+	AllowedOrigins []string
 }
 
 // Value implements the Sql Driver interface.

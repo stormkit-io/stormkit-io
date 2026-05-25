@@ -98,10 +98,26 @@ func (m *skAuthMiddleware) handleMagicLinkVerify() (*shttp.Response, error) {
 		return m.renderVerifyPage(http.StatusInternalServerError, "", "magic link verification failed"), nil
 	}
 
+	successURL := m.req.Host.Config.SKAuth.SuccessURL
+
+	// Cross-origin: the POST came from a whitelisted frontend. Bounce
+	// the user back to that origin with the session token in the URL
+	// fragment so the destination SPA can persist it. We deliberately
+	// do NOT touch localStorage here because this host is the wrong
+	// origin for the token. SuccessURL is validated at config time to
+	// start with '/', so origin (no trailing slash) + successURL joins
+	// cleanly.
+	if redirect, _ := data["redirect"].(string); redirect != "" {
+		target := fmt.Sprintf("%s%s#skauth=%s", redirect, successURL, data["token"])
+		head := fmt.Sprintf(`<script>window.location.href=%q;</script>`, target)
+
+		return m.renderVerifyPage(http.StatusOK, head, ""), nil
+	}
+
 	head := fmt.Sprintf(
-		`<script>localStorage.setItem('skauth', JSON.stringify('%s'));window.location.href="%s?verified=true";</script>`,
+		`<script>localStorage.setItem('skauth', JSON.stringify(%q));window.location.href=%q;</script>`,
 		data["token"],
-		m.req.Host.Config.SKAuth.SuccessURL,
+		successURL+"?verified=true",
 	)
 
 	return m.renderVerifyPage(http.StatusOK, head, ""), nil
