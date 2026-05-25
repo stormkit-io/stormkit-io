@@ -113,6 +113,20 @@ func (s *WithSKAuthSuite) Test_SKAuthDisabled() {
 	s.Nil(res)
 }
 
+// Test_CORSPreflight checks that OPTIONS requests to /_stormkit/auth/* return
+// 204 so the browser preflight succeeds. The custom CORS headers are layered
+// on later by finalize() in HandlerForward.
+func (s *WithSKAuthSuite) Test_CORSPreflight() {
+	req := s.newRequest(s.hostWithSKAuth(), "/_stormkit/auth/magic")
+	req.RequestContext.Method = http.MethodOptions
+
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.NotNil(res)
+	s.Equal(http.StatusNoContent, res.Status)
+}
+
 // Test_NonAuthPath checks that the middleware is a no-op for paths that don't
 // start with /_stormkit/auth.
 func (s *WithSKAuthSuite) Test_NonAuthPath() {
