@@ -45,7 +45,7 @@ func handlerAuthUpsert(req *app.RequestContext) *shttp.Response {
 	// Let's create an auth conf on the fly, with default settings
 	if env.AuthConf == nil {
 		env.AuthConf = &buildconf.SKAuthConf{
-			TTL:        10,
+			TTL:        7 * 24 * 60,
 			SuccessURL: "/",
 			Secret:     utils.RandomToken(128),
 			Status:     true,

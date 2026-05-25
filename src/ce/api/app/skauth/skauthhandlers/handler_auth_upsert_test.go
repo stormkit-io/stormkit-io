@@ -93,7 +93,7 @@ func (s *HandlerAuthUpsertSuite) Test_Success() {
 	s.NotNil(env)
 	s.NotNil(env.AuthConf)
 	s.Equal("/", env.AuthConf.SuccessURL)
-	s.Equal(10, env.AuthConf.TTL)
+	s.Equal(7*24*60, env.AuthConf.TTL)
 	s.Len(env.AuthConf.Secret, 128)
 	s.True(env.AuthConf.Status)
 }

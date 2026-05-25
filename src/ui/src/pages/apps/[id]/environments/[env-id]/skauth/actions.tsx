@@ -6,6 +6,53 @@ import LinkIcon from "@mui/icons-material/Link";
 import MuiLink from "@mui/material/Link";
 import api from "~/utils/api/Api";
 
+// Duration unit table for the Session TTL field. Order matters for
+// formatDuration: largest unit that divides cleanly wins.
+const DURATION_UNITS: { suffix: string; minutes: number }[] = [
+  { suffix: "y", minutes: 365 * 24 * 60 },
+  { suffix: "mo", minutes: 30 * 24 * 60 },
+  { suffix: "w", minutes: 7 * 24 * 60 },
+  { suffix: "d", minutes: 24 * 60 },
+  { suffix: "h", minutes: 60 },
+  { suffix: "min", minutes: 1 },
+];
+
+// parseDuration turns "7d", "12h", "30min", "1w", "1mo", "1y" (case-
+// insensitive, optional whitespace) into minutes. Returns null on garbage so
+// the caller can surface a validation error.
+export const parseDuration = (input: string): number | null => {
+  const match = input.trim().toLowerCase().match(/^(\d+)\s*(min|mo|h|d|w|y)$/);
+
+  if (!match) {
+    return null;
+  }
+
+  const value = Number(match[1]);
+  const unit = DURATION_UNITS.find(u => u.suffix === match[2]);
+
+  if (!unit || !Number.isFinite(value)) {
+    return null;
+  }
+
+  return value * unit.minutes;
+};
+
+// formatDuration renders minutes as the largest unit that divides evenly,
+// falling back to plain minutes. 10080 → "1w", 360 → "6h", 1500 → "1500min".
+export const formatDuration = (minutes: number): string => {
+  if (!Number.isFinite(minutes) || minutes <= 0) {
+    return "";
+  }
+
+  for (const unit of DURATION_UNITS) {
+    if (minutes % unit.minutes === 0) {
+      return `${minutes / unit.minutes}${unit.suffix}`;
+    }
+  }
+
+  return `${minutes}min`;
+};
+
 export interface Field {
   name: string;
   label: string;
