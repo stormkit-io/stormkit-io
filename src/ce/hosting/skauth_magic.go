@@ -165,7 +165,7 @@ func (m *skAuthMiddleware) magicLinkVerify() *shttp.Response {
 	}
 
 	sessionToken, err := user.JWT(jwt.MapClaims{
-		"uid": authUser.ID,
+		"uid": authUser.UUID,
 		"eid": fmt.Sprintf("%d", envID),
 		"prv": skauth.ProviderMagicLink,
 	}, env.AuthConf.Secret)
@@ -174,7 +174,7 @@ func (m *skAuthMiddleware) magicLinkVerify() *shttp.Response {
 		return shttp.Error(err, fmt.Sprintf("failed to generate session token: %s", err.Error()))
 	}
 
-	data := map[string]any{"token": sessionToken, "email": authUser.Email, "userId": authUser.ID}
+	data := map[string]any{"token": sessionToken, "email": authUser.Email, "userId": authUser.UUID}
 
 	if redirectOrigin != "" {
 		data["redirect"] = redirectOrigin

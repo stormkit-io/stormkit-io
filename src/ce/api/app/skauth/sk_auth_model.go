@@ -122,7 +122,8 @@ type OAuth struct {
 }
 
 type User struct {
-	ID           types.ID   `json:"id,string"`
+	ID           types.ID   `json:"-"`  // Internal numeric primary key. Used for joins; not exposed externally.
+	UUID         string     `json:"id"` // External identifier surfaced via the X-User-Id header and API responses.
 	FirstName    string     `json:"firstName"`
 	LastName     string     `json:"lastName"`
 	Email        string     `json:"email"`
@@ -136,7 +137,7 @@ type User struct {
 // JSON returns a map representation of the user for API responses.
 func (u *User) JSON() map[string]any {
 	return map[string]any{
-		"id":          u.ID.String(),
+		"id":          u.UUID,
 		"firstName":   u.FirstName,
 		"lastName":    u.LastName,
 		"email":       u.Email,

@@ -114,7 +114,7 @@ func (m *skAuthMiddleware) login() *shttp.Response {
 	}
 
 	sessionToken, err := user.JWT(jwt.MapClaims{
-		"uid": authUser.ID,
+		"uid": authUser.UUID,
 		"eid": fmt.Sprintf("%d", ctx.envID),
 		"prv": skauth.ProviderEmail,
 	}, ctx.env.AuthConf.Secret)
@@ -125,7 +125,7 @@ func (m *skAuthMiddleware) login() *shttp.Response {
 
 	return &shttp.Response{
 		Status: http.StatusOK,
-		Data:   map[string]any{"token": sessionToken, "email": ctx.email, "userId": authUser.ID},
+		Data:   map[string]any{"token": sessionToken, "email": ctx.email, "userId": authUser.UUID},
 	}
 }
 
@@ -186,12 +186,12 @@ func (m *skAuthMiddleware) register() *shttp.Response {
 
 		return &shttp.Response{
 			Status: http.StatusCreated,
-			Data:   map[string]any{"verificationRequired": true, "email": ctx.email, "userId": usr.ID},
+			Data:   map[string]any{"verificationRequired": true, "email": ctx.email, "userId": usr.UUID},
 		}
 	}
 
 	sessionToken, err := user.JWT(jwt.MapClaims{
-		"uid": usr.ID,
+		"uid": usr.UUID,
 		"eid": fmt.Sprintf("%d", ctx.envID),
 		"prv": skauth.ProviderEmail,
 	}, ctx.env.AuthConf.Secret)
@@ -202,7 +202,7 @@ func (m *skAuthMiddleware) register() *shttp.Response {
 
 	return &shttp.Response{
 		Status: http.StatusCreated,
-		Data:   map[string]any{"token": sessionToken, "email": ctx.email, "userId": usr.ID},
+		Data:   map[string]any{"token": sessionToken, "email": ctx.email, "userId": usr.UUID},
 	}
 }
 
@@ -272,7 +272,7 @@ func (m *skAuthMiddleware) verifyEmail() *shttp.Response {
 	}
 
 	sessionToken, err := user.JWT(jwt.MapClaims{
-		"uid": authUser.ID,
+		"uid": authUser.UUID,
 		"eid": fmt.Sprintf("%d", envID),
 		"prv": skauth.ProviderEmail,
 	}, env.AuthConf.Secret)
@@ -282,7 +282,7 @@ func (m *skAuthMiddleware) verifyEmail() *shttp.Response {
 	}
 
 	return &shttp.Response{
-		Data: map[string]any{"token": sessionToken, "email": authUser.Email, "userId": authUser.ID},
+		Data: map[string]any{"token": sessionToken, "email": authUser.Email, "userId": authUser.UUID},
 	}
 }
 
