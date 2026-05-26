@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appcache"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
@@ -96,6 +97,15 @@ func handlerAuthConfigUpdate(req *app.RequestContext) *shttp.Response {
 
 	if err != nil {
 		return shttp.Error(err, fmt.Sprintf("error while saving auth conf for env: %s, err=%s", req.EnvID.String(), err.Error()))
+	}
+
+	// Invalidate the hosting cache so the SKAuth middleware picks up the
+	// new TTL/SuccessURL/AllowedOrigins on the next request. Without this
+	// the cached appconf keeps serving the previous values until the cache
+	// expires on its own, which manifests as users getting kicked out
+	// before the new TTL has elapsed.
+	if err := appcache.Service().Reset(req.EnvID); err != nil {
+		return shttp.Error(err)
 	}
 
 	return shttp.OK()
