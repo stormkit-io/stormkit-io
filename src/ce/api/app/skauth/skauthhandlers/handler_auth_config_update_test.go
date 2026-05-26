@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appcache"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth/skauthhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
@@ -12,17 +13,20 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp/shttptest"
+	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
+	"github.com/stormkit-io/stormkit-io/src/mocks"
 	"github.com/stretchr/testify/suite"
 )
 
 type HandlerAuthConfigUpdateSuite struct {
 	suite.Suite
 	*factory.Factory
-	conn databasetest.TestDB
-	usr  *factory.MockUser
-	app  *factory.MockApp
-	env  *factory.MockEnv
+	conn             databasetest.TestDB
+	usr              *factory.MockUser
+	app              *factory.MockApp
+	env              *factory.MockEnv
+	mockCacheService *mocks.CacheInterface
 }
 
 func (s *HandlerAuthConfigUpdateSuite) BeforeTest(suiteName, _ string) {
@@ -33,13 +37,19 @@ func (s *HandlerAuthConfigUpdateSuite) BeforeTest(suiteName, _ string) {
 	s.usr = s.MockUser(nil)
 	s.app = s.MockApp(s.usr, nil)
 	s.env = s.MockEnv(s.app)
+
+	s.mockCacheService = &mocks.CacheInterface{}
+	appcache.DefaultCacheService = s.mockCacheService
 }
 
 func (s *HandlerAuthConfigUpdateSuite) AfterTest(_, _ string) {
 	s.conn.CloseTx()
+	appcache.DefaultCacheService = nil
 }
 
 func (s *HandlerAuthConfigUpdateSuite) Test_Update() {
+	s.mockCacheService.On("Reset", types.ID(s.env.ID)).Return(nil).Once()
+
 	response := shttptest.RequestWithHeaders(
 		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
 		shttp.MethodPost,
@@ -74,6 +84,8 @@ func (s *HandlerAuthConfigUpdateSuite) Test_Update_Existing() {
 	}
 
 	s.NoError(buildconf.NewStore().SaveAuthConf(context.Background(), s.env.ID, authConf))
+
+	s.mockCacheService.On("Reset", types.ID(s.env.ID)).Return(nil).Once()
 
 	response := shttptest.RequestWithHeaders(
 		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
