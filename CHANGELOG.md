@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.05.25.6...v2026.05.25.7
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.25.6...v2026.05.25.7)
+
+### 🚀 Enhancements
+
+- Skauth refresh endpoint and 7d default TTL ([#281](https://github.com/stormkit-io/stormkit-io/pull/281))
+
+### 🏡 Chore
+
+- Update changelog for v2026.05.25.6 ([#280](https://github.com/stormkit-io/stormkit-io/pull/280))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.05.25.5...v2026.05.25.6
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.25.5...v2026.05.25.6)
