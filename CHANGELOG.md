@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.05.25.7...v2026.05.26.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.25.7...v2026.05.26.1)
+
+### 🩹 Fixes
+
+- Reset hosting cache on skauth config update ([#283](https://github.com/stormkit-io/stormkit-io/pull/283))
+
+### 🏡 Chore
+
+- Update changelog for v2026.05.25.7 ([#282](https://github.com/stormkit-io/stormkit-io/pull/282))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.05.25.6...v2026.05.25.7
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.25.6...v2026.05.25.7)
