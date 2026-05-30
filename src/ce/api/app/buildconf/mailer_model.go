@@ -3,6 +3,7 @@ package buildconf
 import (
 	"encoding/json"
 	"fmt"
+	"net/mail"
 	"net/smtp"
 	"net/url"
 	"strings"
@@ -85,7 +86,10 @@ func SanitizeHeader(v string) string {
 }
 
 // Send delivers an HTML email using the environment's SMTP configuration.
-// The SMTP envelope sender is always mc.Username; p.From controls the display From header only.
+// p.From sets the From: header (may include a display name); the SMTP
+// envelope MAIL FROM is the bare address parsed from it — display-name
+// forms like `Acme <foo@bar.com>` are rejected by many SMTP servers with
+// a 501.
 func (mc *MailerConf) Send(p SendEmailParams) error {
 	fromHeader := SanitizeHeader(utils.GetString(p.From, mc.Username))
 	port := utils.GetString(mc.Port, "587")
@@ -105,7 +109,13 @@ func (mc *MailerConf) Send(p SendEmailParams) error {
 		to[i] = strings.TrimSpace(to[i])
 	}
 
-	return SendMailFunc(mc.Host+":"+port, auth, mc.Username, to, msg)
+	envelope := fromHeader
+
+	if addr, err := mail.ParseAddress(fromHeader); err == nil {
+		envelope = addr.Address
+	}
+
+	return SendMailFunc(mc.Host+":"+port, auth, envelope, to, msg)
 }
 
 type Email struct {

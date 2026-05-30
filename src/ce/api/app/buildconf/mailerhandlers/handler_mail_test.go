@@ -48,7 +48,7 @@ func (s *MailerSuite) Test_Success() {
 	buildconf.SendMailFunc = func(addr string, a smtp.Auth, from string, to []string, msg []byte) error {
 		mime := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
 		s.Equal("smtp.gmail.com:587", addr)
-		s.Equal("test", from)
+		s.Equal("hello@stormkit.io", from)
 		s.Equal([]string{"joe@stormkit.io", "jane@stormkit.io"}, to)
 		s.Equal([]byte(
 			""+
