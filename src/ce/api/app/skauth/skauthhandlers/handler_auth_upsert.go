@@ -16,6 +16,7 @@ type AuthUpsertRequest struct {
 	ProviderName string `json:"providerName"`
 	ClientID     string `json:"clientId"`
 	ClientSecret string `json:"clientSecret"`
+	FromAddress  string `json:"fromAddress"`
 	Status       bool   `json:"status"`
 }
 
@@ -109,7 +110,17 @@ func handleOAuthProvider(req *app.RequestContext, data *AuthUpsertRequest, env *
 // handleEmailProvider saves the email/password provider configuration.
 // Email providers do not require OAuth credentials.
 func handleEmailProvider(req *app.RequestContext, data *AuthUpsertRequest, env *buildconf.Env) *shttp.Response {
-	return saveProvider(req, data, env, skauth.ProviderData{})
+	fromAddress := strings.TrimSpace(data.FromAddress)
+
+	if data.ProviderName == skauth.ProviderMagicLink && fromAddress == "" {
+		return shttp.BadRequest(map[string]any{
+			"error": "From address is required",
+		})
+	}
+
+	return saveProvider(req, data, env, skauth.ProviderData{
+		FromAddress: fromAddress,
+	})
 }
 
 // saveProvider creates the auth table (idempotent) and upserts the provider record.

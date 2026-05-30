@@ -82,7 +82,7 @@ func (m *skAuthMiddleware) magicLinkRequest() *shttp.Response {
 		return shttp.Error(err, fmt.Sprintf("failed to upsert magic link user: %s", err.Error()))
 	}
 
-	if err := sendMagicLinkEmail(req, env, email, token); err != nil {
+	if err := sendMagicLinkEmail(req, env, prv, email, token); err != nil {
 		return shttp.Error(err, fmt.Sprintf("failed to send magic link email: %s", err.Error()))
 	}
 
@@ -219,12 +219,13 @@ func isAllowedOrigin(origin string, list []string) bool {
 	return false
 }
 
-func sendMagicLinkEmail(req *shttp.RequestContext, env *buildconf.Env, email, token string) error {
+func sendMagicLinkEmail(req *shttp.RequestContext, env *buildconf.Env, prv *skauth.Provider, email, token string) error {
 	u := req.URL()
 	link := fmt.Sprintf("%s://%s/_stormkit/auth/magic?token=%s", u.Scheme, u.Host, token)
 
 	params := buildconf.SendEmailParams{
 		To:      email,
+		From:    prv.Data.FromAddress,
 		Subject: "Your magic link",
 		Body:    fmt.Sprintf(`<p>Click the link below to sign in. The link expires in 15 minutes.</p><p><a href="%s">%s</a></p>`, link, link),
 	}

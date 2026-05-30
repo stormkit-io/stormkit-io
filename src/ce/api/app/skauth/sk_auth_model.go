@@ -52,6 +52,7 @@ type ProviderData struct {
 	ClientSecret string   `json:"clientSecret"`
 	RedirectURL  string   `json:"redirectURL"`
 	Scopes       []string `json:"scopes"`
+	FromAddress  string   `json:"fromAddress,omitempty"`
 }
 
 type Provider struct {

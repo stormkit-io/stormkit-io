@@ -57,6 +57,7 @@ export interface Field {
   name: string;
   label: string;
   value: string;
+  required?: boolean;
   helperText?: string;
 }
 
@@ -111,6 +112,16 @@ const allProviders: AuthProvider[] = [
     name: "Magic Link",
     drawerTitle: "Magic Link Settings",
     drawerDesc: "Allow passwordless sign-in via a one-time link sent by email.",
+    fields: [
+      {
+        name: "fromAddress",
+        label: "From address",
+        value: "",
+        required: true,
+        helperText:
+          "Address used as the From header for magic-link emails (e.g. \"Acme <noreply@acme.com>\").",
+      },
+    ],
     steps: [
       "Enable this provider to allow users to sign in with a magic link sent to their email address.",
       <>
