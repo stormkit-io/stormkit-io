@@ -61,6 +61,7 @@ export default function ProviderSettings({
             providerName: provider?.id,
             clientId: data.clientId,
             clientSecret: data.clientSecret,
+            fromAddress: data.fromAddress,
             status: isEnabled,
           })
             .then(() => {
@@ -97,6 +98,7 @@ export default function ProviderSettings({
               label={field.label}
               defaultValue={field.value}
               helperText={field.helperText}
+              required={field.required}
               fullWidth
               sx={{ mb: 2 }}
             />

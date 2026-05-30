@@ -254,6 +254,12 @@ export default function SkAuth() {
               inputLabel: {
                 shrink: true,
               },
+              htmlInput: {
+                "data-lpignore": "true",
+                "data-1p-ignore": "true",
+                "data-bwignore": "true",
+                "data-form-type": "other",
+              },
             }}
           />
         </Box>

@@ -283,6 +283,7 @@ func (s *HandlerAuthUpsertSuite) Test_Success_MagicLinkProvider() {
 		map[string]any{
 			"envId":        s.env.ID,
 			"providerName": skauth.ProviderMagicLink,
+			"fromAddress":  "Acme <noreply@acme.com>",
 			"status":       true,
 		},
 		map[string]string{
@@ -296,7 +297,25 @@ func (s *HandlerAuthUpsertSuite) Test_Success_MagicLinkProvider() {
 	s.NoError(err)
 	s.NotNil(provider, "Magic link provider should be saved")
 	s.True(provider.Status)
-	s.Equal(skauth.ProviderData{}, provider.Data, "Magic link provider should have no OAuth credentials")
+	s.Equal(skauth.ProviderData{FromAddress: "Acme <noreply@acme.com>"}, provider.Data)
+}
+
+func (s *HandlerAuthUpsertSuite) Test_MagicLinkProvider_RequiresFromAddress() {
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/skauth",
+		map[string]any{
+			"envId":        s.env.ID,
+			"providerName": skauth.ProviderMagicLink,
+			"status":       true,
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(s.usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusBadRequest, response.Code)
 }
 
 func TestHandlerUpsertSuite(t *testing.T) {

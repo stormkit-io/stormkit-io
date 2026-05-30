@@ -37,6 +37,10 @@ func handlerAuths(req *app.RequestContext) *shttp.Response {
 		if p.Data.ClientSecret != "" {
 			returnValue[p.Name]["clientSecret"] = ClientSecretPlaceholder
 		}
+
+		if p.Data.FromAddress != "" {
+			returnValue[p.Name]["fromAddress"] = p.Data.FromAddress
+		}
 	}
 
 	successURL := ""
