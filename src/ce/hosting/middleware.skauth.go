@@ -10,6 +10,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/html"
 	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
 type skAuthMiddleware struct {
@@ -177,19 +178,28 @@ func WithSKAuth(req *RequestContext) (*shttp.Response, error) {
 		return nil, nil
 	}
 
-	// Strip the header to prevent clients from spoofing it.
+	// Strip the headers to prevent clients from spoofing them.
 	req.Header.Del("X-User-Id")
+	req.Header.Del("X-User-Email")
 
 	if bearer := user.ParseBearer(req.Header.Get("Authorization")); bearer != "" {
+		secret := req.Host.Config.SKAuth.Secret
+
 		claims := user.ParseJWT(&user.ParseJWTArgs{
 			Bearer:  bearer,
-			Secret:  req.Host.Config.SKAuth.Secret,
+			Secret:  secret,
 			MaxMins: req.Host.Config.SKAuth.TTL,
 		})
 
 		if claims != nil {
 			if userID, ok := claims["uid"].(string); ok && userID != "" {
 				req.Header.Set("X-User-Id", userID)
+			}
+
+			if encEmail, ok := claims["eml"].(string); ok && encEmail != "" {
+				if email := utils.DecryptToString(encEmail, []byte(secret)); email != "" {
+					req.Header.Set("X-User-Email", email)
+				}
 			}
 		}
 	}
@@ -278,7 +288,13 @@ func (m *skAuthMiddleware) handleRefresh() (*shttp.Response, error) {
 		}, nil
 	}
 
-	token, err := user.JWT(jwt.MapClaims{"uid": uid}, m.req.Host.Config.SKAuth.Secret)
+	newClaims := jwt.MapClaims{"uid": uid}
+
+	if eml, ok := claims["eml"].(string); ok && eml != "" {
+		newClaims["eml"] = eml
+	}
+
+	token, err := user.JWT(newClaims, m.req.Host.Config.SKAuth.Secret)
 
 	if err != nil {
 		return &shttp.Response{
