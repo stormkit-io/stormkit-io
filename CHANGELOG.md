@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.05.30.2...v2026.05.31.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.30.2...v2026.05.31.1)
+
+### 🚀 Enhancements
+
+- Forward x-user-email header for skauth ([#289](https://github.com/stormkit-io/stormkit-io/pull/289))
+
+### 🏡 Chore
+
+- Update changelog for v2026.05.30.1 ([#286](https://github.com/stormkit-io/stormkit-io/pull/286))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.05.26.1...v2026.05.30.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.26.1...v2026.05.30.1)
