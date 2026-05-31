@@ -115,6 +115,7 @@ func (m *skAuthMiddleware) login() *shttp.Response {
 
 	sessionToken, err := user.JWT(jwt.MapClaims{
 		"uid": authUser.UUID,
+		"eml": utils.EncryptToString(ctx.email, []byte(ctx.env.AuthConf.Secret)),
 		"eid": fmt.Sprintf("%d", ctx.envID),
 		"prv": skauth.ProviderEmail,
 	}, ctx.env.AuthConf.Secret)
@@ -192,6 +193,7 @@ func (m *skAuthMiddleware) register() *shttp.Response {
 
 	sessionToken, err := user.JWT(jwt.MapClaims{
 		"uid": usr.UUID,
+		"eml": utils.EncryptToString(ctx.email, []byte(ctx.env.AuthConf.Secret)),
 		"eid": fmt.Sprintf("%d", ctx.envID),
 		"prv": skauth.ProviderEmail,
 	}, ctx.env.AuthConf.Secret)
@@ -273,6 +275,7 @@ func (m *skAuthMiddleware) verifyEmail() *shttp.Response {
 
 	sessionToken, err := user.JWT(jwt.MapClaims{
 		"uid": authUser.UUID,
+		"eml": utils.EncryptToString(authUser.Email, []byte(env.AuthConf.Secret)),
 		"eid": fmt.Sprintf("%d", envID),
 		"prv": skauth.ProviderEmail,
 	}, env.AuthConf.Secret)

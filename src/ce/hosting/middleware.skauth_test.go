@@ -20,6 +20,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -59,7 +60,7 @@ func (s *WithSKAuthSuite) hostWithSKAuth() *hosting.Host {
 		Name: "www.stormkit.io",
 		Config: &appconf.Config{
 			SKAuth: &buildconf.SKAuthConf{
-				Secret:     "test-secret",
+				Secret:     "test-secret-padded-to-32-chars!!",
 				SuccessURL: "/",
 				TTL:        10,
 			},
@@ -366,7 +367,7 @@ func (s *WithSKAuthSuite) Test_UserIDNotStrippedWhenSKAuthDisabled() {
 func (s *WithSKAuthSuite) Test_UserIDInjected() {
 	userID := types.ID(42)
 	req := s.newRequest(s.hostWithSKAuth(), "/api/data")
-	req.Header.Set("Authorization", s.generateBearer(userID, "test-secret"))
+	req.Header.Set("Authorization", s.generateBearer(userID, "test-secret-padded-to-32-chars!!"))
 
 	res, err := hosting.WithSKAuth(req)
 
@@ -390,7 +391,7 @@ func (s *WithSKAuthSuite) Test_UserIDNotInjectedOnInvalidToken() {
 // Test_UserIDNotInjectedOnWrongSecret checks that a token signed with a different secret is rejected.
 func (s *WithSKAuthSuite) Test_UserIDNotInjectedOnWrongSecret() {
 	req := s.newRequest(s.hostWithSKAuth(), "/api/data")
-	req.Header.Set("Authorization", s.generateBearer(types.ID(1), "wrong-secret"))
+	req.Header.Set("Authorization", s.generateBearer(types.ID(1), "wrong-secret-padded-to-32-chars!"))
 
 	res, err := hosting.WithSKAuth(req)
 
@@ -411,6 +412,57 @@ func (s *WithSKAuthSuite) Test_UserIDNotInjectedWhenNoAuthHeader() {
 	s.Empty(req.Header.Get("X-User-Id"))
 }
 
+// generateBearerWithEmail signs a JWT carrying both uid and an encrypted eml
+// claim — mirrors what the login/register/verify/magic-link handlers issue.
+func (s *WithSKAuthSuite) generateBearerWithEmail(userID types.ID, email, secret string) string {
+	token, err := user.JWT(jwt.MapClaims{
+		"uid": userID,
+		"eml": utils.EncryptToString(email, []byte(secret)),
+	}, secret)
+	s.Require().NoError(err)
+	return fmt.Sprintf("Bearer %s", token)
+}
+
+// Test_UserEmailStripped checks that X-User-Email is removed when SKAuth is
+// configured to prevent clients from spoofing it.
+func (s *WithSKAuthSuite) Test_UserEmailStripped() {
+	req := s.newRequest(s.hostWithSKAuth(), "/some/path")
+	req.Header.Set("X-User-Email", "spoofed@example.com")
+
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.Nil(res)
+	s.Empty(req.Header.Get("X-User-Email"))
+}
+
+// Test_UserEmailInjected checks that a valid bearer with an encrypted eml
+// claim results in X-User-Email being decrypted and set on the request.
+func (s *WithSKAuthSuite) Test_UserEmailInjected() {
+	secret := "test-secret-padded-to-32-chars!!"
+	req := s.newRequest(s.hostWithSKAuth(), "/api/data")
+	req.Header.Set("Authorization", s.generateBearerWithEmail(types.ID(42), "user@example.com", secret))
+
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.Nil(res)
+	s.Equal("user@example.com", req.Header.Get("X-User-Email"))
+}
+
+// Test_UserEmailNotInjectedWhenClaimMissing checks that a bearer without an
+// eml claim leaves X-User-Email unset.
+func (s *WithSKAuthSuite) Test_UserEmailNotInjectedWhenClaimMissing() {
+	req := s.newRequest(s.hostWithSKAuth(), "/api/data")
+	req.Header.Set("Authorization", s.generateBearer(types.ID(42), "test-secret-padded-to-32-chars!!"))
+
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.Nil(res)
+	s.Empty(req.Header.Get("X-User-Email"))
+}
+
 // generateBearerIssuedAt signs a JWT with a forged "issued" claim so tests
 // can exercise expiry behavior without sleeping.
 func (s *WithSKAuthSuite) generateBearerIssuedAt(userID types.ID, secret string, issuedAt time.Time) string {
@@ -429,7 +481,7 @@ func (s *WithSKAuthSuite) generateBearerIssuedAt(userID types.ID, secret string,
 func (s *WithSKAuthSuite) Test_Refresh_ValidToken() {
 	host := s.hostWithSKAuth() // TTL = 10 min
 	req := s.newPostRequest(host, "/_stormkit/auth/refresh", nil)
-	req.Header.Set("Authorization", s.generateBearer(types.ID(42), "test-secret"))
+	req.Header.Set("Authorization", s.generateBearer(types.ID(42), "test-secret-padded-to-32-chars!!"))
 
 	res, err := hosting.WithSKAuth(req)
 
@@ -446,11 +498,40 @@ func (s *WithSKAuthSuite) Test_Refresh_ValidToken() {
 
 	claims := user.ParseJWT(&user.ParseJWTArgs{
 		Bearer:  newToken,
-		Secret:  "test-secret",
+		Secret:  "test-secret-padded-to-32-chars!!",
 		MaxMins: 10,
 	})
 	s.Require().NotNil(claims)
 	s.Equal("42", claims["uid"])
+}
+
+// Test_Refresh_PreservesEmail checks that the eml claim survives a refresh —
+// the new token carries the same encrypted email as the old one.
+func (s *WithSKAuthSuite) Test_Refresh_PreservesEmail() {
+	secret := "test-secret-padded-to-32-chars!!"
+	host := s.hostWithSKAuth()
+	req := s.newPostRequest(host, "/_stormkit/auth/refresh", nil)
+	req.Header.Set("Authorization", s.generateBearerWithEmail(types.ID(42), "user@example.com", secret))
+
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.Require().NotNil(res)
+	s.Equal(http.StatusOK, res.Status)
+
+	data := res.Data.(map[string]any)
+	newToken := data["token"].(string)
+
+	claims := user.ParseJWT(&user.ParseJWTArgs{
+		Bearer:  newToken,
+		Secret:  secret,
+		MaxMins: 10,
+	})
+	s.Require().NotNil(claims)
+
+	encEmail, ok := claims["eml"].(string)
+	s.Require().True(ok)
+	s.Equal("user@example.com", utils.DecryptToString(encEmail, []byte(secret)))
 }
 
 // Test_Refresh_ExpiredToken checks that an expired bearer is rejected with
@@ -458,7 +539,7 @@ func (s *WithSKAuthSuite) Test_Refresh_ValidToken() {
 func (s *WithSKAuthSuite) Test_Refresh_ExpiredToken() {
 	host := s.hostWithSKAuth() // TTL = 10 min
 	req := s.newPostRequest(host, "/_stormkit/auth/refresh", nil)
-	req.Header.Set("Authorization", s.generateBearerIssuedAt(types.ID(7), "test-secret", time.Now().Add(-30*time.Minute)))
+	req.Header.Set("Authorization", s.generateBearerIssuedAt(types.ID(7), "test-secret-padded-to-32-chars!!", time.Now().Add(-30*time.Minute)))
 
 	res, err := hosting.WithSKAuth(req)
 
@@ -484,7 +565,7 @@ func (s *WithSKAuthSuite) Test_Refresh_MissingBearer() {
 func (s *WithSKAuthSuite) Test_Refresh_WrongMethod() {
 	host := s.hostWithSKAuth()
 	req := s.newGetRequest(host, "/_stormkit/auth/refresh")
-	req.Header.Set("Authorization", s.generateBearer(types.ID(1), "test-secret"))
+	req.Header.Set("Authorization", s.generateBearer(types.ID(1), "test-secret-padded-to-32-chars!!"))
 
 	res, err := hosting.WithSKAuth(req)
 

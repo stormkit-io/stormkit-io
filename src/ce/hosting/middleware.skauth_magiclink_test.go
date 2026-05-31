@@ -48,7 +48,7 @@ func (s *WithSKAuthMagicLinkSuite) setupEnv() (*factory.MockEnv, error) {
 func (s *WithSKAuthMagicLinkSuite) setupEnvWithOrigins(allowed []string) (*factory.MockEnv, error) {
 	env := s.MockEnv(s.app, map[string]any{
 		"AuthConf": &buildconf.SKAuthConf{
-			Secret:         "test-secret",
+			Secret:         "test-secret-padded-to-32-chars!!",
 			Status:         true,
 			AllowedOrigins: allowed,
 		},
@@ -93,7 +93,7 @@ func (s *WithSKAuthMagicLinkSuite) hostFor(envID types.ID) *hosting.Host {
 		Config: &appconf.Config{
 			EnvID: envID,
 			SKAuth: &buildconf.SKAuthConf{
-				Secret:     "test-secret",
+				Secret:     "test-secret-padded-to-32-chars!!",
 				SuccessURL: "/dashboard",
 			},
 		},
