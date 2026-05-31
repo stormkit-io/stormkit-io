@@ -51,7 +51,7 @@ func (s *WithSKAuthEmailSuite) hostFor(envID types.ID) *hosting.Host {
 		Config: &appconf.Config{
 			EnvID: envID,
 			SKAuth: &buildconf.SKAuthConf{
-				Secret:     "test-secret",
+				Secret:     "test-secret-padded-to-32-chars!!",
 				SuccessURL: "/dashboard",
 			},
 		},
@@ -126,7 +126,7 @@ func (s *WithSKAuthEmailSuite) getRequest(host *hosting.Host, path string) *host
 func (s *WithSKAuthEmailSuite) setupEnv(withMailer bool) (*factory.MockEnv, error) {
 	fields := map[string]any{
 		"AuthConf": &buildconf.SKAuthConf{
-			Secret:     "test-secret",
+			Secret:     "test-secret-padded-to-32-chars!!",
 			Status:     true,
 			SuccessURL: "/dashboard",
 		},
@@ -287,7 +287,7 @@ func (s *WithSKAuthEmailSuite) Test_Register_AuthNotEnabled() {
 func (s *WithSKAuthEmailSuite) Test_Register_EmailProviderNotEnabled() {
 	env := s.MockEnv(s.app, map[string]any{
 		"AuthConf": &buildconf.SKAuthConf{
-			Secret: "test-secret",
+			Secret: "test-secret-padded-to-32-chars!!",
 			Status: true,
 		},
 		"SchemaConf": &buildconf.SchemaConf{
@@ -398,7 +398,7 @@ func (s *WithSKAuthEmailSuite) Test_Login_AuthNotEnabled() {
 func (s *WithSKAuthEmailSuite) Test_Login_EmailProviderNotEnabled() {
 	env := s.MockEnv(s.app, map[string]any{
 		"AuthConf": &buildconf.SKAuthConf{
-			Secret: "test-secret",
+			Secret: "test-secret-padded-to-32-chars!!",
 			Status: true,
 		},
 		"SchemaConf": &buildconf.SchemaConf{
