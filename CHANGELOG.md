@@ -1,5 +1,22 @@
 # Changelog
 
+## v2026.05.31.1...v2026.06.01.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.31.1...v2026.06.01.1)
+
+### 🩹 Fixes
+
+- Derive aes key for eml claim from skauth secret ([#291](https://github.com/stormkit-io/stormkit-io/pull/291))
+
+### 🏡 Chore
+
+- Update changelog for v2026.05.30.2 ([#288](https://github.com/stormkit-io/stormkit-io/pull/288))
+- Update changelog for v2026.05.31.1 ([#290](https://github.com/stormkit-io/stormkit-io/pull/290))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.05.30.2...v2026.05.31.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.30.2...v2026.05.31.1)
