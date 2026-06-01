@@ -197,7 +197,7 @@ func WithSKAuth(req *RequestContext) (*shttp.Response, error) {
 			}
 
 			if encEmail, ok := claims["eml"].(string); ok && encEmail != "" {
-				if email := utils.DecryptToString(encEmail, []byte(secret)); email != "" {
+				if email := utils.DecryptToString(encEmail, emlKey(secret)); email != "" {
 					req.Header.Set("X-User-Email", email)
 				}
 			}
@@ -288,11 +288,7 @@ func (m *skAuthMiddleware) handleRefresh() (*shttp.Response, error) {
 		}, nil
 	}
 
-	newClaims := jwt.MapClaims{"uid": uid}
-
-	if eml, ok := claims["eml"].(string); ok && eml != "" {
-		newClaims["eml"] = eml
-	}
+	newClaims := jwt.MapClaims{"uid": uid, "eml": claims["eml"]}
 
 	token, err := user.JWT(newClaims, m.req.Host.Config.SKAuth.Secret)
 
