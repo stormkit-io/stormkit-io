@@ -7,6 +7,7 @@ import (
 
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/database"
@@ -15,6 +16,17 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"golang.org/x/crypto/bcrypt"
 )
+
+// emlKey derives a 32-byte AES key for encrypting the `eml` JWT claim.
+// SKAuth secrets are normally 128-char ASCII tokens; if a shorter secret
+// is encountered (which AES rejects), fall back to the app secret.
+func emlKey(secret string) []byte {
+	if len(secret) >= 32 {
+		return []byte(secret)[:32]
+	}
+
+	return []byte(config.AppSecret())
+}
 
 type emailAuthCtx struct {
 	env      *buildconf.Env
@@ -115,7 +127,7 @@ func (m *skAuthMiddleware) login() *shttp.Response {
 
 	sessionToken, err := user.JWT(jwt.MapClaims{
 		"uid": authUser.UUID,
-		"eml": utils.EncryptToString(ctx.email, []byte(ctx.env.AuthConf.Secret)),
+		"eml": utils.EncryptToString(ctx.email, emlKey(ctx.env.AuthConf.Secret)),
 		"eid": fmt.Sprintf("%d", ctx.envID),
 		"prv": skauth.ProviderEmail,
 	}, ctx.env.AuthConf.Secret)
@@ -193,7 +205,7 @@ func (m *skAuthMiddleware) register() *shttp.Response {
 
 	sessionToken, err := user.JWT(jwt.MapClaims{
 		"uid": usr.UUID,
-		"eml": utils.EncryptToString(ctx.email, []byte(ctx.env.AuthConf.Secret)),
+		"eml": utils.EncryptToString(ctx.email, emlKey(ctx.env.AuthConf.Secret)),
 		"eid": fmt.Sprintf("%d", ctx.envID),
 		"prv": skauth.ProviderEmail,
 	}, ctx.env.AuthConf.Secret)
@@ -275,7 +287,7 @@ func (m *skAuthMiddleware) verifyEmail() *shttp.Response {
 
 	sessionToken, err := user.JWT(jwt.MapClaims{
 		"uid": authUser.UUID,
-		"eml": utils.EncryptToString(authUser.Email, []byte(env.AuthConf.Secret)),
+		"eml": utils.EncryptToString(authUser.Email, emlKey(env.AuthConf.Secret)),
 		"eid": fmt.Sprintf("%d", envID),
 		"prv": skauth.ProviderEmail,
 	}, env.AuthConf.Secret)

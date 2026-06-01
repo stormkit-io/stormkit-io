@@ -166,7 +166,7 @@ func (m *skAuthMiddleware) magicLinkVerify() *shttp.Response {
 
 	sessionToken, err := user.JWT(jwt.MapClaims{
 		"uid": authUser.UUID,
-		"eml": utils.EncryptToString(authUser.Email, []byte(env.AuthConf.Secret)),
+		"eml": utils.EncryptToString(authUser.Email, emlKey(env.AuthConf.Secret)),
 		"eid": fmt.Sprintf("%d", envID),
 		"prv": skauth.ProviderMagicLink,
 	}, env.AuthConf.Secret)
