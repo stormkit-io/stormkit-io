@@ -72,6 +72,19 @@ func Magic(opts MagicOpts) {
 		DisableStapling: true,
 	}
 
+	// ARI (ACME Renewal Information) lets the CA suggest renewal timing and adds
+	// a "replaces" field to renewal orders pointing at the previous certificate.
+	// Let's Encrypt requires the renewing account to be the same one that issued
+	// the certificate being replaced; if the ACME account changes (e.g. the email
+	// is changed), every existing certificate fails to renew with an HTTP 403.
+	// Disabling ARI makes renewals ordinary new orders so they succeed until all
+	// certificates have been reissued under the current account. Set this on the
+	// Default template before NewDefault() so it propagates to every issuer.
+	if os.Getenv("STORMKIT_DISABLE_ARI") == "true" {
+		certmagic.Default.DisableARI = true
+		slog.Infof("ARI disabled via STORMKIT_DISABLE_ARI; renewal orders will omit the replaces field")
+	}
+
 	server := certmagic.NewDefault()
 	server.Logger = logger
 
