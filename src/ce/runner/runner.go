@@ -283,16 +283,8 @@ func Start(payload, rootDir string) error {
 	}
 
 	defer func(opts RunnerOpts) {
-		if opts.Repo.Dir != "" {
-			if err := os.RemoveAll(opts.Repo.Dir); err != nil {
-				slog.Errorf("could not remove repo dir: %v", err)
-			}
-		}
-
-		if opts.KeysDir != "" {
-			if err := os.RemoveAll(opts.KeysDir); err != nil {
-				slog.Errorf("could not remove keys dir: %v", err)
-			}
+		if err := opts.RemoveAll(); err != nil {
+			slog.Errorf("could not remove root dir: %v", err)
 		}
 	}(opts)
 
