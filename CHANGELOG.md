@@ -1,5 +1,25 @@
 # Changelog
 
+## v2026.06.01.1...v2026.06.08.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.06.01.1...v2026.06.08.1)
+
+### 🚀 Enhancements
+
+- Add STORMKIT_DISABLE_ARI to disable ARI ([#294](https://github.com/stormkit-io/stormkit-io/pull/294))
+
+### 🩹 Fixes
+
+- Remove entire deployment root dir after run ([#293](https://github.com/stormkit-io/stormkit-io/pull/293))
+
+### 🏡 Chore
+
+- Update changelog for v2026.06.01.1 ([#292](https://github.com/stormkit-io/stormkit-io/pull/292))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.05.31.1...v2026.06.01.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.05.31.1...v2026.06.01.1)
