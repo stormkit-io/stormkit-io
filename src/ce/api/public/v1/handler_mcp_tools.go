@@ -323,6 +323,18 @@ func mcpAllTools() []mcpToolDef {
 				"additionalProperties": false,
 			},
 		},
+		{
+			Name:        "create_team",
+			Description: "Create a new team owned by the authenticated user. Enterprise license required. Returns the created team.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"name": map[string]any{"type": "string", "description": "Display name for the team."},
+				},
+				"required":             []string{"name"},
+				"additionalProperties": false,
+			},
+		},
 	}
 
 	if databaseIntegrationEnabled() {
@@ -775,6 +787,14 @@ func mcpListDeployments(req *RequestContextMCP, args map[string]any) *shttp.Resp
 
 func mcpListTeams(req *RequestContextMCP) *shttp.Response {
 	return handlerTeamList(req.RequestContext)
+}
+
+func mcpCreateTeam(req *RequestContextMCP, id any, args map[string]any) *shttp.Response {
+	if resp := req.setBody(id, TeamCreateRequest{Name: stringArg(args, "name")}); resp != nil {
+		return resp
+	}
+
+	return handlerTeamCreate(req.RequestContext)
 }
 
 func mcpEnableDatabaseIntegration(req *RequestContextMCP, args map[string]any) *shttp.Response {

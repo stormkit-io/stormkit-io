@@ -21,7 +21,7 @@ export const mockCreateTeam = ({
   status = 200,
   response,
 }: MockCreateTeamProps) =>
-  nock(endpoint).post("/team", { name }).reply(status, response);
+  nock(endpoint).post("/v1/teams", { name }).reply(status, { team: response });
 
 interface MockUpdateTeamProps {
   teamId: string;

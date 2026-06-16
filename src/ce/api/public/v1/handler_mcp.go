@@ -164,6 +164,8 @@ func mcpDispatch(req *RequestContextMCP, id any, params *toolCallParams) *shttp.
 		resp = mcpListDomains(req, params.Arguments)
 	case "list_teams":
 		resp = mcpListTeams(req)
+	case "create_team":
+		resp = mcpCreateTeam(req, id, params.Arguments)
 	case "enable_database_integration":
 		if !databaseIntegrationEnabled() {
 			return jsonRPCError(id, rpcErrMethodUnknown, "unknown tool: "+params.Name)

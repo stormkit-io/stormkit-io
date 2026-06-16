@@ -7,7 +7,7 @@ interface CreateTeamProps {
 }
 
 export const createTeam = ({ name }: CreateTeamProps): Promise<Team> => {
-  return api.post<Team>("/team", { name });
+  return api.post<{ team: Team }>("/v1/teams", { name }).then(res => res.team);
 };
 
 interface UseSelectedTeamProps {

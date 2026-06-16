@@ -11,7 +11,6 @@ func Services(r *shttp.Router) *shttp.Service {
 
 	s.NewEndpoint("/team").
 		Middleware(user.WithEE).
-		Handler(shttp.MethodPost, "", user.WithAuth(handlerTeamsAdd)).
 		Handler(shttp.MethodDelete, "", user.WithAuth(handlerTeamsDelete)).
 		Handler(shttp.MethodPatch, "", user.WithAuth(handlerTeamsUpdate)).
 		Handler(shttp.MethodPost, "/invite", user.WithAuth(handlerTeamsInvite)).
