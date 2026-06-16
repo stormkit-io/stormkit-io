@@ -25,7 +25,6 @@ func (s *ServicesSuite) Test_Services() {
 		"GET:/team/stats",
 		"GET:/team/stats/domains",
 		"PATCH:/team",
-		"POST:/team",
 		"POST:/team/enroll",
 		"POST:/team/invite",
 		"POST:/team/migrate",

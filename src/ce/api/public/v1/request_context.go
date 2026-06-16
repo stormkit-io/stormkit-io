@@ -75,6 +75,18 @@ func (req *RequestContext) License() *admin.License {
 	return user.License(usr)
 }
 
+// RequireEnterprise guards enterprise-only handlers in the API-key
+// authenticated public API, mirroring user.WithEE for session auth. It returns
+// a non-nil response when the principal is not on an enterprise license, which
+// the caller must return immediately.
+func (req *RequestContext) RequireEnterprise() *shttp.Response {
+	if !req.License().IsEnterprise() {
+		return shttp.Error(user.ErrEnterpriseOnly)
+	}
+
+	return nil
+}
+
 // GetAuditData satisfies the audit.AuditContexter interface without importing
 // the audit package (Go structural typing eliminates the import cycle).
 func (req *RequestContext) GetAuditData() audit.AuditData {

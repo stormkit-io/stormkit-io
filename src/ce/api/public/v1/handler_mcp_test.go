@@ -12,6 +12,7 @@ import (
 
 	null "gopkg.in/guregu/null.v3"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deployservice"
@@ -300,6 +301,7 @@ func (s *HandlerMCPSuite) Test_ToolsList_ReturnsExpectedTools() {
 		"update_environment",
 		"list_domains",
 		"list_teams",
+		"create_team",
 		"enable_database_integration",
 		"configure_database_integration",
 	}, names)
@@ -934,6 +936,59 @@ func (s *HandlerMCPSuite) Test_RestartDeployment_Success() {
 	data := s.toolContent(env)
 
 	s.Equal(true, data["ok"])
+}
+
+func (s *HandlerMCPSuite) Test_CreateTeam_Success() {
+	admin.SetMockLicense()
+	defer func() {
+		admin.ResetMockLicense()
+		config.SetIsSelfHosted(false)
+	}()
+
+	usr := s.MockUser()
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "create_team", map[string]any{
+		"name": "My Awesome Team",
+	}))
+
+	env := s.rpcOK(resp)
+	data := s.toolContent(env)
+	team := data["team"].(map[string]any)
+
+	s.Equal("My Awesome Team", team["name"])
+	s.Equal("my-awesome-team", team["slug"])
+	s.Equal("owner", team["currentUserRole"])
+}
+
+func (s *HandlerMCPSuite) Test_CreateTeam_MissingName() {
+	admin.SetMockLicense()
+	defer func() {
+		admin.ResetMockLicense()
+		config.SetIsSelfHosted(false)
+	}()
+
+	usr := s.MockUser()
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "create_team", map[string]any{}))
+
+	env := s.rpcOK(resp)
+	result := env["result"].(map[string]any)
+	s.True(result["isError"].(bool))
+}
+
+func (s *HandlerMCPSuite) Test_CreateTeam_Forbidden_NotEnterprise() {
+	usr := s.MockUser()
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "create_team", map[string]any{
+		"name": "My Awesome Team",
+	}))
+
+	env := s.rpcOK(resp)
+	result := env["result"].(map[string]any)
+	s.True(result["isError"].(bool))
 }
 
 func TestHandlerMCP(t *testing.T) {

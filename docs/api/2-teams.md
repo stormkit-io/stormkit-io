@@ -1,13 +1,13 @@
 ---
 title: Teams API
-description: Retrieve the list of teams that belong to your Stormkit account using the Teams API.
+description: List and create the teams that belong to your Stormkit account using the Teams API.
 ---
 
 # Teams API
 
 ## Overview
 
-The Teams API lets you list the teams your account belongs to. Use the returned `id` values as `teamId` in other API endpoints such as [Apps](/docs/api/apps) and [Environments](/docs/api/environments).
+The Teams API lets you list and create the teams your account belongs to. Use the returned `id` values as `teamId` in other API endpoints such as [Apps](/docs/api/apps) and [Environments](/docs/api/environments).
 
 ---
 
@@ -69,5 +69,61 @@ curl -X GET \
       "currentUserRole": "admin"
     }
   ]
+}
+```
+
+---
+
+## POST /v1/teams
+
+Creates a new team owned by the authenticated user, who is added as its `owner`. Creating teams is an **Enterprise Edition** capability — Community Edition instances only ever have the default (personal) team.
+
+**Base URL:** `https://api.stormkit.io`
+
+**Authentication:** User-level API key passed as the `Authorization` header. To generate one: **Profile → Account → API Keys**.
+
+### Request body
+
+| Field  | Type   | Required | Description            |
+| ------ | ------ | -------- | ---------------------- |
+| `name` | string | Yes      | Human-readable team name. The `slug` is derived from it. |
+
+### Response — 201 Created
+
+| Field  | Type   | Description              |
+| ------ | ------ | ------------------------ |
+| `team` | `Team` | The newly created team.  |
+
+The `Team` object has the same shape as in [GET /v1/teams](#get-v1teams).
+
+### Error responses
+
+| Status | Condition                                                          |
+| ------ | ------------------------------------------------------------------ |
+| `400`  | Missing `name`, or the per-user team limit has been reached.       |
+| `402`  | The license is not Enterprise Edition.                             |
+| `403`  | Missing or invalid API key, or the key scope is below user level.  |
+| `500`  | Internal server error.                                             |
+
+### Example
+
+```bash
+curl -X POST \
+     -H 'Authorization: <user_api_key>' \
+     -H 'Content-Type: application/json' \
+     -d '{"name":"Acme Corp"}' \
+     'https://api.stormkit.io/v1/teams'
+```
+
+```json
+// Example response
+{
+  "team": {
+    "id": "42",
+    "name": "Acme Corp",
+    "slug": "acme-corp",
+    "isDefault": false,
+    "currentUserRole": "owner"
+  }
 }
 ```
