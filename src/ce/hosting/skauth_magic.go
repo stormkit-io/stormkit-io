@@ -17,7 +17,8 @@ func (m *skAuthMiddleware) magicLinkRequest() *shttp.Response {
 	req := m.req.RequestContext
 
 	body := &struct {
-		Email string `json:"email"`
+		Email    string `json:"email"`
+		Redirect string `json:"redirect"`
 	}{}
 
 	_ = req.Post(body)
@@ -43,11 +44,25 @@ func (m *skAuthMiddleware) magicLinkRequest() *shttp.Response {
 		return shttp.NotFound()
 	}
 
-	origin := strings.TrimRight(m.req.Header.Get("Origin"), "/")
-	matched := isAllowedOrigin(origin, env.AuthConf.AllowedOrigins)
+	// redirect is where the user is sent back to after clicking the email link.
+	// Browsers may omit it (we fall back to the Origin header); native clients
+	// pass it explicitly (e.g. a deep link). It is honoured only when it is on
+	// the configured allow-list; otherwise the flow stays single-host.
+	redirect := utils.GetString(body.Redirect, req.Query().Get("redirect"))
 
-	if len(env.AuthConf.AllowedOrigins) > 0 && !matched {
+	if redirect == "" {
+		redirect = m.req.Header.Get("Origin")
+	}
+
+	redirect = strings.TrimRight(redirect, "/")
+
+	// When an allow-list is configured, a supplied redirect must be on it.
+	if len(env.AuthConf.AllowedOrigins) > 0 && redirect != "" && !env.AuthConf.IsAllowedOrigin(redirect) {
 		return shttp.Forbidden()
+	}
+
+	if !env.AuthConf.IsAllowedOrigin(redirect) {
+		redirect = ""
 	}
 
 	prv, err := skauth.NewStore().Provider(req.Context(), envID, skauth.ProviderMagicLink)
@@ -60,13 +75,7 @@ func (m *skAuthMiddleware) magicLinkRequest() *shttp.Response {
 		return shttp.NotFound()
 	}
 
-	redirectOrigin := ""
-
-	if matched {
-		redirectOrigin = origin
-	}
-
-	token, err := generateMagicLinkToken(env, redirectOrigin)
+	token, err := generateMagicLinkToken(env, redirect)
 
 	if err != nil {
 		return shttp.Error(err, fmt.Sprintf("failed to generate magic link token: %s", err.Error()))
@@ -134,7 +143,7 @@ func (m *skAuthMiddleware) magicLinkVerify() *shttp.Response {
 
 	// Re-validate at click time in case the allow-list changed between
 	// request and verify; don't trust a stale claim.
-	if redirectOrigin != "" && !isAllowedOrigin(redirectOrigin, env.AuthConf.AllowedOrigins) {
+	if redirectOrigin != "" && !env.AuthConf.IsAllowedOrigin(redirectOrigin) {
 		redirectOrigin = ""
 	}
 
@@ -202,22 +211,6 @@ func generateMagicLinkToken(env *buildconf.Env, redirectOrigin string) (string, 
 	}
 
 	return user.JWT(claims, env.AuthConf.Secret)
-}
-
-// isAllowedOrigin returns true if origin (scheme + host, no trailing slash)
-// exactly matches an entry in list. Empty origin or empty list returns false.
-func isAllowedOrigin(origin string, list []string) bool {
-	if origin == "" || len(list) == 0 {
-		return false
-	}
-
-	for _, allowed := range list {
-		if strings.TrimRight(allowed, "/") == origin {
-			return true
-		}
-	}
-
-	return false
 }
 
 func sendMagicLinkEmail(req *shttp.RequestContext, env *buildconf.Env, prv *skauth.Provider, email, token string) error {

@@ -241,6 +241,10 @@ func WithSKAuth(req *RequestContext) (*shttp.Response, error) {
 		return m.handleRefresh()
 	}
 
+	if provider, ok := isOAuthProviderPath(path); ok {
+		return m.handleOAuthInitiate(provider)
+	}
+
 	return m.handleCallback()
 }
 
