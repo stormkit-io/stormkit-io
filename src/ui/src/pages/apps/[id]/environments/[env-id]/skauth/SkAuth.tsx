@@ -1,4 +1,5 @@
 import { useContext, useState } from "react";
+import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
@@ -172,6 +173,12 @@ export default function SkAuth() {
   const title = "Authentication";
   const subtitle = "Enable authentication providers for this environment";
 
+  // Guide decoupled (separate frontend domain / native) setups: an enabled
+  // provider with no allow-list silently returns users to this environment.
+  const showOriginsHint =
+    providers.some(p => p.enabled) &&
+    (config?.allowedOrigins || []).length === 0;
+
   if (!hasSchema && !result.loading) {
     return (
       <Card sx={{ width: "100%" }}>
@@ -295,13 +302,22 @@ export default function SkAuth() {
             defaultValue={(config?.allowedOrigins || []).join("\n")}
             variant="filled"
             autoComplete="off"
-            helperText="Optional. One origin per line (scheme + host, no path). When set, the magic-link POST endpoint only accepts requests from these origins, and the email link redirects the user back to the origin that initiated the flow (with the session token in the URL fragment as #skauth=…). Leave empty to keep the single-host behaviour."
+            helperText="Optional. One origin per line (scheme + host, no path). Applies to every provider: cross-origin sign-in (magic link and OAuth) is only allowed to redirect back to an origin on this list, and the user is returned to the origin that initiated the flow (session token in the URL fragment as #skauth=…). Leave empty to keep the single-host behaviour."
             slotProps={{
               inputLabel: {
                 shrink: true,
               },
             }}
           />
+          {showOriginsHint && (
+            <Alert severity="warning" sx={{ mt: 1 }}>
+              A provider is enabled but no allowed origins are set. Leave this
+              empty only if your frontend is served from this same environment.
+              If your frontend runs on a separate domain (or a native app), add
+              its origin here — otherwise sign-in will return users to this
+              environment instead of your app.
+            </Alert>
+          )}
         </Box>
 
         <CardFooter>

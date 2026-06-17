@@ -153,7 +153,9 @@ func RedirectURL() string {
 	return admin.MustConfig().ApiURL("/v1/auth/callback")
 }
 
-// AuthURL returns the URL where the users can start the flow.
+// AuthURL returns the path, relative to the app's own hosting domain, where
+// users start the OAuth2 flow. The provider segment is appended by the caller
+// (e.g. /_stormkit/auth/google).
 func AuthURL() string {
-	return admin.MustConfig().ApiURL("/v1/auth")
+	return "/_stormkit/auth"
 }

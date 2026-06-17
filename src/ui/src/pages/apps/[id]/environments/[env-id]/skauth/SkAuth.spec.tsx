@@ -250,14 +250,10 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
       await waitFor(() => {
         expect(wrapper.getByText("Authorization URL")).toBeTruthy();
         expect(
-          wrapper.getByDisplayValue(
-            `https://api.example.com/auth?envId=${currentEnv.id}&provider=google`,
-          ),
+          wrapper.getByDisplayValue("https://api.example.com/auth/google"),
         ).toBeTruthy();
         expect(
-          wrapper.getByText(
-            "Redirect your users to this URL for starting the authentication flow.",
-          ),
+          wrapper.getByText(/redirect users here to start sign-in/),
         ).toBeTruthy();
       });
     });

@@ -85,14 +85,10 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/ProviderSettings.tsx", 
       // Authorization URL
       expect(wrapper.getByText("Authorization URL")).toBeTruthy();
       expect(
-        wrapper.getByDisplayValue(
-          "https://api.example.com/auth?envId=env-123&provider=google",
-        ),
+        wrapper.getByDisplayValue("https://api.example.com/auth/google"),
       ).toBeTruthy();
       expect(
-        wrapper.getByText(
-          "Redirect your users to this URL for starting the authentication flow.",
-        ),
+        wrapper.getByText(/redirect users here to start sign-in/),
       ).toBeTruthy();
 
       // Setup steps
@@ -137,9 +133,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/ProviderSettings.tsx", 
     it("should not render the Authorization URL section", () => {
       expect(() => wrapper.getByText("Authorization URL")).toThrow();
       expect(() =>
-        wrapper.getByText(
-          "Redirect your users to this URL for starting the authentication flow.",
-        ),
+        wrapper.getByText(/redirect users here to start sign-in/),
       ).toThrow();
     });
 

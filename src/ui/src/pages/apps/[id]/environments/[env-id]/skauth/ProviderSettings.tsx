@@ -170,10 +170,8 @@ export default function ProviderSettings({
               fullWidth
               label="Authorization URL"
               variant="filled"
-              value={
-                provider.authUrl + `?envId=${envId}&provider=${provider.id}`
-              }
-              helperText="Redirect your users to this URL for starting the authentication flow."
+              value={`${provider.authUrl}/${provider.id}`}
+              helperText="Path on your app's own domain — redirect users here to start sign-in (e.g. https://app.example.com/_stormkit/auth/google). Optionally append ?redirect=<origin> to control where users return afterwards; otherwise the Origin/Referer is used."
             />
           </Box>
         )}

@@ -46,6 +46,23 @@ func (ac *SKAuthConf) Value() (driver.Value, error) {
 	return utils.ByteaValue(ac)
 }
 
+// IsAllowedOrigin reports whether origin (scheme + host, no trailing slash,
+// e.g. "https://app.example.com") is present in the configured AllowedOrigins
+// allow-list. An empty origin or an empty list returns false.
+func (ac *SKAuthConf) IsAllowedOrigin(origin string) bool {
+	if ac == nil || origin == "" || len(ac.AllowedOrigins) == 0 {
+		return false
+	}
+
+	for _, allowed := range ac.AllowedOrigins {
+		if strings.TrimRight(allowed, "/") == origin {
+			return true
+		}
+	}
+
+	return false
+}
+
 // Env represents an application's environment.
 type Env struct {
 	// ID represents the environment id.

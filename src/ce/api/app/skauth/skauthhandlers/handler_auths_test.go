@@ -63,7 +63,7 @@ func (s *HandlerAuthsSuite) Test_NoProviders() {
 	s.NoError(json.Unmarshal(response.Byte(), &res))
 	s.Len(res.Providers, 0)
 	s.Equal("http://api.stormkit:8888/v1/auth/callback", res.RedirectURL)
-	s.Equal("http://api.stormkit:8888/v1/auth", res.AuthURL)
+	s.Equal("/_stormkit/auth", res.AuthURL)
 }
 
 func (s *HandlerAuthsSuite) Test_ReturnsProviders() {
@@ -119,7 +119,7 @@ func (s *HandlerAuthsSuite) Test_ReturnsProviders() {
 	s.NoError(json.Unmarshal(response.Byte(), &res))
 	s.Len(res.Providers, 1)
 	s.Equal("http://api.stormkit:8888/v1/auth/callback", res.RedirectURL)
-	s.Equal("http://api.stormkit:8888/v1/auth", res.AuthURL)
+	s.Equal("/_stormkit/auth", res.AuthURL)
 	s.Equal("/success", res.SuccessURL)
 	s.Equal(5, res.TTL)
 
