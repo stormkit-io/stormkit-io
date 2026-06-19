@@ -1,5 +1,22 @@
 # Changelog
 
+## v2026.06.08.1...v2026.06.17.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.06.08.1...v2026.06.17.1)
+
+### 🚀 Enhancements
+
+- Add create_team public api and mcp tool ([#296](https://github.com/stormkit-io/stormkit-io/pull/296))
+- Serve oauth initiate from the app hosting domain ([#297](https://github.com/stormkit-io/stormkit-io/pull/297))
+
+### 🏡 Chore
+
+- Update changelog for v2026.06.08.1 ([#295](https://github.com/stormkit-io/stormkit-io/pull/295))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.06.01.1...v2026.06.08.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.06.01.1...v2026.06.08.1)
