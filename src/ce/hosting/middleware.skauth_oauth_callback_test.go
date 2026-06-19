@@ -98,6 +98,68 @@ func (s *WithSKAuthOAuthSuite) Test_Callback_Success() {
 	s.Contains(*res.Redirect, "https://app.example.com/_stormkit/auth?code=")
 }
 
+// Test_Callback_LinksToExistingMagicLinkUser guards against the duplicate-account
+// failure that occurred when a user who first signed up through magic link later
+// logged in through OAuth with the same email: the callback must link the OAuth
+// provider to the existing user, not insert a second user (which violated the
+// unique email constraint).
+func (s *WithSKAuthOAuthSuite) Test_Callback_LinksToExistingMagicLinkUser() {
+	host := s.setupCallbackEnv(true)
+
+	conf := &buildconf.SchemaConf{
+		SchemaName:        s.conn.Cfg.Schema,
+		DBName:            s.conn.Cfg.DBName,
+		Port:              s.conn.Cfg.Port,
+		Host:              s.conn.Cfg.Host,
+		MigrationUserName: s.conn.Cfg.User,
+		MigrationPassword: s.conn.Cfg.Password,
+		AppUserName:       s.conn.Cfg.User,
+		AppPassword:       s.conn.Cfg.Password,
+	}
+
+	store, err := conf.Store(buildconf.SchemaAccessTypeAppUser)
+	s.Require().NoError(err)
+
+	// The user first registers through magic link with this email.
+	_, err = store.UpsertMagicLinkUser(context.Background(), "jane@stormkit.io", "magic-token")
+	s.Require().NoError(err)
+
+	token := &oauth2.Token{}
+
+	s.mockClient.On("Exchange", mock.Anything, mock.Anything).Return(token, nil).Once()
+	s.mockClient.On("UserInfo", mock.Anything, token).Return(&skauth.UserInfo{
+		AccountID: "google-account-id",
+		Email:     "jane@stormkit.io",
+		FirstName: "Jane",
+	}, nil).Once()
+
+	state := s.stateToken(skauth.ProviderGoogle, "https://app.example.com/login")
+
+	res, err := hosting.WithSKAuth(s.oauthRequest(
+		host,
+		fmt.Sprintf("/_stormkit/auth/callback?state=%s&code=test-code", state),
+		nil,
+	))
+
+	s.Require().NoError(err)
+	s.Require().NotNil(res)
+	s.Equal(http.StatusFound, res.Status)
+
+	// The OAuth login linked to the existing user — no duplicate was created.
+	users, err := store.ListAuthUsers(context.Background(), 0, 100)
+	s.Require().NoError(err)
+
+	matched := 0
+
+	for _, u := range users {
+		if u.Email == "jane@stormkit.io" {
+			matched++
+		}
+	}
+
+	s.Equal(1, matched)
+}
+
 func (s *WithSKAuthOAuthSuite) Test_Callback_InvalidState() {
 	host := s.setupCallbackEnv(true)
 

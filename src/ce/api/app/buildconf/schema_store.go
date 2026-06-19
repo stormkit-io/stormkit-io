@@ -18,16 +18,17 @@ import (
 )
 
 var schemaStmt = struct {
-	selectSchema           string
-	selectTables           string
-	createAuthTable        string
-	createMigrationsTable  string
-	selectMigrations       string
-	insertOAuth            string
-	insertAuthUser         string
-	verifyEmailUser        string
-	updateMagicLinkToken   string
-	consumeMagicLinkToken  string
+	selectSchema          string
+	selectTables          string
+	createAuthTable       string
+	createMigrationsTable string
+	selectMigrations      string
+	insertOAuth           string
+	upsertProvider        string
+	insertAuthUser        string
+	selectUserIDByEmail   string
+	verifyEmailUser       string
+	consumeMagicLinkToken string
 }{
 	createAuthTable: `
 		CREATE TABLE IF NOT EXISTS stormkit_auth_users (
@@ -107,6 +108,29 @@ var schemaStmt = struct {
 		);
 	`,
 
+	// upsertProvider attaches a provider to an existing user, or refreshes the
+	// record (tokens / verification token) when the user already has it. The
+	// (user_id, provider_name) conflict target matches the table's unique
+	// constraint, so re-logins and account linking are both idempotent.
+	upsertProvider: `
+		INSERT INTO stormkit_auth_providers (
+			user_id, account_id, access_token, refresh_token, token_type, provider_name, expiry, verification_token
+		) VALUES (
+			$1, $2, $3, $4, $5, $6, $7, NULLIF($8, '')
+		)
+		ON CONFLICT (user_id, provider_name) DO UPDATE SET
+			account_id = EXCLUDED.account_id,
+			access_token = EXCLUDED.access_token,
+			refresh_token = EXCLUDED.refresh_token,
+			token_type = EXCLUDED.token_type,
+			expiry = EXCLUDED.expiry,
+			verification_token = EXCLUDED.verification_token;
+	`,
+
+	selectUserIDByEmail: `
+		SELECT user_id, uuid FROM stormkit_auth_users WHERE email = $1;
+	`,
+
 	insertAuthUser: `
 		INSERT INTO stormkit_auth_users (
 			email, first_name, last_name, avatar
@@ -121,12 +145,6 @@ var schemaStmt = struct {
 		SET verified_at = NOW(), verification_token = NULL
 		WHERE verification_token = $1 AND provider_name = 'email'
 		RETURNING user_id;
-	`,
-
-	updateMagicLinkToken: `
-		UPDATE stormkit_auth_providers
-		SET verification_token = $1
-		WHERE user_id = $2 AND provider_name = 'magiclink';
 	`,
 
 	consumeMagicLinkToken: `
@@ -657,6 +675,42 @@ func (s *schemaStore) InsertAuthUser(ctx context.Context, oauth *skauth.OAuth, u
 	return tx.Commit()
 }
 
+// UpsertAuthUser links a provider login to a user identified by email (account
+// linking). It looks the user up by email — independently of which provider
+// originally created them — and attaches or refreshes the given provider record.
+// When no user with the email exists, a new user is inserted together with the
+// provider. This prevents the duplicate-email failure that occurs when the same
+// person signs in through a second provider (e.g. magic link first, then OAuth).
+// On success user.ID and user.UUID are populated.
+func (s *schemaStore) UpsertAuthUser(ctx context.Context, oauth *skauth.OAuth, user *skauth.User) error {
+	if s.conf == nil {
+		return fmt.Errorf("schema configuration is required to upsert auth user")
+	}
+
+	err := s.Conn.QueryRowContext(ctx, schemaStmt.selectUserIDByEmail, user.Email).Scan(&user.ID, &user.UUID)
+
+	if err == sql.ErrNoRows {
+		return s.InsertAuthUser(ctx, oauth, user)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	_, err = s.Exec(ctx, schemaStmt.upsertProvider,
+		user.ID,
+		oauth.AccountID,
+		null.NewString(utils.EncryptToString(oauth.AccessToken), oauth.AccessToken != ""),
+		null.NewString(utils.EncryptToString(oauth.RefreshToken), oauth.RefreshToken != ""),
+		oauth.TokenType,
+		oauth.ProviderName,
+		oauth.Expiry,
+		oauth.VerificationToken,
+	)
+
+	return err
+}
+
 // AuthUser retrieves the authentication user by its ID.
 func (s *schemaStore) AuthUser(ctx context.Context, authID types.ID) (*skauth.User, error) {
 	if s.conf == nil {
@@ -834,30 +888,14 @@ func (s *schemaStore) VerifyEmailUser(ctx context.Context, token string) (types.
 	return userID, err
 }
 
-// UpsertMagicLinkUser finds or creates a user by email and sets a new magic link token
-// on their magiclink provider record. Returns the user ID.
+// UpsertMagicLinkUser finds or creates a user by email and sets a new magic link
+// token on their magiclink provider record. The lookup is by email regardless of
+// provider, so a user who first signed in through OAuth (or email/password) is
+// reused and a magiclink provider record is attached to them. Returns the user ID.
 func (s *schemaStore) UpsertMagicLinkUser(ctx context.Context, email, token string) (types.ID, error) {
-	if s.conf == nil {
-		return 0, fmt.Errorf("schema configuration is required to upsert magic link user")
-	}
-
-	existing, err := s.AuthUserByEmail(ctx, AuthUserByEmailParams{
-		Email:    email,
-		Provider: skauth.ProviderMagicLink,
-	})
-
-	if err != nil {
-		return 0, err
-	}
-
-	if existing != nil {
-		_, err = s.Exec(ctx, schemaStmt.updateMagicLinkToken, token, existing.ID)
-		return existing.ID, err
-	}
-
 	user := &skauth.User{Email: email}
 
-	err = s.InsertAuthUser(ctx, &skauth.OAuth{
+	err := s.UpsertAuthUser(ctx, &skauth.OAuth{
 		AccountID:         email,
 		ProviderName:      skauth.ProviderMagicLink,
 		TokenType:         skauth.ProviderMagicLink,

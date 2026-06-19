@@ -182,8 +182,8 @@ func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
 		LastName:  info.LastName,
 	}
 
-	if err := store.InsertAuthUser(req.Context(), &oauth, &usr); err != nil {
-		return shttp.Error(err, fmt.Sprintf("failed to insert auth user: %s", err.Error())), nil
+	if err := store.UpsertAuthUser(req.Context(), &oauth, &usr); err != nil {
+		return shttp.Error(err, fmt.Sprintf("failed to upsert auth user: %s", err.Error())), nil
 	}
 
 	sessionToken, err := user.JWT(jwt.MapClaims{
