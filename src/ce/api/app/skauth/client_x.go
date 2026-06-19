@@ -24,11 +24,11 @@ type XClient struct {
 	oauth2Config *oauth2.Config
 }
 
-func NewXClient(clientID, secretKey string) Client {
+func NewXClient(clientID, secretKey, redirectURL string) Client {
 	config := &oauth2.Config{
 		ClientID:     clientID,
 		ClientSecret: secretKey,
-		RedirectURL:  RedirectURL(),
+		RedirectURL:  redirectURL,
 		Endpoint: oauth2.Endpoint{
 			AuthURL:  TwitterAuthBase,
 			TokenURL: TwitterAPIBase + "/oauth2/token",

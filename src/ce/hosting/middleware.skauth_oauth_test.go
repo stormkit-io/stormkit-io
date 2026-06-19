@@ -28,6 +28,11 @@ type WithSKAuthOAuthSuite struct {
 }
 
 func (s *WithSKAuthOAuthSuite) BeforeTest(suiteName, _ string) {
+	// The schema store commits auth rows on a real connection (outside txdb), so
+	// rows leak across tests/suites. InitTx resets sequences to 1, which then
+	// collides with those committed rows; truncate them up-front, as the email
+	// and magic-link suites do.
+	truncateMagicLinkAuthTables()
 	s.conn = databasetest.InitTx(suiteName)
 	s.Factory = factory.New(s.conn)
 	s.app = s.MockApp(s.MockUser(nil), nil)

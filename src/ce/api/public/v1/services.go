@@ -90,11 +90,6 @@ func Services(r *shttp.Router) *shttp.Service {
 			Handler(shttp.MethodDelete, "", app.WithAPIKey(handlerSchemaDelete, &app.Opts{Env: true})).
 			Handler(shttp.MethodPost, "/configure", app.WithAPIKey(handlerSchemaConfigure, &app.Opts{Env: true}))
 
-		// The OAuth2 flow is initiated from the app's own hosting domain
-		// (GET /_stormkit/auth/<provider>); the provider calls back here.
-		s.NewEndpoint("/v1/auth").
-			Handler(shttp.MethodGet, "/callback", HandlerAuthCallback)
-
 		s.NewEndpoint("/v1/auth/users").
 			Handler(shttp.MethodGet, "", WithAPIKey(HandlerAuthUsersList, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 	}

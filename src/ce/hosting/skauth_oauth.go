@@ -5,9 +5,13 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
+	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
+	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
@@ -65,7 +69,7 @@ func (m *skAuthMiddleware) handleOAuthInitiate(providerName string) (*shttp.Resp
 		return resp, nil
 	}
 
-	authURL, err := prv.Client().AuthCodeURL(skauth.AuthCodeURLParams{
+	authURL, err := prv.Client(m.callbackURL()).AuthCodeURL(skauth.AuthCodeURLParams{
 		EnvID:        envID,
 		ProviderName: providerName,
 		Referrer:     redirect,
@@ -78,6 +82,140 @@ func (m *skAuthMiddleware) handleOAuthInitiate(providerName string) (*shttp.Resp
 	return &shttp.Response{
 		Status:   http.StatusFound,
 		Redirect: &authURL,
+	}, nil
+}
+
+// callbackURL is the absolute OAuth2 redirect URI for this host. It must be
+// identical in the authorization request and the token exchange, so it is
+// derived from the request Host in both handleOAuthInitiate and
+// handleOAuthCallback (which land on the same domain).
+func (m *skAuthMiddleware) callbackURL() string {
+	return "https://" + m.req.Host.Name + skauth.CallbackPath
+}
+
+// handleOAuthCallback completes the OAuth2 flow: it exchanges the authorization
+// code for a token, upserts the auth user, mints a session token, and hands the
+// browser back to the origin that started the flow via a one-time code (the
+// session token is stored in Redis and injected into localStorage on landing).
+func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
+	if m.req.Method != http.MethodGet {
+		return &shttp.Response{
+			Status: http.StatusMethodNotAllowed,
+			Data:   map[string]any{"errors": []string{"method not allowed"}},
+		}, nil
+	}
+
+	req := m.req.RequestContext
+
+	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: req.FormValue("state")})
+
+	provider, ok := claims["prv"].(string)
+	refer, refOK := claims["ref"].(string)
+
+	if !ok || !refOK || !oauthProviders[provider] {
+		return shttp.BadRequest(map[string]any{"errors": []string{"invalid state parameter"}}), nil
+	}
+
+	envID := m.req.Host.Config.EnvID
+
+	env, err := buildconf.NewStore().EnvironmentByID(req.Context(), envID)
+
+	if err != nil {
+		return shttp.Error(err, fmt.Sprintf("failed to get environment by ID %d", envID)), nil
+	}
+
+	if env == nil || env.SchemaConf == nil || env.AuthConf == nil || !env.AuthConf.Status {
+		return shttp.NotFound(), nil
+	}
+
+	prv, err := skauth.NewStore().Provider(req.Context(), env.ID, provider)
+
+	if err != nil {
+		return shttp.Error(err, fmt.Sprintf("failed to get provider %s for env %d", provider, env.ID)), nil
+	}
+
+	if prv == nil || !prv.Status {
+		return shttp.NotFound(), nil
+	}
+
+	client := prv.Client(m.callbackURL())
+
+	if client == nil {
+		return shttp.BadRequest(map[string]any{"errors": []string{"provider is not an OAuth2 provider"}}), nil
+	}
+
+	token, err := client.Exchange(req.Context(), req)
+
+	if err != nil {
+		return shttp.Error(err, fmt.Sprintf("failed to exchange authorization code: %s", err.Error())), nil
+	}
+
+	store, err := env.SchemaConf.Store(buildconf.SchemaAccessTypeAppUser)
+
+	if err != nil {
+		return shttp.Error(err, fmt.Sprintf("failed to get schema store: %s", err.Error())), nil
+	}
+
+	info, err := client.UserInfo(req.Context(), token)
+
+	if err != nil {
+		return shttp.Error(err, fmt.Sprintf("failed to get user info: %s", err.Error())), nil
+	}
+
+	if info == nil {
+		return shttp.NotFound(), nil
+	}
+
+	oauth := skauth.OAuth{
+		AccountID:    info.AccountID,
+		AccessToken:  token.AccessToken,
+		RefreshToken: token.RefreshToken,
+		TokenType:    token.TokenType,
+		Expiry:       utils.UnixFrom(token.Expiry),
+		ProviderName: provider,
+	}
+
+	usr := skauth.User{
+		Email:     info.Email,
+		Avatar:    info.Avatar,
+		FirstName: info.FirstName,
+		LastName:  info.LastName,
+	}
+
+	if err := store.InsertAuthUser(req.Context(), &oauth, &usr); err != nil {
+		return shttp.Error(err, fmt.Sprintf("failed to insert auth user: %s", err.Error())), nil
+	}
+
+	sessionToken, err := user.JWT(jwt.MapClaims{
+		"uid": usr.ID,
+		"eid": fmt.Sprintf("%d", env.ID),
+		"prv": provider,
+	}, env.AuthConf.Secret)
+
+	if err != nil {
+		return shttp.Error(err, fmt.Sprintf("failed to generate session token: %s", err.Error())), nil
+	}
+
+	code := utils.RandomToken(64)
+
+	if err := rediscache.Client().Set(req.Context(), code, sessionToken, time.Minute*2).Err(); err != nil {
+		return shttp.Error(err, fmt.Sprintf("failed saving session code: %s", err.Error())), nil
+	}
+
+	parsed, err := url.ParseRequestURI(refer)
+
+	if err != nil {
+		return shttp.BadRequest(map[string]any{"errors": []string{"referrer URL is not a valid format"}}), nil
+	}
+
+	target := fmt.Sprintf("%s://%s/_stormkit/auth?code=%s",
+		utils.GetString(parsed.Scheme, "https"),
+		parsed.Host,
+		code)
+
+	return &shttp.Response{
+		Status:   http.StatusFound,
+		Redirect: &target,
 	}, nil
 }
 

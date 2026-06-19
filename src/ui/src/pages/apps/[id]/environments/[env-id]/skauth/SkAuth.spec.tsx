@@ -7,6 +7,7 @@ import { RootContext } from "~/pages/Root.context";
 import mockApp from "~/testing/data/mock_app";
 import mockEnv from "~/testing/data/mock_environment";
 import * as schemaNocks from "~/testing/nocks/nock_schema";
+import { mockFetchDomains } from "~/testing/nocks/nock_domains";
 import SkAuth from "./SkAuth";
 
 const { mockFetchSchema } = schemaNocks;
@@ -35,7 +36,7 @@ const mockFetchProviders = ({
   envId,
   status = 200,
   response = {
-    redirectUrl: "https://example.com/callback",
+    redirectUrl: "/_stormkit/auth/callback",
     authUrl: "https://api.example.com/auth",
     providers: {},
   },
@@ -86,10 +87,20 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
     const providersScope = mockFetchProviders({
       envId: currentEnv.id!,
       response: {
-        redirectUrl: "https://example.com/callback",
+        redirectUrl: "/_stormkit/auth/callback",
         authUrl: "https://api.example.com/auth",
         providers,
       },
+    });
+
+    // The provider drawer (ProviderSettings) mounts alongside the providers
+    // list and fetches the env's verified domains to build the callback URL.
+    mockFetchDomains({
+      appId: currentApp.id!,
+      envId: currentEnv.id!,
+      verified: true,
+      status: 200,
+      response: { domains: [] },
     });
 
     wrapper = render(
