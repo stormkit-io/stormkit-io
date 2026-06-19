@@ -9,6 +9,7 @@ interface FetchDomainsProps {
   refreshToken?: number;
   domainName?: string;
   verified?: boolean;
+  enabled?: boolean;
   onFetch?: (d: Domain[]) => void;
 }
 
@@ -19,6 +20,7 @@ export const useFetchDomains = ({
   afterId,
   search,
   refreshToken,
+  enabled = true,
   onFetch,
 }: FetchDomainsProps) => {
   const [domains, setDomains] = useState<Domain[]>([]);
@@ -28,6 +30,11 @@ export const useFetchDomains = ({
   const [isFirstFetch, setIsFirstFetch] = useState(true);
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
+
     const qs = new URLSearchParams(
       JSON.parse(
         JSON.stringify({
@@ -63,7 +70,7 @@ export const useFetchDomains = ({
       .finally(() => {
         setLoading(false);
       });
-  }, [appId, envId, verified, refreshToken, search, afterId]);
+  }, [appId, envId, verified, refreshToken, search, afterId, enabled]);
 
   return { domains, error, loading, pagination };
 };

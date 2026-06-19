@@ -33,7 +33,7 @@ func (s *ClientXSuite) BeforeTest(suiteName, _ string) {
 	s.originalTwitterAPIBase = skauth.TwitterAPIBase
 	s.conn = databasetest.InitTx(suiteName)
 	s.server = nil
-	s.client = skauth.NewXClient("test-client-id", "test-client-secret")
+	s.client = skauth.NewXClient("test-client-id", "test-client-secret", "https://app.example.com/_stormkit/auth/callback")
 	admin.MustConfig().SetURL("localhost")
 }
 
@@ -79,7 +79,7 @@ func (s *ClientXSuite) Test_UserInfo_Success() {
 	}
 
 	// Use new client to ensure we're testing with a mock server
-	client := skauth.NewXClient("test-client-id", "test-client-secret")
+	client := skauth.NewXClient("test-client-id", "test-client-secret", "https://app.example.com/_stormkit/auth/callback")
 	userInfo, err := client.UserInfo(context.Background(), token)
 
 	s.NoError(err)
@@ -104,7 +104,7 @@ func (s *ClientXSuite) Test_UserInfo_InvalidJSON() {
 	}
 
 	// Use new client to ensure we're testing with a mock server
-	client := skauth.NewXClient("test-client-id", "test-client-secret")
+	client := skauth.NewXClient("test-client-id", "test-client-secret", "https://app.example.com/_stormkit/auth/callback")
 	userInfo, err := client.UserInfo(context.Background(), token)
 
 	s.Error(err)

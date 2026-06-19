@@ -19,11 +19,11 @@ type GoogleClient struct {
 	oauth2Config *oauth2.Config
 }
 
-func NewGoogleClient(clientID, secretKey string) Client {
+func NewGoogleClient(clientID, secretKey, redirectURL string) Client {
 	config := &oauth2.Config{
 		ClientID:     clientID,
 		ClientSecret: secretKey,
-		RedirectURL:  RedirectURL(),
+		RedirectURL:  redirectURL,
 		Endpoint:     google.Endpoint,
 		Scopes: []string{
 			"https://www.googleapis.com/auth/userinfo.email",

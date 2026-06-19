@@ -96,7 +96,7 @@ function Providers({
           setDrawerOpen(undefined);
         }}
         provider={drawerOpen}
-        envId={env.id!}
+        environment={env}
       />
 
       {providers.map((p, i) => {

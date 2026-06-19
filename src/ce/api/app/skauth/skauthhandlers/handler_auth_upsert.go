@@ -146,7 +146,7 @@ func saveProvider(req *app.RequestContext, data *AuthUpsertRequest, env *buildco
 		Data:   providerData,
 	}
 
-	if provider.Client() == nil {
+	if !provider.Supported() {
 		return shttp.BadRequest(map[string]any{
 			"error": "Invalid provider",
 		})

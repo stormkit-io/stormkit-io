@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Drawer from "@mui/material/Drawer";
 import TextField from "@mui/material/TextField";
+import MenuItem from "@mui/material/MenuItem";
 import Button from "@mui/material/Button";
 import { Switch } from "~/components/Form";
 import Card from "~/components/Card";
@@ -10,10 +11,11 @@ import CardHeader from "~/components/CardHeader";
 import CardFooter from "~/components/CardFooter";
 import CopyBox from "~/components/CopyBox";
 import Api from "~/utils/api/Api";
+import { useFetchDomains } from "~/shared/domains/actions";
 import type { AuthProvider } from "./actions";
 
 interface Props {
-  envId: string;
+  environment: Environment;
   isDrawerOpen: boolean;
   provider?: AuthProvider;
   onClose: () => void;
@@ -23,13 +25,66 @@ interface Props {
 export default function ProviderSettings({
   isDrawerOpen,
   provider,
-  envId,
+  environment,
   onClose,
   setRefreshToken,
 }: Props) {
+  const envId = environment.id!;
   const [isEnabled, setIsEnabled] = useState(!!provider?.enabled);
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(false);
+
+  const [selectedOrigin, setSelectedOrigin] = useState("");
+
+  // Verified custom domains plus the default preview domain are the hosts the
+  // app is actually served from. The OAuth callback URL must be registered with
+  // the provider for whichever domain users sign in on, so we let the customer
+  // pick the domain and copy the matching callback URL.
+  const { domains } = useFetchDomains({
+    appId: environment.appId,
+    envId,
+    search: "",
+    verified: true,
+    enabled: isDrawerOpen && !!provider?.hasRedirectUrl,
+  });
+
+  const callbackOrigins = useMemo(() => {
+    // `preview` already carries a scheme; custom domains are bare hosts. Coerce
+    // both to a normalized origin so the callback URL is always well-formed.
+    const toOrigin = (host?: string): string => {
+      const trimmed = host?.trim();
+
+      if (!trimmed) {
+        return "";
+      }
+
+      const withScheme = /^https?:\/\//.test(trimmed)
+        ? trimmed
+        : `https://${trimmed}`;
+
+      try {
+        return new URL(withScheme).origin;
+      } catch {
+        return "";
+      }
+    };
+
+    const origins = [environment.preview, ...domains.map(d => d.domainName)]
+      .map(toOrigin)
+      .filter(Boolean);
+
+    return Array.from(new Set(origins));
+  }, [environment.preview, domains]);
+
+  // Default the dropdown to the first known domain, keeping the current choice
+  // if it survives a domains refresh.
+  useEffect(() => {
+    setSelectedOrigin(prev =>
+      callbackOrigins.includes(prev) ? prev : callbackOrigins[0] || "",
+    );
+  }, [callbackOrigins]);
+
+  const callbackOrigin = selectedOrigin || "https://<your-host>";
 
   useEffect(() => {
     setIsEnabled(!!provider?.enabled);
@@ -124,12 +179,31 @@ export default function ProviderSettings({
               borderColor: "container.border",
             }}
           >
+            {callbackOrigins.length > 1 && (
+              <TextField
+                select
+                fullWidth
+                label="Domain"
+                variant="filled"
+                value={selectedOrigin}
+                onChange={e => setSelectedOrigin(e.target.value)}
+                helperText="Your app is served from multiple domains. Pick one to get its callback URL, and register the callback URL for each domain you use."
+                sx={{ mb: 2 }}
+              >
+                {callbackOrigins.map(origin => (
+                  <MenuItem key={origin} value={origin}>
+                    {origin}
+                  </MenuItem>
+                ))}
+              </TextField>
+            )}
+
             <CopyBox
               fullWidth
               label="Callback URL"
               variant="filled"
-              value={provider?.redirectUrl}
-              helperText="Set this URL as the Redirect URL in your OAuth provider settings."
+              value={`${callbackOrigin}${provider.redirectUrl}`}
+              helperText="Set this as the Redirect URL in your OAuth provider settings."
             />
           </Box>
         )}

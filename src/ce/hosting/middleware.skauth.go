@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	jwt "github.com/golang-jwt/jwt/v5"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/html"
 	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
@@ -239,6 +240,10 @@ func WithSKAuth(req *RequestContext) (*shttp.Response, error) {
 
 	if path == "/_stormkit/auth/refresh" {
 		return m.handleRefresh()
+	}
+
+	if path == skauth.CallbackPath {
+		return m.handleOAuthCallback()
 	}
 
 	if provider, ok := isOAuthProviderPath(path); ok {

@@ -4,7 +4,6 @@ import (
 	"context"
 
 	jwt "github.com/golang-jwt/jwt/v5"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
@@ -56,37 +55,47 @@ type ProviderData struct {
 }
 
 type Provider struct {
-	ID           types.ID
-	Name         string
-	Data         ProviderData
-	Status       bool
-	cachedClient Client
+	ID     types.ID
+	Name   string
+	Data   ProviderData
+	Status bool
 }
 
 var DefaultClient Client
 
+// Supported reports whether the provider name is a recognized auth provider.
+// Use it to validate a provider before persisting it, instead of building a
+// throwaway client.
+func (p *Provider) Supported() bool {
+	switch p.Name {
+	case ProviderGoogle, ProviderX, ProviderEmail, ProviderMagicLink:
+		return true
+	default:
+		return false
+	}
+}
+
 // Client returns the provider client (OAuth or non-OAuth) for the provider.
-func (p *Provider) Client() Client {
+// redirectURL is the absolute OAuth2 callback the provider redirects back to;
+// it must match between the authorization request and the token exchange, and
+// is ignored by non-OAuth providers.
+func (p *Provider) Client(redirectURL string) Client {
 	if DefaultClient != nil {
 		return DefaultClient
 	}
 
-	if p.cachedClient != nil {
-		return p.cachedClient
-	}
-
 	switch p.Name {
 	case ProviderGoogle:
-		p.cachedClient = NewGoogleClient(p.Data.ClientID, p.Data.ClientSecret)
+		return NewGoogleClient(p.Data.ClientID, p.Data.ClientSecret, redirectURL)
 	case ProviderX:
-		p.cachedClient = NewXClient(p.Data.ClientID, p.Data.ClientSecret)
+		return NewXClient(p.Data.ClientID, p.Data.ClientSecret, redirectURL)
 	case ProviderEmail:
-		p.cachedClient = NewEmailClient()
+		return NewEmailClient()
 	case ProviderMagicLink:
-		p.cachedClient = NewMagicLinkClient()
+		return NewMagicLinkClient()
 	}
 
-	return p.cachedClient
+	return nil
 }
 
 type AuthCodeURLParams struct {
@@ -148,9 +157,19 @@ func (u *User) JSON() map[string]any {
 	}
 }
 
-// RedirectURL returns the OAuth2 redirect URL.
+// CallbackPath is the OAuth2 callback path, relative to the app's own hosting
+// domain. The provider redirects the browser back here after authorization,
+// and the same absolute URL (https://<app-domain>/_stormkit/auth/callback) is
+// used in both the authorization request and the token exchange.
+const CallbackPath = "/_stormkit/auth/callback"
+
+// RedirectURL returns the OAuth2 callback path, relative to the app's own
+// hosting domain. The host is intentionally omitted: an app can be served from
+// several domains, so the UI prepends each domain to build the full redirect
+// URL the customer registers in the provider portal, and the server derives the
+// host from the request at flow time.
 func RedirectURL() string {
-	return admin.MustConfig().ApiURL("/v1/auth/callback")
+	return CallbackPath
 }
 
 // AuthURL returns the path, relative to the app's own hosting domain, where
