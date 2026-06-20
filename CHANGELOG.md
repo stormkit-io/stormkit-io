@@ -1,5 +1,25 @@
 # Changelog
 
+## v2026.06.20.2...v2026.06.20.3
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.06.20.2...v2026.06.20.3)
+
+### 🩹 Fixes
+
+- Use x.com for x oauth authorize url ([#308](https://github.com/stormkit-io/stormkit-io/pull/308))
+
+### 📖 Documentation
+
+- Add stormkit auth feature guide ([#307](https://github.com/stormkit-io/stormkit-io/pull/307))
+
+### 🏡 Chore
+
+- Update changelog for v2026.06.20.2 ([#306](https://github.com/stormkit-io/stormkit-io/pull/306))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.06.20.1...v2026.06.20.2
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.06.20.1...v2026.06.20.2)
