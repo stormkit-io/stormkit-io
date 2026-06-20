@@ -11,6 +11,8 @@ The **Auth Wall** feature allows you to restrict access to your deployments by r
 
 You can locate the Auth Wall settings by navigating to **Environment** > **Config**. Access the configuration options by selecting the **Auth Wall** tab in the left-hand sidebar.
 
+> **Auth Wall vs. Stormkit Auth**: The Auth Wall gates access to a deployment for *your* team (staging, previews, sensitive environments). To add sign-in for *your application's own users* — email and password, magic links, or Google / X OAuth — see [Authentication](/docs/features/authentication) instead.
+
 ## Configuration Options
 
 The Auth Wall has three main configuration modes:
