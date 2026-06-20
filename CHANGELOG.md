@@ -1,5 +1,25 @@
 # Changelog
 
+## v2026.06.20.1...v2026.06.20.2
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.06.20.1...v2026.06.20.2)
+
+### 🚀 Enhancements
+
+- Redirect auth failures with login_error ([#305](https://github.com/stormkit-io/stormkit-io/pull/305))
+
+### 🩹 Fixes
+
+- Dismissible origins hint and select z-index ([#304](https://github.com/stormkit-io/stormkit-io/pull/304))
+
+### 🏡 Chore
+
+- Update changelog for v2026.06.20.1 ([#303](https://github.com/stormkit-io/stormkit-io/pull/303))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.06.19.1...v2026.06.20.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.06.19.1...v2026.06.20.1)
