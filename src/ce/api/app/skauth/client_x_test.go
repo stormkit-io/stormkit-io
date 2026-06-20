@@ -119,7 +119,7 @@ func (s *ClientXSuite) Test_AuthCodeURL() {
 
 	s.NoError(err)
 	s.NotEmpty(url)
-	s.Contains(url, "twitter.com/i/oauth2/authorize")
+	s.Contains(url, "x.com/i/oauth2/authorize")
 	s.Contains(url, "client_id=test-client-id")
 	s.Contains(url, "state=")
 	s.Contains(url, "code_challenge_method=S256")
