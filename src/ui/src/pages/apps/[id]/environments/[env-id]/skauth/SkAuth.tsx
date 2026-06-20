@@ -302,7 +302,7 @@ export default function SkAuth() {
             defaultValue={(config?.allowedOrigins || []).join("\n")}
             variant="filled"
             autoComplete="off"
-            helperText="Optional. One origin per line (scheme + host, no path). Applies to every provider: cross-origin sign-in (magic link and OAuth) is only allowed to redirect back to an origin on this list, and the user is returned to the origin that initiated the flow (session token in the URL fragment as #skauth=…). Leave empty to keep the single-host behaviour."
+            helperText="Optional. One origin per line (scheme + host, no path). Applies to every provider: cross-origin sign-in (magic link and OAuth) is only allowed to redirect back to an origin on this list, and the user is returned to the origin that initiated the flow with the session token written to localStorage there. Leave empty to keep the single-host behaviour."
             slotProps={{
               inputLabel: {
                 shrink: true,

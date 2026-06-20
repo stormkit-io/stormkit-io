@@ -1,9 +1,12 @@
 package hosting
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
@@ -102,47 +105,108 @@ func (m *skAuthMiddleware) handleMagicLinkVerify() (*shttp.Response, error) {
 	}
 
 	successURL := m.req.Host.Config.SKAuth.SuccessURL
+	token, _ := data["token"].(string)
 
-	// Cross-origin: the POST came from a whitelisted frontend. Bounce
-	// the user back to that origin with the session token in the URL
-	// fragment so the destination SPA can persist it. We deliberately
-	// do NOT touch localStorage here because this host is the wrong
-	// origin for the token. SuccessURL is validated at config time to
-	// start with '/', so origin (no trailing slash) + successURL joins
-	// cleanly.
+	// Cross-origin: the POST came from a whitelisted frontend. Stash the token
+	// under a one-time code and bounce the user back to that origin's landing
+	// page, which injects it into localStorage there (codeLanding). We do NOT
+	// touch localStorage here because this host is the wrong origin for the
+	// token. SuccessURL is validated at config time to start with '/', so origin
+	// (no trailing slash) + successURL joins cleanly.
 	if redirect, _ := data["redirect"].(string); redirect != "" {
-		target := fmt.Sprintf("%s%s#skauth=%s", redirect, successURL, data["token"])
-		head := fmt.Sprintf(`<script>window.location.href=%q;</script>`, target)
+		landing, err := stashSessionToken(m.req.Context(), redirect, successURL, token)
+
+		if err != nil {
+			return m.renderVerifyPage(http.StatusInternalServerError, "", "magic link verification failed"), nil
+		}
+
+		head := fmt.Sprintf(`<script>window.location.href=%q;</script>`, landing)
 
 		return m.renderVerifyPage(http.StatusOK, head, ""), nil
 	}
 
 	head := fmt.Sprintf(
 		`<script>localStorage.setItem('skauth', JSON.stringify(%q));window.location.href=%q;</script>`,
-		data["token"],
+		token,
 		successURL+"?verified=true",
 	)
 
 	return m.renderVerifyPage(http.StatusOK, head, ""), nil
 }
 
-func (m *skAuthMiddleware) handleCallback() (*shttp.Response, error) {
-	var head, content string
+// sessionCode is the payload stored in Redis under the one-time login code. The
+// auth host mints the session token and computes the post-login redirect, then
+// stashes both so the landing page can inject the token and redirect — without
+// the landing host needing its own auth config.
+type sessionCode struct {
+	Token    string `json:"token"`
+	Redirect string `json:"redirect"`
+}
 
+// stashSessionToken stores the session token and its post-login redirect under a
+// fresh one-time code and returns the landing URL on the destination origin. The
+// browser is sent there; codeLanding reads the payload back and injects the token
+// into localStorage on that origin. origin is scheme+host (no trailing slash);
+// successURL is validated at config time to start with '/'.
+func stashSessionToken(ctx context.Context, origin, successURL, token string) (string, error) {
+	payload, err := json.Marshal(sessionCode{Token: token, Redirect: origin + successURL})
+
+	if err != nil {
+		return "", err
+	}
+
+	code := utils.RandomToken(64)
+
+	if err := rediscache.Client().Set(ctx, code, payload, time.Minute*2).Err(); err != nil {
+		return "", err
+	}
+
+	return origin + "/_stormkit/auth?code=" + code, nil
+}
+
+// codeLanding serves the one-time-code login landing. It is host-config
+// independent: the token and redirect were stashed in Redis by the auth host, so
+// it works even on a frontend deployment that has no auth config of its own.
+// Returns nil when the code is absent or unknown, so the request falls through to
+// normal serving (the SPA) instead of rendering an error.
+func (m *skAuthMiddleware) codeLanding() *shttp.Response {
 	code := m.req.Query().Get("code")
-	status := http.StatusOK
 
 	if code == "" {
+		return nil
+	}
+
+	raw, err := rediscache.Client().GetDel(m.req.Context(), code).Result()
+
+	if err != nil || raw == "" {
+		return nil
+	}
+
+	var sc sessionCode
+
+	if err := json.Unmarshal([]byte(raw), &sc); err != nil {
+		return nil
+	}
+
+	head := fmt.Sprintf(
+		`<script>localStorage.setItem('skauth', JSON.stringify('%s'));window.location.href=%q;</script>`,
+		sc.Token,
+		sc.Redirect,
+	)
+
+	return m.renderVerifyPage(http.StatusOK, head, "")
+}
+
+// handleCallback renders the terminal states of the one-time-code landing on an
+// auth-enabled host. The success path (a valid code) is handled earlier by
+// codeLanding, so by the time we get here the code is missing or unknown.
+func (m *skAuthMiddleware) handleCallback() (*shttp.Response, error) {
+	status := http.StatusOK
+	content := "invalid session"
+
+	if m.req.Query().Get("code") == "" {
 		status = http.StatusBadRequest
 		content = "code is missing"
-	} else if sessionToken := rediscache.Client().Get(m.req.Context(), code).Val(); sessionToken != "" {
-		head = fmt.Sprintf(
-			`<script>localStorage.setItem('skauth', JSON.stringify('%s'));window.location.href="%s";</script>`,
-			sessionToken,
-			m.req.Host.Config.SKAuth.SuccessURL,
-		)
-	} else {
-		content = "invalid session"
 	}
 
 	return &shttp.Response{
@@ -153,7 +217,6 @@ func (m *skAuthMiddleware) handleCallback() (*shttp.Response, error) {
 		Data: html.MustRender(html.RenderArgs{
 			PageTitle:   "Stormkit - Auth",
 			PageContent: content,
-			PageHead:    head,
 		}),
 	}, nil
 }
@@ -175,6 +238,23 @@ func (m *skAuthMiddleware) renderVerifyPage(status int, head, content string) *s
 }
 
 func WithSKAuth(req *RequestContext) (*shttp.Response, error) {
+	path := req.URL().Path
+
+	// The one-time-code login landing works on any Stormkit host: the token and
+	// its redirect live in Redis (stashed by the auth host), so the destination
+	// frontend doesn't need its own auth config. This must run before the
+	// SKAuth-nil gate below. The exact-match compare keeps normal traffic free —
+	// the query is parsed only on /_stormkit/auth, and Redis is touched only when
+	// a code is actually present. codeLanding returns nil for an absent/unknown
+	// code so we fall through to normal serving (the SPA). Skip OPTIONS so a CORS
+	// preflight can't consume the one-time code (real landings are GET
+	// navigations and are never preflighted).
+	if path == "/_stormkit/auth" && req.Method != http.MethodOptions && req.Query().Get("code") != "" {
+		if resp := (&skAuthMiddleware{req: req}).codeLanding(); resp != nil {
+			return resp, nil
+		}
+	}
+
 	if req.Host.Config.SKAuth == nil {
 		return nil, nil
 	}
@@ -204,8 +284,6 @@ func WithSKAuth(req *RequestContext) (*shttp.Response, error) {
 			}
 		}
 	}
-
-	path := req.URL().Path
 
 	if !strings.HasPrefix(path, "/_stormkit/auth") {
 		return nil, nil
