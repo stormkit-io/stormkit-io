@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.06.19.1...v2026.06.20.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.06.19.1...v2026.06.20.1)
+
+### 🩹 Fixes
+
+- Inject skauth token on cross-origin oauth login ([#302](https://github.com/stormkit-io/stormkit-io/pull/302))
+
+### 🏡 Chore
+
+- Update changelog for v2026.06.19.1 ([#301](https://github.com/stormkit-io/stormkit-io/pull/301))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.06.17.1...v2026.06.19.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.06.17.1...v2026.06.19.1)
