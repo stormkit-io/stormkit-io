@@ -191,8 +191,14 @@ export default function ProviderSettings({
                 variant="filled"
                 value={selectedOrigin}
                 onChange={e => setSelectedOrigin(e.target.value)}
-                helperText="Select one of these domains as the callback URL. To support multiple domains, create a separate app for each one."
+                helperText="Pick a domain to get its callback URL. Register the callback URL with your provider for every domain you use."
                 sx={{ mb: 2 }}
+                slotProps={{
+                  // The Drawer is raised to zIndex 1600; without this the Select
+                  // menu renders behind it (default modal zIndex 1300) and
+                  // clicking appears to do nothing.
+                  select: { MenuProps: { sx: { zIndex: 1700 } } },
+                }}
               >
                 {callbackOrigins.map(origin => (
                   <MenuItem key={origin} value={origin}>

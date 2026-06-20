@@ -270,6 +270,60 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
     });
   });
 
+  describe("allowed origins hint", () => {
+    const enabledProviders = { google: { status: true } };
+    const hintText = /A provider is enabled but no allowed origins are set/;
+
+    beforeEach(() => {
+      localStorage.clear();
+    });
+
+    afterEach(() => {
+      localStorage.clear();
+    });
+
+    it("warns when a provider is enabled but no origins are set", async () => {
+      await createWrapper({ hasSchema: true, providers: enabledProviders });
+
+      await waitFor(() => {
+        expect(wrapper.getByText(hintText)).toBeTruthy();
+      });
+    });
+
+    it("dismisses the hint and remembers it in localStorage", async () => {
+      await createWrapper({ hasSchema: true, providers: enabledProviders });
+
+      await waitFor(() => {
+        expect(wrapper.getByText(hintText)).toBeTruthy();
+      });
+
+      fireEvent.click(wrapper.getByLabelText("Close"));
+
+      await waitFor(() => {
+        expect(wrapper.queryByText(hintText)).toBeNull();
+      });
+
+      expect(
+        localStorage.getItem(`skauth_origins_hint_dismissed_${currentEnv.id}`),
+      ).toBe("1");
+    });
+
+    it("stays hidden when it was dismissed previously", async () => {
+      localStorage.setItem(
+        `skauth_origins_hint_dismissed_${mockEnv({ app: mockApp() }).id}`,
+        "1",
+      );
+
+      await createWrapper({ hasSchema: true, providers: enabledProviders });
+
+      await waitFor(() => {
+        expect(wrapper.getByText("Allowed origins")).toBeTruthy();
+      });
+
+      expect(wrapper.queryByText(hintText)).toBeNull();
+    });
+  });
+
   describe("auth config form", () => {
     beforeEach(async () => {
       await createWrapper({ hasSchema: true });

@@ -164,6 +164,15 @@ export default function SkAuth() {
   const [success, setSuccess] = useState<string>();
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string>();
+  const originsHintKey = `skauth_origins_hint_dismissed_${env.id}`;
+  const [originsHintDismissed, setOriginsHintDismissed] = useState(
+    () => localStorage.getItem(originsHintKey) === "1",
+  );
+
+  const dismissOriginsHint = () => {
+    localStorage.setItem(originsHintKey, "1");
+    setOriginsHintDismissed(true);
+  };
   const { providers, loading, error, config } = useFetchProviders({
     envId: env.id!,
     refreshToken,
@@ -176,6 +185,7 @@ export default function SkAuth() {
   // Guide decoupled (separate frontend domain / native) setups: an enabled
   // provider with no allow-list silently returns users to this environment.
   const showOriginsHint =
+    !originsHintDismissed &&
     providers.some(p => p.enabled) &&
     (config?.allowedOrigins || []).length === 0;
 
@@ -302,7 +312,7 @@ export default function SkAuth() {
             defaultValue={(config?.allowedOrigins || []).join("\n")}
             variant="filled"
             autoComplete="off"
-            helperText="Optional. One origin per line (scheme + host, no path). Applies to every provider: cross-origin sign-in (magic link and OAuth) is only allowed to redirect back to an origin on this list, and the user is returned to the origin that initiated the flow with the session token written to localStorage there. Leave empty to keep the single-host behaviour."
+            helperText="Optional. One origin per line (scheme + host, no path). Origins allowed for cross-origin sign-in. Leave empty for single-host setups."
             slotProps={{
               inputLabel: {
                 shrink: true,
@@ -310,12 +320,10 @@ export default function SkAuth() {
             }}
           />
           {showOriginsHint && (
-            <Alert severity="warning" sx={{ mt: 1 }}>
-              A provider is enabled but no allowed origins are set. Leave this
-              empty only if your frontend is served from this same environment.
-              If your frontend runs on a separate domain (or a native app), add
-              its origin here — otherwise sign-in will return users to this
-              environment instead of your app.
+            <Alert severity="warning" sx={{ mt: 2 }} onClose={dismissOriginsHint}>
+              A provider is enabled but no allowed origins are set. If your
+              frontend runs on a separate domain (or a native app), add its
+              origin — otherwise sign-in returns users here instead of your app.
             </Alert>
           )}
         </Box>
