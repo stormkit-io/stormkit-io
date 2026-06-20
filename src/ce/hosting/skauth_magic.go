@@ -160,7 +160,12 @@ func (m *skAuthMiddleware) magicLinkVerify() *shttp.Response {
 	}
 
 	if userID == 0 {
-		return shttp.BadRequest(map[string]any{"errors": []string{"invalid or expired magic link token"}})
+		// We parsed the token, so we know the initiating origin — pass it through
+		// so the error redirect lands on the right app rather than this host.
+		return shttp.BadRequest(map[string]any{
+			"errors":   []string{"invalid or expired magic link token"},
+			"redirect": redirectOrigin,
+		})
 	}
 
 	authUser, err := store.AuthUser(req.Context(), userID)

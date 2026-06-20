@@ -130,7 +130,7 @@ func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
 	// instead of an authorization code. Bounce back without attempting an
 	// exchange that would fail anyway.
 	if req.FormValue("error") != "" {
-		return m.oauthError(referOrigin, "Sign-in was cancelled."), nil
+		return m.loginErrorRedirect(referOrigin, "Sign-in was cancelled."), nil
 	}
 
 	envID := m.req.Host.Config.EnvID
@@ -139,53 +139,53 @@ func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
 
 	if err != nil {
 		slog.Errorf("oauth callback: failed to get environment %d: %s", envID, err.Error())
-		return m.oauthError(referOrigin, "Sign-in is temporarily unavailable. Please try again."), nil
+		return m.loginErrorRedirect(referOrigin, "Sign-in is temporarily unavailable. Please try again."), nil
 	}
 
 	if env == nil || env.SchemaConf == nil || env.AuthConf == nil || !env.AuthConf.Status {
-		return m.oauthError(referOrigin, "Sign-in is not available right now."), nil
+		return m.loginErrorRedirect(referOrigin, "Sign-in is not available right now."), nil
 	}
 
 	prv, err := skauth.NewStore().Provider(req.Context(), env.ID, provider)
 
 	if err != nil {
 		slog.Errorf("oauth callback: failed to get provider %s for env %d: %s", provider, env.ID, err.Error())
-		return m.oauthError(referOrigin, "Sign-in is temporarily unavailable. Please try again."), nil
+		return m.loginErrorRedirect(referOrigin, "Sign-in is temporarily unavailable. Please try again."), nil
 	}
 
 	if prv == nil || !prv.Status {
-		return m.oauthError(referOrigin, "This sign-in method is not available."), nil
+		return m.loginErrorRedirect(referOrigin, "This sign-in method is not available."), nil
 	}
 
 	client := prv.Client(m.callbackURL())
 
 	if client == nil {
-		return m.oauthError(referOrigin, "This sign-in method is not available."), nil
+		return m.loginErrorRedirect(referOrigin, "This sign-in method is not available."), nil
 	}
 
 	token, err := client.Exchange(req.Context(), req)
 
 	if err != nil {
 		slog.Errorf("oauth callback: failed to exchange authorization code: %s", err.Error())
-		return m.oauthError(referOrigin, "We couldn't complete sign-in. Please try again."), nil
+		return m.loginErrorRedirect(referOrigin, "We couldn't complete sign-in. Please try again."), nil
 	}
 
 	store, err := env.SchemaConf.Store(buildconf.SchemaAccessTypeAppUser)
 
 	if err != nil {
 		slog.Errorf("oauth callback: failed to get schema store: %s", err.Error())
-		return m.oauthError(referOrigin, "Sign-in is temporarily unavailable. Please try again."), nil
+		return m.loginErrorRedirect(referOrigin, "Sign-in is temporarily unavailable. Please try again."), nil
 	}
 
 	info, err := client.UserInfo(req.Context(), token)
 
 	if err != nil {
 		slog.Errorf("oauth callback: failed to get user info: %s", err.Error())
-		return m.oauthError(referOrigin, "We couldn't read your account details. Please try again."), nil
+		return m.loginErrorRedirect(referOrigin, "We couldn't read your account details. Please try again."), nil
 	}
 
 	if info == nil {
-		return m.oauthError(referOrigin, "We couldn't read your account details. Please try again."), nil
+		return m.loginErrorRedirect(referOrigin, "We couldn't read your account details. Please try again."), nil
 	}
 
 	oauth := skauth.OAuth{
@@ -206,7 +206,7 @@ func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
 
 	if err := store.UpsertAuthUser(req.Context(), &oauth, &usr); err != nil {
 		slog.Errorf("oauth callback: failed to upsert auth user: %s", err.Error())
-		return m.oauthError(referOrigin, "We couldn't complete sign-in. Please try again."), nil
+		return m.loginErrorRedirect(referOrigin, "We couldn't complete sign-in. Please try again."), nil
 	}
 
 	sessionToken, err := user.JWT(jwt.MapClaims{
@@ -218,7 +218,7 @@ func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
 
 	if err != nil {
 		slog.Errorf("oauth callback: failed to generate session token: %s", err.Error())
-		return m.oauthError(referOrigin, "We couldn't complete sign-in. Please try again."), nil
+		return m.loginErrorRedirect(referOrigin, "We couldn't complete sign-in. Please try again."), nil
 	}
 
 	// Stash the token under a one-time code and send the browser to the landing
@@ -229,29 +229,13 @@ func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
 
 	if err != nil {
 		slog.Errorf("oauth callback: failed to save session code: %s", err.Error())
-		return m.oauthError(referOrigin, "We couldn't complete sign-in. Please try again."), nil
+		return m.loginErrorRedirect(referOrigin, "We couldn't complete sign-in. Please try again."), nil
 	}
 
 	return &shttp.Response{
 		Status:   http.StatusFound,
 		Redirect: &target,
 	}, nil
-}
-
-// oauthError sends the user back to the initiating origin's redirect page with a
-// user-friendly message in the login_error query param, instead of rendering a
-// Stormkit error page. Pair it with a slog.Error log for the underlying cause.
-func (m *skAuthMiddleware) oauthError(referOrigin, message string) *shttp.Response {
-	target := fmt.Sprintf("%s%s?login_error=%s",
-		referOrigin,
-		m.req.Host.Config.SKAuth.SuccessURL,
-		url.QueryEscape(message),
-	)
-
-	return &shttp.Response{
-		Status:   http.StatusFound,
-		Redirect: &target,
-	}
 }
 
 // resolveRedirect determines and validates the post-login redirect origin.

@@ -213,6 +213,9 @@ func (s *WithSKAuthMagicLinkSuite) Test_Request_CreatesNewUser() {
 	s.Equal("newuser@example.com", authUser.Email)
 }
 
+// Test_Verify_InvalidToken checks that an unparseable token bounces the user back
+// to the app's redirect page with a login_error message. The origin is unknown
+// (the token can't be parsed), so we fall back to this host's own origin.
 func (s *WithSKAuthMagicLinkSuite) Test_Verify_InvalidToken() {
 	env, err := s.setupEnv()
 	s.Require().NoError(err)
@@ -220,7 +223,10 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_InvalidToken() {
 	res, err := hosting.WithSKAuth(s.magicRequest(s.hostFor(env.ID), "/_stormkit/auth/magic?token=bad-token"))
 
 	s.NoError(err)
-	s.Equal(http.StatusBadRequest, res.Status)
+	s.Require().NotNil(res)
+	s.Equal(http.StatusFound, res.Status)
+	s.Require().NotNil(res.Redirect)
+	s.Contains(*res.Redirect, "https://my.example.com/dashboard?login_error=")
 }
 
 func (s *WithSKAuthMagicLinkSuite) Test_Verify_Success() {
@@ -300,9 +306,41 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_TokenConsumedOnce() {
 	s.NoError(err)
 	s.Equal(http.StatusOK, first.Status)
 
+	// Reusing a consumed token bounces back to the app with a login_error.
 	second, err := hosting.WithSKAuth(s.magicRequest(s.hostFor(env.ID), path))
 	s.NoError(err)
-	s.Equal(http.StatusBadRequest, second.Status)
+	s.Equal(http.StatusFound, second.Status)
+	s.Require().NotNil(second.Redirect)
+	s.Contains(*second.Redirect, "/dashboard?login_error=")
+}
+
+// Test_Verify_Error_CrossOrigin_RedirectsToInitiator checks that a failed verify
+// for a cross-origin flow lands the login_error on the initiating origin (carried
+// in the token) rather than this host.
+func (s *WithSKAuthMagicLinkSuite) Test_Verify_Error_CrossOrigin_RedirectsToInitiator() {
+	env, err := s.setupEnvWithOrigins([]string{"https://app.example.com"})
+	s.Require().NoError(err)
+
+	post := s.magicRequestWith(s.hostFor(env.ID), "/_stormkit/auth/magic?email=err@example.com", http.MethodPost, "https://app.example.com")
+	_, err = hosting.WithSKAuth(post)
+	s.Require().NoError(err)
+
+	token := s.captureToken(env.ID)
+	s.Require().NotEmpty(token)
+
+	path := fmt.Sprintf("/_stormkit/auth/magic?token=%s", token)
+
+	first, err := hosting.WithSKAuth(s.magicRequest(s.hostFor(env.ID), path))
+	s.Require().NoError(err)
+	s.Require().Equal(http.StatusOK, first.Status)
+
+	// Replaying the consumed token: the error redirect must target the initiating
+	// origin, not the verify host.
+	second, err := hosting.WithSKAuth(s.magicRequest(s.hostFor(env.ID), path))
+	s.NoError(err)
+	s.Equal(http.StatusFound, second.Status)
+	s.Require().NotNil(second.Redirect)
+	s.Contains(*second.Redirect, "https://app.example.com/dashboard?login_error=")
 }
 
 func (s *WithSKAuthMagicLinkSuite) Test_Request_NoOriginCheck_WhenAllowListEmpty() {
