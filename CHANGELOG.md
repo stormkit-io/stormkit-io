@@ -1,5 +1,25 @@
 # Changelog
 
+## v2026.06.17.1...v2026.06.19.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.06.17.1...v2026.06.19.1)
+
+### 🚀 Enhancements
+
+- Serve oauth callback from the app hosting domain ([#299](https://github.com/stormkit-io/stormkit-io/pull/299))
+
+### 🩹 Fixes
+
+- Link auth providers by email to avoid duplicates ([#300](https://github.com/stormkit-io/stormkit-io/pull/300))
+
+### 🏡 Chore
+
+- Update changelog for v2026.06.17.1 ([#298](https://github.com/stormkit-io/stormkit-io/pull/298))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.06.08.1...v2026.06.17.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.06.08.1...v2026.06.17.1)
