@@ -173,7 +173,10 @@ func (s *WithSKAuthOAuthSuite) Test_Callback_InvalidState() {
 	s.Equal(http.StatusBadRequest, res.Status)
 }
 
-func (s *WithSKAuthOAuthSuite) Test_Callback_ProviderDisabled_NotFound() {
+// Test_Callback_ProviderDisabled_RedirectsWithError checks that a disabled
+// provider bounces the user back to the initiating origin with a friendly
+// login_error message instead of rendering a Stormkit error page.
+func (s *WithSKAuthOAuthSuite) Test_Callback_ProviderDisabled_RedirectsWithError() {
 	host := s.setupCallbackEnv(false)
 
 	state := s.stateToken(skauth.ProviderGoogle, "https://app.example.com/login")
@@ -185,5 +188,55 @@ func (s *WithSKAuthOAuthSuite) Test_Callback_ProviderDisabled_NotFound() {
 	))
 
 	s.Require().NoError(err)
-	s.Equal(http.StatusNotFound, res.Status)
+	s.Require().NotNil(res)
+	s.Equal(http.StatusFound, res.Status)
+	s.Require().NotNil(res.Redirect)
+	s.Contains(*res.Redirect, "https://app.example.com/dashboard?login_error=")
+	s.Contains(*res.Redirect, "not+available")
+}
+
+// Test_Callback_ProviderDenied_RedirectsWithError checks that when the provider
+// round-trips an error param (e.g. the user denied consent), we bounce back with
+// a friendly message and never attempt the token exchange.
+func (s *WithSKAuthOAuthSuite) Test_Callback_ProviderDenied_RedirectsWithError() {
+	host := s.setupCallbackEnv(true)
+
+	state := s.stateToken(skauth.ProviderGoogle, "https://app.example.com/login")
+
+	res, err := hosting.WithSKAuth(s.oauthRequest(
+		host,
+		fmt.Sprintf("/_stormkit/auth/callback?state=%s&error=access_denied", state),
+		nil,
+	))
+
+	s.Require().NoError(err)
+	s.Require().NotNil(res)
+	s.Equal(http.StatusFound, res.Status)
+	s.Require().NotNil(res.Redirect)
+	s.Contains(*res.Redirect, "https://app.example.com/dashboard?login_error=")
+	s.Contains(*res.Redirect, "cancelled")
+}
+
+// Test_Callback_ExchangeFails_RedirectsWithError checks that a failed token
+// exchange redirects the user back with a friendly message rather than a 500.
+func (s *WithSKAuthOAuthSuite) Test_Callback_ExchangeFails_RedirectsWithError() {
+	host := s.setupCallbackEnv(true)
+
+	s.mockClient.On("Exchange", mock.Anything, mock.Anything).
+		Return((*oauth2.Token)(nil), fmt.Errorf("invalid_grant")).Once()
+
+	state := s.stateToken(skauth.ProviderGoogle, "https://app.example.com/login")
+
+	res, err := hosting.WithSKAuth(s.oauthRequest(
+		host,
+		fmt.Sprintf("/_stormkit/auth/callback?state=%s&code=bad-code", state),
+		nil,
+	))
+
+	s.Require().NoError(err)
+	s.Require().NotNil(res)
+	s.Equal(http.StatusFound, res.Status)
+	s.Require().NotNil(res.Redirect)
+	s.Contains(*res.Redirect, "https://app.example.com/dashboard?login_error=")
+	s.Contains(*res.Redirect, "complete+sign-in")
 }
