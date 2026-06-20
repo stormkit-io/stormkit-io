@@ -12,7 +12,7 @@ import (
 )
 
 var TwitterAPIBase = "https://api.twitter.com/2"
-var TwitterAuthBase = "https://twitter.com/i/oauth2/authorize"
+var TwitterAuthBase = "https://x.com/i/oauth2/authorize"
 
 // Step 1: https://developer.x.com/en/portal/dashboard
 // Step 2: Create a new project and app with Elevated access (required for email)
