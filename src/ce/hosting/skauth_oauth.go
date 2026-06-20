@@ -5,13 +5,11 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
-	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
@@ -187,7 +185,8 @@ func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
 	}
 
 	sessionToken, err := user.JWT(jwt.MapClaims{
-		"uid": usr.ID,
+		"uid": usr.UUID,
+		"eml": utils.EncryptToString(usr.Email, emlKey(env.AuthConf.Secret)),
 		"eid": fmt.Sprintf("%d", env.ID),
 		"prv": provider,
 	}, env.AuthConf.Secret)
@@ -196,22 +195,23 @@ func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
 		return shttp.Error(err, fmt.Sprintf("failed to generate session token: %s", err.Error())), nil
 	}
 
-	code := utils.RandomToken(64)
-
-	if err := rediscache.Client().Set(req.Context(), code, sessionToken, time.Minute*2).Err(); err != nil {
-		return shttp.Error(err, fmt.Sprintf("failed saving session code: %s", err.Error())), nil
-	}
-
 	parsed, err := url.ParseRequestURI(refer)
 
 	if err != nil {
 		return shttp.BadRequest(map[string]any{"errors": []string{"referrer URL is not a valid format"}}), nil
 	}
 
-	target := fmt.Sprintf("%s://%s/_stormkit/auth?code=%s",
-		utils.GetString(parsed.Scheme, "https"),
-		parsed.Host,
-		code)
+	referOrigin := utils.GetString(parsed.Scheme, "https") + "://" + parsed.Host
+
+	// Stash the token under a one-time code and send the browser to the landing
+	// page on the initiating origin, which injects it into localStorage there
+	// (codeLanding). This works whether or not that origin runs its own auth
+	// config, and keeps the token out of the URL.
+	target, err := stashSessionToken(req.Context(), referOrigin, m.req.Host.Config.SKAuth.SuccessURL, sessionToken)
+
+	if err != nil {
+		return shttp.Error(err, fmt.Sprintf("failed saving session code: %s", err.Error())), nil
+	}
 
 	return &shttp.Response{
 		Status:   http.StatusFound,

@@ -355,8 +355,11 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_CrossOrigin_RedirectsToInitiator(
 	s.Equal(http.StatusOK, res.Status)
 
 	body := string(res.Data.([]byte))
-	s.Contains(body, "https://app.example.com/dashboard#skauth=")
-	// Cross-origin path must not touch localStorage on the wrong host.
+	// Cross-origin path bounces to the initiator's one-time-code landing, which
+	// injects the token into localStorage there — no fragment, and this response
+	// must not touch localStorage on the wrong host.
+	s.Contains(body, "https://app.example.com/_stormkit/auth?code=")
+	s.NotContains(body, "#skauth=")
 	s.NotContains(body, "localStorage")
 }
 

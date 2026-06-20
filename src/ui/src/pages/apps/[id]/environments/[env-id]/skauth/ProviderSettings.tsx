@@ -76,6 +76,10 @@ export default function ProviderSettings({
     return Array.from(new Set(origins));
   }, [environment.preview, domains]);
 
+  // The preview origin is always the first candidate; flag it so it can be
+  // labelled in the dropdown and told apart from verified custom domains.
+  const previewOrigin = callbackOrigins[0];
+
   // Default the dropdown to the first known domain, keeping the current choice
   // if it survives a domains refresh.
   useEffect(() => {
@@ -187,12 +191,13 @@ export default function ProviderSettings({
                 variant="filled"
                 value={selectedOrigin}
                 onChange={e => setSelectedOrigin(e.target.value)}
-                helperText="Your app is served from multiple domains. Pick one to get its callback URL, and register the callback URL for each domain you use."
+                helperText="Select one of these domains as the callback URL. To support multiple domains, create a separate app for each one."
                 sx={{ mb: 2 }}
               >
                 {callbackOrigins.map(origin => (
                   <MenuItem key={origin} value={origin}>
                     {origin}
+                    {origin === previewOrigin ? " (preview)" : ""}
                   </MenuItem>
                 ))}
               </TextField>

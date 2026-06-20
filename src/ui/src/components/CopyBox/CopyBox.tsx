@@ -8,6 +8,31 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 
 let id = 0;
 
+// copyToClipboard prefers the async Clipboard API, which is the reliable path on
+// modern browsers and secure contexts. It falls back to selecting the input and
+// the legacy execCommand for older browsers or non-secure (http) contexts where
+// navigator.clipboard is unavailable.
+function copyToClipboard(value: string, inputId: string) {
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(value).catch(() => selectAndExec(inputId));
+    return;
+  }
+
+  selectAndExec(inputId);
+}
+
+function selectAndExec(inputId: string) {
+  const input = document.querySelector<HTMLInputElement>(`#${inputId}`);
+
+  if (!input) {
+    return;
+  }
+
+  input.focus();
+  input.select();
+  document.execCommand("copy");
+}
+
 export default function CopyBox({
   value,
   slotProps,
@@ -43,13 +68,7 @@ export default function CopyBox({
                 type="button"
                 aria-label="Copy to clipboard"
                 onClick={() => {
-                  (
-                    document.querySelector(`#${inputId}`) as HTMLInputElement
-                  ).focus();
-                  (
-                    document.querySelector(`#${inputId}`) as HTMLInputElement
-                  ).select();
-                  document.execCommand("copy");
+                  copyToClipboard(String(value ?? ""), inputId);
                   setClicked(true);
                   setTimeout(() => {
                     setClicked(false);
