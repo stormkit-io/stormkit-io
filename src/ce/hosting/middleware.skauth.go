@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -89,10 +90,28 @@ func (m *skAuthMiddleware) handleMagicLinkVerify() (*shttp.Response, error) {
 	if resp.Status != 0 && resp.Status != http.StatusOK {
 		errMsg := "magic link verification failed"
 
+		// Redirect base: the validated origin carried in the token when we have
+		// it (cross-origin), otherwise this host's own origin — which, for magic
+		// links, is the domain the email link was issued from. The underlying
+		// cause was already logged when magicLinkVerify built the error response.
+		origin := "https://" + m.req.Host.Name
+
 		if d, ok := resp.Data.(map[string]any); ok {
 			if errs, ok := d["errors"].([]string); ok && len(errs) > 0 {
 				errMsg = errs[0]
 			}
+
+			if r, ok := d["redirect"].(string); ok && r != "" {
+				origin = r
+			}
+		}
+
+		// Token-level failures (missing/invalid/expired/consumed token) bounce the
+		// user back to the app with a friendly login_error. Config (404) and
+		// internal (5xx) responses keep their original page — they mean the host
+		// isn't set up for auth or hit a fault, not a user sign-in failure.
+		if resp.Status == http.StatusBadRequest {
+			return m.loginErrorRedirect(origin, errMsg), nil
 		}
 
 		return m.renderVerifyPage(resp.Status, "", errMsg), nil
@@ -162,6 +181,23 @@ func stashSessionToken(ctx context.Context, origin, successURL, token string) (s
 	}
 
 	return origin + "/_stormkit/auth?code=" + code, nil
+}
+
+// loginErrorRedirect bounces a failed sign-in back to the app's redirect page
+// (origin + SuccessURL) with a user-friendly message in the login_error query
+// param, instead of rendering a Stormkit error page. The underlying cause should
+// be logged by the caller. Used by both the OAuth and magic-link flows.
+func (m *skAuthMiddleware) loginErrorRedirect(origin, message string) *shttp.Response {
+	target := fmt.Sprintf("%s%s?login_error=%s",
+		origin,
+		m.req.Host.Config.SKAuth.SuccessURL,
+		url.QueryEscape(message),
+	)
+
+	return &shttp.Response{
+		Status:   http.StatusFound,
+		Redirect: &target,
+	}
 }
 
 // codeLanding serves the one-time-code login landing. It is host-config
