@@ -1,4 +1,4 @@
-package domainhandlers_test
+package publicapiv1_test
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appcache"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/domainhandlers"
+	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
@@ -72,9 +72,9 @@ func (s *HandlerCertDeleteSuite) Test_Success() {
 	s.mockCache.On("Reset", types.ID(0), domain.Name).Return(nil)
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(domainhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodDelete,
-		fmt.Sprintf("/domains/cert?appId=%s&envId=%s&domainId=%s", app.ID.String(), env.ID.String(), domain.ID.String()),
+		fmt.Sprintf("/v1/domains/cert?appId=%s&envId=%s&domainId=%s", app.ID.String(), env.ID.String(), domain.ID.String()),
 		nil,
 		map[string]string{
 			"Authorization": usertest.Authorization(usr.ID),
@@ -129,9 +129,9 @@ func (s *HandlerCertDeleteSuite) Test_InvalidKey() {
 	certVal := "-----BEGIN CERTIFICATE-----my-cert"
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(domainhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodPut,
-		"/domains/cert",
+		"/v1/domains/cert",
 		map[string]any{
 			"envId":     env.ID.String(),
 			"appId":     app.ID.String(),

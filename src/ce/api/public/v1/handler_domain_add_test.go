@@ -1,4 +1,4 @@
-package domainhandlers_test
+package publicapiv1_test
 
 import (
 	"context"
@@ -8,9 +8,10 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/domainhandlers"
+	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -19,22 +20,27 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type HandlerDomainAdd struct {
+type HandlerDomainAddSuite struct {
 	suite.Suite
 	*factory.Factory
 	conn databasetest.TestDB
 }
 
-func (s *HandlerDomainAdd) BeforeTest(suiteName, _ string) {
+func (s *HandlerDomainAddSuite) BeforeTest(suiteName, _ string) {
+	// Pin self-hosted so the Verified assertion is deterministic: other suites
+	// in this package mutate the shared edition flag without resetting it.
+	config.SetIsSelfHosted(true)
+
 	s.conn = databasetest.InitTx(suiteName)
 	s.Factory = factory.New(s.conn)
 }
 
-func (s *HandlerDomainAdd) AfterTest(_, _ string) {
+func (s *HandlerDomainAddSuite) AfterTest(_, _ string) {
 	s.conn.CloseTx()
+	config.SetIsSelfHosted(false)
 }
 
-func (s *HandlerDomainAdd) Test_Success() {
+func (s *HandlerDomainAddSuite) Test_Success() {
 	usr := s.Factory.MockUser()
 	app := s.Factory.MockApp(usr, nil)
 	env := s.Factory.MockEnv(app)
@@ -45,9 +51,9 @@ func (s *HandlerDomainAdd) Test_Success() {
 	defer func() { admin.ResetMockLicense() }()
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(domainhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodPost,
-		"/domains",
+		"/v1/domains",
 		map[string]any{
 			"envId":  env.ID.String(),
 			"appId":  app.ID.String(),
@@ -94,7 +100,7 @@ func (s *HandlerDomainAdd) Test_Success() {
 	}, audits[0])
 }
 
-func (s *HandlerDomainAdd) Test_IsValidDomain() {
+func (s *HandlerDomainAddSuite) Test_IsValidDomain() {
 	// input => expected host
 	validDomains := map[string]string{
 		"https://www.stormkit.io":       "www.stormkit.io",
@@ -109,7 +115,7 @@ func (s *HandlerDomainAdd) Test_IsValidDomain() {
 	}
 
 	for input, expectedHost := range validDomains {
-		parsed := domainhandlers.IsValidDomain(input)
+		parsed := publicapiv1.IsValidDomain(input)
 		s.NotNil(parsed)
 		s.Equal(expectedHost, parsed.Hostname())
 	}
@@ -120,11 +126,11 @@ func (s *HandlerDomainAdd) Test_IsValidDomain() {
 	}
 
 	for _, input := range invalidDomains {
-		s.Nil(domainhandlers.IsValidDomain(input))
+		s.Nil(publicapiv1.IsValidDomain(input))
 	}
 }
 
-func (s *HandlerDomainAdd) Test_Duplicate_AlreadyVerified() {
+func (s *HandlerDomainAddSuite) Test_Duplicate_AlreadyVerified() {
 	usr := s.Factory.MockUser()
 	app := s.Factory.MockApp(usr, nil)
 	env := s.Factory.MockEnv(app)
@@ -138,9 +144,9 @@ func (s *HandlerDomainAdd) Test_Duplicate_AlreadyVerified() {
 	}))
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(domainhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodPost,
-		"/domains",
+		"/v1/domains",
 		map[string]any{
 			"envId":  env.ID.String(),
 			"appId":  app.ID.String(),
@@ -154,15 +160,15 @@ func (s *HandlerDomainAdd) Test_Duplicate_AlreadyVerified() {
 	s.Equal(http.StatusBadRequest, response.Code)
 }
 
-func (s *HandlerDomainAdd) Test_InvalidDomain() {
+func (s *HandlerDomainAddSuite) Test_InvalidDomain() {
 	usr := s.Factory.MockUser()
 	app := s.Factory.MockApp(usr, nil)
 	env := s.Factory.MockEnv(app)
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(domainhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodPost,
-		"/domains",
+		"/v1/domains",
 		map[string]any{
 			"envId":  env.ID.String(),
 			"appId":  app.ID.String(),
@@ -179,5 +185,5 @@ func (s *HandlerDomainAdd) Test_InvalidDomain() {
 }
 
 func TestDomainSet(t *testing.T) {
-	suite.Run(t, &HandlerDomainAdd{})
+	suite.Run(t, &HandlerDomainAddSuite{})
 }

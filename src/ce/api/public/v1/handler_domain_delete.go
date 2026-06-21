@@ -1,7 +1,6 @@
-package domainhandlers
+package publicapiv1
 
 import (
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appcache"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
@@ -10,7 +9,7 @@ import (
 )
 
 // HandlerDomainDelete deletes the associated domain for the given environment.
-func HandlerDomainDelete(req *app.RequestContext) *shttp.Response {
+func HandlerDomainDelete(req *RequestContext) *shttp.Response {
 	query := req.Query()
 	id := query.Get("domainId")
 

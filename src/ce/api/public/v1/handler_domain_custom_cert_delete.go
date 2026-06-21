@@ -1,7 +1,6 @@
-package domainhandlers
+package publicapiv1
 
 import (
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appcache"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
@@ -9,7 +8,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
-func HandlerCertDelete(req *app.RequestContext) *shttp.Response {
+func HandlerCertDelete(req *RequestContext) *shttp.Response {
 	id := req.Query().Get("domainId")
 
 	if id == "" {

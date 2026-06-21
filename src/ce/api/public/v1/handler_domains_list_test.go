@@ -1,4 +1,4 @@
-package domainhandlers_test
+package publicapiv1_test
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/domainhandlers"
+	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
@@ -18,22 +18,22 @@ import (
 	"gopkg.in/guregu/null.v3"
 )
 
-type HandlerDomainsList struct {
+type HandlerDomainsListSuite struct {
 	suite.Suite
 	*factory.Factory
 	conn databasetest.TestDB
 }
 
-func (s *HandlerDomainsList) BeforeTest(suiteName, _ string) {
+func (s *HandlerDomainsListSuite) BeforeTest(suiteName, _ string) {
 	s.conn = databasetest.InitTx(suiteName)
 	s.Factory = factory.New(s.conn)
 }
 
-func (s *HandlerDomainsList) AfterTest(_, _ string) {
+func (s *HandlerDomainsListSuite) AfterTest(_, _ string) {
 	s.conn.CloseTx()
 }
 
-func (s *HandlerDomainsList) Test_Success_WithoutFilters() {
+func (s *HandlerDomainsListSuite) Test_Success_WithoutFilters() {
 	usr := s.Factory.MockUser()
 	app := s.Factory.MockApp(usr, nil)
 	env := s.Factory.MockEnv(app)
@@ -58,9 +58,9 @@ func (s *HandlerDomainsList) Test_Success_WithoutFilters() {
 	s.NoError(buildconf.DomainStore().Insert(context.Background(), d2))
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(domainhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodGet,
-		fmt.Sprintf("/domains?appId=%s&envId=%s", app.ID.String(), env.ID.String()),
+		fmt.Sprintf("/v1/domains?appId=%s&envId=%s", app.ID.String(), env.ID.String()),
 		nil,
 		map[string]string{
 			"Authorization": usertest.Authorization(usr.ID),
@@ -81,15 +81,15 @@ func (s *HandlerDomainsList) Test_Success_WithoutFilters() {
 	s.JSONEq(expected, response.String())
 }
 
-func (s *HandlerDomainsList) Test_Success_Pagination() {
+func (s *HandlerDomainsListSuite) Test_Success_Pagination() {
 	usr := s.Factory.MockUser()
 	app := s.Factory.MockApp(usr, nil)
 	env := s.Factory.MockEnv(app)
 
-	domainhandlers.DefaultDomainsLimit = 1
+	publicapiv1.DefaultDomainsLimit = 1
 
 	defer func() {
-		domainhandlers.DefaultDomainsLimit = 100
+		publicapiv1.DefaultDomainsLimit = 100
 	}()
 
 	d1 := &buildconf.DomainModel{
@@ -112,9 +112,9 @@ func (s *HandlerDomainsList) Test_Success_Pagination() {
 	s.NoError(buildconf.DomainStore().Insert(context.Background(), d2))
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(domainhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodGet,
-		fmt.Sprintf("/domains?appId=%s&envId=%s", app.ID.String(), env.ID.String()),
+		fmt.Sprintf("/v1/domains?appId=%s&envId=%s", app.ID.String(), env.ID.String()),
 		nil,
 		map[string]string{
 			"Authorization": usertest.Authorization(usr.ID),
@@ -135,10 +135,10 @@ func (s *HandlerDomainsList) Test_Success_Pagination() {
 	s.JSONEq(expected, response.String())
 
 	response = shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(domainhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodGet,
 		fmt.Sprintf(
-			"/domains?appId=%s&envId=%s&afterId=%d",
+			"/v1/domains?appId=%s&envId=%s&afterId=%d",
 			app.ID.String(),
 			env.ID.String(),
 			d1.ID,
@@ -162,7 +162,7 @@ func (s *HandlerDomainsList) Test_Success_Pagination() {
 	s.JSONEq(expected, response.String())
 }
 
-func (s *HandlerDomainsList) Test_Success_WithFilters() {
+func (s *HandlerDomainsListSuite) Test_Success_WithFilters() {
 	usr := s.Factory.MockUser()
 	app := s.Factory.MockApp(usr, nil)
 	env := s.Factory.MockEnv(app)
@@ -187,9 +187,9 @@ func (s *HandlerDomainsList) Test_Success_WithFilters() {
 	s.NoError(buildconf.DomainStore().Insert(context.Background(), d2))
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(domainhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodGet,
-		fmt.Sprintf("/domains?appId=%s&envId=%s&verified=true", app.ID.String(), env.ID.String()),
+		fmt.Sprintf("/v1/domains?appId=%s&envId=%s&verified=true", app.ID.String(), env.ID.String()),
 		nil,
 		map[string]string{
 			"Authorization": usertest.Authorization(usr.ID),
@@ -209,7 +209,7 @@ func (s *HandlerDomainsList) Test_Success_WithFilters() {
 	s.JSONEq(expected, response.String())
 }
 
-func (s *HandlerDomainsList) Test_Success_WithFilters_DomainName() {
+func (s *HandlerDomainsListSuite) Test_Success_WithFilters_DomainName() {
 	usr := s.Factory.MockUser()
 	app := s.Factory.MockApp(usr, nil)
 	env := s.Factory.MockEnv(app)
@@ -234,9 +234,9 @@ func (s *HandlerDomainsList) Test_Success_WithFilters_DomainName() {
 	s.NoError(buildconf.DomainStore().Insert(context.Background(), d2))
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(domainhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodGet,
-		fmt.Sprintf("/domains?appId=%s&envId=%s&domainName=xAMp", app.ID.String(), env.ID.String()),
+		fmt.Sprintf("/v1/domains?appId=%s&envId=%s&domainName=xAMp", app.ID.String(), env.ID.String()),
 		nil,
 		map[string]string{
 			"Authorization": usertest.Authorization(usr.ID),
@@ -256,9 +256,9 @@ func (s *HandlerDomainsList) Test_Success_WithFilters_DomainName() {
 	s.JSONEq(expected, response.String())
 
 	response = shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(domainhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodGet,
-		fmt.Sprintf("/domains?appId=%s&envId=%s&domainName=hello", app.ID.String(), env.ID.String()),
+		fmt.Sprintf("/v1/domains?appId=%s&envId=%s&domainName=hello", app.ID.String(), env.ID.String()),
 		nil,
 		map[string]string{
 			"Authorization": usertest.Authorization(usr.ID),
@@ -270,5 +270,5 @@ func (s *HandlerDomainsList) Test_Success_WithFilters_DomainName() {
 }
 
 func TestHandlerDomainsList(t *testing.T) {
-	suite.Run(t, &HandlerDomainsList{})
+	suite.Run(t, &HandlerDomainsListSuite{})
 }

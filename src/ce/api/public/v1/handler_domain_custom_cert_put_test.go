@@ -1,4 +1,4 @@
-package domainhandlers_test
+package publicapiv1_test
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appcache"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/domainhandlers"
+	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
@@ -69,9 +69,9 @@ func (s *HandlerCertPutSuite) Test_Success() {
 	certVal := "-----BEGIN CERTIFICATE-----my-cert"
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(domainhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodPut,
-		"/domains/cert",
+		"/v1/domains/cert",
 		map[string]any{
 			"envId":     env.ID.String(),
 			"appId":     app.ID.String(),
@@ -134,9 +134,9 @@ func (s *HandlerCertPutSuite) Test_InvalidKey() {
 	certVal := "-----BEGIN CERTIFICATE-----my-cert"
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(domainhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodPut,
-		"/domains/cert",
+		"/v1/domains/cert",
 		map[string]any{
 			"envId":     env.ID.String(),
 			"appId":     app.ID.String(),
@@ -164,9 +164,9 @@ func (s *HandlerCertPutSuite) Test_InvalidCert() {
 	s.mockCache.On("Reset", types.ID(0), "example.org").Return(nil)
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(domainhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodPut,
-		"/domains/cert",
+		"/v1/domains/cert",
 		map[string]any{
 			"envId":     env.ID.String(),
 			"appId":     app.ID.String(),

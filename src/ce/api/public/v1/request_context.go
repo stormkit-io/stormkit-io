@@ -94,7 +94,11 @@ func (req *RequestContext) GetAuditData() audit.AuditData {
 		Ctx: req.Context(),
 	}
 
-	if req.Token != nil {
+	// Only API-key requests carry a meaningful token name. JWT (dashboard)
+	// requests get a synthetic token whose name is the user's display name —
+	// recording it would duplicate UserDisplay and misrepresent the audit, so
+	// leave TokenName empty for them (req.User is set only for JWT callers).
+	if req.Token != nil && req.User == nil {
 		d.TokenName = req.Token.Name
 	}
 

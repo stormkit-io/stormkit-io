@@ -1,4 +1,4 @@
-package domainhandlers_test
+package publicapiv1_test
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appcache"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/domainhandlers"
+	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
@@ -69,10 +69,10 @@ func (s *HandlerDeleteDomainSuite) Test_Success() {
 	defer func() { admin.ResetMockLicense() }()
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(domainhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodDelete,
 		fmt.Sprintf(
-			"/domains?domainId=%d&envId=%s&appId=%s",
+			"/v1/domains?domainId=%d&envId=%s&appId=%s",
 			domain.ID,
 			env.ID.String(),
 			app.ID.String(),
@@ -115,13 +115,10 @@ func (s *HandlerDeleteDomainSuite) Test_DomainNotFound() {
 	env := s.MockEnv(app, map[string]any{})
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(domainhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodDelete,
-		"/domains?domainId=18138",
-		map[string]any{
-			"envId": env.ID.String(),
-			"appId": app.ID.String(),
-		},
+		fmt.Sprintf("/v1/domains?domainId=18138&envId=%s&appId=%s", env.ID.String(), app.ID.String()),
+		nil,
 		map[string]string{
 			"Authorization": usertest.Authorization(usr.ID),
 		},

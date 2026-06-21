@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/domainhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/redirects"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -783,8 +782,8 @@ func mcpListDomains(req *RequestContextMCP, args map[string]any) *shttp.Response
 		return resp
 	}
 
-	// domainhandlers.HandlerDomainsList uses a different RequestContext type
-	// (app.RequestContext from app.WithAPIKey), so we call the store directly.
+	// Query the store directly to return a flat list, without the pagination
+	// envelope HandlerDomainsList wraps its REST response in.
 	domains, err := buildconf.DomainStore().Domains(req.Context(), buildconf.DomainFilters{
 		EnvID: req.Env.ID,
 	})
@@ -810,7 +809,7 @@ func mcpCreateDomain(req *RequestContextMCP, id any, args map[string]any) *shttp
 		return resp
 	}
 
-	return domainhandlers.HandlerDomainAdd(req.asAppContext())
+	return HandlerDomainAdd(req.RequestContext)
 }
 
 func mcpDeleteDomain(req *RequestContextMCP, args map[string]any) *shttp.Response {
@@ -826,7 +825,7 @@ func mcpDeleteDomain(req *RequestContextMCP, args map[string]any) *shttp.Respons
 
 	req.setQuery(map[string]string{"domainId": domainID})
 
-	return domainhandlers.HandlerDomainDelete(req.asAppContext())
+	return HandlerDomainDelete(req.RequestContext)
 }
 
 func mcpListDeployments(req *RequestContextMCP, args map[string]any) *shttp.Response {
