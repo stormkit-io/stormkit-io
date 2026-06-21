@@ -13,7 +13,7 @@ export const setDomain = ({
   envId,
   values,
 }: SetDomainProps): Promise<void> => {
-  return api.post("/domains", {
+  return api.post("/v1/domains", {
     appId,
     envId,
     domain: values.domain.trim(),
@@ -32,7 +32,7 @@ export const deleteDomain = ({
   domainId,
 }: DeleteDomainProps): Promise<void> => {
   return api.delete(
-    `/domains?appId=${appId}&domainId=${domainId}&envId=${envId}`
+    `/v1/domains?appId=${appId}&domainId=${domainId}&envId=${envId}`
   );
 };
 
@@ -112,7 +112,7 @@ export const updateCustomCert = ({
   setError(undefined);
 
   return api
-    .put("/domains/cert", { appId, envId, domainId, certKey, certValue })
+    .put("/v1/domains/cert", { appId, envId, domainId, certKey, certValue })
     .then(() => {
       setSuccess(
         "Certificate was saved successfully. It will be automatically applied for new requests."
@@ -163,7 +163,7 @@ export const deleteCustomCert = ({
   setError(undefined);
 
   return api
-    .delete(`/domains/cert?appId=${appId}&envId=${envId}&domainId=${domainId}`)
+    .delete(`/v1/domains/cert?appId=${appId}&envId=${envId}&domainId=${domainId}`)
     .then(() => {
       setSuccess(
         "Custom certificate was removed. A new certificate will be issued automatically."

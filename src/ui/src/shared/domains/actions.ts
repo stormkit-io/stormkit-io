@@ -50,7 +50,7 @@ export const useFetchDomains = ({
 
     api
       .fetch<{ domains: Domain[]; pagination: Pagination }>(
-        `/domains?${qs.toString()}`
+        `/v1/domains?${qs.toString()}`
       )
       .then(({ domains: newDomains, pagination }) => {
         const allDomains = afterId ? [...domains, ...newDomains] : newDomains;

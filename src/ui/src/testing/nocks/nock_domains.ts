@@ -35,7 +35,7 @@ export const mockFetchDomains = ({
   );
 
   return nock(endpoint)
-    .get(`/domains?${qs.toString()}`)
+    .get(`/v1/domains?${qs.toString()}`)
     .reply(status, response);
 };
 
@@ -55,7 +55,7 @@ export const mockDomainInsert = ({
   response = { ok: true },
 }: MockDomainInsertProps) =>
   nock(endpoint)
-    .post(`/domains`, { appId, envId, domain })
+    .post(`/v1/domains`, { appId, envId, domain })
     .reply(status, response);
 
 interface MockFetchDomainsInfoProps {
@@ -93,7 +93,7 @@ export const mockDeleteDomain = ({
   response = { ok: true },
 }: MockDeleteDomainProps) => {
   return nock(endpoint)
-    .delete(`/domains?appId=${appId}&domainId=${domainId}&envId=${envId}`)
+    .delete(`/v1/domains?appId=${appId}&domainId=${domainId}&envId=${envId}`)
     .reply(status, response);
 };
 
@@ -117,7 +117,7 @@ export const mockUpdateCustomCert = ({
   response = { ok: true },
 }: UpdateCustomCertProps) => {
   return nock(endpoint)
-    .put("/domains/cert", { appId, envId, domainId, certKey, certValue })
+    .put("/v1/domains/cert", { appId, envId, domainId, certKey, certValue })
     .reply(status, response);
 };
 
@@ -137,6 +137,6 @@ export const mockDeleteCustomCert = ({
   response = { ok: true },
 }: DeleteCustomCertProps) => {
   return nock(endpoint)
-    .delete(`/domains/cert?appId=${appId}&envId=${envId}&domainId=${domainId}`)
+    .delete(`/v1/domains/cert?appId=${appId}&envId=${envId}&domainId=${domainId}`)
     .reply(status, response);
 };

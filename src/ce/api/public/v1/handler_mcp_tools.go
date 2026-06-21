@@ -315,6 +315,32 @@ func mcpAllTools() []mcpToolDef {
 			},
 		},
 		{
+			Name:        "create_domain",
+			Description: "Attach a custom domain to an environment. Returns the domain ID and the verification token to use for the DNS TXT record.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"envId":  map[string]any{"type": "string", "description": "Environment ID to attach the domain to."},
+					"domain": map[string]any{"type": "string", "description": "Domain name to attach, e.g. 'app.example.com'."},
+				},
+				"required":             []string{"envId", "domain"},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "delete_domain",
+			Description: "Remove a custom domain from an environment.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"envId":    map[string]any{"type": "string", "description": "Environment the domain belongs to."},
+					"domainId": map[string]any{"type": "string", "description": "ID of the domain to remove (from list_domains or create_domain)."},
+				},
+				"required":             []string{"envId", "domainId"},
+				"additionalProperties": false,
+			},
+		},
+		{
 			Name:        "list_teams",
 			Description: "Return all teams the authenticated user belongs to.",
 			InputSchema: map[string]any{
@@ -756,8 +782,8 @@ func mcpListDomains(req *RequestContextMCP, args map[string]any) *shttp.Response
 		return resp
 	}
 
-	// domainhandlers.HandlerDomainsList uses a different RequestContext type
-	// (app.RequestContext from app.WithAPIKey), so we call the store directly.
+	// Query the store directly to return a flat list, without the pagination
+	// envelope HandlerDomainsList wraps its REST response in.
 	domains, err := buildconf.DomainStore().Domains(req.Context(), buildconf.DomainFilters{
 		EnvID: req.Env.ID,
 	})
@@ -770,6 +796,36 @@ func mcpListDomains(req *RequestContextMCP, args map[string]any) *shttp.Response
 		Status: http.StatusOK,
 		Data:   map[string]any{"domains": domains},
 	}
+}
+
+func mcpCreateDomain(req *RequestContextMCP, id any, args map[string]any) *shttp.Response {
+	if resp := req.withEnv(args); resp != nil {
+		return resp
+	}
+
+	// HandlerDomainAdd reads {"domain": ...} from the request body and validates
+	// the format itself, returning a helpful error for empty/invalid values.
+	if resp := req.setBody(id, map[string]any{"domain": stringArg(args, "domain")}); resp != nil {
+		return resp
+	}
+
+	return HandlerDomainAdd(req.RequestContext)
+}
+
+func mcpDeleteDomain(req *RequestContextMCP, args map[string]any) *shttp.Response {
+	if resp := req.withEnv(args); resp != nil {
+		return resp
+	}
+
+	domainID := stringArg(args, "domainId")
+
+	if utils.StringToID(domainID) == 0 {
+		return shttp.BadRequest(map[string]any{"errors": []string{"domainId must be a numeric ID"}})
+	}
+
+	req.setQuery(map[string]string{"domainId": domainID})
+
+	return HandlerDomainDelete(req.RequestContext)
 }
 
 func mcpListDeployments(req *RequestContextMCP, args map[string]any) *shttp.Response {

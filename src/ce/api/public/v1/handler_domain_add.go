@@ -1,4 +1,4 @@
-package domainhandlers
+package publicapiv1
 
 import (
 	"net/http"
@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appcache"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
@@ -48,7 +47,7 @@ func IsValidDomain(domain string) *url.URL {
 }
 
 // HandlerDomainAdd sets the domain for the given environment.
-func HandlerDomainAdd(req *app.RequestContext) *shttp.Response {
+func HandlerDomainAdd(req *RequestContext) *shttp.Response {
 	sdr := &addDomainRequest{}
 
 	if err := req.Post(sdr); err != nil {
@@ -70,7 +69,7 @@ func HandlerDomainAdd(req *app.RequestContext) *shttp.Response {
 
 	domain := &buildconf.DomainModel{
 		AppID: req.App.ID,
-		EnvID: req.EnvID,
+		EnvID: req.Env.ID,
 		Name:  parsed.Hostname(),
 		Token: null.NewString(utils.RandomToken(32), true),
 	}

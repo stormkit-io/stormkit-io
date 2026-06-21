@@ -15,13 +15,10 @@ type ServicesSuite struct {
 func (s *ServicesSuite) Test_Services() {
 	services := shttp.NewRouter().RegisterService(domainhandlers.Services)
 
+	// Domain CRUD and custom certificates moved to the public API (publicapiv1).
+	// Only the internal, cloud-only lookup/verification route remains here.
 	handlers := []string{
-		"DELETE:/domains",
-		"DELETE:/domains/cert",
-		"GET:/domains",
 		"GET:/domains/lookup",
-		"POST:/domains",
-		"PUT:/domains/cert",
 	}
 
 	s.Equal(handlers, services.HandlerKeys())

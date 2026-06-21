@@ -1,9 +1,8 @@
-package domainhandlers
+package publicapiv1
 
 import (
 	"net/http"
 
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
@@ -12,10 +11,10 @@ import (
 var DefaultDomainsLimit = 100
 var MaxDomainsLimit = 250
 
-func HandlerDomainsList(req *app.RequestContext) *shttp.Response {
+func HandlerDomainsList(req *RequestContext) *shttp.Response {
 	query := req.Query()
 	filters := buildconf.DomainFilters{
-		EnvID: req.EnvID,
+		EnvID: req.Env.ID,
 		Limit: DefaultDomainsLimit,
 	}
 

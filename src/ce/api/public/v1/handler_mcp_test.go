@@ -300,6 +300,8 @@ func (s *HandlerMCPSuite) Test_ToolsList_ReturnsExpectedTools() {
 		"create_environment",
 		"update_environment",
 		"list_domains",
+		"create_domain",
+		"delete_domain",
 		"list_teams",
 		"create_team",
 		"enable_database_integration",
@@ -887,6 +889,127 @@ func (s *HandlerMCPSuite) Test_ListDomains_MissingEnvId() {
 	s.True(result["isError"].(bool))
 	content := result["content"].([]any)[0].(map[string]any)
 	s.Contains(content["text"].(string), "envId")
+}
+
+func (s *HandlerMCPSuite) Test_CreateDomain_Success() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl)
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "create_domain", map[string]any{
+		"envId":  mockEnv.ID.String(),
+		"domain": "app.example.com",
+	}))
+
+	env := s.rpcOK(resp)
+	data := s.toolContent(env)
+
+	// HandlerDomainAdd returns {"domainId": "<id>", "token": "<token>"}
+	_, ok := data["domainId"]
+	s.True(ok, "expected 'domainId' in response, got: %v", data)
+	s.NotEmpty(data["token"])
+
+	domains, err := buildconf.DomainStore().Domains(context.Background(), buildconf.DomainFilters{
+		EnvID: mockEnv.ID,
+	})
+	s.Require().NoError(err)
+	s.Len(domains, 1)
+	s.Equal("app.example.com", domains[0].Name)
+}
+
+func (s *HandlerMCPSuite) Test_CreateDomain_InvalidDomain() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl)
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "create_domain", map[string]any{
+		"envId":  mockEnv.ID.String(),
+		"domain": "not a domain",
+	}))
+
+	env := s.rpcOK(resp)
+	result := env["result"].(map[string]any)
+	s.True(result["isError"].(bool))
+}
+
+func (s *HandlerMCPSuite) Test_CreateDomain_Forbidden_NotMember() {
+	usr1 := s.MockUser()
+	usr2 := s.MockUser()
+	appl := s.MockApp(usr1)
+	mockEnv := s.MockEnv(appl)
+	key := s.userKey(usr2)
+
+	resp := s.post(key.Value, mcpToolCall(1, "create_domain", map[string]any{
+		"envId":  mockEnv.ID.String(),
+		"domain": "app.example.com",
+	}))
+
+	env := s.rpcOK(resp)
+	result := env["result"].(map[string]any)
+	s.True(result["isError"].(bool))
+}
+
+func (s *HandlerMCPSuite) Test_DeleteDomain_Success() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl)
+	key := s.userKey(usr)
+
+	// Create a domain first via the tool, then delete it.
+	createResp := s.post(key.Value, mcpToolCall(1, "create_domain", map[string]any{
+		"envId":  mockEnv.ID.String(),
+		"domain": "app.example.com",
+	}))
+	domainID := s.toolContent(s.rpcOK(createResp))["domainId"].(string)
+
+	resp := s.post(key.Value, mcpToolCall(2, "delete_domain", map[string]any{
+		"envId":    mockEnv.ID.String(),
+		"domainId": domainID,
+	}))
+
+	s.rpcOK(resp)
+
+	domains, err := buildconf.DomainStore().Domains(context.Background(), buildconf.DomainFilters{
+		EnvID: mockEnv.ID,
+	})
+	s.Require().NoError(err)
+	s.Empty(domains)
+}
+
+func (s *HandlerMCPSuite) Test_DeleteDomain_MissingDomainId() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl)
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "delete_domain", map[string]any{
+		"envId": mockEnv.ID.String(),
+	}))
+
+	env := s.rpcOK(resp)
+	result := env["result"].(map[string]any)
+	s.True(result["isError"].(bool))
+	content := result["content"].([]any)[0].(map[string]any)
+	s.Contains(content["text"].(string), "domainId")
+}
+
+func (s *HandlerMCPSuite) Test_DeleteDomain_Forbidden_NotMember() {
+	usr1 := s.MockUser()
+	usr2 := s.MockUser()
+	appl := s.MockApp(usr1)
+	mockEnv := s.MockEnv(appl)
+	key := s.userKey(usr2)
+
+	resp := s.post(key.Value, mcpToolCall(1, "delete_domain", map[string]any{
+		"envId":    mockEnv.ID.String(),
+		"domainId": "123",
+	}))
+
+	env := s.rpcOK(resp)
+	result := env["result"].(map[string]any)
+	s.True(result["isError"].(bool))
 }
 
 func (s *HandlerMCPSuite) Test_RestartDeployment_MissingEnvId() {

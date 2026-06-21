@@ -1,10 +1,9 @@
-package domainhandlers
+package publicapiv1
 
 import (
 	"net/http"
 	"strings"
 
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appcache"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
@@ -18,7 +17,7 @@ type CertPutRequest struct {
 	Cert     string   `json:"certValue"`
 }
 
-func HandlerCertPut(req *app.RequestContext) *shttp.Response {
+func HandlerCertPut(req *RequestContext) *shttp.Response {
 	data := CertPutRequest{}
 
 	if err := req.Post(&data); err != nil {

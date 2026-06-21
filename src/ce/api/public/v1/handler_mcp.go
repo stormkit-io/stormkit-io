@@ -162,6 +162,10 @@ func mcpDispatch(req *RequestContextMCP, id any, params *toolCallParams) *shttp.
 		resp = mcpUpdateEnvironment(req, id, params.Arguments)
 	case "list_domains":
 		resp = mcpListDomains(req, params.Arguments)
+	case "create_domain":
+		resp = mcpCreateDomain(req, id, params.Arguments)
+	case "delete_domain":
+		resp = mcpDeleteDomain(req, params.Arguments)
 	case "list_teams":
 		resp = mcpListTeams(req)
 	case "create_team":
