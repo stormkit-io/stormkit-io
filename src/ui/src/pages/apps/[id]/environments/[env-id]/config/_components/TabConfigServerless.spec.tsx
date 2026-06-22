@@ -1,19 +1,17 @@
 import { RenderResult, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, type Mock } from "vitest";
 import { fireEvent, render } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import mockApp from "~/testing/data/mock_app";
 import mockEnvironments from "~/testing/data/mock_environments";
 import { mockUpdateEnvironment } from "~/testing/nocks/nock_environment";
-import TabConfigServer from "./TabConfigServer";
+import TabConfigServerless from "./TabConfigServerless";
 
 interface WrapperProps {
   app?: App;
   environment?: Environment;
-  setRefreshToken?: () => void;
 }
 
-describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabConfigServer.tsx", () => {
+describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabConfigServerless.tsx", () => {
   let wrapper: RenderResult;
   let currentApp: App;
   let currentEnv: Environment;
@@ -22,10 +20,19 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabConfigSe
   const createWrapper = ({ app, environment }: WrapperProps) => {
     setRefreshToken = vi.fn();
     currentApp = app || mockApp();
-    currentEnv = environment || mockEnvironments({ app: currentApp })[0];
+    currentEnv =
+      environment ||
+      ({
+        ...mockEnvironments({ app: currentApp })[0],
+        build: {
+          ...mockEnvironments({ app: currentApp })[0].build,
+          apiFolder: "/functions",
+          apiPathPrefix: "/fn",
+        },
+      } as Environment);
 
     wrapper = render(
-      <TabConfigServer
+      <TabConfigServerless
         app={currentApp}
         environment={currentEnv}
         setRefreshToken={setRefreshToken}
@@ -36,38 +43,25 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabConfigSe
   it("should have a form", () => {
     createWrapper({});
 
-    expect(wrapper.getByText("Server settings")).toBeTruthy();
-    expect(
-      wrapper.getByText("Configure your long-running processes.")
-    ).toBeTruthy();
-
-    const startCmdInput = wrapper.getByLabelText(
-      "Start command"
-    ) as HTMLInputElement;
-
-    expect(startCmdInput.value).toBe("");
+    expect(wrapper.getByText("Serverless functions")).toBeTruthy();
+    expect(wrapper.getByLabelText("API folder")).toBeTruthy();
   });
 
-  it("should submit the form", async () => {
+  // Saving serverless settings must send only the serverless fields.
+  it("should submit only the serverless fields", async () => {
     createWrapper({});
 
-    await userEvent.type(
-      wrapper.getByLabelText("Start command"),
-      "npm run start"
-    );
-
     const scope = mockUpdateEnvironment({
-      payload: { serverCmd: "npm run start" },
+      payload: { apiFolder: "/functions", apiPathPrefix: "/fn" },
       status: 200,
-      response: {
-        ok: true,
-      },
+      response: { ok: true },
     });
 
     fireEvent.click(wrapper.getByText("Save"));
 
     await waitFor(() => {
       expect(scope.isDone()).toBe(true);
+      expect(setRefreshToken).toHaveBeenCalled();
     });
   });
 });

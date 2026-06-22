@@ -9,7 +9,12 @@ import { grey } from "@mui/material/colors";
 import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
 import CardFooter from "~/components/CardFooter";
-import { useSubmitHandler } from "../actions";
+import {
+  updateEnvironment,
+  buildFormValues,
+  prepareBuildObject,
+  validateRedirects,
+} from "../actions";
 import RedirectsPlaygroundModal from "./RedirectsPlaygroundModal";
 import RedirectsEditor from "./Editor";
 
@@ -36,14 +41,9 @@ export default function TabConfigRedirects({
   const [showRedirects, setShowRedirects] = useState(hasRedirects);
   const [redirects, setRedirects] = useState(initialRedirects);
 
-  const { submitHandler, error, success, isLoading } = useSubmitHandler({
-    app,
-    env,
-    setRefreshToken,
-    controlled: {
-      "build.redirects": showRedirects ? redirects : undefined,
-    },
-  });
+  const [error, setError] = useState<string>();
+  const [success, setSuccess] = useState<string>();
+  const [isLoading, setLoading] = useState(false);
 
   if (!env) {
     return <></>;
@@ -56,7 +56,34 @@ export default function TabConfigRedirects({
       sx={{ mb: 2 }}
       error={error}
       success={success}
-      onSubmit={submitHandler}
+      onSubmit={e => {
+        e.preventDefault();
+
+        const values = buildFormValues(env, e.target as HTMLFormElement, {
+          "build.redirects": showRedirects ? redirects : undefined,
+        });
+
+        if (!validateRedirects(values["build.redirects"] || "", setError)) {
+          setError("Invalid redirects format.");
+          return;
+        }
+
+        const build = prepareBuildObject(values);
+
+        updateEnvironment({
+          app,
+          envId: env.id!,
+          payload: {
+            redirects: build.redirects,
+            redirectsFile: build.redirectsFile,
+            errorFile: build.errorFile,
+          },
+          setError,
+          setLoading,
+          setSuccess,
+          setRefreshToken,
+        });
+      }}
     >
       <CardHeader
         title="Redirects"

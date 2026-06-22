@@ -16,7 +16,8 @@ import CardHeader from "~/components/CardHeader";
 import CardFooter from "~/components/CardFooter";
 import ConfirmModal from "~/components/ConfirmModal";
 import {
-  useSubmitHandler,
+  updateEnvironment,
+  buildFormValues,
   deleteEnvironment,
   computeAutoDeployValue,
 } from "../actions";
@@ -40,15 +41,9 @@ export default function TabConfigGeneral({
     computeAutoDeployValue(env),
   );
 
-  const { submitHandler, error, isLoading, success } = useSubmitHandler({
-    app,
-    env,
-    setRefreshToken,
-    controlled: {
-      autoPublish: autoPublish ? "on" : "off",
-      "build.previewLinks": previewLinks ? "on" : "off",
-    },
-  });
+  const [error, setError] = useState<string>();
+  const [success, setSuccess] = useState<string>();
+  const [isLoading, setLoading] = useState(false);
 
   useEffect(() => {
     setAutoDeploy(computeAutoDeployValue(env));
@@ -67,7 +62,33 @@ export default function TabConfigGeneral({
       error={error}
       success={success}
       sx={{ mb: 2 }}
-      onSubmit={submitHandler}
+      onSubmit={e => {
+        e.preventDefault();
+
+        const values = buildFormValues(env, e.target as HTMLFormElement, {
+          autoPublish: autoPublish ? "on" : "off",
+          "build.previewLinks": previewLinks ? "on" : "off",
+        });
+
+        updateEnvironment({
+          app,
+          envId: env.id!,
+          payload: {
+            name: values.name,
+            branch: values.branch,
+            autoPublish: values.autoPublish === "on",
+            autoDeploy: values.autoDeploy !== "disabled",
+            autoDeployBranches: values.autoDeployBranches,
+            autoDeployCommits: values.autoDeployCommits,
+            previewLinks: values["build.previewLinks"] === "on",
+            priorityPattern: values["build.priorityPattern"]?.trim() || "",
+          },
+          setError,
+          setLoading,
+          setSuccess,
+          setRefreshToken,
+        });
+      }}
     >
       <CardHeader
         title="General settings"

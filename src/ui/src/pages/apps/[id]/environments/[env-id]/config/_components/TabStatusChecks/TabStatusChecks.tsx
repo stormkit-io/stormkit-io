@@ -1,4 +1,3 @@
-import type { FormValues } from "../../actions";
 import { useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -9,7 +8,7 @@ import CardRow from "~/components/CardRow";
 import CardFooter from "~/components/CardFooter";
 import ConfirmModal from "~/components/ConfirmModal";
 import StatusChecksModal from "./StatusCheckModal";
-import { updateEnvironment, buildFormValues } from "../../actions";
+import { updateEnvironment } from "../../actions";
 import { buildStatusChecks } from "./helpers";
 
 interface Props {
@@ -112,24 +111,16 @@ export default function TabConfigGeneral({
             setLoading(true);
             setError(null);
 
-            const values: FormValues = buildFormValues(
-              env,
-              document.createElement("form"),
-              {
-                "build.statusChecks": JSON.stringify(
-                  buildStatusChecks(
-                    env.build.statusChecks || [],
-                    undefined,
-                    deleted
-                  )
-                ),
-              }
-            );
-
             updateEnvironment({
               app,
               envId: env.id!,
-              values,
+              payload: {
+                statusChecks: buildStatusChecks(
+                  env.build.statusChecks || [],
+                  undefined,
+                  deleted
+                ),
+              },
               setError,
               setLoading,
               setSuccess: () => {},

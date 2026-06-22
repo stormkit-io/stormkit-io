@@ -102,13 +102,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabStatusCh
       ).toBeTruthy();
 
       const scope = mockUpdateEnvironment({
-        environment: {
-          ...currentEnv,
-          build: {
-            ...currentEnv.build,
-            statusChecks: [checks[1]],
-          },
-        },
+        payload: { statusChecks: [checks[1]] },
         status: 200,
         response: {
           ok: true,
