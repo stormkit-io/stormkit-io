@@ -78,15 +78,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabConfigRe
     );
 
     const scope = mockUpdateEnvironment({
-      environment: {
-        ...currentEnv,
-        build: {
-          ...currentEnv.build,
-          previewLinks: true,
-          errorFile: "/index.html",
-          redirectsFile: "/redirects.json",
-        },
-      },
+      payload: { redirectsFile: "/redirects.json", errorFile: "/index.html" },
       status: 200,
       response: {
         ok: true,
@@ -114,15 +106,10 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabConfigRe
     );
 
     const scope = mockUpdateEnvironment({
-      environment: {
-        ...currentEnv,
-        build: {
-          ...currentEnv.build,
-          previewLinks: true,
-          redirects: [],
-          redirectsFile: "/redirects.json",
-          errorFile: "/index.html",
-        },
+      payload: {
+        redirects: [],
+        redirectsFile: "/redirects.json",
+        errorFile: "/index.html",
       },
       status: 200,
       response: {

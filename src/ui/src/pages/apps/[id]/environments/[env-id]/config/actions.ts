@@ -1,4 +1,3 @@
-import { FormEventHandler, useState } from "react";
 import api from "~/utils/api/Api";
 
 export const computeAutoDeployValue = (env?: Environment): AutoDeployValues => {
@@ -141,6 +140,36 @@ interface ControlledFormValues {
   "build.redirects"?: string;
   "build.headers"?: string;
   "build.statusChecks"?: string;
+  "build.workDir"?: string;
+}
+
+// EnvUpdatePayload is a partial environment update: each config section sends
+// only the keys it owns, and the API leaves any omitted field untouched. This
+// keeps a section's save from overwriting fields it does not control — most
+// importantly `envVars`, which only the environment-variables section sends.
+export interface EnvUpdatePayload {
+  name?: string;
+  branch?: string;
+  autoPublish?: boolean;
+  autoDeploy?: boolean;
+  autoDeployBranches?: string;
+  autoDeployCommits?: string;
+  previewLinks?: boolean;
+  priorityPattern?: string;
+  buildCmd?: string;
+  serverCmd?: string;
+  installCmd?: string;
+  distFolder?: string;
+  workDir?: string;
+  headers?: string;
+  headersFile?: string;
+  redirectsFile?: string;
+  errorFile?: string;
+  apiFolder?: string;
+  apiPathPrefix?: string;
+  statusChecks?: StatusCheck[];
+  redirects?: Redirect[];
+  envVars?: Record<string, string>;
 }
 
 export interface FormValues {
@@ -173,7 +202,8 @@ export interface FormValues {
 interface UpdateEnvironmentProps {
   app: App;
   envId: string;
-  values: FormValues;
+  // payload holds only the keys to update; omitted fields are left unchanged.
+  payload: EnvUpdatePayload;
   successMsg?: string;
   setLoading: (b: boolean) => void;
   setError: (s: string) => void;
@@ -182,18 +212,15 @@ interface UpdateEnvironmentProps {
 }
 
 export const updateEnvironment = ({
-  app,
   envId,
-  values,
+  payload,
   setError,
   setLoading,
   setSuccess,
   setRefreshToken,
   successMsg = "The environment has been successfully updated.",
 }: UpdateEnvironmentProps): Promise<void> => {
-  const build = prepareBuildObject(values);
-
-  if (!values.name || !values.branch) {
+  if (("name" in payload && !payload.name) || ("branch" in payload && !payload.branch)) {
     setError("Environment and branch names are required.");
     return Promise.resolve();
   }
@@ -202,32 +229,18 @@ export const updateEnvironment = ({
   setError("");
   setSuccess("");
 
+  // Send envId plus only the provided keys; drop undefined so a section can
+  // include a field conditionally without clearing it server-side.
+  const body: Record<string, unknown> = { envId };
+
+  (Object.keys(payload) as (keyof EnvUpdatePayload)[]).forEach(key => {
+    if (payload[key] !== undefined) {
+      body[key] = payload[key];
+    }
+  });
+
   return api
-    .put<{ status: boolean }>(`/v1/env`, {
-      envId,
-      name: values.name,
-      branch: values.branch,
-      autoPublish: values.autoPublish === "on",
-      autoDeploy: values.autoDeploy !== "disabled",
-      autoDeployBranches: values.autoDeployBranches,
-      autoDeployCommits: values.autoDeployCommits,
-      buildCmd: build.buildCmd,
-      serverCmd: build.serverCmd,
-      installCmd: build.installCmd,
-      distFolder: build.distFolder,
-      workDir: build.workDir,
-      headers: build.headers,
-      headersFile: build.headersFile,
-      redirectsFile: build.redirectsFile,
-      errorFile: build.errorFile,
-      apiFolder: build.apiFolder,
-      apiPathPrefix: build.apiPathPrefix,
-      previewLinks: build.previewLinks,
-      priorityPattern: build.priorityPattern,
-      statusChecks: build.statusChecks,
-      redirects: build.redirects,
-      envVars: build.vars,
-    })
+    .put<{ status: boolean }>(`/v1/env`, body)
     .then(() => {
       setSuccess(successMsg);
       setRefreshToken(Date.now());
@@ -381,47 +394,3 @@ export const validateRedirects = (
   return true;
 };
 
-interface SubmitHandlerProps {
-  app: App;
-  env: Environment;
-  setRefreshToken: (v: number) => void;
-  controlled?: ControlledFormValues;
-}
-
-export const useSubmitHandler = ({
-  env,
-  app,
-  setRefreshToken,
-  controlled,
-}: SubmitHandlerProps) => {
-  const [error, setError] = useState<string>();
-  const [success, setSuccess] = useState<string>();
-  const [isLoading, setLoading] = useState(false);
-
-  const handler: FormEventHandler = e => {
-    e.preventDefault();
-
-    const values: FormValues = buildFormValues(
-      env,
-      e.target as HTMLFormElement,
-      controlled,
-    );
-
-    if (!validateRedirects(values["build.redirects"] || "", setError)) {
-      setError("Invalid redirects format.");
-      return Promise.resolve();
-    }
-
-    return updateEnvironment({
-      app,
-      envId: env.id!,
-      values,
-      setError,
-      setLoading,
-      setSuccess,
-      setRefreshToken,
-    });
-  };
-
-  return { submitHandler: handler, error, isLoading, success };
-};

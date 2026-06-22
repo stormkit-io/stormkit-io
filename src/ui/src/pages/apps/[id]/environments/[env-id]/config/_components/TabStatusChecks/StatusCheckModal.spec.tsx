@@ -63,18 +63,10 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabStatusCh
       await userEvent.type(wrapper.getByLabelText("Description"), "desc");
 
       const scope = mockUpdateEnvironment({
-        environment: {
-          ...currentEnv,
-          build: {
-            ...currentEnv.build,
-            statusChecks: [
-              {
-                cmd: "npm run test",
-                name: "Run e2e tests",
-                description: "desc",
-              },
-            ],
-          },
+        payload: {
+          statusChecks: [
+            { cmd: "npm run test", name: "Run e2e tests", description: "desc" },
+          ],
         },
         status: 200,
         response: {
@@ -127,19 +119,15 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabStatusCh
       await userEvent.type(wrapper.getByLabelText("Description"), " - 2");
 
       const scope = mockUpdateEnvironment({
-        environment: {
-          ...currentEnv,
-          build: {
-            ...currentEnv.build,
-            statusChecks: [
-              checks[0],
-              {
-                cmd: "npm run test:random:2",
-                name: "Run random tests - 2",
-                description: "My other description - 2",
-              },
-            ],
-          },
+        payload: {
+          statusChecks: [
+            checks[0],
+            {
+              cmd: "npm run test:random:2",
+              name: "Run random tests - 2",
+              description: "My other description - 2",
+            },
+          ],
         },
         status: 200,
         response: {

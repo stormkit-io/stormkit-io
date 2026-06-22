@@ -73,16 +73,11 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabConfigBu
       await userEvent.type(wrapper.getByLabelText("Output folder"), "dist");
 
       const scope = mockUpdateEnvironment({
-        environment: {
-          ...currentEnv,
-          build: {
-            ...currentEnv.build,
-            installCmd: "go get .",
-            buildCmd: "go build .",
-            distFolder: "./dist",
-            workDir: "./",
-            vars: {},
-          },
+        payload: {
+          installCmd: "go get .",
+          buildCmd: "go build .",
+          distFolder: "./dist",
+          workDir: "./",
         },
         status: 200,
         response: { ok: true },

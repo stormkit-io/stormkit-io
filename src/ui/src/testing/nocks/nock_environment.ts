@@ -35,41 +35,6 @@ const toRequestObject = (environment: Environment) => {
   );
 };
 
-// Used for PUT /v1/env (update) — flat body, no nesting.
-const toUpdateRequestObject = (environment: Environment) => {
-  return JSON.parse(
-    JSON.stringify({
-      envId: environment.id,
-      name: environment.name || environment.env,
-      branch: environment.branch,
-      autoPublish: !!environment.autoPublish,
-      autoDeploy: !!environment.autoDeploy,
-      autoDeployBranches: environment.autoDeployBranches || undefined,
-      autoDeployCommits: environment.autoDeployCommits || undefined,
-      buildCmd: environment.build.buildCmd?.trim() || "",
-      serverCmd: environment.build.serverCmd?.trim() || "",
-      installCmd: environment.build.installCmd?.trim() || "",
-      distFolder: (
-        environment.build.distFolder ||
-        environment.build.serverFolder ||
-        ""
-      ).trim(),
-      workDir: environment.build.workDir?.trim() || "",
-      headers: environment.build.headers?.trim() || "",
-      headersFile: environment.build.headersFile,
-      redirectsFile: environment.build.redirectsFile,
-      errorFile: environment.build.errorFile,
-      apiFolder: environment.build.apiFolder,
-      apiPathPrefix: environment.build.apiPathPrefix,
-      previewLinks: environment.build.previewLinks !== false,
-      priorityPattern: environment.build.priorityPattern || "",
-      statusChecks: environment.build.statusChecks,
-      redirects: environment.build.redirects,
-      envVars: environment.build.vars,
-    }),
-  );
-};
-
 interface FetchStatusProps {
   url: string;
   appId: string;
@@ -121,19 +86,26 @@ export const mockInsertEnvironment = ({
 };
 
 interface UpdateEnvironmentProps {
-  environment: Environment;
+  // payload is the exact partial body the section is expected to send. Saves
+  // are incremental, so the request must contain envId plus precisely these
+  // keys — nothing else (in particular, no other section's fields).
+  payload: Record<string, unknown>;
   status?: number;
   response?: { ok: true };
 }
 
 export const mockUpdateEnvironment = ({
-  environment,
+  payload,
   status = 200,
   response = { ok: true },
 }: UpdateEnvironmentProps) => {
   return nock(endpoint)
     .put(`/v1/env`, (body: any) => {
-      expect(body).toEqual(toUpdateRequestObject(environment));
+      const { envId, ...rest } = body;
+
+      expect(envId).toBeTruthy();
+      expect(rest).toEqual(payload);
+
       return true;
     })
     .reply(status, response);

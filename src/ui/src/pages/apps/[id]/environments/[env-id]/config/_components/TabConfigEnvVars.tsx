@@ -6,7 +6,11 @@ import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
 import CardFooter from "~/components/CardFooter";
 import KeyValue from "~/components/FormV2/KeyValue";
-import { updateEnvironment, buildFormValues } from "../actions";
+import {
+  updateEnvironment,
+  buildFormValues,
+  prepareBuildObject,
+} from "../actions";
 
 interface Props {
   app: App;
@@ -63,7 +67,7 @@ export default function TabConfigEnvVars({
         updateEnvironment({
           app,
           envId: env.id!,
-          values,
+          payload: { envVars: prepareBuildObject(values).vars },
           setError,
           setLoading,
           setSuccess,

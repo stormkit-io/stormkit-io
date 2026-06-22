@@ -102,13 +102,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabConfigEn
     );
 
     const scope = mockUpdateEnvironment({
-      environment: {
-        ...currentEnv,
-        build: {
-          ...currentEnv.build,
-          vars: { env_var_1_key: "env_var_1_val" },
-        },
-      },
+      payload: { envVars: { env_var_1_key: "env_var_1_val" } },
       status: 200,
       response: { ok: true },
     });
@@ -139,13 +133,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabConfigEn
     );
 
     const scope = mockUpdateEnvironment({
-      environment: {
-        ...currentEnv,
-        build: {
-          ...currentEnv.build,
-          vars: { env_var_1_key: "env_var_1_val" },
-        },
-      },
+      payload: { envVars: { env_var_1_key: "env_var_1_val" } },
       status: 200,
       response: { ok: true },
     });

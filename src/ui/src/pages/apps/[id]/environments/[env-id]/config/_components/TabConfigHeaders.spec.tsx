@@ -68,13 +68,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabConfigHe
     );
 
     const scope = mockUpdateEnvironment({
-      environment: {
-        ...currentEnv,
-        build: {
-          ...currentEnv.build,
-          headersFile: "/headers.json",
-        },
-      },
+      payload: { headers: "", headersFile: "/headers.json" },
       status: 200,
       response: {
         ok: true,
@@ -97,14 +91,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabConfigHe
     );
 
     const scope = mockUpdateEnvironment({
-      environment: {
-        ...currentEnv,
-        build: {
-          ...currentEnv.build,
-          headers: "",
-          headersFile: "/headers.json",
-        },
-      },
+      payload: { headers: "", headersFile: "/headers.json" },
       status: 200,
       response: {
         ok: true,

@@ -1,4 +1,3 @@
-import type { FormValues } from "../../actions";
 import { useState } from "react";
 import Button from "@mui/material/Button";
 import TextInput from "@mui/material/TextField";
@@ -7,7 +6,7 @@ import Modal from "~/components/Modal";
 import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
 import CardFooter from "~/components/CardFooter";
-import { updateEnvironment, buildFormValues } from "../../actions";
+import { updateEnvironment } from "../../actions";
 import { buildStatusChecks } from "./helpers";
 
 interface Props {
@@ -62,18 +61,10 @@ export default function StatusChecksModal({
             );
           }
 
-          const values: FormValues = buildFormValues(
-            env,
-            document.createElement("form"),
-            {
-              "build.statusChecks": JSON.stringify(checks),
-            }
-          );
-
           updateEnvironment({
             app,
             envId: env.id!,
-            values,
+            payload: { statusChecks: checks },
             setError,
             setLoading,
             setSuccess,

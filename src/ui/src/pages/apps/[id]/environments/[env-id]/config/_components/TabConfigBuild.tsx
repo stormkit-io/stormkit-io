@@ -6,7 +6,11 @@ import Button from "@mui/material/Button";
 import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
 import CardFooter from "~/components/CardFooter";
-import { updateEnvironment, buildFormValues } from "../actions";
+import {
+  updateEnvironment,
+  buildFormValues,
+  prepareBuildObject,
+} from "../actions";
 
 interface Props {
   app: App;
@@ -42,22 +46,24 @@ export default function TabConfigGeneral({
       onSubmit={e => {
         e.preventDefault();
 
-        env.build.workDir = root;
-
-        // Drop the legacy var once we save — workDir is the source of truth.
-        if (env.build.vars?.["SK_CWD"]) {
-          delete env.build.vars["SK_CWD"];
-        }
-
+        // workDir is a controlled input (no form name), so feed it in directly.
         const values: FormValues = buildFormValues(
           env,
-          e.target as HTMLFormElement
+          e.target as HTMLFormElement,
+          { "build.workDir": root }
         );
+
+        const build = prepareBuildObject(values);
 
         updateEnvironment({
           app,
           envId: env.id!,
-          values,
+          payload: {
+            installCmd: build.installCmd,
+            buildCmd: build.buildCmd,
+            distFolder: build.distFolder,
+            workDir: build.workDir,
+          },
           setError,
           setLoading,
           setSuccess,
