@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
@@ -114,6 +115,44 @@ func (s *HandlerEnvListSuite) Test_Forbidden_UserNotMember() {
 	// The app can be resolved from the appId query parameter; this is forbidden
 	// because the user-scoped key belongs to a user who is not a member of the app's team.
 	s.Equal(http.StatusForbidden, response.Code)
+}
+
+// Test_MasksEnvVarValues verifies that /v1/envs — the endpoint the dashboard
+// loads environments from — masks user env-var values (keys kept) while leaving
+// SK_ framework vars intact.
+func (s *HandlerEnvListSuite) Test_MasksEnvVarValues() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	s.MockEnv(appl, map[string]any{
+		"Name": "production",
+		"Data": &buildconf.BuildConf{
+			Vars: map[string]string{
+				"SECRET":    "shh",
+				"SK_SECRET": "also-shh",
+			},
+		},
+	})
+	key := s.MockAPIKey(appl, nil)
+
+	response := s.get(key.Value)
+	s.Equal(http.StatusOK, response.Code)
+
+	raw := response.String()
+
+	// No secret value may appear in the response — not even one named SK_*.
+	s.NotContains(raw, "shh")
+
+	var body map[string]any
+	s.Require().NoError(json.Unmarshal([]byte(raw), &body))
+
+	envs := body["environments"].([]any)
+	s.Require().Len(envs, 1)
+
+	build := envs[0].(map[string]any)["build"].(map[string]any)
+	vars := build["vars"].(map[string]any)
+
+	s.Equal("", vars["SECRET"], "user var value must be masked")
+	s.Equal("", vars["SK_SECRET"], "SK_-prefixed var value must be masked too")
 }
 
 func TestHandlerEnvList(t *testing.T) {

@@ -111,6 +111,19 @@ export const mockUpdateEnvironment = ({
     .reply(status, response);
 };
 
+interface RevealEnvVarsProps {
+  envId: string;
+  response: Record<string, string>;
+  status?: number;
+}
+
+export const mockRevealEnvVars = ({
+  envId,
+  response,
+  status = 200,
+}: RevealEnvVarsProps) =>
+  nock(endpoint).get(`/v1/env/pull?envId=${envId}`).reply(status, response);
+
 interface DeleteEnvironmentProps {
   appId: string;
   env: string;

@@ -6,6 +6,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Button from "@mui/material/Button";
 import PlusIcon from "@mui/icons-material/Add";
 import { AppContext } from "~/pages/apps/[id]/App.context";
+import { RootContext } from "~/pages/Root.context";
 import MenuLink from "~/components/MenuLink";
 import DotDotDot from "~/components/DotDotDotV2";
 import EnvironmentFormModal from "~/pages/apps/[id]/environments/_components/EnvironmentFormModal";
@@ -13,7 +14,9 @@ import { envMenuItems } from "./menu_items";
 
 export default function EnvMenu() {
   const { app, environments } = useContext(AppContext);
+  const { details } = useContext(RootContext);
   const { pathname } = useLocation();
+  const isSelfHosted = details?.stormkit?.edition === "self-hosted";
   const [isModalOpen, toggleModal] = useState(false);
   const navigate = useNavigate();
 
@@ -26,8 +29,8 @@ export default function EnvMenu() {
   const selectedEnvId = envId || "";
 
   const envMenu = useMemo(
-    () => envMenuItems({ app, env, pathname }),
-    [app, env, pathname],
+    () => envMenuItems({ app, env, pathname, isSelfHosted }),
+    [app, env, pathname, isSelfHosted],
   );
 
   if (!selectedEnvId || !env) {

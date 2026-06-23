@@ -19,6 +19,7 @@ interface KeyValueRowProps {
   valPlaceholder?: string;
   hideByDefault: boolean;
   isSensitive?: boolean;
+  disabled?: boolean;
   rows: string[][];
   setRows: (r: string[][]) => void;
   setIsChanged: (v: boolean) => void;
@@ -39,6 +40,7 @@ export default function KeyValueRow({
   hideByDefault,
   labelKey,
   labelValue,
+  disabled,
   setRows,
   setIsChanged,
 }: KeyValueRowProps) {
@@ -49,6 +51,7 @@ export default function KeyValueRow({
       <TableCell sx={{ borderBottom: "none", pl: 0, pb: 0, width: "50%" }}>
         <Input
           fullWidth
+          disabled={disabled}
           placeholder={index === 0 ? keyPlaceholder : `KEY_${index + 1}`}
           slotProps={{
             htmlInput: {
@@ -86,6 +89,7 @@ export default function KeyValueRow({
       <TableCell sx={{ borderBottom: "none", pr: 0, pb: 0 }}>
         <Input
           fullWidth
+          disabled={disabled}
           value={value}
           label={labelValue}
           autoComplete="off"
@@ -129,6 +133,7 @@ export default function KeyValueRow({
                 <IconButton
                   sx={{ width: 24, height: 24 }}
                   type="button"
+                  disabled={disabled}
                   aria-label={`Remove ${inputName} row number ${index + 1}`}
                   onClick={() => {
                     const copy = JSON.parse(JSON.stringify(rows));

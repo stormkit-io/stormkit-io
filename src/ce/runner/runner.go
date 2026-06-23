@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"path"
-	"regexp"
 	"sort"
 	"strings"
 
@@ -89,16 +88,35 @@ func PrepareEnvVars(envVars map[string]string) []string {
 	return result
 }
 
+// unmaskedEnvVars is the explicit allowlist of Stormkit system variables that
+// keep their values in the build log. These are injected by Stormkit and are
+// not secrets, so they are safe to show and useful for debugging. We use an
+// explicit set rather than the SK_ prefix so a user-defined SK_-prefixed
+// variable is still masked.
+var unmaskedEnvVars = map[string]bool{
+	"SK_APP_ID":         true,
+	"SK_BRANCH_NAME":    true,
+	"SK_COMMIT_SHA":     true,
+	"SK_DEPLOYMENT_ID":  true,
+	"SK_DEPLOYMENT_URL": true,
+	"SK_ENV":            true,
+	"SK_ENV_ID":         true,
+	"SK_ENV_URL":        true,
+	"STORMKIT":          true,
+}
+
 func printEnvVariables(opts RunnerOpts) error {
 	vars := []string{}
 
-	obfuscate := regexp.MustCompile("(?i)secret|_key|_token|password|database_url|mailer_url")
-
+	// Values are masked in the build log: we list the variable names so the log
+	// still shows what is configured, but never the values — those are only
+	// retrievable through the audited reveal endpoint. The Stormkit system
+	// variables in unmaskedEnvVars are the only exception.
 	for k, v := range opts.Build.EnvVars {
-		if obfuscate.Match([]byte(k)) {
-			vars = append(vars, fmt.Sprintf("%s=***************", k))
-		} else {
+		if unmaskedEnvVars[k] {
 			vars = append(vars, fmt.Sprintf("%s=%s", k, v))
+		} else {
+			vars = append(vars, fmt.Sprintf("%s=***************", k))
 		}
 	}
 

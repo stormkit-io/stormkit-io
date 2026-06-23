@@ -98,9 +98,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabConfigBu
     currentEnv.build.installCmd = "go get .";
     currentEnv.build.buildCmd = "go build main.go";
     currentEnv.build.distFolder = "./";
-    currentEnv.build.vars = {
-      SK_CWD: "./root",
-    };
+    currentEnv.build.workDir = "./root";
 
     createWrapper({ environment: currentEnv });
 

@@ -287,6 +287,23 @@ func (d *Deployment) Snapshot() map[string]any {
 
 	d.configCopyCached = map[string]any{}
 	_ = json.Unmarshal(d.ConfigCopy, &d.configCopyCached)
+
+	// The snapshot is a frozen copy of the deployed config; mask its env-var
+	// values so the deployment endpoints don't expose secrets in plaintext.
+	if build, ok := d.configCopyCached["build"].(map[string]any); ok {
+		if rawVars, ok := build["vars"].(map[string]any); ok {
+			vars := make(map[string]string, len(rawVars))
+
+			for key, value := range rawVars {
+				if s, ok := value.(string); ok {
+					vars[key] = s
+				}
+			}
+
+			build["vars"] = buildconf.MaskVars(vars)
+		}
+	}
+
 	return d.configCopyCached
 }
 

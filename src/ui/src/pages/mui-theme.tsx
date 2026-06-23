@@ -232,6 +232,12 @@ export default (mode: "dark" | "light") => {
             "&.Mui-focused": {
               backgroundColor: isDark ? "#000000" : grey[200],
             },
+            // Disabled text is painted via -webkit-text-fill-color, which
+            // defaults to a near-black value and reads as black in dark mode.
+            // Keep it grayish so disabled inputs look muted in both modes.
+            "& .MuiInputBase-input.Mui-disabled": {
+              WebkitTextFillColor: grey[600],
+            },
             "&:before": {
               borderColor: grey[900],
             },
@@ -261,6 +267,11 @@ export default (mode: "dark" | "light") => {
             color: secondaryColor,
             "&.Mui-focused": {
               color: primaryColor,
+            },
+            // Match the disabled input text: keep the label grayish instead of
+            // falling back to MUI's near-black disabled color in dark mode.
+            "&.Mui-disabled": {
+              color: grey[600],
             },
           },
         },

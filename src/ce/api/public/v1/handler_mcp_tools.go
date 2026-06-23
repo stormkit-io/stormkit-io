@@ -576,6 +576,8 @@ func mcpListEnvironments(req *RequestContextMCP, args map[string]any) *shttp.Res
 		return resp
 	}
 
+	// Env var values are masked by Env.JSON/MarshalJSON, so the list response
+	// already hides them — no MCP-specific masking needed.
 	return handlerEnvList(req.RequestContext)
 }
 

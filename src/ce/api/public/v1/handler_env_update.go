@@ -186,6 +186,16 @@ func handlerEnvUpdate(req *RequestContext) *shttp.Response {
 	}
 
 	if req.License().IsEnterprise() {
+		// Mask env-var values in the audit diff (keys kept) so plaintext secrets
+		// are never persisted to, or exposed through, the audit log — the same
+		// rule applied everywhere an Env is serialized. Mask on copies so the
+		// real Vars stay intact for the downstream function-config update.
+		oldMasked := oldData
+		oldMasked.Vars = buildconf.MaskVars(oldData.Vars)
+
+		newMasked := *env.Data
+		newMasked.Vars = buildconf.MaskVars(env.Data.Vars)
+
 		diff := &audit.Diff{
 			Old: audit.DiffFields{
 				EnvName:               old.Name,
@@ -194,7 +204,7 @@ func handlerEnvUpdate(req *RequestContext) *shttp.Response {
 				EnvAutoDeploy:         audit.Bool(old.AutoDeploy),
 				EnvAutoDeployBranches: old.AutoDeployBranches.ValueOrZero(),
 				EnvAutoDeployCommits:  old.AutoDeployCommits.ValueOrZero(),
-				EnvBuildConfig:        &oldData,
+				EnvBuildConfig:        &oldMasked,
 			},
 			New: audit.DiffFields{
 				EnvName:               env.Name,
@@ -203,7 +213,7 @@ func handlerEnvUpdate(req *RequestContext) *shttp.Response {
 				EnvAutoDeploy:         audit.Bool(env.AutoDeploy),
 				EnvAutoDeployBranches: env.AutoDeployBranches.ValueOrZero(),
 				EnvAutoDeployCommits:  env.AutoDeployCommits.ValueOrZero(),
-				EnvBuildConfig:        env.Data,
+				EnvBuildConfig:        &newMasked,
 			},
 		}
 

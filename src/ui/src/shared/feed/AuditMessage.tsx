@@ -162,6 +162,14 @@ export default function AuditMessage({ audit }: Props) {
         </AuditRow>
       );
 
+    case "REVEAL:ENV":
+      return (
+        <AuditRow audit={audit}>
+          Revealed environment variable values for{" "}
+          <EnvLink audit={audit} hash="#env-vars" /> environment
+        </AuditRow>
+      );
+
     case "CREATE:APP":
       return (
         <AuditRow audit={audit}>

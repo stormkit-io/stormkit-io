@@ -1,5 +1,19 @@
 import api from "~/utils/api/Api";
 
+// revealEnvVars fetches the real (unmasked) environment variable values. The
+// endpoint is restricted to team admins/owners and the reveal is audited.
+export const revealEnvVars = ({
+  envId,
+}: {
+  envId: string;
+}): Promise<Record<string, string>> => {
+  // An env with no variables serializes as JSON `null`; coalesce so callers
+  // (and KeyValue's Object.keys) always get a usable map.
+  return api
+    .fetch<Record<string, string> | null>(`/v1/env/pull?envId=${envId}`)
+    .then(vars => vars || {});
+};
+
 export const computeAutoDeployValue = (env?: Environment): AutoDeployValues => {
   if (!env) {
     return "all";
