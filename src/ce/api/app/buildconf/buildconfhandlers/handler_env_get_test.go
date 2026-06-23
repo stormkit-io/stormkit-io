@@ -61,15 +61,13 @@ func (s *HandlerEnvGetSuite) Test_Success() {
 			  "buildCmd":"npm run build",
 			  "previewLinks": null,
 			  "vars":{
-				 "NODE_ENV":"production"
+				 "NODE_ENV":""
 			  }
 		   },
 		   "autoPublish":true,
 		   "id":"1",
 		   "appId":"1",
 		   "autoDeploy": false,
-		   "autoDeployBranches": null,
-		   "autoDeployCommits": null,
 		   "authConf": null,
 		   "domain":{
 			  "verified": false

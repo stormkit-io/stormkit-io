@@ -372,7 +372,9 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
         })
         .reply(200);
 
-      const input = wrapper.getByLabelText("Allowed origins") as HTMLTextAreaElement;
+      const input = (await wrapper.findByLabelText(
+        "Allowed origins",
+      )) as HTMLTextAreaElement;
       fireEvent.change(input, {
         target: {
           value: "https://app.example.com\n  https://dev.example.com  \n\n",

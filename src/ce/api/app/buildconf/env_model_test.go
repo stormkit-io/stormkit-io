@@ -56,6 +56,28 @@ func (s *EnvModelSuite) Test_Config_Validation() {
 	}, buildconf.Validate(config))
 }
 
+func (s *EnvModelSuite) Test_JSON_MasksEnvVars() {
+	env := buildconf.Env{
+		Name:   "production",
+		Branch: "main",
+		Data: &buildconf.BuildConf{
+			Vars: map[string]string{
+				"SECRET":    "shh",
+				"SK_SECRET": "also-shh",
+			},
+		},
+	}
+
+	build := env.JSON()["build"].(*buildconf.BuildConf)
+
+	// Every value is masked (keys kept), including names that start with SK_.
+	s.Equal("", build.Vars["SECRET"])
+	s.Equal("", build.Vars["SK_SECRET"])
+
+	// The original Env keeps the real values for internal use.
+	s.Equal("shh", env.Data.Vars["SECRET"])
+}
+
 func TestEnvModelSuite(t *testing.T) {
 	suite.Run(t, &EnvModelSuite{})
 }

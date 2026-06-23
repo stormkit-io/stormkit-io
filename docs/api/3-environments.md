@@ -9,6 +9,8 @@ description: API Documentation for managing environments through Stormkit API.
 
 The Environments API lets you create, update, and delete environments, and pull environment variable values programmatically.
 
+> **Environment variable values are masked.** For security, variable _values_ are blanked out (returned as empty strings) in every response that lists or describes an environment — `GET /v1/envs`, the deployment endpoints, and the MCP tools. They are also masked in **build logs** (the variable names are listed, but the values are replaced with `***************`). The only exception is a fixed set of Stormkit [system variables](/docs/deployments/system-variables) — `SK_APP_ID`, `SK_BRANCH_NAME`, `SK_COMMIT_SHA`, `SK_DEPLOYMENT_ID`, `SK_DEPLOYMENT_URL`, `SK_ENV`, `SK_ENV_ID`, and `SK_ENV_URL` — which are not secrets and keep their values in build logs. (A user-defined variable that happens to start with `SK_` is still masked.) To read the actual values, use the dedicated [`GET /v1/env/pull`](#get-v1envpull) endpoint described below.
+
 ---
 
 ## GET /v1/envs
@@ -30,6 +32,8 @@ Returns all environments configured for an application. At most 50 environments 
 | Field          | Type  | Description                   |
 | -------------- | ----- | ----------------------------- |
 | `environments` | array | Array of environment objects. |
+
+> Each environment object includes its build configuration, but environment variable **values are masked** — `build.vars` is returned with empty strings for every value. Use [`GET /v1/env/pull`](#get-v1envpull) to retrieve the actual values.
 
 ### Error responses
 
@@ -250,11 +254,16 @@ curl -X DELETE \
 
 ## GET /v1/env/pull
 
-Returns all environment variables for the specified environment. The response is a flat JSON object where each key is a variable name and each value is the variable's value.
+Returns all environment variables for the specified environment, **including their plaintext values**. This is the only endpoint that reveals variable values — every other endpoint masks them. The response is a flat JSON object where each key is a variable name and each value is the variable's value.
 
 **Base URL:** `https://api.stormkit.io`
 
 **Authentication:** Environment-level API key passed as the `Authorization` header. To generate one: **Your App** → **Your Environment** → **Config** → **Other** → **API Keys**. When using an app or higher-level key, `envId` must be provided as a query parameter.
+
+> **Access & auditing**
+>
+> - Any **member** of the environment's team may reveal the values — whether through an **API key** or as a **dashboard (session) user**, regardless of role. (Editing variables requires revealing them first, so this keeps env-var management available to all members.)
+> - On **Enterprise** licenses, every reveal is written to the **activity feed**, attributed to the user (dashboard) or to the API key's token name (API key).
 
 ### Query parameters
 
@@ -295,3 +304,7 @@ curl -X GET \
      -H 'Authorization: <api_key>' \
      'https://api.stormkit.io/v1/env/pull?envId=305'
 ```
+
+### MCP limitation
+
+The Stormkit MCP server intentionally has **no tool to reveal environment variable values**. MCP tools such as `list_environments`, `get_deployment`, and `list_deployments` return variable names with masked (empty) values, so an AI assistant connected over MCP never has access to your secrets. To read the actual values, call this `GET /v1/env/pull` endpoint directly with an API key.

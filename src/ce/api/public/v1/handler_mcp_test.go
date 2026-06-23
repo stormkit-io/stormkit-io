@@ -464,6 +464,58 @@ func (s *HandlerMCPSuite) Test_ListEnvironments_Forbidden_NotMember() {
 	s.True(result["isError"].(bool))
 }
 
+func (s *HandlerMCPSuite) Test_ListEnvironments_MasksEnvVarValues() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	key := s.userKey(usr)
+
+	// Seed an environment with a user secret and an SK_ framework variable.
+	createResp := s.post(key.Value, mcpToolCall(1, "create_environment", map[string]any{
+		"appId":  appl.ID.String(),
+		"name":   "staging",
+		"branch": "main",
+		"envVars": map[string]any{
+			"SECRET_TOKEN": "super-secret-value",
+			"SK_SECRET":    "also-secret",
+		},
+	}))
+	s.rpcOK(createResp)
+
+	resp := s.post(key.Value, mcpToolCall(2, "list_environments", map[string]any{
+		"appId": appl.ID.String(),
+	}))
+
+	env := s.rpcOK(resp)
+	data := s.toolContent(env)
+	envs := data["environments"].([]any)
+	s.Require().NotEmpty(envs)
+
+	// The raw value must not appear anywhere in the serialized tool output.
+	raw, _ := json.Marshal(data)
+	s.NotContains(string(raw), "super-secret-value")
+
+	var found bool
+
+	for _, e := range envs {
+		build, _ := e.(map[string]any)["build"].(map[string]any)
+
+		if build == nil {
+			continue
+		}
+
+		vars, _ := build["vars"].(map[string]any)
+
+		if v, ok := vars["SECRET_TOKEN"]; ok {
+			found = true
+			// Every value masked (keys kept), including SK_-prefixed names.
+			s.Equal("", v, "env var value must be masked in MCP output")
+			s.Equal("", vars["SK_SECRET"], "SK_-prefixed var value must be masked")
+		}
+	}
+
+	s.True(found, "expected the seeded SECRET_TOKEN key to be present (masked)")
+}
+
 func (s *HandlerMCPSuite) Test_ListEnvironments_MissingAppId() {
 	usr := s.MockUser()
 	key := s.userKey(usr)

@@ -4,7 +4,10 @@ import { fireEvent, render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import mockApp from "~/testing/data/mock_app";
 import mockEnvironments from "~/testing/data/mock_environments";
-import { mockUpdateEnvironment } from "~/testing/nocks/nock_environment";
+import {
+  mockUpdateEnvironment,
+  mockRevealEnvVars,
+} from "~/testing/nocks/nock_environment";
 import TabConfigEnvVars from "./TabConfigEnvVars";
 
 interface WrapperProps {
@@ -91,6 +94,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabConfigEn
 
     createWrapper({ environment: currentEnv });
 
+    // No pre-configured variables, so editing is unlocked without revealing.
     await userEvent.type(
       wrapper.getByPlaceholderText("NODE_ENV"),
       "env_var_1_key"
@@ -112,6 +116,65 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabConfigEn
     await waitFor(() => {
       expect(scope.isDone()).toBe(true);
       expect(setRefreshToken).toHaveBeenCalled();
+    });
+  });
+
+  it("hides the reveal button when there are no variables", () => {
+    currentApp = mockApp();
+    currentEnv = mockEnvironments({ app: currentApp })[0];
+    currentEnv.build.vars = {};
+
+    createWrapper({ environment: currentEnv });
+
+    expect(wrapper.queryByText("Reveal values")).toBeNull();
+
+    const save = wrapper.getByText("Save").closest("button") as HTMLButtonElement;
+    expect(save.disabled).toBe(false);
+  });
+
+  it("shows the reveal button when variables exist", () => {
+    currentApp = mockApp();
+    currentEnv = mockEnvironments({ app: currentApp })[0];
+    currentEnv.build.vars = { EXISTING: "" };
+
+    createWrapper({ environment: currentEnv });
+
+    expect(wrapper.getByText("Reveal values")).toBeTruthy();
+
+    const save = wrapper.getByText("Save").closest("button") as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+
+    // Editing affordances stay locked until the values are revealed, so the
+    // user cannot type entries that would be discarded on reveal.
+    const addRow = wrapper
+      .getByText("Add Row")
+      .closest("button") as HTMLButtonElement;
+    expect(addRow.disabled).toBe(true);
+
+    const modify = wrapper
+      .getByText("Modify as a string")
+      .closest("button") as HTMLButtonElement;
+    expect(modify.disabled).toBe(true);
+  });
+
+  it("shows an error when reveal fails", async () => {
+    currentApp = mockApp();
+    currentEnv = mockEnvironments({ app: currentApp })[0];
+    currentEnv.build.vars = { EXISTING: "" };
+
+    createWrapper({ environment: currentEnv });
+
+    const revealScope = mockRevealEnvVars({
+      envId: currentEnv.id!,
+      response: {},
+      status: 403,
+    });
+
+    fireEvent.click(wrapper.getByText("Reveal values"));
+
+    await waitFor(() => {
+      expect(revealScope.isDone()).toBe(true);
+      expect(wrapper.getByText(/Something went wrong/)).toBeTruthy();
     });
   });
 

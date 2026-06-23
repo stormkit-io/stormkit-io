@@ -1,7 +1,8 @@
 import type { FormValues } from "../actions";
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
 import CardFooter from "~/components/CardFooter";
@@ -10,6 +11,7 @@ import {
   updateEnvironment,
   buildFormValues,
   prepareBuildObject,
+  revealEnvVars,
 } from "../actions";
 
 interface Props {
@@ -23,25 +25,44 @@ export default function TabConfigEnvVars({
   app,
   setRefreshToken,
 }: Props) {
+  // With no pre-configured variables there is nothing to reveal, so editing is
+  // unlocked from the start (no Reveal button, Save enabled).
+  const hasVars = Object.keys(env.build.vars || {}).length > 0;
+
   const [reset, setReset] = useState<number>();
   const [error, setError] = useState<string>();
   const [success, setSuccess] = useState<string>();
   const [isLoading, setLoading] = useState(false);
   const [isChanged, setIsChanged] = useState(false);
-  const [vars, setVars] = useState<Record<string, string>>(
-    env.build.vars || {},
-  );
+  const [revealed, setRevealed] = useState(!hasVars);
+  const [revealing, setRevealing] = useState(false);
 
-  const defaultValue = useMemo(() => {
-    return JSON.parse(
-      JSON.stringify(
-        env?.build?.vars || (env ? {} : { NODE_ENV: "development" }),
-      ),
-    );
-  }, []);
+  // Values arrive masked. kvDefault seeds the rows and only changes on
+  // reveal/reset; vars is the live edited map used when saving.
+  const [kvDefault, setKvDefault] = useState(() => env.build.vars || {});
+  const [vars, setVars] = useState(() => env.build.vars || {});
 
-  // Remove special variables
-  delete defaultValue.SK_CWD;
+  const reveal = () => {
+    setRevealing(true);
+    setError("");
+    setSuccess("");
+
+    revealEnvVars({ envId: env.id! })
+      .then(real => {
+        setKvDefault(real);
+        setVars(real);
+        setReset(Date.now());
+        setRevealed(true);
+      })
+      .catch(() => {
+        setError(
+          "Something went wrong while revealing the variables. Please try again."
+        );
+      })
+      .finally(() => {
+        setRevealing(false);
+      });
+  };
 
   return (
     <Card
@@ -50,19 +71,18 @@ export default function TabConfigEnvVars({
       sx={{ mb: 2 }}
       error={error}
       success={success}
+      info={
+        revealed
+          ? undefined
+          : "Values are hidden. Reveal them to view or edit — each reveal is recorded in the activity feed."
+      }
       onSubmit={e => {
         e.preventDefault();
 
         const values: FormValues = buildFormValues(
           { ...env, build: { ...env.build, vars } },
-          e.target as HTMLFormElement,
+          e.target as HTMLFormElement
         );
-
-        const root = env.build?.vars?.["SK_CWD"];
-
-        if (root) {
-          values["build.vars"] = `${values["build.vars"]}\nSK_CWD=${root}`;
-        }
 
         updateEnvironment({
           app,
@@ -80,6 +100,19 @@ export default function TabConfigEnvVars({
       <CardHeader
         title="Environment variables"
         subtitle="These variables will be available to build time, status checks and serverless runtime."
+        actions={
+          revealed ? undefined : (
+            <Button
+              type="button"
+              variant="text"
+              startIcon={<VisibilityIcon />}
+              loading={revealing}
+              onClick={reveal}
+            >
+              Reveal values
+            </Button>
+          )
+        }
       />
       <Box sx={{ mb: 2 }}>
         <KeyValue
@@ -90,6 +123,7 @@ export default function TabConfigEnvVars({
           keyPlaceholder="NODE_ENV"
           valPlaceholder="production"
           isSensitive
+          disabled={!revealed}
           onChange={newVars => {
             setVars(newVars);
             setIsChanged(true);
@@ -98,7 +132,7 @@ export default function TabConfigEnvVars({
             setSuccess("");
             setError("");
           }}
-          defaultValue={defaultValue}
+          defaultValue={kvDefault}
         />
       </Box>
       <CardFooter>
@@ -113,9 +147,12 @@ export default function TabConfigEnvVars({
             transition: "all 0.35s ease-in",
           }}
           onClick={() => {
-            setVars(env.build.vars || {});
+            const masked = env.build.vars || {};
+            setKvDefault(masked);
+            setVars(masked);
             setReset(Date.now());
             setIsChanged(false);
+            setRevealed(!hasVars);
           }}
         >
           Cancel
@@ -125,6 +162,7 @@ export default function TabConfigEnvVars({
           variant="contained"
           color="secondary"
           loading={isLoading}
+          disabled={!revealed}
           sx={{ textTransform: "capitalize" }}
         >
           Save

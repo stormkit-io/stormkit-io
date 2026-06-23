@@ -43,6 +43,10 @@ describe("~/shared/feed/AuditMessage.tsx", () => {
       old: { envName: "staging" },
       new: {},
     },
+    "REVEAL:ENV": {
+      old: {},
+      new: {},
+    },
     "CREATE:APP": {
       old: {},
       new: { appName: "sample-project" },
@@ -102,6 +106,7 @@ describe("~/shared/feed/AuditMessage.tsx", () => {
     ${"CREATE:ENV"}        | ${"Created the staging environment"}                              | ${null}
     ${"UPDATE:ENV"}        | ${"Updated the staging environment"}                              | ${null}
     ${"DELETE:ENV"}        | ${"Removed the staging environment"}                              | ${null}
+    ${"REVEAL:ENV"}        | ${"Revealed environment variable values for production environment"} | ${null}
     ${"CREATE:APP"}        | ${"Created the sample-project application"}                       | ${null}
     ${"UPDATE:APP"}        | ${"Updated the sample-project application"}                       | ${null}
     ${"DELETE:APP"}        | ${"Deleted the sample-project application"}                       | ${null}

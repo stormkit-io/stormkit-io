@@ -156,11 +156,27 @@ type DomainInfo struct {
 	EnvName string
 }
 
-// EnvJSON is a wrapper around myapp to avoid recursion.
-type EnvJSON Env
+// MaskVars returns a copy of vars with every VALUE blanked (keys kept). It is
+// the single masking rule for env-var values — used when serializing an Env and
+// a deployment's config snapshot — so values are never exposed in plaintext
+// outside the dedicated, access-controlled pull endpoint.
+func MaskVars(vars map[string]string) map[string]string {
+	masked := make(map[string]string, len(vars))
 
-// MarshalJSON implements the marshaler interface.
-func (env Env) MarshalJSON() ([]byte, error) {
+	for key := range vars {
+		masked[key] = ""
+	}
+
+	return masked
+}
+
+// JSON returns the env as a client-ready map (App.JSON() style) with secret
+// env-var values masked. The map is built explicitly — every exposed field is
+// listed here rather than derived from struct tags via a marshal/unmarshal
+// round-trip. MarshalJSON delegates to this, so an Env can never be serialized
+// to a client with plaintext values by accident. Internal consumers that need
+// real values read Env.Data.Vars directly and never go through here.
+func (env Env) JSON() map[string]any {
 	type domain struct {
 		Name     string `json:"name,omitempty"`
 		Verified bool   `json:"verified"`
@@ -173,31 +189,76 @@ func (env Env) MarshalJSON() ([]byte, error) {
 		ExitCode     *int64     `json:"exit,omitempty"`
 	}
 
-	var ld *lastDeploy
+	// Mask on a copy so the original Env keeps the real values for internal use.
+	build := env.Data
+
+	if env.Data != nil && len(env.Data.Vars) > 0 {
+		conf := *env.Data
+		conf.Vars = MaskVars(env.Data.Vars)
+		build = &conf
+	}
+
+	// env is deprecated; mirror Name when it is empty.
+	envName := env.Env
+
+	if envName == "" {
+		envName = env.Name
+	}
+
+	m := map[string]any{
+		"name":        env.Name,
+		"env":         envName,
+		"branch":      env.Branch,
+		"build":       build,
+		"authConf":    env.AuthConf,
+		"autoPublish": env.AutoPublish,
+		"autoDeploy":  env.AutoDeploy,
+		"domain":      domain{},
+	}
+
+	if env.AutoDeployBranches.ValueOrZero() != "" {
+		m["autoDeployBranches"] = env.AutoDeployBranches
+	}
+
+	if env.AutoDeployCommits.ValueOrZero() != "" {
+		m["autoDeployCommits"] = env.AutoDeployCommits
+	}
+
+	if env.ID != 0 {
+		m["id"] = env.ID.String()
+	}
+
+	if env.AppID != 0 {
+		m["appId"] = env.AppID.String()
+	}
+
+	if env.MailerConf != nil {
+		m["mailer"] = env.MailerConf
+	}
+
+	if len(env.Published) > 0 {
+		m["published"] = env.Published
+	}
+
+	if env.Preview != "" {
+		m["preview"] = env.Preview
+	}
 
 	if env.LastDeployID.ValueOrZero() != 0 {
-		ld = &lastDeploy{
+		m["lastDeploy"] = lastDeploy{
 			DeploymentID: types.ID(env.LastDeployID.ValueOrZero()),
 			CreatedAt:    env.DeployedAt,
 			ExitCode:     env.LastDeployExitCode.Ptr(),
 		}
 	}
 
-	// TODO: Remove this snippet when we remove the Env field.
-	if env.Env == "" && env.Name != "" {
-		env.Env = env.Name
-	}
+	return m
+}
 
-	ret := struct {
-		EnvJSON
-		LastDeploy *lastDeploy `json:"lastDeploy,omitempty"`
-		Domain     domain      `json:"domain"`
-	}{
-		EnvJSON:    EnvJSON(env),
-		LastDeploy: ld,
-	}
-
-	return json.Marshal(ret)
+// MarshalJSON implements json.Marshaler by delegating to JSON, so masking is
+// the fail-safe default everywhere an Env is serialized.
+func (env Env) MarshalJSON() ([]byte, error) {
+	return json.Marshal(env.JSON())
 }
 
 type StatusCheck struct {

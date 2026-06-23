@@ -24,6 +24,8 @@ interface Props {
   separator?: string;
   isSensitive?: boolean;
   modifyAsString?: boolean;
+  // When true, editing affordances (Add Row, Modify as a string) are disabled.
+  disabled?: boolean;
   onChange?: (kv: Record<string, string>) => void;
   onModalOpen?: () => void;
 }
@@ -52,6 +54,7 @@ export default function KeyValue({
   separator = "=",
   isSensitive = false,
   modifyAsString = true,
+  disabled = false,
   onChange,
   onModalOpen,
 }: Props) {
@@ -105,6 +108,7 @@ export default function KeyValue({
                 hideByDefault={Boolean(value && isSensitive)}
                 keyPlaceholder={keyPlaceholder}
                 valPlaceholder={valPlaceholder}
+                disabled={disabled}
                 setIsChanged={setIsChanged}
                 setRows={setRows}
               />
@@ -121,6 +125,7 @@ export default function KeyValue({
                 color="primary"
                 variant="outlined"
                 type="button"
+                disabled={disabled}
                 sx={{
                   display: "inline-flex",
                   textTransform: "none",
@@ -140,6 +145,7 @@ export default function KeyValue({
                   color="primary"
                   type="button"
                   variant="outlined"
+                  disabled={disabled}
                   sx={{ display: "inline-flex", textTransform: "none" }}
                   onClick={() => {
                     setIsModalOpen(true);

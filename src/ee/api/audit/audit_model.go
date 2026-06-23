@@ -18,6 +18,7 @@ const (
 	CreateAction string = "CREATE"
 	UpdateAction string = "UPDATE"
 	DeleteAction string = "DELETE"
+	RevealAction string = "REVEAL"
 )
 
 const (

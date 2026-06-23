@@ -1,6 +1,7 @@
 import { RenderResult } from "@testing-library/react";
 import { describe, expect, beforeEach, it } from "vitest";
 import { AppContext } from "~/pages/apps/[id]/App.context";
+import { RootContext } from "~/pages/Root.context";
 import mockApp from "~/testing/data/mock_app";
 import mockEnvironments from "~/testing/data/mock_environments";
 import { renderWithRouter } from "~/testing/helpers";
@@ -30,9 +31,19 @@ describe("~/layouts/AppLayout/Applayout.tsx", () => {
       path,
       initialEntries,
       el: () => (
-        <AppContext.Provider value={{ app, environments, setRefreshToken }}>
-          <AppLayout />
-        </AppContext.Provider>
+        <RootContext.Provider
+          value={{
+            mode: "dark",
+            setMode: () => {},
+            details: {
+              stormkit: { apiCommit: "", apiVersion: "", edition: "self-hosted" },
+            },
+          }}
+        >
+          <AppContext.Provider value={{ app, environments, setRefreshToken }}>
+            <AppLayout />
+          </AppContext.Provider>
+        </RootContext.Provider>
       ),
     });
   };
@@ -98,6 +109,7 @@ describe("~/layouts/AppLayout/Applayout.tsx", () => {
         `/apps/${defaultApp.id}/environments/${defaultEnvs[0].id}/function-triggers`,
         `/apps/${defaultApp.id}/environments/${defaultEnvs[0].id}/volumes`,
         `/apps/${defaultApp.id}/environments/${defaultEnvs[0].id}/database`,
+        `/apps/${defaultApp.id}/environments/${defaultEnvs[0].id}/auth`,
         `/apps/${defaultApp.id}/environments/${defaultEnvs[0].id}/mailer`,
         `/apps/${defaultApp.id}/environments/${defaultEnvs[0].id}/analytics`,
       ]);

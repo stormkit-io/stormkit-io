@@ -26,11 +26,7 @@ export default function TabConfigGeneral({
   const [error, setError] = useState<string>();
   const [success, setSuccess] = useState<string>();
   const [isLoading, setLoading] = useState(false);
-  // Fall back to the legacy SK_CWD env var so existing apps keep working
-  // until their next save migrates them to the typed workDir field.
-  const [root, setRoot] = useState(
-    env?.build?.workDir || env?.build?.vars?.["SK_CWD"] || "./"
-  );
+  const [root, setRoot] = useState(env?.build?.workDir || "./");
 
   if (!env) {
     return <></>;

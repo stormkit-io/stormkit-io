@@ -47,10 +47,12 @@ export const envMenuItems = ({
   app,
   env,
   pathname,
+  isSelfHosted,
 }: {
   app: App;
   env: Environment;
   pathname: string;
+  isSelfHosted: boolean;
 }): Path[] => {
   if (!env) {
     return [];
@@ -98,7 +100,9 @@ export const envMenuItems = ({
     },
   ];
 
-  if (env.build?.vars?.["SK_AUTH_ENABLED"] === "true") {
+  // Authentication relies on a database, so it is shown on the self-hosted
+  // edition only.
+  if (isSelfHosted) {
     items.push({
       text: "Authentication",
       path: `${envPath}/auth`,

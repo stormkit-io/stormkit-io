@@ -77,7 +77,7 @@ func (s *HandlerMyDeploymentsSuite) responseTemplate() (*template.Template, erro
 								"description": ""
 							}],
 							"vars": {
-								"NODE_ENV": "production"
+								"NODE_ENV": ""
 							}
 						}
 					},
