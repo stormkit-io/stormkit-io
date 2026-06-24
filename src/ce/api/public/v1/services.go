@@ -82,6 +82,11 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodPost, "", WithAPIKey(handlerMCP, &Opts{MinimumScope: apikey.SCOPE_USER})).
 		Handler(shttp.MethodGet, "", WithAPIKey(handlerMCPStream, &Opts{MinimumScope: apikey.SCOPE_USER}))
 
+	// Public, human-readable reference for the MCP server, rendered from the
+	// live tool manifest. No API key required so the docs stay discoverable.
+	s.NewEndpoint("/mcp").
+		Handler(shttp.MethodGet, "", handlerMCPDocs)
+
 	if config.IsDevelopment() || config.IsSelfHosted() {
 		s.NewEndpoint("/v1/schema").
 			Handler(shttp.MethodGet, "", app.WithAPIKey(handlerSchemaGet, &app.Opts{Env: true})).
