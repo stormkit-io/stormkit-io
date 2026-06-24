@@ -1,7 +1,7 @@
 import type { RenderResult } from "@testing-library/react";
 import type { Scope } from "nock";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { RouterProvider, createMemoryRouter } from "react-router";
 import { AppContext } from "~/pages/apps/[id]/App.context";
 import { EnvironmentContext } from "~/pages/apps/[id]/environments/Environment.context";
@@ -126,6 +126,34 @@ describe("~/apps/[id]/environments/[env-id]/function-triggers/[trigger-id]/Trigg
     await waitFor(() => {
       fireEvent.click(wrapper.getByTestId("refresh-logs"));
       expect(newScope.isDone()).toBe(true);
+    });
+  });
+
+  it("should render failed logs that have no response code", async () => {
+    cleanup();
+    createWrapper({
+      logs: [
+        {
+          createdAt: 1734602569,
+          request: { url: "https://api.example.com/trigger-fail" },
+          response: { error: "dial tcp: connection refused" },
+        },
+      ],
+    });
+
+    await waitFor(() => {
+      expect(
+        wrapper.getByText("https://api.example.com/trigger-fail")
+      ).toBeTruthy();
+      expect(wrapper.getByText("ERR")).toBeTruthy();
+    });
+
+    fireEvent.click(wrapper.getAllByTestId("trigger-log").at(0)!);
+
+    await waitFor(() => {
+      expect(
+        wrapper.getByText("dial tcp: connection refused")
+      ).toBeTruthy();
     });
   });
 

@@ -13,6 +13,7 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodDelete, "/trigger", app.WithApp(handlerFunctionTriggerDelete)).
 		Handler(shttp.MethodPatch, "/trigger", app.WithApp(handlerFunctionTriggerUpdate)).
 		Handler(shttp.MethodPost, "/trigger", app.WithApp(handlerFunctionTriggerCreate)).
+		Handler(shttp.MethodPost, "/trigger/invoke", app.WithApp(handlerFunctionTriggerInvoke)).
 		Handler(shttp.MethodGet, "/triggers", app.WithApp(handlerFunctionTriggersGet)).
 		Handler(shttp.MethodGet, "/trigger/logs", app.WithApp(handleTriggerLogsGet))
 

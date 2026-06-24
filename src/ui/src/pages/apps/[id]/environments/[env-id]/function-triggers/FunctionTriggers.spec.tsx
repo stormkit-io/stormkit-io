@@ -15,7 +15,11 @@ import mockEnvironment from "~/testing//data/mock_environment";
 import * as mockActions from "~/testing/nocks/nock_function_triggers";
 import FunctionTriggers from "./FunctionTriggers";
 
-const { mockFetchFunctionTriggers, mockDeleteFunctionTrigger } = mockActions;
+const {
+  mockFetchFunctionTriggers,
+  mockDeleteFunctionTrigger,
+  mockInvokeFunctionTrigger,
+} = mockActions;
 
 interface Props {
   app?: App;
@@ -118,6 +122,38 @@ describe("~/apps/[id]/environments/[env-id]/function-triggers/FunctionTriggers.t
     await waitFor(() => {
       expect(deleteScope.isDone()).toBe(true);
       expect(refetchScope.isDone()).toBe(true);
+    });
+  });
+
+  it("should handle running a trigger immediately", async () => {
+    createWrapper();
+
+    await waitFor(() => {
+      expect(scope.isDone()).toBe(true);
+      expect(
+        wrapper.getByText("https://app.stormkit.io/api/test")
+      ).toBeTruthy();
+    });
+
+    const invokeScope = mockInvokeFunctionTrigger({
+      appId: currentApp.id,
+      envId: currentEnv.id!,
+      tfid: currentTriggers[0].id!,
+    });
+
+    fireEvent.click(wrapper.getAllByLabelText("expand").at(0)!);
+
+    await waitFor(() => {
+      expect(wrapper.getByText("Trigger now")).toBeTruthy();
+    });
+
+    fireEvent.click(wrapper.getByText("Trigger now"));
+
+    await waitFor(() => {
+      expect(invokeScope.isDone()).toBe(true);
+      expect(
+        wrapper.getByText(/Open 'Past triggers' to see the output/)
+      ).toBeTruthy();
     });
   });
 

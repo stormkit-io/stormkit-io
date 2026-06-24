@@ -29,7 +29,8 @@ declare interface TriggerLog {
   };
   response: {
     body?: string;
-    code: number;
+    code?: number;
+    error?: string;
   };
   createdAt: number;
 }
