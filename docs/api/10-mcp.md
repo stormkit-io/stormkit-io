@@ -11,8 +11,6 @@ Stormkit ships a built-in [Model Context Protocol](https://modelcontextprotocol.
 
 The server speaks the **Streamable HTTP** transport (protocol revision `2025-11-25`): a single `POST /v1/mcp` endpoint handles all client→server messages, and an optional `GET /v1/mcp` SSE stream carries server→client keep-alives.
 
-> A human-readable, always-current version of this reference — including the exact tool list your instance exposes — is served at [`GET /mcp`](#get-mcp).
-
 ---
 
 ## Connecting
@@ -70,14 +68,6 @@ Or as raw `.mcp.json`:
 
 ---
 
-## GET /mcp
-
-Returns an HTML page documenting this instance's MCP server: the endpoint URL, authentication, and the full catalog of tools the running build exposes. Because the page is generated from the live tool manifest, it always matches what `tools/list` returns — including tools that are only available on self-hosted builds.
-
-This endpoint is public (no authentication) so the documentation is discoverable.
-
----
-
 ## Tools
 
 All tools return JSON. Errors are reported as MCP `isError` content while the transport stays HTTP 200, per JSON-RPC convention.
@@ -129,4 +119,4 @@ All tools return JSON. Errors are reported as MCP `isError` content while the tr
 | `enable_database_integration`    | Provision a Postgres schema for an environment.                 |
 | `configure_database_integration` | Toggle migrations and env-var injection for a provisioned schema.|
 
-For the exact input parameters of each tool, call `tools/list` or visit [`GET /mcp`](#get-mcp) on your instance.
+For the exact input parameters of each tool, call `tools/list` on your instance.
