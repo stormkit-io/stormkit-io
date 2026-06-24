@@ -1,0 +1,14 @@
+{
+  "name": "stormkit",
+  "description": "Official Stormkit plugins for Claude Code.",
+  "owner": { "name": "Stormkit", "email": "hello@stormkit.io" },
+  "plugins": [
+    {
+      "name": "stormkit",
+      "source": "./plugins/stormkit",
+      "description": "Deploy and manage Stormkit apps, environments, domains and deployments from Claude Code. Works with Stormkit Cloud and self-hosted instances.",
+      "category": "deployment",
+      "tags": ["deployment", "hosting", "stormkit", "mcp"]
+    }
+  ]
+}
