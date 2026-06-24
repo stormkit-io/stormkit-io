@@ -62,6 +62,24 @@ export function deleteFunctionTrigger({
   );
 }
 
+interface InvokeFunctionTriggerProps {
+  tfid: string;
+  appId: string;
+  envId: string;
+}
+
+export function invokeFunctionTrigger({
+  tfid,
+  appId,
+  envId,
+}: InvokeFunctionTriggerProps): Promise<void> {
+  return api.post(`/apps/trigger/invoke`, {
+    id: tfid,
+    appId,
+    envId,
+  });
+}
+
 interface CreateFunctionTriggerProps extends Omit<FunctionTrigger, "options"> {
   appId: string;
   envId: string;

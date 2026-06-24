@@ -22,6 +22,7 @@ func (s *ServicesSuite) Test_Services() {
 		"GET:/apps/triggers",
 		"PATCH:/apps/trigger",
 		"POST:/apps/trigger",
+		"POST:/apps/trigger/invoke",
 	}
 
 	s.Equal(handlers, services.HandlerKeys())

@@ -3,8 +3,6 @@ package jobs
 import (
 	"context"
 	"encoding/json"
-	"io"
-	"net/http"
 	"time"
 
 	"github.com/adhocore/gronx"
@@ -80,36 +78,15 @@ func HandleFunctionTrigger(ctx context.Context, t *asynq.Task) error {
 	updates := map[types.ID]utils.Unix{}
 
 	for _, tf := range tfs {
-		res, err := shttp.NewRequestV2(utils.GetString(tf.Method, shttp.MethodGet), tf.URL).
-			Headers(tf.Headers.Make()).
-			Payload(tf.Payload).
-			Do()
-
-		request := map[string]any{
-			"url":     tf.URL,
-			"method":  tf.Method,
-			"headers": tf.Headers,
-			"payload": string(tf.Payload),
-		}
-
-		var response map[string]any
-
-		if res != nil {
-			response = map[string]any{
-				"code": res.StatusCode,
-				"body": readBody(res.Response),
-			}
-		} else if err != nil {
-			response = map[string]any{
-				"error": err.Error(),
-			}
-		}
-
-		logs = append(logs, functiontrigger.TriggerLog{
+		log, err := functiontrigger.Run(functiontrigger.RunParams{
 			TriggerID: tf.ID,
-			Request:   request,
-			Response:  response,
+			Method:    tf.Method,
+			URL:       tf.URL,
+			Headers:   tf.Headers,
+			Payload:   tf.Payload,
 		})
+
+		logs = append(logs, log)
 
 		if err != nil {
 			slog.Errorf("trigger function request failed %v", err)
@@ -130,16 +107,4 @@ func HandleFunctionTrigger(ctx context.Context, t *asynq.Task) error {
 	}
 
 	return nil
-}
-
-func readBody(res *http.Response) string {
-	body, err := io.ReadAll(res.Body)
-
-	if err != nil {
-		return ""
-	}
-
-	defer res.Body.Close()
-
-	return string(body)
 }

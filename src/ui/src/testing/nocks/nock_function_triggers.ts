@@ -36,6 +36,28 @@ export const mockDeleteFunctionTrigger = ({
     .reply(200, { ok: true });
 };
 
+interface MockInvokeFunctionTriggerProps {
+  appId: string;
+  envId: string;
+  tfid: string;
+  status?: number;
+}
+
+export const mockInvokeFunctionTrigger = ({
+  appId,
+  envId,
+  tfid,
+  status = 200,
+}: MockInvokeFunctionTriggerProps) => {
+  return nock(endpoint)
+    .post(`/apps/trigger/invoke`, {
+      id: tfid,
+      appId,
+      envId,
+    })
+    .reply(status, { ok: true });
+};
+
 interface MockUpdateFunctionTriggerProps {
   tfid: string;
   appId: string;

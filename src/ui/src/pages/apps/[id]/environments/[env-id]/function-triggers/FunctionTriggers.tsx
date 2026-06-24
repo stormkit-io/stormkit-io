@@ -1,6 +1,7 @@
 import { useContext, useState } from "react";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/ModeEdit";
+import PlayIcon from "@mui/icons-material/PlayArrow";
 import TimeIcon from "@mui/icons-material/AccessTime";
 import CircleIcon from "@mui/icons-material/Circle";
 import Button from "@mui/material/Button";
@@ -19,7 +20,8 @@ import Span from "~/components/Span";
 import FunctionTriggerModal from "./FunctionTriggerModal";
 import * as actions from "./actions";
 
-const { useFetchFunctionTriggers, deleteFunctionTrigger } = actions;
+const { useFetchFunctionTriggers, deleteFunctionTrigger, invokeFunctionTrigger } =
+  actions;
 
 const colors: Record<
   FunctionTriggerMethod,
@@ -48,6 +50,9 @@ export default function FunctionTriggers() {
   const [toBeModified, setToBeModified] = useState<FunctionTrigger>();
   const [toBeDeleted, setToBeDeleted] = useState<FunctionTrigger>();
   const [isFunctionTriggerModalOpen, setFunctionTriggerModal] = useState(false);
+  const [actionError, setActionError] = useState<string>();
+  const [actionSuccess, setActionSuccess] = useState<string>();
+  const [invoking, setInvoking] = useState<string>();
   const [refreshToken, setRefreshToken] = useState(0);
   const { error, loading, functionTriggers, paymentRequired } =
     useFetchFunctionTriggers({
@@ -86,6 +91,33 @@ export default function FunctionTriggers() {
       });
   };
 
+  const handleInvoke = (f: FunctionTrigger) => {
+    setActionError(undefined);
+    setActionSuccess(undefined);
+    setInvoking(f.id);
+
+    invokeFunctionTrigger({
+      tfid: f.id!,
+      appId: app.id,
+      envId: environment.id!,
+    })
+      .then(() => {
+        setActionSuccess(
+          "Trigger executed. Open 'Past triggers' to see the output."
+        );
+      })
+      .catch(res => {
+        setActionError(
+          typeof res === "string"
+            ? res
+            : "Something went wrong while running the trigger."
+        );
+      })
+      .finally(() => {
+        setInvoking(undefined);
+      });
+  };
+
   if (paymentRequired) {
     return (
       <Card
@@ -107,7 +139,8 @@ export default function FunctionTriggers() {
     <Card
       sx={{ width: "100%" }}
       loading={loading}
-      error={error}
+      error={error || actionError}
+      success={actionSuccess}
       contentPadding={false}
     >
       <CardHeader
@@ -117,8 +150,13 @@ export default function FunctionTriggers() {
       {functionTriggers?.map((f, i) => (
         <CardRow
           key={f.id}
-          sx={{ display: "flex", alignItems: "center" }}
           menuItems={[
+            {
+              icon: <PlayIcon />,
+              text: invoking === f.id ? "Running…" : "Trigger now",
+              disabled: invoking === f.id,
+              onClick: () => handleInvoke(f),
+            },
             {
               icon: <TimeIcon />,
               text: "Past triggers",
@@ -142,7 +180,9 @@ export default function FunctionTriggers() {
             },
           ]}
         >
-          <Typography sx={{ display: "flex" }}>
+          <Typography
+            sx={{ display: "flex", alignItems: "center", width: "100%" }}
+          >
             <Chip
               size="small"
               component="span"
@@ -153,11 +193,12 @@ export default function FunctionTriggers() {
             <Typography
               component="span"
               color="text.secondary"
+              noWrap
               sx={{ mr: 2, flex: 1 }}
             >
               {f.options.url}
             </Typography>
-            <Span>
+            <Span sx={{ display: "inline-flex", alignItems: "center" }}>
               <Tooltip
                 title={
                   f.status &&
@@ -168,13 +209,13 @@ export default function FunctionTriggers() {
                   )
                 }
               >
-                <span>
+                <span style={{ display: "inline-flex", alignItems: "center" }}>
                   <TimeIcon sx={{ mr: 1, fontSize: 16 }} />
                   {f.cron}
                 </span>
               </Tooltip>
             </Span>
-            <Span>
+            <Span sx={{ display: "inline-flex", alignItems: "center" }}>
               <CircleIcon
                 color={f.status ? "success" : "error"}
                 sx={{ fontSize: 10, mr: 1 }}

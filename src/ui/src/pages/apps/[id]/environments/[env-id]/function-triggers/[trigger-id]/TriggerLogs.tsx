@@ -70,15 +70,21 @@ export default function TriggerLogs() {
           <Typography sx={{ display: "flex", alignItems: "center" }}>
             <Span
               color={
-                log.response?.code.toString()?.[0] === "2"
+                log.response?.code?.toString()?.[0] === "2"
                   ? "success"
-                  : "default"
+                  : log.response?.code
+                    ? "default"
+                    : "failure"
               }
             >
-              {log.response?.code}
+              {log.response?.code || "ERR"}
             </Span>
             <Span>{log.request?.url}</Span>
-            <Typography component="span" sx={{ flex: 1 }}>
+            <Typography
+              component="span"
+              color="text.secondary"
+              sx={{ flex: 1, textAlign: "right" }}
+            >
               {formatDate(log.createdAt * 1000)}
             </Typography>
           </Typography>
@@ -128,12 +134,12 @@ export default function TriggerLogs() {
                     sx={{ mr: 0 }}
                     size="small"
                     color={
-                      drawerContent.response.code?.toString()?.[0] === "2"
+                      drawerContent.response?.code?.toString()?.[0] === "2"
                         ? "success"
                         : undefined
                     }
                   >
-                    {drawerContent.response.code}
+                    {drawerContent.response?.code || "ERR"}
                   </Span>
                 </Typography>
                 <Box
@@ -145,7 +151,9 @@ export default function TriggerLogs() {
                     overflow: "auto",
                   }}
                 >
-                  {drawerContent?.response?.body}
+                  {drawerContent?.response?.body ||
+                  drawerContent?.response?.error ||
+                  "No response body"}
                 </Box>
               </Box>
             </Box>
