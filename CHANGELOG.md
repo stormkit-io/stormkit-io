@@ -1,5 +1,26 @@
 # Changelog
 
+## v2026.06.20.3...v2026.06.23.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.06.20.3...v2026.06.23.1)
+
+### 💥 Breaking Changes
+
+- Mask env var values behind reveal endpoint ([#311](https://github.com/stormkit-io/stormkit-io/pull/311))
+
+### 🚀 Enhancements
+
+- Add create/delete domain mcp tools ([#310](https://github.com/stormkit-io/stormkit-io/pull/310))
+- Incremental env config saves ([#312](https://github.com/stormkit-io/stormkit-io/pull/312))
+
+### 🏡 Chore
+
+- Update changelog for v2026.06.20.3 ([#309](https://github.com/stormkit-io/stormkit-io/pull/309))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.06.20.2...v2026.06.20.3
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.06.20.2...v2026.06.20.3)
