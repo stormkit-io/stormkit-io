@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "stormkit": {
+      "type": "http",
+      "url": "${STORMKIT_HOST:-https://api.stormkit.io}/v1/mcp",
+      "headers": {
+        "Authorization": "Bearer ${STORMKIT_API_KEY:-}"
+      }
+    }
+  }
+}

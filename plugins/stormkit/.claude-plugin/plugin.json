@@ -1,0 +1,9 @@
+{
+  "name": "stormkit",
+  "description": "Deploy and manage Stormkit apps, environments, domains and deployments from Claude Code.",
+  "version": "1.0.0",
+  "author": { "name": "Stormkit", "email": "hello@stormkit.io" },
+  "homepage": "https://www.stormkit.io",
+  "repository": "https://github.com/stormkit-io/stormkit-io",
+  "license": "MIT"
+}
