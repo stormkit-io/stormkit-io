@@ -15,11 +15,21 @@ import Context from '~/context'
 // Required for SSR
 export { fetchData } from './_ssr'
 
-export default function DocTitle() {
+interface DocTitleProps {
+  // Optional overrides used by top-level doc aliases (e.g. /mcp) that render a
+  // specific doc page without the /docs/:category/:title route params.
+  category?: string
+  title?: string
+}
+
+export default function DocTitle({
+  category: categoryProp,
+  title: titleProp,
+}: DocTitleProps = {}) {
   const params = useParams()
   const { url } = useContext(Context)
-  const category = params.category || url?.split?.('/')?.[2] || ''
-  const title = params.title || url?.split?.('/')?.[3] || ''
+  const category = categoryProp || params.category || url?.split?.('/')?.[2] || ''
+  const title = titleProp || params.title || url?.split?.('/')?.[3] || ''
   const { content, navigation, loading } = withContent(fetchData, {
     defaultCategory: category,
     defaultTitle: title,
@@ -37,7 +47,7 @@ export default function DocTitle() {
         flexDirection: 'column',
         color: 'primary.contrastText',
       }}
-      className={params.category?.toLowerCase() || 'welcome'}
+      className={category?.toLowerCase() || 'welcome'}
     >
       <Header />
       <Box sx={{ flex: 1, visibility: loading ? 'visible' : 'hidden' }}>

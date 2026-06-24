@@ -23,6 +23,7 @@ const routes: Route[] = [
     path: '/policies/privacy',
     import: () => import('~/pages/policies/privacy'),
   },
+  { path: '/mcp', import: () => import('~/pages/mcp') },
   { path: '/docs', import: () => import('~/pages/docs') },
   {
     path: '/docs/:category/:title',
