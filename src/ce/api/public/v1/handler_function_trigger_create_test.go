@@ -1,4 +1,4 @@
-package functiontriggerhandlers_test
+package publicapiv1_test
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/functiontrigger"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/functiontrigger/functiontriggerhandlers"
+	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
@@ -49,9 +49,9 @@ func (s *HandlerFunctionTriggerCreateSuite) Test_Success_Enabled() {
 	`
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(functiontriggerhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodPost,
-		"/apps/trigger",
+		"/v1/trigger",
 
 		map[string]any{
 			"appId":  env.AppID.String(),
@@ -93,9 +93,9 @@ func (s *HandlerFunctionTriggerCreateSuite) Test_Success_Disabled() {
 	env := s.MockEnv(app)
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(functiontriggerhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodPost,
-		"/apps/trigger",
+		"/v1/trigger",
 
 		map[string]any{
 			"appId":  env.AppID.String(),
@@ -142,9 +142,9 @@ func (s *HandlerFunctionTriggerCreateSuite) Test_Success_HeadersAsString() {
 	`
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(functiontriggerhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodPost,
-		"/apps/trigger",
+		"/v1/trigger",
 
 		map[string]any{
 			"appId":  env.AppID.String(),
@@ -178,12 +178,14 @@ func (s *HandlerFunctionTriggerCreateSuite) Test_Success_HeadersAsString() {
 }
 
 func (s *HandlerFunctionTriggerCreateSuite) Test_FailValidation() {
-	env := s.MockEnv(nil)
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(functiontriggerhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodPost,
-		"/apps/trigger",
+		"/v1/trigger",
 		map[string]any{
 			"appId":    env.AppID.String(),
 			"envId":    env.ID.String(),

@@ -1,4 +1,4 @@
-package functiontriggerhandlers_test
+package publicapiv1_test
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/functiontrigger"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/functiontrigger/functiontriggerhandlers"
+	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
@@ -59,9 +59,9 @@ func (s *HandleTriggerLogsGetSuite) Test_Success() {
 	s.NoError(store.InsertLogs(context.Background(), logs))
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(functiontriggerhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodGet,
-		fmt.Sprintf("/apps/trigger/logs?appId=%d&envId=%d&triggerId=%d", app.ID, env.ID, tf.ID),
+		fmt.Sprintf("/v1/trigger/logs?appId=%d&envId=%d&triggerId=%d", app.ID, env.ID, tf.ID),
 		nil,
 		map[string]string{
 			"Authorization": usertest.Authorization(usr.ID),
@@ -73,6 +73,43 @@ func (s *HandleTriggerLogsGetSuite) Test_Success() {
 	s.Equal(http.StatusOK, response.Code)
 	s.Contains(str, `"request":{"Key":"Value"}`)
 	s.Contains(str, `"response":{"Hello":"World"}`)
+}
+
+func (s *HandleTriggerLogsGetSuite) Test_MasksHeaders() {
+	store := functiontrigger.NewStore()
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+	tf := s.MockTriggerFunction(env)
+
+	logs := []functiontrigger.TriggerLog{
+		{
+			TriggerID: tf.ID,
+			Request: map[string]any{
+				"url":     "https://example.org",
+				"headers": map[string]any{"Authorization": "Bearer secret-token"},
+			},
+			Response: map[string]any{"code": float64(200)},
+		},
+	}
+
+	s.NoError(store.InsertLogs(context.Background(), logs))
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodGet,
+		fmt.Sprintf("/v1/trigger/logs?appId=%d&envId=%d&triggerId=%d", app.ID, env.ID, tf.ID),
+		nil,
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+
+	str := response.String()
+
+	s.Equal(http.StatusOK, response.Code)
+	s.NotContains(str, "secret-token")
+	s.Contains(str, `"Authorization":""`)
 }
 
 func TestHandlerTriggerLogsGet(t *testing.T) {

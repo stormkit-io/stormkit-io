@@ -16,7 +16,7 @@ export const mockFetchFunctionTriggers = ({
   response = { triggers: [] },
 }: MockFetchFunctionTriggersProps) => {
   return nock(endpoint)
-    .get(`/apps/triggers?appId=${appId}&envId=${envId}`)
+    .get(`/v1/triggers?appId=${appId}&envId=${envId}`)
     .reply(status, response);
 };
 
@@ -32,7 +32,7 @@ export const mockDeleteFunctionTrigger = ({
   tfid,
 }: mockDeleteFunctionTriggerProps) => {
   return nock(endpoint)
-    .delete(`/apps/trigger?triggerId=${tfid}&appId=${appId}&envId=${envId}`)
+    .delete(`/v1/trigger?triggerId=${tfid}&appId=${appId}&envId=${envId}`)
     .reply(200, { ok: true });
 };
 
@@ -50,7 +50,7 @@ export const mockInvokeFunctionTrigger = ({
   status = 200,
 }: MockInvokeFunctionTriggerProps) => {
   return nock(endpoint)
-    .post(`/apps/trigger/invoke`, {
+    .post(`/v1/trigger/invoke`, {
       id: tfid,
       appId,
       envId,
@@ -76,7 +76,7 @@ export const mockUpdateFunctionTrigger = ({
   options,
 }: MockUpdateFunctionTriggerProps) => {
   return nock(endpoint)
-    .patch(`/apps/trigger`, {
+    .patch(`/v1/trigger`, {
       id: tfid,
       envId,
       appId,
@@ -103,7 +103,7 @@ export const mockCreateFunctionTrigger = ({
   options,
 }: MockCreateFunctionTriggerProps) => {
   return nock(endpoint)
-    .post(`/apps/trigger`, {
+    .post(`/v1/trigger`, {
       appId,
       envId,
       status,
@@ -130,7 +130,7 @@ export const mockFetchTriggerLogs = ({
 }: MockFetchTriggerLogsProps) => {
   return nock(endpoint)
     .get(
-      `/apps/trigger/logs?appId=${appId}&envId=${envId}&triggerId=${triggerId}`
+      `/v1/trigger/logs?appId=${appId}&envId=${envId}&triggerId=${triggerId}`
     )
     .reply(status, response);
 };

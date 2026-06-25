@@ -341,6 +341,94 @@ func mcpAllTools() []mcpToolDef {
 			},
 		},
 		{
+			Name:        "list_triggers",
+			Description: "Return all periodic triggers configured for an environment.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"envId": map[string]any{"type": "string", "description": "Environment ID."},
+				},
+				"required":             []string{"envId"},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "create_trigger",
+			Description: "Create a periodic trigger that sends an HTTP request to a URL on a cron schedule (evaluated in UTC). Returns the created trigger including its ID.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"envId":   map[string]any{"type": "string", "description": "Environment ID to attach the trigger to."},
+					"cron":    map[string]any{"type": "string", "description": "Cron expression, evaluated in UTC, e.g. '*/5 * * * *'."},
+					"status":  map[string]any{"type": "boolean", "description": "Whether the trigger is active. Inactive triggers are not scheduled."},
+					"method":  map[string]any{"type": "string", "description": "HTTP method: GET, POST, HEAD, PATCH or DELETE. Defaults to GET."},
+					"url":     map[string]any{"type": "string", "description": "http/https URL to call."},
+					"payload": map[string]any{"type": "string", "description": "Request body, sent for non-GET methods."},
+					"headers": map[string]any{"type": "object", "description": "Request headers as a key/value map.", "additionalProperties": map[string]any{"type": "string"}},
+				},
+				"required":             []string{"envId", "cron", "url"},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "update_trigger",
+			Description: "Update an existing periodic trigger. The trigger must belong to the given environment.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"envId":     map[string]any{"type": "string", "description": "Environment the trigger belongs to."},
+					"triggerId": map[string]any{"type": "string", "description": "ID of the trigger to update (from list_triggers or create_trigger)."},
+					"cron":      map[string]any{"type": "string", "description": "Cron expression, evaluated in UTC."},
+					"status":    map[string]any{"type": "boolean", "description": "Whether the trigger is active."},
+					"method":    map[string]any{"type": "string", "description": "HTTP method: GET, POST, HEAD, PATCH or DELETE."},
+					"url":       map[string]any{"type": "string", "description": "http/https URL to call."},
+					"payload":   map[string]any{"type": "string", "description": "Request body, sent for non-GET methods."},
+					"headers":   map[string]any{"type": "object", "description": "Request headers as a key/value map.", "additionalProperties": map[string]any{"type": "string"}},
+				},
+				"required":             []string{"envId", "triggerId", "cron", "url"},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "delete_trigger",
+			Description: "Delete a periodic trigger from an environment.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"envId":     map[string]any{"type": "string", "description": "Environment the trigger belongs to."},
+					"triggerId": map[string]any{"type": "string", "description": "ID of the trigger to delete."},
+				},
+				"required":             []string{"envId", "triggerId"},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "invoke_trigger",
+			Description: "Run a periodic trigger immediately, regardless of its schedule or status. Executes synchronously and returns the execution log, which is also stored alongside the scheduled runs.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"envId":     map[string]any{"type": "string", "description": "Environment the trigger belongs to."},
+					"triggerId": map[string]any{"type": "string", "description": "ID of the trigger to run."},
+				},
+				"required":             []string{"envId", "triggerId"},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "get_trigger_logs",
+			Description: "Return the last 25 executions (scheduled or manual) of a periodic trigger, most recent first.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"envId":     map[string]any{"type": "string", "description": "Environment the trigger belongs to."},
+					"triggerId": map[string]any{"type": "string", "description": "ID of the trigger to read logs for."},
+				},
+				"required":             []string{"envId", "triggerId"},
+				"additionalProperties": false,
+			},
+		},
+		{
 			Name:        "list_teams",
 			Description: "Return all teams the authenticated user belongs to.",
 			InputSchema: map[string]any{
@@ -828,6 +916,118 @@ func mcpDeleteDomain(req *RequestContextMCP, args map[string]any) *shttp.Respons
 	req.setQuery(map[string]string{"domainId": domainID})
 
 	return HandlerDomainDelete(req.RequestContext)
+}
+
+func mcpListTriggers(req *RequestContextMCP, args map[string]any) *shttp.Response {
+	if resp := req.withEnv(args); resp != nil {
+		return resp
+	}
+
+	return handlerFunctionTriggersGet(req.RequestContext)
+}
+
+// triggerBodyFromArgs builds the request body shared by create_trigger and
+// update_trigger from the tool arguments. The headers map is forwarded as-is so
+// that shttp.Headers unmarshals it the same way the REST handler does.
+func triggerBodyFromArgs(args map[string]any) map[string]any {
+	options := map[string]any{
+		"method":  stringArg(args, "method"),
+		"url":     stringArg(args, "url"),
+		"payload": stringArg(args, "payload"),
+	}
+
+	if h, ok := args["headers"]; ok {
+		options["headers"] = h
+	}
+
+	return map[string]any{
+		"cron":    stringArg(args, "cron"),
+		"status":  boolArg(args, "status"),
+		"options": options,
+	}
+}
+
+func mcpCreateTrigger(req *RequestContextMCP, id any, args map[string]any) *shttp.Response {
+	if resp := req.withEnv(args); resp != nil {
+		return resp
+	}
+
+	if resp := req.setBody(id, triggerBodyFromArgs(args)); resp != nil {
+		return resp
+	}
+
+	return handlerFunctionTriggerCreate(req.RequestContext)
+}
+
+func mcpUpdateTrigger(req *RequestContextMCP, id any, args map[string]any) *shttp.Response {
+	if resp := req.withEnv(args); resp != nil {
+		return resp
+	}
+
+	triggerID := stringArg(args, "triggerId")
+
+	if utils.StringToID(triggerID) == 0 {
+		return shttp.BadRequest(map[string]any{"errors": []string{"triggerId must be a numeric ID"}})
+	}
+
+	body := triggerBodyFromArgs(args)
+	body["id"] = triggerID
+
+	if resp := req.setBody(id, body); resp != nil {
+		return resp
+	}
+
+	return handlerFunctionTriggerUpdate(req.RequestContext)
+}
+
+func mcpDeleteTrigger(req *RequestContextMCP, args map[string]any) *shttp.Response {
+	if resp := req.withEnv(args); resp != nil {
+		return resp
+	}
+
+	triggerID := stringArg(args, "triggerId")
+
+	if utils.StringToID(triggerID) == 0 {
+		return shttp.BadRequest(map[string]any{"errors": []string{"triggerId must be a numeric ID"}})
+	}
+
+	req.setQuery(map[string]string{"triggerId": triggerID})
+
+	return handlerFunctionTriggerDelete(req.RequestContext)
+}
+
+func mcpInvokeTrigger(req *RequestContextMCP, id any, args map[string]any) *shttp.Response {
+	if resp := req.withEnv(args); resp != nil {
+		return resp
+	}
+
+	triggerID := stringArg(args, "triggerId")
+
+	if utils.StringToID(triggerID) == 0 {
+		return shttp.BadRequest(map[string]any{"errors": []string{"triggerId must be a numeric ID"}})
+	}
+
+	if resp := req.setBody(id, map[string]any{"id": triggerID}); resp != nil {
+		return resp
+	}
+
+	return handlerFunctionTriggerInvoke(req.RequestContext)
+}
+
+func mcpGetTriggerLogs(req *RequestContextMCP, args map[string]any) *shttp.Response {
+	if resp := req.withEnv(args); resp != nil {
+		return resp
+	}
+
+	triggerID := stringArg(args, "triggerId")
+
+	if utils.StringToID(triggerID) == 0 {
+		return shttp.BadRequest(map[string]any{"errors": []string{"triggerId must be a numeric ID"}})
+	}
+
+	req.setQuery(map[string]string{"triggerId": triggerID})
+
+	return handlerFunctionTriggerLogsGet(req.RequestContext)
 }
 
 func mcpListDeployments(req *RequestContextMCP, args map[string]any) *shttp.Response {

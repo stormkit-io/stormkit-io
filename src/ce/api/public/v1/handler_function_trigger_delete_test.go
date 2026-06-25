@@ -1,4 +1,4 @@
-package functiontriggerhandlers_test
+package publicapiv1_test
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/functiontrigger"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/functiontrigger/functiontriggerhandlers"
+	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
@@ -42,9 +42,9 @@ func (s *HandlerFunctionTriggerDeleteSuite) Test_Delete() {
 	tf := s.MockTriggerFunction(env)
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(functiontriggerhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodDelete,
-		fmt.Sprintf("/apps/trigger?triggerId=%d&envId=%d&appId=%d", tf.ID, env.ID, app.ID),
+		fmt.Sprintf("/v1/trigger?triggerId=%d&envId=%d&appId=%d", tf.ID, env.ID, app.ID),
 		nil,
 		map[string]string{
 			"Authorization": usertest.Authorization(usr.ID),
@@ -64,9 +64,9 @@ func (s *HandlerFunctionTriggerDeleteSuite) Test_Permission() {
 	tf2 := s.MockTriggerFunction(env2)
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(functiontriggerhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodDelete,
-		fmt.Sprintf("/apps/trigger?triggerId=%d&envId=%d&appId=%d", tf2.ID, env.ID, app.ID),
+		fmt.Sprintf("/v1/trigger?triggerId=%d&envId=%d&appId=%d", tf2.ID, env.ID, app.ID),
 		nil,
 		map[string]string{
 			"Authorization": usertest.Authorization(usr.ID),

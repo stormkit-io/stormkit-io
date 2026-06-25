@@ -166,6 +166,18 @@ func mcpDispatch(req *RequestContextMCP, id any, params *toolCallParams) *shttp.
 		resp = mcpCreateDomain(req, id, params.Arguments)
 	case "delete_domain":
 		resp = mcpDeleteDomain(req, params.Arguments)
+	case "list_triggers":
+		resp = mcpListTriggers(req, params.Arguments)
+	case "create_trigger":
+		resp = mcpCreateTrigger(req, id, params.Arguments)
+	case "update_trigger":
+		resp = mcpUpdateTrigger(req, id, params.Arguments)
+	case "delete_trigger":
+		resp = mcpDeleteTrigger(req, params.Arguments)
+	case "invoke_trigger":
+		resp = mcpInvokeTrigger(req, id, params.Arguments)
+	case "get_trigger_logs":
+		resp = mcpGetTriggerLogs(req, params.Arguments)
 	case "list_teams":
 		resp = mcpListTeams(req)
 	case "create_team":

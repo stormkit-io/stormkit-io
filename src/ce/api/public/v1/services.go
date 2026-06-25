@@ -67,6 +67,16 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodPut, "/cert", WithAPIKey(HandlerCertPut, &Opts{MinimumScope: apikey.SCOPE_ENV})).
 		Handler(shttp.MethodDelete, "/cert", WithAPIKey(HandlerCertDelete, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
+	s.NewEndpoint("/v1/trigger").
+		Handler(shttp.MethodPost, "", WithAPIKey(handlerFunctionTriggerCreate, &Opts{MinimumScope: apikey.SCOPE_ENV})).
+		Handler(shttp.MethodPatch, "", WithAPIKey(handlerFunctionTriggerUpdate, &Opts{MinimumScope: apikey.SCOPE_ENV})).
+		Handler(shttp.MethodDelete, "", WithAPIKey(handlerFunctionTriggerDelete, &Opts{MinimumScope: apikey.SCOPE_ENV})).
+		Handler(shttp.MethodPost, "/invoke", WithAPIKey(handlerFunctionTriggerInvoke, &Opts{MinimumScope: apikey.SCOPE_ENV})).
+		Handler(shttp.MethodGet, "/logs", WithAPIKey(handlerFunctionTriggerLogsGet, &Opts{MinimumScope: apikey.SCOPE_ENV}))
+
+	s.NewEndpoint("/v1/triggers").
+		Handler(shttp.MethodGet, "", WithAPIKey(handlerFunctionTriggersGet, &Opts{MinimumScope: apikey.SCOPE_ENV}))
+
 	s.NewEndpoint("/v1/mail").
 		Handler(shttp.MethodPost, "", app.WithAPIKey(mailerhandlers.HandlerMail, &app.Opts{Env: true}))
 

@@ -1,15 +1,14 @@
-package functiontriggerhandlers
+package publicapiv1
 
 import (
 	"net/http"
 
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/functiontrigger"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 )
 
-func handlerFunctionTriggersGet(req *app.RequestContext) *shttp.Response {
-	triggers, err := functiontrigger.NewStore().List(req.Context(), req.EnvID)
+func handlerFunctionTriggersGet(req *RequestContext) *shttp.Response {
+	triggers, err := functiontrigger.NewStore().List(req.Context(), req.Env.ID)
 
 	if err != nil {
 		return shttp.Error(err)
