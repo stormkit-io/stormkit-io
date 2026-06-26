@@ -1,4 +1,4 @@
-package functiontriggerhandlers_test
+package publicapiv1_test
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/functiontrigger"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/functiontrigger/functiontriggerhandlers"
+	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
@@ -62,9 +62,9 @@ func (s *HandlerFunctionTriggerInvokeSuite) Test_Invoke() {
 	}, nil).Once()
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(functiontriggerhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodPost,
-		"/apps/trigger/invoke",
+		"/v1/trigger/invoke",
 		map[string]any{
 			"id":    tf.ID.String(),
 			"envId": env.ID.String(),
@@ -93,9 +93,9 @@ func (s *HandlerFunctionTriggerInvokeSuite) Test_Permission() {
 	tf2 := s.MockTriggerFunction(env2)
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(functiontriggerhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodPost,
-		"/apps/trigger/invoke",
+		"/v1/trigger/invoke",
 		map[string]any{
 			"id":    tf2.ID.String(),
 			"envId": env.ID.String(),
@@ -112,6 +112,54 @@ func (s *HandlerFunctionTriggerInvokeSuite) Test_Permission() {
 
 	s.NoError(err)
 	s.Len(logs, 0)
+}
+
+func (s *HandlerFunctionTriggerInvokeSuite) Test_MasksHeadersInResponse() {
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+	headers := shttp.Headers{"Authorization": "Bearer secret-token"}
+	tf := s.MockTriggerFunction(env, map[string]any{
+		"Options": functiontrigger.Options{URL: "https://example.org", Headers: headers},
+	})
+
+	s.mockRequest.On("URL", "https://example.org").Return(s.mockRequest).Once()
+	s.mockRequest.On("Method", "GET").Return(s.mockRequest).Once()
+	s.mockRequest.On("Headers", headers.Make()).Return(s.mockRequest).Once()
+	s.mockRequest.On("Payload", []byte(nil)).Return(s.mockRequest).Once()
+	s.mockRequest.On("Do").Return(&shttp.HTTPResponse{
+		Response: &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader("pong")),
+			Header:     make(http.Header),
+		},
+	}, nil).Once()
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/v1/trigger/invoke",
+		map[string]any{
+			"id":    tf.ID.String(),
+			"envId": env.ID.String(),
+			"appId": app.ID.String(),
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+
+	str := response.String()
+
+	s.Equal(http.StatusOK, response.Code)
+	s.NotContains(str, "secret-token")
+	s.Contains(str, `"Authorization":""`)
+
+	// The stored log keeps the real header value; masking is a read-time concern.
+	stored, err := functiontrigger.NewStore().Logs(context.Background(), tf.ID)
+	s.NoError(err)
+	s.Require().Len(stored, 1)
+	s.Equal("Bearer secret-token", stored[0].Request["headers"].(map[string]any)["Authorization"])
 }
 
 func TestHandlerInvokeTrigger(t *testing.T) {

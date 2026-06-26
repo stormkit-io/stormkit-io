@@ -7,7 +7,7 @@ description: Connect Claude and other MCP clients to Stormkit to deploy and mana
 
 ## Overview
 
-Stormkit ships a built-in [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server. It exposes Stormkit operations — deployments, apps, environments, domains and teams — as tools that MCP clients such as Claude Code can call directly.
+Stormkit ships a built-in [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server. It exposes Stormkit operations — deployments, apps, environments, domains, periodic triggers and teams — as tools that MCP clients such as Claude Code can call directly.
 
 The server speaks the **Streamable HTTP** transport (protocol revision `2025-11-25`): a single `POST /v1/mcp` endpoint handles all client→server messages, and an optional `GET /v1/mcp` SSE stream carries server→client keep-alives.
 
@@ -104,6 +104,17 @@ All tools return JSON. Errors are reported as MCP `isError` content while the tr
 | `list_domains`  | List domains attached to an environment.|
 | `create_domain` | Attach a custom domain to an environment.|
 | `delete_domain` | Remove a domain from an environment.    |
+
+### Triggers
+
+| Tool               | Description                                                                  |
+| ------------------ | --------------------------------------------------------------------------- |
+| `list_triggers`    | List periodic triggers configured for an environment.                       |
+| `create_trigger`   | Create a periodic trigger that calls a URL on a cron schedule (UTC).         |
+| `update_trigger`   | Update an existing periodic trigger.                                         |
+| `delete_trigger`   | Delete a periodic trigger.                                                   |
+| `invoke_trigger`   | Run a trigger immediately and return the execution log.                      |
+| `get_trigger_logs` | Return the last 25 executions (scheduled or manual) of a trigger.           |
 
 ### Teams
 

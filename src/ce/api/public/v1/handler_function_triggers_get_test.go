@@ -1,4 +1,4 @@
-package functiontriggerhandlers_test
+package publicapiv1_test
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/functiontrigger"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/functiontrigger/functiontriggerhandlers"
+	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
@@ -50,9 +50,9 @@ func (s *HandlerTriggerFunctionGetSuite) Test_Success() {
 	})
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(functiontriggerhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodGet,
-		fmt.Sprintf("/apps/triggers?appId=%d&envId=%d", app.ID, env.ID),
+		fmt.Sprintf("/v1/triggers?appId=%d&envId=%d", app.ID, env.ID),
 		nil,
 		map[string]string{
 			"Authorization": usertest.Authorization(usr.ID),
@@ -77,6 +77,36 @@ func (s *HandlerTriggerFunctionGetSuite) Test_Success() {
 
 	s.Equal(http.StatusOK, response.Code)
 	s.JSONEq(expected, response.String())
+}
+
+func (s *HandlerTriggerFunctionGetSuite) Test_MasksHeaders() {
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+
+	s.MockTriggerFunction(env, map[string]any{
+		"Options": functiontrigger.Options{
+			Method:  "GET",
+			URL:     "https://example.org",
+			Headers: shttp.Headers{"Authorization": "Bearer secret-token"},
+		},
+	})
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodGet,
+		fmt.Sprintf("/v1/triggers?appId=%d&envId=%d", app.ID, env.ID),
+		nil,
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+
+	str := response.String()
+
+	s.Equal(http.StatusOK, response.Code)
+	s.NotContains(str, "secret-token")
+	s.Contains(str, `"Authorization":""`)
 }
 
 func TestHandlerTrigger(t *testing.T) {

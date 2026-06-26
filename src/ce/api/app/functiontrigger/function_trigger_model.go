@@ -4,6 +4,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
+	"maps"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
@@ -46,7 +47,28 @@ type FunctionTrigger struct {
 	UpdatedAt utils.Unix `json:"-"`
 }
 
-// MarshalJSON implements the marshaler interface.
+// MaskHeaders returns a copy of headers with every VALUE blanked (keys kept).
+// Trigger headers routinely carry secrets (Authorization, API keys), so this is
+// the single masking rule applied wherever a trigger or its logs are serialized
+// to a client — values are never exposed in plaintext outside the stored record
+// itself. nil in, nil out.
+func MaskHeaders(h shttp.Headers) shttp.Headers {
+	if h == nil {
+		return nil
+	}
+
+	masked := make(shttp.Headers, len(h))
+
+	for k := range h {
+		masked[k] = ""
+	}
+
+	return masked
+}
+
+// ToMap returns the client-ready representation of a trigger with header values
+// masked. Internal consumers that need the real headers read Options.Headers
+// directly and never go through here.
 func (t *FunctionTrigger) ToMap() map[string]any {
 	return map[string]any{
 		"id":        t.ID.String(),
@@ -56,7 +78,7 @@ func (t *FunctionTrigger) ToMap() map[string]any {
 		"nextRunAt": t.NextRunAt.Unix(),
 		"options": map[string]any{
 			"url":     t.Options.URL,
-			"headers": t.Options.Headers,
+			"headers": MaskHeaders(t.Options.Headers),
 			"method":  t.Options.Method,
 			"payload": string(t.Options.Payload),
 		},
@@ -69,4 +91,50 @@ type TriggerLog struct {
 	Request   utils.Map  `json:"request"`
 	Response  utils.Map  `json:"response"`
 	CreatedAt utils.Unix `json:"createdAt"`
+}
+
+// Masked returns a copy of the log with the request header values blanked so a
+// trigger's secret headers are never returned to a client. The request map is
+// copied shallowly except for the rebuilt headers entry, leaving the original
+// (and the stored row) untouched.
+func (l TriggerLog) Masked() TriggerLog {
+	if l.Request == nil {
+		return l
+	}
+
+	headers, ok := l.Request["headers"]
+
+	if !ok {
+		return l
+	}
+
+	request := make(utils.Map, len(l.Request))
+	maps.Copy(request, l.Request)
+
+	request["headers"] = maskHeaderValues(headers)
+	l.Request = request
+
+	return l
+}
+
+// maskHeaderValues blanks every value of a headers map regardless of the
+// concrete type it carries — shttp.Headers when freshly built in-process, or
+// map[string]any after a JSON round-trip out of the database.
+func maskHeaderValues(headers any) any {
+	switch h := headers.(type) {
+	case shttp.Headers:
+		return MaskHeaders(h)
+	case map[string]string:
+		return MaskHeaders(shttp.Headers(h))
+	case map[string]any:
+		masked := make(map[string]any, len(h))
+
+		for k := range h {
+			masked[k] = ""
+		}
+
+		return masked
+	default:
+		return headers
+	}
 }

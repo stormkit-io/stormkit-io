@@ -1,4 +1,4 @@
-package functiontriggerhandlers_test
+package publicapiv1_test
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/functiontrigger"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/functiontrigger/functiontriggerhandlers"
+	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
@@ -48,9 +48,9 @@ func (s *HandlerFunctionTriggerUpdateSuite) Test_Success() {
 	}`
 
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(functiontriggerhandlers.Services).Router().Handler(),
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
 		shttp.MethodPatch,
-		"/apps/trigger",
+		"/v1/trigger",
 		map[string]any{
 			"id":     tf.ID.String(),
 			"appId":  app.ID.String(),
@@ -84,24 +84,57 @@ func (s *HandlerFunctionTriggerUpdateSuite) Test_Success() {
 	s.Equal(string(record.Cron), "5 5 * * *")
 }
 
-func (s *HandlerFunctionTriggerUpdateSuite) Test_FailValidation() {
+func (s *HandlerFunctionTriggerUpdateSuite) Test_Permission() {
 	usr := s.MockUser()
 	app := s.MockApp(usr)
 	env := s.MockEnv(app)
 
+	app2 := s.MockApp(usr)
+	env2 := s.MockEnv(app2)
+	tf2 := s.MockTriggerFunction(env2)
+
 	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(functiontriggerhandlers.Services).Router().Handler(),
-		shttp.MethodPost,
-		"/apps/trigger",
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodPatch,
+		"/v1/trigger",
 		map[string]any{
-			"appId":    app.ID.String(),
-			"envId":    env.ID.String(),
-			"cron":     "X * * * *",
-			"timeZone": "Europe/Dublin",
+			"id":     tf2.ID.String(),
+			"appId":  app.ID.String(),
+			"envId":  env.ID.String(),
+			"cron":   "5 5 * * *",
+			"status": true,
 			"options": map[string]any{
-				"method":  "GET",
-				"headers": "name=can;surname=eldem",
-				"url":     "https://can.com/",
+				"method": "GET",
+				"url":    "https://test.com/",
+			},
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusNotFound, response.Code)
+}
+
+func (s *HandlerFunctionTriggerUpdateSuite) Test_FailValidation() {
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+	tf := s.MockTriggerFunction(env)
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodPatch,
+		"/v1/trigger",
+		map[string]any{
+			"id":     tf.ID.String(),
+			"appId":  app.ID.String(),
+			"envId":  env.ID.String(),
+			"cron":   "X * * * *",
+			"status": true,
+			"options": map[string]any{
+				"method": "GET",
+				"url":    "not-a-url",
 			},
 		},
 		map[string]string{

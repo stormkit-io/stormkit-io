@@ -26,7 +26,7 @@ export const useFetchFunctionTriggers = ({
 
     api
       .fetch<{ triggers: FunctionTrigger[] }>(
-        `/apps/triggers?appId=${appId}&envId=${environmentId}`
+        `/v1/triggers?appId=${appId}&envId=${environmentId}`
       )
       .then(({ triggers }) => {
         setTriggers(triggers);
@@ -58,7 +58,7 @@ export function deleteFunctionTrigger({
   envId,
 }: DeleteFunctionTriggerProps): Promise<void> {
   return api.delete(
-    `/apps/trigger?triggerId=${tfid}&appId=${appId}&envId=${envId}`
+    `/v1/trigger?triggerId=${tfid}&appId=${appId}&envId=${envId}`
   );
 }
 
@@ -73,7 +73,7 @@ export function invokeFunctionTrigger({
   appId,
   envId,
 }: InvokeFunctionTriggerProps): Promise<void> {
-  return api.post(`/apps/trigger/invoke`, {
+  return api.post(`/v1/trigger/invoke`, {
     id: tfid,
     appId,
     envId,
@@ -105,7 +105,7 @@ export function createFunctionTrigger({
     return Promise.reject("Url cannot be empty.");
   }
 
-  return api.post(`/apps/trigger`, {
+  return api.post(`/v1/trigger`, {
     appId,
     envId,
     cron,
@@ -139,7 +139,7 @@ export const updateFunctionTrigger = ({
     return Promise.reject("Cron cannot be empty.");
   }
 
-  return api.patch(`/apps/trigger`, {
+  return api.patch(`/v1/trigger`, {
     id: tfid,
     appId,
     envId,
@@ -205,7 +205,7 @@ export const useFetchTriggerLogs = ({
 
     api
       .fetch<{ logs: TriggerLog[] }>(
-        `/apps/trigger/logs?appId=${appId}&envId=${envId}&triggerId=${triggerId}`
+        `/v1/trigger/logs?appId=${appId}&envId=${envId}&triggerId=${triggerId}`
       )
       .then(({ logs }) => {
         setLogs(logs);

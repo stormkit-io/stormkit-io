@@ -1,15 +1,14 @@
-package functiontriggerhandlers
+package publicapiv1
 
 import (
 	"net/http"
 
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/functiontrigger"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 )
 
-func handlerFunctionTriggerInvoke(req *app.RequestContext) *shttp.Response {
+func handlerFunctionTriggerInvoke(req *RequestContext) *shttp.Response {
 	body := struct {
 		ID types.ID `json:"id,string"`
 	}{}
@@ -30,7 +29,7 @@ func handlerFunctionTriggerInvoke(req *app.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	if trigger == nil || trigger.EnvID != req.EnvID {
+	if trigger == nil || trigger.EnvID != req.Env.ID {
 		return shttp.NotFound()
 	}
 
@@ -49,7 +48,7 @@ func handlerFunctionTriggerInvoke(req *app.RequestContext) *shttp.Response {
 	return &shttp.Response{
 		Status: http.StatusOK,
 		Data: map[string]any{
-			"log": log,
+			"log": log.Masked(),
 		},
 	}
 }
