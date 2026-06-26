@@ -1,5 +1,27 @@
 # Changelog
 
+## v2026.06.23.1...v2026.06.24.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.06.23.1...v2026.06.24.1)
+
+### 🚀 Enhancements
+
+- Add claude code plugin and marketplace ([#315](https://github.com/stormkit-io/stormkit-io/pull/315))
+- Add mcp docs page ([#316](https://github.com/stormkit-io/stormkit-io/pull/316))
+- Add trigger now action for function triggers ([#318](https://github.com/stormkit-io/stormkit-io/pull/318))
+
+### 🩹 Fixes
+
+- Add client-side /mcp route for docs alias ([#317](https://github.com/stormkit-io/stormkit-io/pull/317))
+
+### 🏡 Chore
+
+- Update changelog for v2026.06.23.1 ([#313](https://github.com/stormkit-io/stormkit-io/pull/313))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.06.20.3...v2026.06.23.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.06.20.3...v2026.06.23.1)
