@@ -17,9 +17,11 @@ type statement struct {
 	selectOldOrDeletedDeployments   string
 	removeOldLogs                   string
 	removeOldAnalytics              string
+	removeOldAnalyticsEvents        string
 	syncAnalyticsVisitors           string
 	syncAnalyticsReferrers          string
 	syncAnalyticsCountries          string
+	syncAnalyticsEvents             string
 	selectUserIDsWithoutAPIKeys     string
 	selectStaleSchemas              string
 	clearSchemaConf                 string
@@ -49,6 +51,15 @@ var stmt = &statement{
 			SELECT ctid
 			FROM analytics
 			WHERE request_timestamp < now() - make_interval(days => $1)
+			LIMIT $2
+		)
+	`,
+	removeOldAnalyticsEvents: `
+		DELETE FROM analytics_events
+		WHERE ctid IN (
+			SELECT ctid
+			FROM analytics_events
+			WHERE event_ts < now() - make_interval(days => $1)
 			LIMIT $2
 		)
 	`,
@@ -212,6 +223,28 @@ var stmt = &statement{
 			(aggregate_date, country_iso_code, domain_id)
 		DO UPDATE SET
 			visit_count = EXCLUDED.visit_count;
+	`,
+
+	syncAnalyticsEvents: `
+		INSERT INTO analytics_events_agg
+			(aggregate_date, domain_id, event_name, total_count, unique_actors)
+			SELECT
+				DATE(e.event_ts) AS agg_date,
+				e.domain_id,
+				e.event_name,
+				COUNT(*) AS total_count,
+				COUNT(DISTINCT e.visitor_id) AS unique_actors
+			FROM analytics_events e
+			WHERE
+				e.domain_id IS NOT NULL AND
+				e.event_ts >= current_date - interval '1 days'
+			GROUP BY
+				agg_date, e.domain_id, e.event_name
+		ON CONFLICT
+			(aggregate_date, domain_id, event_name)
+		DO UPDATE SET
+			total_count = EXCLUDED.total_count,
+			unique_actors = EXCLUDED.unique_actors;
 	`,
 
 	selectStaleSchemas: `

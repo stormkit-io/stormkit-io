@@ -87,6 +87,7 @@ func (s *Scheduler) RegisterMasterTasks(ctx context.Context) {
 		{Handler: SyncAnalyticsVisitorsDaily, Def: daily, Opt: immediate},
 		{Handler: SyncAnalyticsReferrers, Def: dj(EVERY_HOUR), Opt: immediate},
 		{Handler: SyncAnalyticsByCountries, Def: dj(EVERY_HOUR), Opt: immediate},
+		{Handler: SyncAnalyticsEvents, Def: dj(EVERY_HOUR), Opt: immediate},
 		{Handler: CleanupDeletedTeams, Def: dj(EVERY_HOUR), Opt: immediate},
 		{Handler: PingDomains, Def: dj(EVERY_MINUTE), Opt: immediate},
 		{Handler: TimedOutDeployments, Def: dj(EVERY_MINUTE), Opt: immediate},
