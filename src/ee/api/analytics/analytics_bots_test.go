@@ -1,6 +1,8 @@
 package analytics_test
 
 import (
+	"encoding/json"
+	"os"
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/ee/api/analytics"
@@ -128,6 +130,44 @@ func (s *BotsSuite) Test_IsBot_CaseInsensitive() {
 	for _, userAgent := range testCases {
 		s.True(analytics.IsBot(userAgent), "Should detect '%s' as a bot (case insensitive)", userAgent)
 	}
+}
+
+func (s *BotsSuite) Test_IsBot_DetectsStormkitPinger() {
+	// The domain health pinger (see job_domains.go) must not inflate analytics.
+	s.True(analytics.IsBot("StormkitBot/1.0 (+https://www.stormkit.io)"))
+}
+
+// Test_IsBot_DetectsVendoredInstances asserts every example user agent shipped
+// with the vendored crawler dataset is detected, guarding against the combined
+// pattern silently dropping coverage. Patterns we deliberately exclude (because
+// they collide with real in-app browsers) are skipped.
+func (s *BotsSuite) Test_IsBot_DetectsVendoredInstances() {
+	data, err := os.ReadFile("crawler_user_agents.json")
+	s.Require().NoError(err)
+
+	var entries []struct {
+		Pattern   string   `json:"pattern"`
+		Instances []string `json:"instances"`
+	}
+
+	s.Require().NoError(json.Unmarshal(data, &entries))
+
+	excluded := map[string]bool{"Viber": true}
+	missed := []string{}
+
+	for _, entry := range entries {
+		if excluded[entry.Pattern] {
+			continue
+		}
+
+		for _, ua := range entry.Instances {
+			if ua != "" && !analytics.IsBot(ua) {
+				missed = append(missed, ua)
+			}
+		}
+	}
+
+	s.Empty(missed, "vendored bot instances not detected: %v", missed)
 }
 
 func TestBotsSuite(t *testing.T) {
