@@ -16,6 +16,7 @@ type statement struct {
 	selectTimedOutDeployments       string
 	selectOldOrDeletedDeployments   string
 	removeOldLogs                   string
+	removeOldAnalytics              string
 	syncAnalyticsVisitors           string
 	syncAnalyticsReferrers          string
 	syncAnalyticsCountries          string
@@ -42,6 +43,15 @@ var stmt = &statement{
        WHERE
          to_timestamp(timestamp)::date < now() - interval '30 days'
 	`, tableLogs),
+	removeOldAnalytics: `
+		DELETE FROM analytics
+		WHERE ctid IN (
+			SELECT ctid
+			FROM analytics
+			WHERE request_timestamp < now() - make_interval(days => $1)
+			LIMIT $2
+		)
+	`,
 	deleteStaleEnvironments: fmt.Sprintf(`
 		DELETE FROM %s
 		WHERE env_id IN (
