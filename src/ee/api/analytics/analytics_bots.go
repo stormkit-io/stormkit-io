@@ -1,142 +1,174 @@
 package analytics
 
 import (
+	_ "embed"
+	"encoding/json"
 	"regexp"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 )
 
-// These values are extracted from our analytics database
-var BotList = []string{
+// crawlerUserAgents is the vendored monperrus/crawler-user-agents dataset (MIT,
+// see crawler_user_agents_LICENSE). Refresh it with:
+//
+//	go generate ./src/ee/api/analytics/...
+//
+//go:generate sh -c "curl -sSL https://raw.githubusercontent.com/monperrus/crawler-user-agents/master/crawler-user-agents.json -o crawler_user_agents.json"
+//go:embed crawler_user_agents.json
+var crawlerUserAgents []byte
+
+// knownBots is a supplementary, hand-curated list of agents found in our own
+// analytics database that the vendored crawler dataset does not cover — mostly
+// uptime monitors and niche preview/link checkers. General crawlers and generic
+// HTTP clients are intentionally NOT listed here; they are handled by
+// crawlerUserAgents and keywordPatterns respectively. Matched as
+// case-insensitive substrings.
+var knownBots = []string{
 	"amazon-kendra",
-	"Apache-HttpClient/",
 	"ask jeeves",
-	"Atlassian",
-	"Baidu",
-	"Bing",
-	"ChangeDetection",
-	"coccoc",
 	"curious george",
-	"Daum",
-	"Daumoa",
-	"dcrawl",
-	"Expanse",
-	"Facebook",
-	"facebookexternalhit",
 	"FeedDemon",
-	"Feedfetcher-Google",
-	"GitHub",
 	"GitLab",
 	"GoodLinks",
-	"Google",
-	"Google-Site-Verification",
-	"Go-http-client",
-	"Grammarly",
-	"HTTrack",
-	"ia_archiver",
 	"infoseek",
-	"Java/",
-	"keycdn-tools",
 	"Lenns.io",
-	"libwww-perl",
 	"LinkValidator",
 	"lychee", // https://github.com/lycheeverse/lychee
 	"Lycos",
 	"ManicTime",
-	"Microsoft",
 	"Mozlila", // https://trunc.org/learning/the-mozlila-user-agent-bot
 	"msray-plus",
-	"Naver",
-	"NetcraftSurveyAgent",
 	"NetworkingExtension",
-	"Nutch",
-	"Pandalytics",
 	"Pulsetic.com",
-	"Python-urllib",
-	"python-",
-	"Python/",
-	"quic-go-HTTP",
-	"Qwantify",
-	"Scrapy",
 	"search.marginalia.nu",
-	"SEOlizer",
-	"Slack-ImgProxy",
-	"Slack",
-	"Sogou",
+	"Stormkit", // our own domain health pinger (StormkitBot) and internal agents
 	"Teleport Pro",
 	"TeleportPro",
-	"Teoma",
 	"Tines",
-	"Twitter",
 	"upptime.js.org",
-	"WeSEE",
-	"WhatsApp",
-	"Xpanse",
 	"XML-Sitemaps",
 	"Y!J-ASR",
 	"Y!J-BSC",
-	"Yahoo",
-	"Yandex",
-	"Yeti",
-	"ZyBorg",
 }
 
-func init() {
-	for i := range BotList {
-		BotList[i] = strings.ToLower(BotList[i])
-	}
+// overBroadCrawlerPatterns are vendored patterns we drop because their bare
+// token also appears in real in-app browser user agents (e.g. the Viber
+// webview), which we count as genuine visitors rather than bots.
+var overBroadCrawlerPatterns = map[string]bool{
+	"Viber": true,
 }
 
-// Additional patterns for more sophisticated bot detection
-var botPatterns = []*regexp.Regexp{
+// keywordPatterns catch generic non-browser clients and automation tooling that
+// are not enumerated by name in either list above.
+var keywordPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)(bot|crawler|spider|scraper|fetch|monitor|check|test)\b`),
 	regexp.MustCompile(`(?i)\b(curl|wget|http|client|java|python|go-http|ruby|php)\b`),
 	regexp.MustCompile(`(?i)\b(headless|phantom|selenium|playwright)\b`),
 	regexp.MustCompile(`(?i)\b(uptime|monitor|ping|health|status)\b`),
 }
 
-// Suspicious user agent patterns
-func hasSuspiciousPatterns(userAgent string) bool {
-	// Too short user agents are often bots
-	if len(userAgent) < 10 {
-		return true
-	}
-
-	// Missing common browser indicators
-	if !strings.Contains(userAgent, "mozilla") &&
-		!strings.Contains(userAgent, "webkit") &&
-		!strings.Contains(userAgent, "gecko") {
-		return true
-	}
-
-	return false
+// botDetector classifies user agents as bots using three independent layers:
+// the vendored crawler dataset, a hand-curated supplementary list, and generic
+// keyword heuristics. Any layer matching is sufficient.
+type botDetector struct {
+	crawlerPattern  *regexp.Regexp
+	keywordPatterns []*regexp.Regexp
+	knownBots       []string
 }
 
-func IsBot(userAgent string) bool {
+func newBotDetector() *botDetector {
+	d := &botDetector{
+		keywordPatterns: keywordPatterns,
+		knownBots:       make([]string, len(knownBots)),
+	}
+
+	for i, bot := range knownBots {
+		d.knownBots[i] = strings.ToLower(bot)
+	}
+
+	d.crawlerPattern = compileCrawlerPattern(crawlerUserAgents)
+
+	return d
+}
+
+// compileCrawlerPattern parses the vendored dataset and combines every valid
+// pattern into a single case-insensitive alternation, so matching is one regex
+// execution per request rather than one per entry. Patterns that fail to
+// compile (e.g. non-RE2 constructs) are skipped individually.
+func compileCrawlerPattern(data []byte) *regexp.Regexp {
+	var entries []struct {
+		Pattern string `json:"pattern"`
+	}
+
+	if err := json.Unmarshal(data, &entries); err != nil {
+		slog.Errorf("could not parse crawler user agents dataset: %v", err)
+		return nil
+	}
+
+	valid := make([]string, 0, len(entries))
+	seen := map[string]bool{}
+
+	for _, entry := range entries {
+		if entry.Pattern == "" || seen[entry.Pattern] || overBroadCrawlerPatterns[entry.Pattern] {
+			continue
+		}
+
+		if _, err := regexp.Compile(entry.Pattern); err != nil {
+			continue
+		}
+
+		seen[entry.Pattern] = true
+		valid = append(valid, "(?:"+entry.Pattern+")")
+	}
+
+	if len(valid) == 0 {
+		return nil
+	}
+
+	combined, err := regexp.Compile("(?i)" + strings.Join(valid, "|"))
+
+	if err != nil {
+		slog.Errorf("could not compile combined crawler pattern: %v", err)
+		return nil
+	}
+
+	return combined
+}
+
+func (d *botDetector) isBot(userAgent string) bool {
 	if userAgent == "" {
 		return true
 	}
 
-	if !hasSuspiciousPatterns(userAgent) {
-		return false
+	if d.crawlerPattern != nil && d.crawlerPattern.MatchString(userAgent) {
+		return true
 	}
 
-	// Check against regex patterns
-	for _, pattern := range botPatterns {
+	for _, pattern := range d.keywordPatterns {
 		if pattern.MatchString(userAgent) {
 			return true
 		}
 	}
 
-	userAgent = strings.ToLower(userAgent)
+	lower := strings.ToLower(userAgent)
 
-	for _, bot := range BotList {
-		if strings.Contains(userAgent, bot) {
+	for _, bot := range d.knownBots {
+		if strings.Contains(lower, bot) {
 			return true
 		}
 	}
 
 	return false
+}
+
+var defaultBotDetector = newBotDetector()
+
+// IsBot reports whether the user agent belongs to a known crawler, automation
+// tool, or other non-human client that should be excluded from analytics.
+func IsBot(userAgent string) bool {
+	return defaultBotDetector.isBot(userAgent)
 }
 
 func IsUtf8(str string) bool {
