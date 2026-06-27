@@ -26,6 +26,25 @@ func (s *Store) RemoveOldLogs(ctx context.Context) error {
 	return err
 }
 
+// RemoveOldAnalyticsParams configures a single batched deletion of raw
+// analytics rows older than the retention window.
+type RemoveOldAnalyticsParams struct {
+	RetentionDays int
+	BatchSize     int
+}
+
+// RemoveOldAnalytics deletes up to BatchSize raw analytics rows older than
+// RetentionDays and returns the number of rows removed.
+func (s *Store) RemoveOldAnalytics(ctx context.Context, p RemoveOldAnalyticsParams) (int64, error) {
+	res, err := s.Exec(ctx, stmt.removeOldAnalytics, p.RetentionDays, p.BatchSize)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return res.RowsAffected()
+}
+
 // MarkDeploymentArtifactsDeleted marks the deployment and its artifacts as deleted.
 func (s *Store) MarkDeploymentArtifactsDeleted(ctx context.Context, ids []types.ID) error {
 	_, err := s.Exec(ctx, stmt.markDeploymentArtifactsDeleted, pq.Array(ids))

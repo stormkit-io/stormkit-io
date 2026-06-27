@@ -54,15 +54,45 @@ func IngestHandlerForward(ctx context.Context) error {
 		rows = 1000
 	}
 
-	msgs, err := client.LPopCount(ctx, HostingQueueName, rows).Result()
+	// Drain several batches per tick instead of a single LPopCount, so the
+	// worker keeps up when records arrive faster than one batch per interval.
+	// Bounded by maxBatchesPerTick to avoid starving the scheduler.
+	const maxBatchesPerTick = 20
 
-	if rediscache.IsConnectionError(err) {
-		return err
+	msgs := []string{}
+
+	for range maxBatchesPerTick {
+		batch, err := client.LPopCount(ctx, HostingQueueName, rows).Result()
+
+		if rediscache.IsConnectionError(err) {
+			return err
+		}
+
+		if err != nil && !errors.Is(err, redis.Nil) {
+			// Stop draining but fall through to insert whatever was already
+			// popped: earlier batches are gone from the queue, so returning
+			// here would drop those records.
+			slog.Errorf("error while popping from redis: %v", err)
+			break
+		}
+
+		if len(batch) == 0 {
+			break
+		}
+
+		msgs = append(msgs, batch...)
+
+		if len(batch) < rows {
+			break
+		}
 	}
 
-	if err != nil && !errors.Is(err, redis.Nil) {
-		slog.Errorf("error while popping from redis: %v", err)
-		return err
+	// If we drained the full per-tick budget there may still be a backlog;
+	// surface it so queue depth is observable rather than silently growing.
+	if len(msgs) >= rows*maxBatchesPerTick {
+		if depth, err := client.LLen(ctx, HostingQueueName).Result(); err == nil && depth > 0 {
+			slog.Errorf("hosting queue backlog: %d records still pending after draining %d", depth, len(msgs))
+		}
 	}
 
 	for _, msg := range msgs {

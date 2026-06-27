@@ -117,27 +117,26 @@ func (s *JobHandlerForwardTest) Test_IngestHandlerForward_MultipleRecords() {
 	s.Equal(int64(0), length)
 }
 
-func (s *JobHandlerForwardTest) Test_IngestHandlerForward_BatchLimit() {
+func (s *JobHandlerForwardTest) Test_IngestHandlerForward_DrainsMultipleBatches() {
 	s.T().Setenv("STORMKIT_HOSTING_QUEUE_BATCH_SIZE", "100")
 
-	// Push more than 100 records to test batch limit
-	for i := 0; i < 150; i++ {
+	// Push more than one batch worth of records. A single invocation drains
+	// several batches per tick (bounded by maxBatchesPerTick), so the whole
+	// queue is consumed rather than leaving a backlog after one batch.
+	for i := range 150 {
 		record := s.createTestRecord()
 		record.AppID = types.ID(i)
 		s.pushToQueue(record)
 	}
 
-	// Verify we have 150 records in queue
 	length := s.client.LLen(s.ctx, jobs.HostingQueueName).Val()
 	s.Equal(int64(150), length)
 
-	// Process the queue (should only process 100)
 	err := jobs.IngestHandlerForward(s.ctx)
 	s.NoError(err)
 
-	// Verify 50 records remain in queue
 	remainingLength := s.client.LLen(s.ctx, jobs.HostingQueueName).Val()
-	s.Equal(int64(50), remainingLength)
+	s.Equal(int64(0), remainingLength)
 }
 
 func (s *JobHandlerForwardTest) Test_IngestHandlerForward_RecordWithoutAnalytics() {

@@ -80,6 +80,7 @@ func (s *Scheduler) RegisterMasterTasks(ctx context.Context) {
 	tasks := []TaskDefinition{
 		{Handler: InvokeDueFunctionTriggers, Def: dj(EVERY_MINUTE), Opt: immediate},
 		{Handler: RemoveOldLogs, Def: dj(EVERY_HOUR * 2), Opt: immediate},
+		{Handler: RemoveOldAnalytics, Def: dj(EVERY_6_HOURS), Opt: immediate},
 		{Handler: RemoveStaleEnvironments, Def: dj(EVERY_6_HOURS), Opt: immediate},
 		{Handler: RemoveDeploymentArtifacts, Def: dj(EVERY_6_HOURS), Opt: immediate},
 		{Handler: SyncAnalyticsVisitorsHourly, Def: dj(EVERY_MINUTE * 5), Opt: immediate},
