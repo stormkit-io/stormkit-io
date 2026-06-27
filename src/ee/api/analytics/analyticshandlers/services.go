@@ -19,7 +19,8 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodGet, "/visitors", app.WithApp(handlerVisitors, opts)).
 		Handler(shttp.MethodGet, "/referrers", app.WithApp(handlerTopReferrers, opts)).
 		Handler(shttp.MethodGet, "/paths", app.WithApp(handlerTopPaths, opts)).
-		Handler(shttp.MethodGet, "/countries", app.WithApp(handlerCountries, opts))
+		Handler(shttp.MethodGet, "/countries", app.WithApp(handlerCountries, opts)).
+		Handler(shttp.MethodGet, "/events", app.WithApp(handlerEvents, opts))
 
 	return s
 }

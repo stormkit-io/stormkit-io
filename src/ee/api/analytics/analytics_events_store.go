@@ -8,7 +8,6 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
-	"gopkg.in/guregu/null.v3"
 )
 
 const insertEventsColumns = `
@@ -20,6 +19,8 @@ const insertEventsColumns = `
 // NOTE: unique_actors is summed across daily aggregates, so a visitor active on
 // multiple days is counted once per day (i.e. unique actor-days, not unique
 // actors over the whole window).
+// NOTE: event_name cardinality is client-controlled, so the result is capped at
+// the 100 highest-count events; lower-count events are omitted from the window.
 const selectEvents = `
 	SELECT
 		event_name,
@@ -56,13 +57,13 @@ func (s *Store) InsertEvents(ctx context.Context, events []Event) error {
 		params = append(params,
 			event.AppID,
 			event.EnvID,
-			nullableID(event.DomainID),
-			nullableString(event.VisitorID),
+			event.DomainID,
+			event.VisitorID,
 			event.EventName,
-			nullableString(event.RequestPath),
+			event.RequestPath,
 			event.EventTS.UTC(),
-			nullableString(event.RequestID),
-			metadataValue(event.Metadata),
+			event.RequestID,
+			event.Metadata,
 		)
 	}
 
@@ -86,6 +87,7 @@ type EventCount struct {
 // Events returns custom event counts for a domain over the requested span.
 func (s *Store) Events(ctx context.Context, args EventsArgs) ([]EventCount, error) {
 	days := map[string]int{
+		SPAN_24h: 1,
 		SPAN_7D:  7,
 		SPAN_30D: 30,
 	}[args.Span]
@@ -120,28 +122,4 @@ func (s *Store) Events(ctx context.Context, args EventsArgs) ([]EventCount, erro
 	}
 
 	return events, nil
-}
-
-func nullableID(id types.ID) any {
-	if id == 0 {
-		return nil
-	}
-
-	return id
-}
-
-func nullableString(value string) any {
-	if value == "" {
-		return nil
-	}
-
-	return value
-}
-
-func metadataValue(metadata null.String) any {
-	if !metadata.Valid || metadata.String == "" {
-		return nil
-	}
-
-	return metadata.String
 }

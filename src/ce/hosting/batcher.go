@@ -19,6 +19,7 @@ var (
 	MaxItems      = int(1000)
 	Batcher       *pool.Buffer
 	mu            sync.Mutex
+	artifactsWG   sync.WaitGroup
 )
 
 func Queue(record *jobs.HostingRecord) error {

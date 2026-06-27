@@ -19,6 +19,7 @@ func (s *ServicesSuite) Test_Handlers() {
 
 	s.Equal([]string{
 		"GET:/analytics/countries",
+		"GET:/analytics/events",
 		"GET:/analytics/paths",
 		"GET:/analytics/referrers",
 		"GET:/analytics/visitors",

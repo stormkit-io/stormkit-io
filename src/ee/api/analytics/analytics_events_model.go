@@ -13,10 +13,10 @@ type Event struct {
 	AppID       types.ID    `json:"appId"`
 	EnvID       types.ID    `json:"envId"`
 	DomainID    types.ID    `json:"domainId"`
-	VisitorID   string      `json:"visitorId"`
+	VisitorID   null.String `json:"visitorId"`
 	EventName   string      `json:"eventName"`
-	RequestPath string      `json:"requestPath"`
-	RequestID   string      `json:"requestId"`
+	RequestPath null.String `json:"requestPath"`
+	RequestID   null.String `json:"requestId"`
 	EventTS     utils.Unix  `json:"eventTs"`
 	Metadata    null.String `json:"metadata"`
 }
