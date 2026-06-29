@@ -38,9 +38,11 @@ export default function EventsHelpContent({ domain }: Props) {
       <CopyBox value={serverExample(host)} multiline minRows={3} />
 
       <Typography sx={{ mt: 4, opacity: 0.6, fontSize: 14 }}>
-        Properties (the second argument, stored as <code>metadata</code>) are
-        kept with each event, so an event such as <code>new_trip_creation</code>{" "}
-        can be broken down by a property like <code>ref</code>.
+        The second argument is an arbitrary key-value object, stored as{" "}
+        <code>metadata</code> with each event. Every property can be queried by
+        its name — group an event by any property, e.g. break{" "}
+        <code>new_trip_creation</code> down by <code>ref</code> or{" "}
+        <code>platform</code>.
       </Typography>
     </Box>
   );
