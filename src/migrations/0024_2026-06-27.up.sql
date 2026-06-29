@@ -40,6 +40,12 @@ CREATE INDEX IF NOT EXISTS idx_analytics_events_ts
 CREATE INDEX IF NOT EXISTS idx_analytics_events_request_id
     ON analytics_events (request_id);
 
+-- Supports per-event property breakdown queries, which filter by domain+event
+-- (equality) and range on time. Distinct from idx_analytics_events_ts, which
+-- leads with event_ts for the rollup's "recent across everything" scan.
+CREATE INDEX IF NOT EXISTS idx_analytics_events_breakdown
+    ON analytics_events (domain_id, event_name, event_ts);
+
 CREATE TABLE IF NOT EXISTS analytics_events_agg (
     aggregate_date date   NOT NULL,
     domain_id      bigint NOT NULL,

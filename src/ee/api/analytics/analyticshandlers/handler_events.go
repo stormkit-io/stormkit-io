@@ -30,3 +30,50 @@ func handlerEvents(req *app.RequestContext) *shttp.Response {
 		Data:   events,
 	}
 }
+
+func handlerEventProperties(req *app.RequestContext) *shttp.Response {
+	span := req.Query().Get("ts")
+
+	if span == "" {
+		span = analytics.SPAN_30D
+	}
+
+	keys, err := analytics.NewStore().EventPropertyKeys(req.Context(), analytics.EventBreakdownArgs{
+		DomainID:  utils.StringToID(req.Query().Get("domainId")),
+		EventName: req.Query().Get("event"),
+		Span:      span,
+	})
+
+	if err != nil {
+		return shttp.Error(err)
+	}
+
+	return &shttp.Response{
+		Status: http.StatusOK,
+		Data:   keys,
+	}
+}
+
+func handlerEventBreakdown(req *app.RequestContext) *shttp.Response {
+	span := req.Query().Get("ts")
+
+	if span == "" {
+		span = analytics.SPAN_30D
+	}
+
+	breakdown, err := analytics.NewStore().EventBreakdown(req.Context(), analytics.EventBreakdownArgs{
+		DomainID:  utils.StringToID(req.Query().Get("domainId")),
+		EventName: req.Query().Get("event"),
+		Property:  req.Query().Get("property"),
+		Span:      span,
+	})
+
+	if err != nil {
+		return shttp.Error(err)
+	}
+
+	return &shttp.Response{
+		Status: http.StatusOK,
+		Data:   breakdown,
+	}
+}

@@ -191,6 +191,149 @@ export const useFetchTopPaths = ({ envId, domainId }: FetchTopPathsProps) => {
   return { paths, loading, error };
 };
 
+interface FetchEventsProps {
+  envId: string;
+  domainId?: string;
+  ts?: "24h" | "7d" | "30d";
+}
+
+interface AnalyticsEvent {
+  name: string;
+  total: number;
+  unique: number;
+}
+
+export const useFetchEvents = ({
+  envId,
+  domainId,
+  ts = "30d",
+}: FetchEventsProps) => {
+  const [events, setEvents] = useState<AnalyticsEvent[]>([]);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!domainId) {
+      return;
+    }
+
+    setError("");
+    setLoading(true);
+
+    api
+      .fetch<AnalyticsEvent[]>(
+        `/analytics/events?envId=${envId}&domainId=${domainId}&ts=${ts}`
+      )
+      .then(data => {
+        setEvents(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        setError("Something went wrong while fetching events.");
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [envId, domainId, ts]);
+
+  return { events, loading, error };
+};
+
+interface FetchEventPropertiesProps {
+  envId: string;
+  domainId?: string;
+  event: string;
+  ts?: "24h" | "7d" | "30d";
+  skip?: boolean;
+}
+
+export const useFetchEventProperties = ({
+  envId,
+  domainId,
+  event,
+  ts = "30d",
+  skip,
+}: FetchEventPropertiesProps) => {
+  const [properties, setProperties] = useState<string[]>([]);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (skip || !domainId || !event) {
+      return;
+    }
+
+    setError("");
+    setLoading(true);
+
+    api
+      .fetch<string[]>(
+        `/analytics/events/properties?envId=${envId}&domainId=${domainId}&event=${encodeURIComponent(
+          event
+        )}&ts=${ts}`
+      )
+      .then(data => {
+        setProperties(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        setError("Something went wrong while fetching event properties.");
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [envId, domainId, event, ts, skip]);
+
+  return { properties, loading, error };
+};
+
+interface FetchEventBreakdownProps {
+  envId: string;
+  domainId?: string;
+  event: string;
+  property: string;
+  ts?: "24h" | "7d" | "30d";
+  skip?: boolean;
+}
+
+export const useFetchEventBreakdown = ({
+  envId,
+  domainId,
+  event,
+  property,
+  ts = "30d",
+  skip,
+}: FetchEventBreakdownProps) => {
+  const [breakdown, setBreakdown] = useState<AnalyticsEvent[]>([]);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (skip || !domainId || !event || !property) {
+      return;
+    }
+
+    setError("");
+    setLoading(true);
+
+    api
+      .fetch<AnalyticsEvent[]>(
+        `/analytics/events/breakdown?envId=${envId}&domainId=${domainId}&event=${encodeURIComponent(
+          event
+        )}&property=${encodeURIComponent(property)}&ts=${ts}`
+      )
+      .then(data => {
+        setBreakdown(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        setError("Something went wrong while fetching the event breakdown.");
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [envId, domainId, event, property, ts, skip]);
+
+  return { breakdown, loading, error };
+};
+
 interface FetchCountriesProps {
   envId: string;
   domainId?: string;

@@ -10,6 +10,7 @@ import EmptyPage from "~/components/EmptyPage";
 import { EnvironmentContext } from "~/pages/apps/[id]/environments/Environment.context";
 import DomainSelector from "~/shared/domains/DomainSelector";
 import Visitors from "./Visitors";
+import Events from "./Events";
 import TopReferrers from "./TopReferrers";
 import TopPaths from "./TopPaths";
 import ByCountries from "./Countries";
@@ -91,6 +92,7 @@ export default function Analytics() {
         ts={timeSpan}
         onTimeSpanChange={setTimeSpan}
       />
+      <Events domain={domain!} environment={environment} ts={timeSpan} />
       <Box
         sx={{
           mt: 2,
