@@ -68,6 +68,7 @@ func (s *HandlerSnippetsGetSuite) Test_Success_WithFiltering() {
 			"id": "%d",
 			"location": "head",
 			"prepend": true,
+			"interpolate": false,
 			"rules": {
 				"hosts": ["example.org", "example.com"],
 				"path": ""
@@ -116,6 +117,7 @@ func (s *HandlerSnippetsGetSuite) Test_Success_WithoutFiltering() {
 			"id": "%d",
 			"location": "body",
 			"prepend": true,
+			"interpolate": false,
 			"rules": null,
 			"title": "Snippet 1"
 		  },
@@ -125,6 +127,7 @@ func (s *HandlerSnippetsGetSuite) Test_Success_WithoutFiltering() {
 			"id": "%d",
 			"location": "head",
 			"prepend": false,
+			"interpolate": false,
 			"rules": {
 				"hosts": ["example.org"],
 				"path": ""
@@ -180,6 +183,7 @@ func (s *HandlerSnippetsGetSuite) Test_Success_Pagination() {
 			"id": "%d",
 			"location": "body",
 			"prepend": true,
+			"interpolate": false,
 			"rules": null,
 			"title": "Snippet 1"
 		  }
@@ -213,6 +217,7 @@ func (s *HandlerSnippetsGetSuite) Test_Success_Pagination() {
 			"id": "%d",
 			"location": "head",
 			"prepend": false,
+			"interpolate": false,
 			"rules": {
 			  "hosts": ["example.org"],
 			  "path": ""

@@ -64,6 +64,7 @@ func HandlerForward(req *RequestContext) (res *shttp.Response) {
 	}
 
 	middlewares := []func(req *RequestContext) (*shttp.Response, error){
+		WithAnalyticsScript,
 		WithCollect,
 		WithSKAuth,
 		WithAuthWall,
@@ -599,7 +600,7 @@ func injectSnippets(req *RequestContext, res *shttp.Response) *shttp.Response {
 	}
 
 	// We need to use the original path because of path rewrites.
-	filters := appconf.SnippetFilters{RequestPath: req.OriginalPath}
+	filters := appconf.SnippetFilters{RequestPath: req.OriginalPath, RequestID: req.RequestID}
 	snpt := appconf.SnippetsHTML(req.Host.Config.Snippets, filters)
 	body := responseBody(res)
 
@@ -731,6 +732,7 @@ func analyticsRecord(req *RequestContext, res *shttp.Response) *analytics.Record
 		UserAgent:   null.NewString(userAgent, userAgent != ""),
 		DomainID:    req.Host.Config.DomainID,
 		RequestID:   null.NewString(req.RequestID, req.RequestID != ""),
+		Source:      null.StringFrom("server"),
 	}
 }
 

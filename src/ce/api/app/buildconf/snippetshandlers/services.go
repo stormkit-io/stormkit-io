@@ -15,5 +15,9 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodPut, "", app.WithApp(HandlerSnippetsPut, &app.Opts{Env: true})).
 		Handler(shttp.MethodDelete, "", app.WithApp(HandlerSnippetsDelete, &app.Opts{Env: true}))
 
+	s.NewEndpoint("/snippets/analytics").
+		Handler(shttp.MethodPost, "", app.WithApp(HandlerAnalyticsSnippetEnable, &app.Opts{Env: true})).
+		Handler(shttp.MethodDelete, "", app.WithApp(HandlerAnalyticsSnippetDisable, &app.Opts{Env: true}))
+
 	return s
 }

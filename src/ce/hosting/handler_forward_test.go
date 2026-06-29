@@ -776,6 +776,7 @@ func (s *HandlerForwardSuite) Test_Analytics() {
 		StatusCode:  http.StatusOK,
 		DomainID:    types.ID(501),
 		UserAgent:   null.StringFrom(userAgent),
+		Source:      null.StringFrom("server"),
 	}, hosting.AnalyticsRecord(req, res))
 }
 

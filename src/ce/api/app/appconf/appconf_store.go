@@ -114,7 +114,8 @@ var stmt = &statement{
 						'content', s.snippet_content,
 						'location', s.snippet_location,
 						'prepend', s.should_prepend,
-						'rules', s.snippet_rules
+						'rules', s.snippet_rules,
+						'interpolate', s.snippet_interpolate
 					)
 				) as json_data
 			FROM snippets s
@@ -276,10 +277,11 @@ func (s *Store) Configs(ctx context.Context, filters ConfigFilters) ([]*Config, 
 }
 
 type Snippets []struct {
-	Content  string                 `json:"content"`
-	Location string                 `json:"location"`
-	Prepend  bool                   `json:"prepend"`
-	Rules    *buildconf.SnippetRule `json:"rules"`
+	Content     string                 `json:"content"`
+	Location    string                 `json:"location"`
+	Prepend     bool                   `json:"prepend"`
+	Rules       *buildconf.SnippetRule `json:"rules"`
+	Interpolate bool                   `json:"interpolate"`
 }
 
 func (s *Snippets) Scan(value any) error {

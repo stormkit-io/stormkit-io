@@ -49,9 +49,9 @@ type AdminUserConfig struct {
 }
 
 type SystemConfig struct {
-	AutoInstall          bool     `json:"autoInstall"`          // Whether to install runtimes automatically or not. Default is true.
-	Runtimes             []string `json:"runtimes"`             // The list of runtimes to install in format <name>@<version>
-	ArtifactRetentionDays int     `json:"artifactRetentionDays"` // Number of days to retain deployment artifacts. Default is 30.
+	AutoInstall           bool     `json:"autoInstall"`           // Whether to install runtimes automatically or not. Default is true.
+	Runtimes              []string `json:"runtimes"`              // The list of runtimes to install in format <name>@<version>
+	ArtifactRetentionDays int      `json:"artifactRetentionDays"` // Number of days to retain deployment artifacts. Default is 30.
 }
 
 type ProxyRule struct {
@@ -110,14 +110,27 @@ type DomainConfig struct {
 }
 
 type InstanceConfig struct {
-	AdminUserConfig    *AdminUserConfig    `json:"adminUser"`
-	VolumesConfig      *VolumesConfig      `json:"volumes"`
-	WorkerserverConfig *WorkerserverConfig `json:"workerserver"`
-	SystemConfig       *SystemConfig       `json:"systemDependencies"`
-	ProxyConfig        *ProxyConfig        `json:"proxy,omitempty"`
-	LicenseConfig      *LicenseConfig      `json:"license,omitempty"`
-	AuthConfig         *AuthConfig         `json:"auth,omitempty"`
-	DomainConfig       *DomainConfig       `json:"domains,omitempty"`
+	AdminUserConfig    *AdminUserConfig       `json:"adminUser"`
+	VolumesConfig      *VolumesConfig         `json:"volumes"`
+	WorkerserverConfig *WorkerserverConfig    `json:"workerserver"`
+	SystemConfig       *SystemConfig          `json:"systemDependencies"`
+	ProxyConfig        *ProxyConfig           `json:"proxy,omitempty"`
+	LicenseConfig      *LicenseConfig         `json:"license,omitempty"`
+	AuthConfig         *AuthConfig            `json:"auth,omitempty"`
+	DomainConfig       *DomainConfig          `json:"domains,omitempty"`
+	AnalyticsScript    *AnalyticsScriptConfig `json:"analyticsScript,omitempty"`
+}
+
+// AnalyticsScriptConfig holds an admin-supplied override for the client-side
+// analytics script served at /_stormkit/analytics.js. When unset, the embedded
+// default is served. Hash is the sha256 of Content and drives the served ETag so
+// clients refetch when the script changes; SourceURL records where an admin
+// "update" pulled the script from (informational).
+type AnalyticsScriptConfig struct {
+	Content   string    `json:"content,omitempty"`
+	Hash      string    `json:"hash,omitempty"`
+	SourceURL string    `json:"sourceUrl,omitempty"`
+	UpdatedAt time.Time `json:"updatedAt,omitempty"`
 }
 
 // Scan implements the sql.Scanner interface

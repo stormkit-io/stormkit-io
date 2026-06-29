@@ -896,6 +896,7 @@ CREATE TABLE skitapi.snippets (
     snippet_rules jsonb,
     should_prepend boolean DEFAULT false NOT NULL,
     is_enabled boolean DEFAULT false NOT NULL,
+    snippet_interpolate boolean DEFAULT false NOT NULL,
     created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text) NOT NULL
 );
 

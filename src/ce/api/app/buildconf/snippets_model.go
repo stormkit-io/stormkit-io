@@ -71,6 +71,11 @@ type Snippet struct {
 	// Title is the snippet title. It's used only by the Stormkit UI to provide
 	// a meaningful description for the user.
 	Title string `json:"title"`
+
+	// Interpolate opts the snippet into request-time interpolation of defined
+	// system variables (e.g. {{SK_REQUEST_ID}}). Only flagged snippets are
+	// scanned, so unflagged content is injected verbatim.
+	Interpolate bool `json:"interpolate"`
 }
 
 // Snippets to be injected into the document.
@@ -122,13 +127,14 @@ func (s *Snippet) JSON() map[string]any {
 	}
 
 	return map[string]any{
-		"id":       s.ID.String(),
-		"location": s.Location,
-		"prepend":  s.Prepend,
-		"enabled":  s.Enabled,
-		"title":    s.Title,
-		"content":  s.Content,
-		"rules":    rules,
+		"id":          s.ID.String(),
+		"location":    s.Location,
+		"prepend":     s.Prepend,
+		"enabled":     s.Enabled,
+		"title":       s.Title,
+		"content":     s.Content,
+		"rules":       rules,
+		"interpolate": s.Interpolate,
 	}
 }
 

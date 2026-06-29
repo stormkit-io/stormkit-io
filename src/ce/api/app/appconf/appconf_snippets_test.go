@@ -70,6 +70,62 @@ func (s *AppconfSnippets) Test_SnippetRules_RequestPath_Negate() {
 	}
 }
 
+func (s *AppconfSnippets) Test_Interpolate_ReplacesRequestID() {
+	injection := appconf.SnippetsHTML(appconf.Snippets{
+		{
+			Content:     `<script data-sk-rid="{{SK_REQUEST_ID}}"></script>`,
+			Location:    "head",
+			Interpolate: true,
+		},
+	}, appconf.SnippetFilters{RequestID: "abc-123"})
+
+	s.Equal(`<script data-sk-rid="abc-123"></script>`, injection.HeadAppend)
+}
+
+func (s *AppconfSnippets) Test_Interpolate_DisabledLeavesTokenVerbatim() {
+	injection := appconf.SnippetsHTML(appconf.Snippets{
+		{
+			Content:     `<script data-sk-rid="{{SK_REQUEST_ID}}"></script>`,
+			Location:    "head",
+			Interpolate: false,
+		},
+	}, appconf.SnippetFilters{RequestID: "abc-123"})
+
+	s.Equal(`<script data-sk-rid="{{SK_REQUEST_ID}}"></script>`, injection.HeadAppend)
+}
+
+func (s *AppconfSnippets) Test_Interpolate_LeavesUnknownTokensUntouched() {
+	injection := appconf.SnippetsHTML(appconf.Snippets{
+		{
+			// Non-exact spacing and an unknown token must both survive even when
+			// the snippet opts into interpolation.
+			Content:     `{{ SK_REQUEST_ID }} {{FOO}} {{SK_REQUEST_ID}}`,
+			Location:    "head",
+			Interpolate: true,
+		},
+	}, appconf.SnippetFilters{RequestID: "x"})
+
+	s.Equal(`{{ SK_REQUEST_ID }} {{FOO}} x`, injection.HeadAppend)
+}
+
+func (s *AppconfSnippets) Test_Interpolate_MultipleSnippetsAndOccurrences() {
+	injection := appconf.SnippetsHTML(appconf.Snippets{
+		{
+			Content:     `a={{SK_REQUEST_ID}};b={{SK_REQUEST_ID}}`,
+			Location:    "head",
+			Interpolate: true,
+		},
+		{
+			Content:     `c={{SK_REQUEST_ID}}`,
+			Location:    "body",
+			Interpolate: true,
+		},
+	}, appconf.SnippetFilters{RequestID: "id"})
+
+	s.Equal(`a=id;b=id`, injection.HeadAppend)
+	s.Equal(`c=id`, injection.BodyAppend)
+}
+
 func TestAppconfSnippetsSuite(t *testing.T) {
 	suite.Run(t, &AppconfSnippets{})
 }
