@@ -6,7 +6,6 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/analytics"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
-	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
 func handlerEvents(req *app.RequestContext) *shttp.Response {
@@ -16,9 +15,15 @@ func handlerEvents(req *app.RequestContext) *shttp.Response {
 		span = analytics.SPAN_30D
 	}
 
+	domainID, errResp := authorizedDomainID(req)
+
+	if errResp != nil {
+		return errResp
+	}
+
 	events, err := analytics.NewStore().Events(req.Context(), analytics.EventsArgs{
 		Span:     span,
-		DomainID: utils.StringToID(req.Query().Get("domainId")),
+		DomainID: domainID,
 	})
 
 	if err != nil {
@@ -38,8 +43,14 @@ func handlerEventProperties(req *app.RequestContext) *shttp.Response {
 		span = analytics.SPAN_30D
 	}
 
+	domainID, errResp := authorizedDomainID(req)
+
+	if errResp != nil {
+		return errResp
+	}
+
 	keys, err := analytics.NewStore().EventPropertyKeys(req.Context(), analytics.EventBreakdownArgs{
-		DomainID:  utils.StringToID(req.Query().Get("domainId")),
+		DomainID:  domainID,
 		EventName: req.Query().Get("event"),
 		Span:      span,
 	})
@@ -61,8 +72,14 @@ func handlerEventBreakdown(req *app.RequestContext) *shttp.Response {
 		span = analytics.SPAN_30D
 	}
 
+	domainID, errResp := authorizedDomainID(req)
+
+	if errResp != nil {
+		return errResp
+	}
+
 	breakdown, err := analytics.NewStore().EventBreakdown(req.Context(), analytics.EventBreakdownArgs{
-		DomainID:  utils.StringToID(req.Query().Get("domainId")),
+		DomainID:  domainID,
 		EventName: req.Query().Get("event"),
 		Property:  req.Query().Get("property"),
 		Span:      span,

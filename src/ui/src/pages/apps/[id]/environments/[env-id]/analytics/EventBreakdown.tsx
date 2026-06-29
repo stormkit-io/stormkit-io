@@ -66,10 +66,7 @@ export default function EventBreakdown({
       </CardRow>
 
       {!hasProperties ? (
-        <Alert
-          color="info"
-          sx={{ m: 2, bgcolor: "rgba(255,255,255,0.025)" }}
-        >
+        <Alert color="info" sx={{ m: 2 }}>
           This event has no properties to group by yet. Attach a property with
           the second argument of track(), e.g. {`{ ref: "mobile" }`}.
         </Alert>

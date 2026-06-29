@@ -117,6 +117,33 @@ func (s *HandlerCountriesSuite) Test_Success() {
 	s.JSONEq(expected, response.String())
 }
 
+func (s *HandlerCountriesSuite) Test_Forbidden_DomainFromAnotherEnv() {
+	otherUser := s.MockUser()
+	otherApp := s.MockApp(otherUser)
+	otherEnv := s.MockEnv(otherApp)
+	otherDomain := &buildconf.DomainModel{
+		AppID:      otherApp.ID,
+		EnvID:      otherEnv.ID,
+		Name:       "tenant-b.example.org",
+		Verified:   true,
+		VerifiedAt: utils.NewUnix(),
+	}
+
+	s.NoError(buildconf.DomainStore().Insert(context.Background(), otherDomain))
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(analyticshandlers.Services).Router().Handler(),
+		shttp.MethodGet,
+		fmt.Sprintf("/analytics/countries?envId=%s&domainId=%d", s.env.ID.String(), otherDomain.ID),
+		nil,
+		map[string]string{
+			"Authorization": usertest.Authorization(s.user.ID),
+		},
+	)
+
+	s.Equal(http.StatusForbidden, response.Code)
+}
+
 func TestHandlerCountries(t *testing.T) {
 	suite.Run(t, &HandlerCountriesSuite{})
 }

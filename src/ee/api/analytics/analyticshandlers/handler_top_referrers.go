@@ -7,16 +7,21 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/analytics"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
-	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
 func handlerTopReferrers(req *app.RequestContext) *shttp.Response {
 	query := req.Query()
 
+	domainID, errResp := authorizedDomainID(req)
+
+	if errResp != nil {
+		return errResp
+	}
+
 	visitors, err := analytics.NewStore().TopReferrers(req.Context(), analytics.TopReferrersArgs{
 		EnvID:       req.EnvID,
 		RequestPath: strings.ToLower(strings.TrimSpace(query.Get("requestPath"))),
-		DomainID:    utils.StringToID(req.Query().Get("domainId")),
+		DomainID:    domainID,
 	})
 
 	if err != nil {

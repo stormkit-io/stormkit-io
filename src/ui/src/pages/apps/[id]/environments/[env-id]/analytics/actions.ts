@@ -255,7 +255,7 @@ export const useFetchEventProperties = ({
 }: FetchEventPropertiesProps) => {
   const [properties, setProperties] = useState<string[]>([]);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (skip || !domainId || !event) {

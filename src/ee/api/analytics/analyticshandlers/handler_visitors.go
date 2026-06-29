@@ -6,7 +6,6 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/analytics"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
-	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
 func handlerVisitors(req *app.RequestContext) *shttp.Response {
@@ -16,10 +15,16 @@ func handlerVisitors(req *app.RequestContext) *shttp.Response {
 		span = analytics.SPAN_24h
 	}
 
+	domainID, errResp := authorizedDomainID(req)
+
+	if errResp != nil {
+		return errResp
+	}
+
 	visitors, err := analytics.NewStore().Visitors(req.Context(), analytics.VisitorsArgs{
 		Span:       span,
 		EnvID:      req.EnvID,
-		DomainID:   utils.StringToID(req.Query().Get("domainId")),
+		DomainID:   domainID,
 		StatusCode: http.StatusOK,
 	})
 
