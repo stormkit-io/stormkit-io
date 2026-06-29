@@ -1,6 +1,5 @@
 import type { TimeSpan } from "./index.d";
 import Box from "@mui/material/Box";
-import Alert from "@mui/material/Alert";
 import Typography from "@mui/material/Typography";
 import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
@@ -21,43 +20,47 @@ export default function Events({ environment, domain, ts }: Props) {
     ts,
   });
 
+  const isEmpty = !loading && !error && events.length === 0;
+
   return (
-    <Card sx={{ mt: 2 }} error={error} loading={loading}>
+    <Card
+      sx={{ mt: 2 }}
+      error={error}
+      loading={loading}
+      info={
+        isEmpty ? (
+          <>
+            No events yet. Track events from the browser with{" "}
+            <Box component="code">window.stormkit.track("event_name")</Box> or
+            by posting to <Box component="code">/_stormkit/collect</Box>.
+          </>
+        ) : undefined
+      }
+    >
       <CardHeader
         title="Events"
         subtitle="Custom events tracked for this domain."
       />
-      {!loading && events.length === 0 ? (
-        <Alert
-          color="info"
-          sx={{ mb: 4, mx: 4, bgcolor: "rgba(255,255,255,0.025)" }}
-        >
-          No events yet. Track events from the browser with{" "}
-          <Box component="code">window.stormkit.track("event_name")</Box> or by
-          posting to <Box component="code">/_stormkit/collect</Box>.
-        </Alert>
-      ) : (
-        <Box sx={{ maxHeight: "300px", overflow: "auto" }}>
-          {events.map(event => (
-            <CardRow
-              key={event.name}
-              chipLabel={
-                <Typography component="span">
-                  {event.total.toLocaleString()}
-                </Typography>
-              }
-            >
-              <Typography component="span">{truncate(event.name)}</Typography>
-              <Typography
-                component="span"
-                sx={{ ml: 1, opacity: 0.6, fontSize: 12 }}
-              >
-                · {event.unique.toLocaleString()} unique
+      <Box sx={{ maxHeight: "300px", overflow: "auto" }}>
+        {events.map(event => (
+          <CardRow
+            key={event.name}
+            chipLabel={
+              <Typography component="span">
+                {event.total.toLocaleString()}
               </Typography>
-            </CardRow>
-          ))}
-        </Box>
-      )}
+            }
+          >
+            <Typography component="span">{truncate(event.name)}</Typography>
+            <Typography
+              component="span"
+              sx={{ ml: 1, opacity: 0.6, fontSize: 12 }}
+            >
+              · {event.unique.toLocaleString()} unique
+            </Typography>
+          </CardRow>
+        ))}
+      </Box>
     </Card>
   );
 }

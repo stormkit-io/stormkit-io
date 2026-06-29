@@ -158,7 +158,7 @@ export default (mode: "dark" | "light") => {
             flex: 1,
           },
           standardInfo: {
-            backgroundColor: isDark ? "#0f4c64" : blue[200],
+            backgroundColor: isDark ? "#140e24" : blue[200],
             border: isDark ? "" : "1px solid #0f4c64",
             color: isDark ? "#ffffff" : "#0f4c64",
           },
