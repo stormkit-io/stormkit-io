@@ -22,6 +22,7 @@ type Record struct {
 	UserAgent   null.String
 	RequestTS   utils.Unix
 	StatusCode  int
+	RequestID   null.String
 }
 
 func (r Record) String() string {

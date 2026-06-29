@@ -125,3 +125,13 @@ func SyncAnalyticsByCountries(ctx context.Context) error {
 
 	return err
 }
+
+func SyncAnalyticsEvents(ctx context.Context) error {
+	_, err := NewStore().Exec(ctx, stmt.syncAnalyticsEvents)
+
+	if err != nil {
+		slog.Errorf("could not sync events data: %s", err.Error())
+	}
+
+	return err
+}

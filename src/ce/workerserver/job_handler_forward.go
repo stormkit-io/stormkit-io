@@ -29,6 +29,7 @@ type HostingRecord struct {
 	HostName        string             `json:"hostName"`
 	Logs            []integrations.Log `json:"logs"`
 	Analytics       *analytics.Record  `json:"analytics"`
+	Events          []analytics.Event  `json:"events"`
 	TotalBandwidth  int64              `json:"totalBandwidth"`
 	FunctionInvoked bool               `json:"functionInvoked"`
 }
@@ -46,6 +47,7 @@ type HostingRecord struct {
 func IngestHandlerForward(ctx context.Context) error {
 	client := rediscache.Client()
 	analyticsRecords := []analytics.Record{}
+	eventRecords := []analytics.Event{}
 	logRecords := []*applog.Log{}
 	stats := map[string]map[string]int64{} // userId -> metric -> value
 	rows := utils.StringToInt(os.Getenv("STORMKIT_HOSTING_QUEUE_BATCH_SIZE"))
@@ -107,6 +109,10 @@ func IngestHandlerForward(ctx context.Context) error {
 			analyticsRecords = append(analyticsRecords, *record.Analytics)
 		}
 
+		if len(record.Events) > 0 {
+			eventRecords = append(eventRecords, record.Events...)
+		}
+
 		if len(record.Logs) > 0 {
 			for _, log := range record.Logs {
 				logRecords = append(logRecords, &applog.Log{
@@ -140,6 +146,12 @@ func IngestHandlerForward(ctx context.Context) error {
 	if len(analyticsRecords) > 0 {
 		if err := analytics.NewStore().InsertRecords(analyticsContext, analyticsRecords); err != nil {
 			slog.Errorf("error while batch inserting analytic records: %v", err)
+		}
+	}
+
+	if len(eventRecords) > 0 {
+		if err := analytics.NewStore().InsertEvents(analyticsContext, eventRecords); err != nil {
+			slog.Errorf("error while batch inserting event records: %v", err)
 		}
 	}
 

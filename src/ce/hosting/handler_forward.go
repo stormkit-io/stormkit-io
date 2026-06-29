@@ -42,8 +42,15 @@ func HandlerForward(req *RequestContext) (res *shttp.Response) {
 		// same transforms apply uniformly regardless of which path produced it.
 		res = rs.finalize(res)
 
-		// Send artifacts to redis queue with the finalized response visible.
-		go rs.artifacts(res)
+		// Send artifacts to redis queue with the finalized response visible. The
+		// wait group lets tests (and graceful shutdown) drain in-flight pushes
+		// instead of racing the global Batcher.
+		artifactsWG.Add(1)
+
+		go func() {
+			defer artifactsWG.Done()
+			rs.artifacts(res)
+		}()
 	}()
 
 	slog.Debug(slog.LogOpts{
@@ -57,6 +64,7 @@ func HandlerForward(req *RequestContext) (res *shttp.Response) {
 	}
 
 	middlewares := []func(req *RequestContext) (*shttp.Response, error){
+		WithCollect,
 		WithSKAuth,
 		WithAuthWall,
 		WithRedirect,
@@ -684,6 +692,13 @@ func analyticsRecord(req *RequestContext, res *shttp.Response) *analytics.Record
 		return nil
 	}
 
+	// Stormkit's reserved endpoints (auth pages, the analytics beacon, etc.) are
+	// platform infrastructure, not visitor page views — some render text/html and
+	// would otherwise inflate the customer's analytics.
+	if strings.HasPrefix(req.URL().Path, reservedPathPrefix) {
+		return nil
+	}
+
 	if req.Host.Config.DomainID == 0 && !config.IsDevelopment() {
 		return nil
 	}
@@ -715,6 +730,7 @@ func analyticsRecord(req *RequestContext, res *shttp.Response) *analytics.Record
 		Referrer:    null.NewString(referrer, referrer != ""),
 		UserAgent:   null.NewString(userAgent, userAgent != ""),
 		DomainID:    req.Host.Config.DomainID,
+		RequestID:   null.NewString(req.RequestID, req.RequestID != ""),
 	}
 }
 
