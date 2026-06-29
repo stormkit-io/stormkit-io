@@ -64,19 +64,24 @@ type EventCount struct {
 	UniqueActors int    `json:"unique"`
 }
 
-// Events returns custom event counts for a domain over the requested span.
-func (s *Store) Events(ctx context.Context, args EventsArgs) ([]EventCount, error) {
+// spanDays maps an analytics span to a number of days, defaulting to 30.
+func spanDays(span string) int {
 	days := map[string]int{
 		SPAN_24h: 1,
 		SPAN_7D:  7,
 		SPAN_30D: 30,
-	}[args.Span]
+	}[span]
 
 	if days == 0 {
 		days = 30
 	}
 
-	rows, err := s.Query(ctx, stmt.selectEvents, args.DomainID, days)
+	return days
+}
+
+// Events returns custom event counts for a domain over the requested span.
+func (s *Store) Events(ctx context.Context, args EventsArgs) ([]EventCount, error) {
+	rows, err := s.Query(ctx, stmt.selectEvents, args.DomainID, spanDays(args.Span))
 
 	if err != nil && err != sql.ErrNoRows {
 		return nil, err
@@ -102,4 +107,82 @@ func (s *Store) Events(ctx context.Context, args EventsArgs) ([]EventCount, erro
 	}
 
 	return events, nil
+}
+
+type EventBreakdownArgs struct {
+	DomainID  types.ID
+	EventName string
+	Property  string
+	Span      string
+}
+
+// EventBreakdown groups a single event by one metadata property over the span,
+// returning the count and unique actors per property value. Reuses EventCount
+// where Name holds the property value.
+func (s *Store) EventBreakdown(ctx context.Context, args EventBreakdownArgs) ([]EventCount, error) {
+	if args.EventName == "" || args.Property == "" {
+		return []EventCount{}, nil
+	}
+
+	rows, err := s.Query(ctx, stmt.breakdownEvents, args.DomainID, args.EventName, args.Property, spanDays(args.Span))
+
+	if err != nil && err != sql.ErrNoRows {
+		return nil, err
+	}
+
+	if rows == nil {
+		return nil, nil
+	}
+
+	defer rows.Close()
+
+	breakdown := []EventCount{}
+
+	for rows.Next() {
+		var value EventCount
+
+		if err := rows.Scan(&value.Name, &value.TotalCount, &value.UniqueActors); err != nil {
+			slog.Errorf("[analytics.EventBreakdown]: error while scanning %s", err.Error())
+			return nil, err
+		}
+
+		breakdown = append(breakdown, value)
+	}
+
+	return breakdown, nil
+}
+
+// EventPropertyKeys returns the distinct metadata property keys seen for an
+// event over the span, sampled to keep discovery cheap.
+func (s *Store) EventPropertyKeys(ctx context.Context, args EventBreakdownArgs) ([]string, error) {
+	if args.EventName == "" {
+		return []string{}, nil
+	}
+
+	rows, err := s.Query(ctx, stmt.eventPropertyKeys, args.DomainID, args.EventName, spanDays(args.Span))
+
+	if err != nil && err != sql.ErrNoRows {
+		return nil, err
+	}
+
+	if rows == nil {
+		return nil, nil
+	}
+
+	defer rows.Close()
+
+	keys := []string{}
+
+	for rows.Next() {
+		var key string
+
+		if err := rows.Scan(&key); err != nil {
+			slog.Errorf("[analytics.EventPropertyKeys]: error while scanning %s", err.Error())
+			return nil, err
+		}
+
+		keys = append(keys, key)
+	}
+
+	return keys, nil
 }

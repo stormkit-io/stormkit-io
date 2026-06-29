@@ -60,11 +60,18 @@ func (s *JobAnalyticsEventsSuite) BeforeTest(suiteName, _ string) {
 	insertion.RequestID = null.StringFrom("11111111-1111-1111-1111-111111111111")
 	insertion.Metadata = null.StringFrom(`{"price": 42}`)
 
+	// trip_creation events carry a `ref` property for breakdown tests.
+	withRef := func(name, visitor string, ref string) analytics.Event {
+		e := event(name, visitor, domain.ID)
+		e.Metadata = null.StringFrom(`{"ref": "` + ref + `"}`)
+		return e
+	}
+
 	events := []analytics.Event{
-		event("trip_creation", "v1", domain.ID),
-		event("trip_creation", "v2", domain.ID),
-		event("trip_creation", "v1", domain.ID), // repeat visitor
-		event("trip_creation", "", domain.ID),   // server-side, no identity
+		withRef("trip_creation", "v1", "mobile"),
+		withRef("trip_creation", "v2", "web"),
+		withRef("trip_creation", "v1", "mobile"), // repeat visitor
+		withRef("trip_creation", "", "web"),      // server-side, no identity
 		insertion,
 		event("trip_creation", "v3", 0), // other domain -> excluded from this domain's read
 	}
@@ -125,6 +132,41 @@ func (s *JobAnalyticsEventsSuite) Test_SyncAnalyticsEvents() {
 
 	// The event without a domain is not aggregated.
 	s.Len(events, 2)
+}
+
+func (s *JobAnalyticsEventsSuite) Test_EventBreakdown_GroupsByProperty() {
+	breakdown, err := analytics.NewStore().EventBreakdown(context.Background(), analytics.EventBreakdownArgs{
+		DomainID:  s.domainID,
+		EventName: "trip_creation",
+		Property:  "ref",
+		Span:      analytics.SPAN_30D,
+	})
+
+	s.NoError(err)
+
+	counts := map[string]analytics.EventCount{}
+
+	for _, b := range breakdown {
+		counts[b.Name] = b
+	}
+
+	// mobile: v1 twice (total 2, unique 1); web: v2 + null visitor (total 2, unique 1).
+	s.Equal(2, counts["mobile"].TotalCount)
+	s.Equal(1, counts["mobile"].UniqueActors)
+	s.Equal(2, counts["web"].TotalCount)
+	s.Equal(1, counts["web"].UniqueActors)
+	s.Len(breakdown, 2)
+}
+
+func (s *JobAnalyticsEventsSuite) Test_EventPropertyKeys_ReturnsDistinctKeys() {
+	keys, err := analytics.NewStore().EventPropertyKeys(context.Background(), analytics.EventBreakdownArgs{
+		DomainID:  s.domainID,
+		EventName: "trip_creation",
+		Span:      analytics.SPAN_30D,
+	})
+
+	s.NoError(err)
+	s.Equal([]string{"ref"}, keys)
 }
 
 func TestJobAnalyticsEventsSuite(t *testing.T) {

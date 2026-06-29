@@ -24,6 +24,8 @@ var stmt = struct {
 	insertRecord                string
 	insertEvents                string
 	selectEvents                string
+	breakdownEvents             string
+	eventPropertyKeys           string
 	visitors                    string
 	topReferrers                string
 	topPaths                    string
@@ -91,6 +93,44 @@ var stmt = struct {
 		GROUP BY event_name
 		ORDER BY total DESC
 		LIMIT 100;
+	`,
+
+	// breakdownEvents groups a single event by one metadata property, computed
+	// from the raw events (within the retention window). The (domain_id,
+	// event_name, event_ts) index bounds the scan to that event's rows. The
+	// property key ($3) is a bind parameter, so it is not SQL-interpolated.
+	breakdownEvents: `
+		SELECT
+			COALESCE(metadata->>$3, '(not set)') AS property_value,
+			COUNT(*) AS total,
+			COUNT(DISTINCT visitor_id) AS unique_actors
+		FROM analytics_events
+		WHERE
+			domain_id = $1 AND
+			event_name = $2 AND
+			event_ts >= now() - make_interval(days => $4)
+		GROUP BY 1
+		ORDER BY total DESC
+		LIMIT 100;
+	`,
+
+	// eventPropertyKeys returns the distinct metadata keys seen for an event,
+	// sampled from up to 1000 recent rows to keep discovery cheap.
+	eventPropertyKeys: `
+		SELECT DISTINCT key
+		FROM (
+			SELECT metadata
+			FROM analytics_events
+			WHERE
+				domain_id = $1 AND
+				event_name = $2 AND
+				event_ts >= now() - make_interval(days => $3) AND
+				metadata IS NOT NULL
+			LIMIT 1000
+		) sampled,
+		LATERAL jsonb_object_keys(sampled.metadata) AS key
+		ORDER BY key
+		LIMIT 50;
 	`,
 
 	visitors: `
