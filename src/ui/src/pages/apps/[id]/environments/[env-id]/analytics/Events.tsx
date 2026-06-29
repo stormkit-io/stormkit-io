@@ -4,14 +4,19 @@ import Typography from "@mui/material/Typography";
 import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
 import CardRow from "~/components/CardRow";
+import Help from "~/components/Help";
 import { useFetchEvents } from "./actions";
 import { truncate } from "./helpers";
+import EventsHelpContent from "./EventsHelpContent";
 
 interface Props {
   environment: Environment;
   domain: Domain;
   ts: TimeSpan;
 }
+
+const helpTitle = "Track events";
+const helpSubtitle = "Send custom events from the browser or from your backend.";
 
 export default function Events({ environment, domain, ts }: Props) {
   const { events, error, loading } = useFetchEvents({
@@ -30,9 +35,15 @@ export default function Events({ environment, domain, ts }: Props) {
       info={
         isEmpty ? (
           <>
-            No events yet. Track events from the browser with{" "}
-            <Box component="code">window.stormkit.track("event_name")</Box> or
-            by posting to <Box component="code">/_stormkit/collect</Box>.
+            No events yet.{" "}
+            <Help
+              title={helpTitle}
+              subtitle={helpSubtitle}
+              buttonText="Learn how to send events"
+              buttonVariant="link"
+            >
+              <EventsHelpContent domain={domain} />
+            </Help>
           </>
         ) : undefined
       }
@@ -40,6 +51,16 @@ export default function Events({ environment, domain, ts }: Props) {
       <CardHeader
         title="Events"
         subtitle="Custom events tracked for this domain."
+        actions={
+          <Help
+            title={helpTitle}
+            subtitle={helpSubtitle}
+            buttonText="How to track"
+            buttonVariant="text"
+          >
+            <EventsHelpContent domain={domain} />
+          </Help>
+        }
       />
       <Box sx={{ maxHeight: "300px", overflow: "auto" }}>
         {events.map(event => (

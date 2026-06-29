@@ -1,7 +1,7 @@
 import type { TimeSpan } from "./index.d";
 import type { RenderResult } from "@testing-library/react";
 import type { Scope } from "nock";
-import { waitFor, render } from "@testing-library/react";
+import { waitFor, render, fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import mockApp from "~/testing/data/mock_app";
 import mockEnvironments from "~/testing/data/mock_environments";
@@ -53,13 +53,30 @@ describe("~/pages/apps/[id]/environments/[env-id]/analytics/Events.tsx", () => {
     });
   });
 
-  it("shows an empty state with an integration hint when there are no events", async () => {
+  it("shows an empty state with a link to the help drawer", async () => {
     createWrapper({ response: [] });
 
     await waitFor(() => {
       expect(scope.isDone()).toBe(true);
       expect(wrapper.getByText(/No events yet/)).toBeTruthy();
-      expect(wrapper.getByText(/window.stormkit.track/)).toBeTruthy();
+      expect(wrapper.getByText("Learn how to send events")).toBeTruthy();
     });
+  });
+
+  it("opens the help drawer with client and server examples", async () => {
+    createWrapper({
+      response: [{ name: "trip_creation", total: 1, unique: 1 }],
+    });
+
+    await waitFor(() => {
+      expect(scope.isDone()).toBe(true);
+    });
+
+    fireEvent.click(wrapper.getByText("How to track"));
+
+    // The drawer renders in a portal, so query the whole document.
+    expect(screen.getByText("Track events")).toBeTruthy();
+    expect(screen.getByDisplayValue(/window.stormkit.track/)).toBeTruthy();
+    expect(screen.getByDisplayValue(/_stormkit\/collect/)).toBeTruthy();
   });
 });
