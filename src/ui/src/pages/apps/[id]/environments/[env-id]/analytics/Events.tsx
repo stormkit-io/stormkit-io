@@ -1,6 +1,9 @@
 import type { TimeSpan } from "./index.d";
+import { useState } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
+import IconButton from "@mui/material/IconButton";
+import ArrowForward from "@mui/icons-material/ArrowForwardIos";
 import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
 import CardRow from "~/components/CardRow";
@@ -8,6 +11,7 @@ import Help from "~/components/Help";
 import { useFetchEvents } from "./actions";
 import { truncate } from "./helpers";
 import EventsHelpContent from "./EventsHelpContent";
+import EventBreakdown from "./EventBreakdown";
 
 interface Props {
   environment: Environment;
@@ -19,6 +23,7 @@ const helpTitle = "Track events";
 const helpSubtitle = "Send custom events from the browser or from your backend.";
 
 export default function Events({ environment, domain, ts }: Props) {
+  const [selected, setSelected] = useState("");
   const { events, error, loading } = useFetchEvents({
     envId: environment.id!,
     domainId: domain?.id,
@@ -62,26 +67,46 @@ export default function Events({ environment, domain, ts }: Props) {
           </Help>
         }
       />
-      <Box sx={{ maxHeight: "300px", overflow: "auto" }}>
-        {events.map(event => (
-          <CardRow
-            key={event.name}
-            chipLabel={
-              <Typography component="span">
-                {event.total.toLocaleString()}
-              </Typography>
-            }
-          >
-            <Typography component="span">{truncate(event.name)}</Typography>
-            <Typography
-              component="span"
-              sx={{ ml: 1, opacity: 0.6, fontSize: 12 }}
+      {selected ? (
+        <EventBreakdown
+          envId={environment.id!}
+          domainId={domain?.id}
+          event={selected}
+          ts={ts}
+          onBack={() => setSelected("")}
+        />
+      ) : (
+        <Box sx={{ maxHeight: "300px", overflow: "auto" }}>
+          {events.map(event => (
+            <CardRow
+              key={event.name}
+              chipLabel={
+                <Typography component="span">
+                  {event.total.toLocaleString()}
+                </Typography>
+              }
+              actions={
+                <IconButton
+                  size="small"
+                  sx={{ ml: 2 }}
+                  aria-label={`Group ${event.name}`}
+                  onClick={() => setSelected(event.name)}
+                >
+                  <ArrowForward sx={{ fontSize: 12 }} />
+                </IconButton>
+              }
             >
-              · {event.unique.toLocaleString()} unique
-            </Typography>
-          </CardRow>
-        ))}
-      </Box>
+              <Typography component="span">{truncate(event.name)}</Typography>
+              <Typography
+                component="span"
+                sx={{ ml: 1, opacity: 0.6, fontSize: 12 }}
+              >
+                · {event.unique.toLocaleString()} unique
+              </Typography>
+            </CardRow>
+          ))}
+        </Box>
+      )}
     </Card>
   );
 }
