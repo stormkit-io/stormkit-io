@@ -1,38 +1,16 @@
 package analytics
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
+	"text/template"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
-
-const insertEventsColumns = `
-	INSERT INTO analytics_events
-		(app_id, env_id, domain_id, visitor_id, event_name, request_path, event_ts, request_id, metadata)
-	VALUES `
-
-// selectEvents aggregates rolled-up event counts for a domain over a window.
-// NOTE: unique_actors is summed across daily aggregates, so a visitor active on
-// multiple days is counted once per day (i.e. unique actor-days, not unique
-// actors over the whole window).
-// NOTE: event_name cardinality is client-controlled, so the result is capped at
-// the 100 highest-count events; lower-count events are omitted from the window.
-const selectEvents = `
-	SELECT
-		event_name,
-		SUM(total_count) AS total,
-		SUM(unique_actors) AS unique_actors
-	FROM analytics_events_agg
-	WHERE
-		domain_id = $1 AND
-		aggregate_date >= current_date - make_interval(days => $2)
-	GROUP BY event_name
-	ORDER BY total DESC
-	LIMIT 100`
 
 const eventInsertFields = 9
 
@@ -44,16 +22,8 @@ func (s *Store) InsertEvents(ctx context.Context, events []Event) error {
 	}
 
 	params := make([]any, 0, len(events)*eventInsertFields)
-	values := make([]string, 0, len(events))
 
-	for i, event := range events {
-		base := i * eventInsertFields
-
-		values = append(values, fmt.Sprintf(
-			"($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d::uuid, $%d::jsonb)",
-			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9,
-		))
-
+	for _, event := range events {
 		params = append(params,
 			event.AppID,
 			event.EnvID,
@@ -67,7 +37,17 @@ func (s *Store) InsertEvents(ctx context.Context, events []Event) error {
 		)
 	}
 
-	_, err := s.Exec(ctx, insertEventsColumns+strings.Join(values, ", "), params...)
+	var wr bytes.Buffer
+
+	query := template.Must(template.New("insertEvents").
+		Funcs(template.FuncMap{"generateValues": utils.GenerateValues}).
+		Parse(stmt.insertEvents))
+
+	if err := query.Execute(&wr, events); err != nil {
+		return fmt.Errorf("error while compiling insertEvents template: %v", err)
+	}
+
+	_, err := s.Exec(ctx, wr.String(), params...)
 
 	return err
 }
@@ -96,7 +76,7 @@ func (s *Store) Events(ctx context.Context, args EventsArgs) ([]EventCount, erro
 		days = 30
 	}
 
-	rows, err := s.Query(ctx, selectEvents, args.DomainID, days)
+	rows, err := s.Query(ctx, stmt.selectEvents, args.DomainID, days)
 
 	if err != nil && err != sql.ErrNoRows {
 		return nil, err

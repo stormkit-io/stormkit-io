@@ -22,6 +22,8 @@ import (
 
 var stmt = struct {
 	insertRecord                string
+	insertEvents                string
+	selectEvents                string
 	visitors                    string
 	topReferrers                string
 	topPaths                    string
@@ -60,6 +62,35 @@ var stmt = struct {
 				${{ $record.p10 }}::uuid
 			){{ if not (last $i $.records) }},{{ end }}
 		{{ end }};
+	`,
+
+	insertEvents: `
+		INSERT INTO analytics_events (
+			app_id, env_id, domain_id,
+			visitor_id, event_name, request_path,
+			event_ts, request_id, metadata
+		)
+		VALUES {{ generateValues 9 (len .) }};
+	`,
+
+	// selectEvents aggregates rolled-up event counts for a domain over a window.
+	// NOTE: unique_actors is summed across daily aggregates, so a visitor active
+	// on multiple days is counted once per day (i.e. unique actor-days, not
+	// unique actors over the whole window).
+	// NOTE: event_name cardinality is client-controlled, so the result is capped
+	// at the 100 highest-count events; lower-count events are omitted.
+	selectEvents: `
+		SELECT
+			event_name,
+			SUM(total_count) AS total,
+			SUM(unique_actors) AS unique_actors
+		FROM analytics_events_agg
+		WHERE
+			domain_id = $1 AND
+			aggregate_date >= current_date - make_interval(days => $2)
+		GROUP BY event_name
+		ORDER BY total DESC
+		LIMIT 100;
 	`,
 
 	visitors: `
