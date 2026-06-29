@@ -126,6 +126,7 @@ var stmt = struct {
 				event_name = $2 AND
 				event_ts >= now() - make_interval(days => $3) AND
 				metadata IS NOT NULL
+			ORDER BY event_ts DESC
 			LIMIT 1000
 		) sampled,
 		LATERAL jsonb_object_keys(sampled.metadata) AS key
