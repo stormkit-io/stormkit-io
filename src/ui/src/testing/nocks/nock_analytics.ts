@@ -25,3 +25,23 @@ export const mockFetchVisitors = ({
     )
     .reply(status, response);
 };
+
+interface MockFetchEventsProps {
+  ts?: "24h" | "7d" | "30d";
+  envId?: string;
+  domainId: string;
+  status?: number;
+  response?: { name: string; total: number; unique: number }[];
+}
+
+export const mockFetchEvents = ({
+  ts,
+  envId,
+  status = 200,
+  domainId,
+  response,
+}: MockFetchEventsProps) => {
+  return nock(endpoint)
+    .get(`/analytics/events?envId=${envId}&domainId=${domainId}&ts=${ts}`)
+    .reply(status, response);
+};

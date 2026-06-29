@@ -191,6 +191,53 @@ export const useFetchTopPaths = ({ envId, domainId }: FetchTopPathsProps) => {
   return { paths, loading, error };
 };
 
+interface FetchEventsProps {
+  envId: string;
+  domainId?: string;
+  ts?: "24h" | "7d" | "30d";
+}
+
+interface AnalyticsEvent {
+  name: string;
+  total: number;
+  unique: number;
+}
+
+export const useFetchEvents = ({
+  envId,
+  domainId,
+  ts = "30d",
+}: FetchEventsProps) => {
+  const [events, setEvents] = useState<AnalyticsEvent[]>([]);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!domainId) {
+      return;
+    }
+
+    setError("");
+    setLoading(true);
+
+    api
+      .fetch<AnalyticsEvent[]>(
+        `/analytics/events?envId=${envId}&domainId=${domainId}&ts=${ts}`
+      )
+      .then(data => {
+        setEvents(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        setError("Something went wrong while fetching events.");
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [envId, domainId, ts]);
+
+  return { events, loading, error };
+};
+
 interface FetchCountriesProps {
   envId: string;
   domainId?: string;
