@@ -27,6 +27,9 @@ func Services(r *shttp.Router) *shttp.Service {
 	s.NewEndpoint("/admin/license").
 		Handler(shttp.MethodPost, "", user.WithAdmin(handlerLicenseSet))
 
+	s.NewEndpoint("/admin/access-logs").
+		Handler(shttp.MethodGet, "", user.WithAdmin(handlerAccessLogs))
+
 	s.NewEndpoint("/admin/git").
 		Handler(shttp.MethodGet, "/details", user.WithAdmin(handlerGitDetails)).
 		Handler(shttp.MethodPost, "/configure", user.WithAdmin(handlerGitConfigure)).

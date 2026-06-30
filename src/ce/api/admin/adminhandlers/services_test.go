@@ -20,6 +20,7 @@ func (s *ServicesSuite) Test_Services_SelfHosted() {
 	s.NotNil(services)
 
 	handlers := []string{
+		"GET:/admin/access-logs",
 		"GET:/admin/domains",
 		"GET:/admin/git/details",
 		"GET:/admin/git/github/callback",
@@ -54,6 +55,7 @@ func (s *ServicesSuite) Test_Services_Cloud() {
 
 	handlers := []string{
 		"DELETE:/admin/cloud/app",
+		"GET:/admin/access-logs",
 		"GET:/admin/cloud/app",
 		"GET:/admin/domains",
 		"GET:/admin/git/details",

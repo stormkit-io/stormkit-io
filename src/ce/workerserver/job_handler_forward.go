@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/accesslog"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/applog"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/analytics"
@@ -22,16 +23,17 @@ var HostingQueueName = "hosting_forward_queue"
 var ingestContext = context.Background()
 
 type HostingRecord struct {
-	AppID           types.ID           `json:"appId"`
-	EnvID           types.ID           `json:"envId"`
-	DeploymentID    types.ID           `json:"deploymentId"`
-	BillingUserID   types.ID           `json:"billingUserId"`
-	HostName        string             `json:"hostName"`
-	Logs            []integrations.Log `json:"logs"`
-	Analytics       *analytics.Record  `json:"analytics"`
-	Events          []analytics.Event  `json:"events"`
-	TotalBandwidth  int64              `json:"totalBandwidth"`
-	FunctionInvoked bool               `json:"functionInvoked"`
+	AppID           types.ID             `json:"appId"`
+	EnvID           types.ID             `json:"envId"`
+	DeploymentID    types.ID             `json:"deploymentId"`
+	BillingUserID   types.ID             `json:"billingUserId"`
+	HostName        string               `json:"hostName"`
+	Logs            []integrations.Log   `json:"logs"`
+	Analytics       *analytics.Record    `json:"analytics"`
+	AccessLog       *accesslog.AccessLog `json:"accessLog"`
+	Events          []analytics.Event    `json:"events"`
+	TotalBandwidth  int64                `json:"totalBandwidth"`
+	FunctionInvoked bool                 `json:"functionInvoked"`
 }
 
 // IngestHandlerForward reads rows from redis and inserts them into the database.
@@ -47,6 +49,7 @@ type HostingRecord struct {
 func IngestHandlerForward(ctx context.Context) error {
 	client := rediscache.Client()
 	analyticsRecords := []analytics.Record{}
+	accessLogs := []accesslog.AccessLog{}
 	eventRecords := []analytics.Event{}
 	logRecords := []*applog.Log{}
 	stats := map[string]map[string]int64{} // userId -> metric -> value
@@ -109,6 +112,10 @@ func IngestHandlerForward(ctx context.Context) error {
 			analyticsRecords = append(analyticsRecords, *record.Analytics)
 		}
 
+		if record.AccessLog != nil {
+			accessLogs = append(accessLogs, *record.AccessLog)
+		}
+
 		if len(record.Events) > 0 {
 			eventRecords = append(eventRecords, record.Events...)
 		}
@@ -146,6 +153,12 @@ func IngestHandlerForward(ctx context.Context) error {
 	if len(analyticsRecords) > 0 {
 		if err := analytics.NewStore().InsertRecords(analyticsContext, analyticsRecords); err != nil {
 			slog.Errorf("error while batch inserting analytic records: %v", err)
+		}
+	}
+
+	if len(accessLogs) > 0 {
+		if err := accesslog.NewStore().InsertLogs(ingestContext, accessLogs); err != nil {
+			slog.Errorf("error while batch inserting access logs: %v", err)
 		}
 	}
 
