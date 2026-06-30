@@ -9,6 +9,7 @@ import CardHeader from "~/components/CardHeader";
 import EmptyPage from "~/components/EmptyPage";
 import { EnvironmentContext } from "~/pages/apps/[id]/environments/Environment.context";
 import DomainSelector from "~/shared/domains/DomainSelector";
+import AnalyticsToggle from "./AnalyticsToggle";
 import Visitors from "./Visitors";
 import Events from "./Events";
 import TopReferrers from "./TopReferrers";
@@ -60,29 +61,36 @@ export default function Analytics() {
           title="Analytics"
           subtitle="Monitor user analytics for the specified domain within this environment configuration."
           actions={
-            <DomainSelector
-              selected={selectedDomain ? [selectedDomain] : []}
-              appId={environment.appId}
-              envId={environment.id!}
-              fullWidth={false}
-              onFetch={domains => {
-                if (domains?.[0]) {
-                  setDomain(
-                    domains.find(d => d.domainName === params.get("domain")) ||
-                      domains[0]
-                  );
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+              <AnalyticsToggle
+                appId={environment.appId}
+                envId={environment.id!}
+              />
+              <DomainSelector
+                selected={selectedDomain ? [selectedDomain] : []}
+                appId={environment.appId}
+                envId={environment.id!}
+                fullWidth={false}
+                onFetch={domains => {
+                  if (domains?.[0]) {
+                    setDomain(
+                      domains.find(
+                        d => d.domainName === params.get("domain")
+                      ) || domains[0]
+                    );
 
-                  setHasDomains(true);
-                } else if (typeof hasDomains === "undefined") {
-                  setHasDomains(false);
-                }
-              }}
-              onDomainSelect={d => {
-                const selectedDomain = d ? (d[0] as Domain) : undefined;
-                setDomain(selectedDomain);
-                setParams({ domain: selectedDomain?.domainName || "" });
-              }}
-            />
+                    setHasDomains(true);
+                  } else if (typeof hasDomains === "undefined") {
+                    setHasDomains(false);
+                  }
+                }}
+                onDomainSelect={d => {
+                  const selectedDomain = d ? (d[0] as Domain) : undefined;
+                  setDomain(selectedDomain);
+                  setParams({ domain: selectedDomain?.domainName || "" });
+                }}
+              />
+            </Box>
           }
         />
       </Card>

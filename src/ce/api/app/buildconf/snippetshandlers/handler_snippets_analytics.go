@@ -117,6 +117,24 @@ func findAnalyticsSnippet(req *app.RequestContext) (*buildconf.Snippet, error) {
 	return nil, nil
 }
 
+// HandlerAnalyticsSnippetStatus reports whether the managed analytics snippet is
+// currently enabled for the environment, so the UI can reflect the on/off state
+// without paging through the full snippet list.
+func HandlerAnalyticsSnippetStatus(req *app.RequestContext) *shttp.Response {
+	existing, err := findAnalyticsSnippet(req)
+
+	if err != nil {
+		return shttp.Error(err)
+	}
+
+	enabled := existing != nil && existing.Enabled
+
+	return &shttp.Response{
+		Status: http.StatusOK,
+		Data:   map[string]any{"enabled": enabled},
+	}
+}
+
 func analyticsSnippetResponse(req *app.RequestContext, snippet *buildconf.Snippet, status int) *shttp.Response {
 	if err := appcache.Service().Reset(req.EnvID); err != nil {
 		return shttp.Error(err)

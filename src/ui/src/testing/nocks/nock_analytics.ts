@@ -95,3 +95,47 @@ export const mockFetchEventBreakdown = ({
     )
     .reply(status, response);
 };
+
+interface MockAnalyticsStatusProps {
+  appId: string;
+  envId: string;
+  status?: number;
+  enabled: boolean;
+}
+
+export const mockFetchAnalyticsStatus = ({
+  appId,
+  envId,
+  status = 200,
+  enabled,
+}: MockAnalyticsStatusProps) => {
+  return nock(endpoint)
+    .get(`/snippets/analytics?appId=${appId}&envId=${envId}`)
+    .reply(status, { enabled });
+};
+
+interface MockToggleAnalyticsProps {
+  appId: string;
+  envId: string;
+  status?: number;
+}
+
+export const mockEnableAnalytics = ({
+  appId,
+  envId,
+  status = 200,
+}: MockToggleAnalyticsProps) => {
+  return nock(endpoint)
+    .post(`/snippets/analytics`, { appId, envId })
+    .reply(status, { snippet: {} });
+};
+
+export const mockDisableAnalytics = ({
+  appId,
+  envId,
+  status = 200,
+}: MockToggleAnalyticsProps) => {
+  return nock(endpoint)
+    .delete(`/snippets/analytics?appId=${appId}&envId=${envId}`)
+    .reply(status, {});
+};
