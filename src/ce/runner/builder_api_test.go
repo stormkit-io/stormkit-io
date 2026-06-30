@@ -29,8 +29,7 @@ func (s *APIBuilderSuite) BeforeTest(_, _ string) {
 		Repo: runner.RepoOpts{
 			Dir: path.Join(tmpDir, "repo"),
 		},
-		Build: runner.BuildOpts{
-		},
+		Build: runner.BuildOpts{},
 	}
 
 	s.NoError(s.config.MkdirAll())

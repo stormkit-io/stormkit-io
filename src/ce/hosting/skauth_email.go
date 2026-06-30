@@ -7,9 +7,9 @@ import (
 
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
-	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/database"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"

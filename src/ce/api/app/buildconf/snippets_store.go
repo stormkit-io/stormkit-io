@@ -27,7 +27,8 @@ var snippetsStmt = struct {
 		SELECT
 			s.snippet_id, s.app_id, s.env_id,
 			s.snippet_title, s.snippet_content, snippet_location,
-			s.should_prepend, s.snippet_rules, s.is_enabled
+			s.should_prepend, s.snippet_rules, s.is_enabled,
+			s.snippet_interpolate
 		FROM
 			snippets s
 		WHERE
@@ -42,13 +43,14 @@ var snippetsStmt = struct {
 			app_id, env_id, snippet_title,
 			snippet_content, snippet_content_hash,
 			snippet_location, should_prepend,
-			snippet_rules, is_enabled
+			snippet_rules, is_enabled, snippet_interpolate
 		)
 		VALUES {{ range $i, $record := .records }}
 			(
 				${{ $record.p1 }}, ${{ $record.p2 }}, ${{ $record.p3 }},
 				${{ $record.p4 }}, ${{ $record.p5 }}, ${{ $record.p6 }},
-				${{ $record.p7 }}, ${{ $record.p8 }}, ${{ $record.p9 }}
+				${{ $record.p7 }}, ${{ $record.p8 }}, ${{ $record.p9 }},
+				${{ $record.p10 }}
 			){{ if not (last $i $.records) }}, {{ end }}
 		{{ end }}
 		RETURNING 
@@ -58,7 +60,7 @@ var snippetsStmt = struct {
 	updateSnippet: `
 		WITH update_ts AS (
 			UPDATE apps_build_conf e SET updated_at = NOW()
-			WHERE e.env_id = $9
+			WHERE e.env_id = $10
 		)
 		UPDATE snippets SET
 			snippet_title = $1,
@@ -67,10 +69,11 @@ var snippetsStmt = struct {
 			snippet_location = $4,
 			snippet_rules = $5,
 			should_prepend = $6,
-			is_enabled = $7
+			is_enabled = $7,
+			snippet_interpolate = $8
 		WHERE
-			snippet_id = $8 AND
-			env_id = $9;
+			snippet_id = $9 AND
+			env_id = $10;
 	`,
 
 	missingHosts: `
@@ -128,6 +131,7 @@ func (s *SStore) selectSnippet(ctx context.Context, data map[string]any, params 
 		&snippet.ID, &snippet.AppID, &snippet.EnvID,
 		&snippet.Title, &snippet.Content, &snippet.Location,
 		&snippet.Prepend, &snippet.Rules, &snippet.Enabled,
+		&snippet.Interpolate,
 	)
 
 	if err == sql.ErrNoRows {
@@ -212,6 +216,7 @@ func (s *SStore) SnippetsByEnvID(ctx context.Context, filters SnippetFilters) ([
 			&snippet.ID, &snippet.AppID, &snippet.EnvID,
 			&snippet.Title, &snippet.Content, &snippet.Location,
 			&snippet.Prepend, &snippet.Rules, &snippet.Enabled,
+			&snippet.Interpolate,
 		)
 
 		if err != nil {
@@ -231,7 +236,7 @@ func (s *SStore) Insert(ctx context.Context, snippets []*Snippet) error {
 	data := map[string]any{}
 
 	// number of fields to be parameterized $1, $2, etc...
-	insertFieldsSize := 9
+	insertFieldsSize := 10
 	c := 0
 
 	for _, snippet := range snippets {
@@ -245,7 +250,7 @@ func (s *SStore) Insert(ctx context.Context, snippets []*Snippet) error {
 			snippet.AppID, snippet.EnvID, snippet.Title,
 			snippet.Content, snippet.ContentHash(),
 			snippet.Location, snippet.Prepend,
-			snippet.Rules, snippet.Enabled,
+			snippet.Rules, snippet.Enabled, snippet.Interpolate,
 		)
 
 		records = append(records, record)
@@ -296,7 +301,7 @@ func (s *SStore) Update(ctx context.Context, snippet *Snippet) error {
 	params := []any{
 		snippet.Title, snippet.Content, snippet.ContentHash(),
 		snippet.Location, snippet.Rules, snippet.Prepend, snippet.Enabled,
-		snippet.ID, snippet.EnvID,
+		snippet.Interpolate, snippet.ID, snippet.EnvID,
 	}
 
 	_, err := s.Exec(ctx, snippetsStmt.updateSnippet, params...)

@@ -144,7 +144,7 @@ func (s *InstallerSuite) Test_Install_Yarn() {
 		Name: "yarn",
 		Args: []string{"--version"},
 		Dir:  s.config.WorkDir,
-		Env:    runner.PrepareEnvVars(s.config.Build.EnvVars),
+		Env:  runner.PrepareEnvVars(s.config.Build.EnvVars),
 	}).Return(s.mockCmd).Once()
 
 	s.mockCmd.On("Output").Return([]byte("1.22.19\n"), nil).Once()

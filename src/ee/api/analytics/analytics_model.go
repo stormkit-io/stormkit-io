@@ -23,6 +23,9 @@ type Record struct {
 	RequestTS   utils.Unix
 	StatusCode  int
 	RequestID   null.String
+	// Source distinguishes server-recorded hits ("server") from client beacon
+	// pageviews ("client"). NULL (legacy rows) is treated as server.
+	Source null.String
 }
 
 func (r Record) String() string {

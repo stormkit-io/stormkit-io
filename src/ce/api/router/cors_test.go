@@ -91,7 +91,11 @@ func (s *CorsSuite) Test_Allowed_SelfHosted() {
 
 func (s *CorsSuite) Test_Allowed_WithPort() {
 	router.AllowedHosts = []string{}
-	{ cnf := admin.MustConfig().Clone(); cnf.DomainConfig.App = "https://sk.example.org:8443"; admin.SetConfig(&cnf) }
+	{
+		cnf := admin.MustConfig().Clone()
+		cnf.DomainConfig.App = "https://sk.example.org:8443"
+		admin.SetConfig(&cnf)
+	}
 	config.SetIsSelfHosted(true)
 
 	allowed := router.Cors()
@@ -145,7 +149,11 @@ func (s *CorsSuite) Test_AllowedOtherMethods() {
 
 func (s *CorsSuite) Test_ResetCors() {
 	config.SetIsSelfHosted(true)
-	{ cnf := admin.MustConfig().Clone(); cnf.DomainConfig.App = "https://sk.new-domain.org"; admin.SetConfig(&cnf) }
+	{
+		cnf := admin.MustConfig().Clone()
+		cnf.DomainConfig.App = "https://sk.new-domain.org"
+		admin.SetConfig(&cnf)
+	}
 
 	router.AllowedHosts = []string{"http://old-host"}
 	router.ResetCors()

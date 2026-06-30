@@ -1,6 +1,7 @@
 package hosting
 
 import (
+	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/analytics"
 	"github.com/stormkit-io/stormkit-io/src/lib/pool"
@@ -11,6 +12,22 @@ import (
 // (and are not) recorded as page views.
 func AnalyticsRecord(req *RequestContext, res *shttp.Response) *analytics.Record {
 	return analyticsRecord(req, res)
+}
+
+// ResolveAnalyticsScript exposes resolveAnalyticsScript so tests can assert the
+// override-else-embedded selection without a database.
+func ResolveAnalyticsScript(cfg admin.InstanceConfig) ([]byte, string) {
+	return resolveAnalyticsScript(cfg)
+}
+
+// InjectSnippets exposes injectSnippets for tests.
+func InjectSnippets(req *RequestContext, res *shttp.Response) *shttp.Response {
+	return injectSnippets(req, res)
+}
+
+// EmbeddedScriptETag exposes the embedded default's ETag for tests.
+func EmbeddedScriptETag() string {
+	return embeddedScriptETag
 }
 
 // WaitArtifacts blocks until all in-flight artifacts goroutines have finished

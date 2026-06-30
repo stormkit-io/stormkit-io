@@ -41,7 +41,7 @@ var stmt = struct {
 			app_id, env_id, visitor_ip,
 			request_path, request_timestamp,
 			response_code, user_agent, referrer,
-			domain_id, country_iso_code, request_id
+			domain_id, country_iso_code, request_id, source
 		)
 		VALUES {{ range $i, $record := .records }}
 			(
@@ -61,7 +61,8 @@ var stmt = struct {
 				) {{ else }}
 					NULL
 				{{ end }},
-				${{ $record.p10 }}::uuid
+				${{ $record.p10 }}::uuid,
+				${{ $record.p11 }}
 			){{ if not (last $i $.records) }},{{ end }}
 		{{ end }};
 	`,
@@ -381,7 +382,7 @@ func (s *Store) InsertRecords(ctx context.Context, records []Record) error {
 
 	// number of fields to
 	// be parameterized $1, $2
-	insertFieldsSize := 10
+	insertFieldsSize := 11
 	c := 0
 
 	for _, record := range records {
@@ -397,7 +398,7 @@ func (s *Store) InsertRecords(ctx context.Context, records []Record) error {
 			record.AppID, record.EnvID, ip,
 			record.RequestPath, record.RequestTS.UTC(), record.StatusCode,
 			cleanNullChars(record.UserAgent), cleanReferrer(record.Referrer), record.DomainID,
-			record.RequestID,
+			record.RequestID, record.Source,
 		)
 
 		if ip.Valid {

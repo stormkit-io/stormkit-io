@@ -37,8 +37,15 @@ type collectEvent struct {
 	Metadata  json.RawMessage `json:"metadata"`
 }
 
+type collectPageview struct {
+	Path      string `json:"path"`
+	Referrer  string `json:"referrer"`
+	RequestID string `json:"requestId"`
+}
+
 type collectPayload struct {
-	Events []collectEvent `json:"events"`
+	Events    []collectEvent    `json:"events"`
+	Pageviews []collectPageview `json:"pageviews"`
 }
 
 // WithCollect handles the client-side (and server-to-server) analytics beacon
@@ -113,6 +120,39 @@ func WithCollect(req *RequestContext) (*shttp.Response, error) {
 		})
 	}
 
+	// Client-side (SPA) pageviews are recorded into the analytics table tagged
+	// as "client", so they can be told apart from server-recorded hits.
+	for _, pv := range payload.Pageviews {
+		path := stripNullChars(pv.Path)
+
+		if path == "" {
+			continue
+		}
+
+		referrer := analytics.NormalizeReferrer(pv.Referrer)
+
+		Queue(&jobs.HostingRecord{
+			AppID:         cfg.AppID,
+			EnvID:         cfg.EnvID,
+			DeploymentID:  cfg.DeploymentID,
+			HostName:      req.Host.Name,
+			BillingUserID: cfg.BillingUserID,
+			Analytics: &analytics.Record{
+				AppID:       cfg.AppID,
+				EnvID:       cfg.EnvID,
+				DomainID:    cfg.DomainID,
+				VisitorIP:   req.RemoteIP(),
+				RequestPath: path,
+				RequestTS:   utils.NewUnix(),
+				StatusCode:  http.StatusOK,
+				UserAgent:   null.NewString(userAgent, userAgent != ""),
+				Referrer:    null.NewString(referrer, referrer != ""),
+				RequestID:   sanitizeRequestID(pv.RequestID),
+				Source:      null.StringFrom("client"),
+			},
+		})
+	}
+
 	return &shttp.Response{Status: http.StatusNoContent}, nil
 }
 
@@ -131,12 +171,20 @@ func parseCollectBody(body io.ReadCloser) (collectPayload, bool) {
 		return payload, false
 	}
 
-	if err := json.Unmarshal(data, &payload); err != nil || len(payload.Events) == 0 {
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return payload, false
+	}
+
+	if len(payload.Events) == 0 && len(payload.Pageviews) == 0 {
 		return payload, false
 	}
 
 	if len(payload.Events) > maxEventsPerBeacon {
 		payload.Events = payload.Events[:maxEventsPerBeacon]
+	}
+
+	if len(payload.Pageviews) > maxEventsPerBeacon {
+		payload.Pageviews = payload.Pageviews[:maxEventsPerBeacon]
 	}
 
 	return payload, true

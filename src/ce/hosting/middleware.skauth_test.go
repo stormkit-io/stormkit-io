@@ -100,7 +100,6 @@ func (s *WithSKAuthSuite) newPostRequest(host *hosting.Host, path string, body a
 	return rq
 }
 
-
 func (s *WithSKAuthSuite) Test_SKAuthDisabled() {
 	host := &hosting.Host{
 		Name:   "www.stormkit.io",

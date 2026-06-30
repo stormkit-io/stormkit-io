@@ -445,4 +445,3 @@ func (s *AwsS3Suite) Test_DeleteArtifacts_Paginated() {
 	s.Equal(2, listCallCount)
 	s.Equal(2, deleteCallCount)
 }
-

@@ -121,7 +121,9 @@ CREATE TABLE skitapi.analytics (
     response_code integer NOT NULL,
     user_agent text,
     referrer text,
-    country_iso_code text
+    country_iso_code text,
+    request_id uuid,
+    source text
 );
 
 
@@ -896,6 +898,7 @@ CREATE TABLE skitapi.snippets (
     snippet_rules jsonb,
     should_prepend boolean DEFAULT false NOT NULL,
     is_enabled boolean DEFAULT false NOT NULL,
+    snippet_interpolate boolean DEFAULT false NOT NULL,
     created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text) NOT NULL
 );
 

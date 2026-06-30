@@ -18,8 +18,10 @@ func (s *ServicesSuite) Test_Services() {
 
 	handlers := []string{
 		"DELETE:/snippets",
+		"DELETE:/snippets/analytics",
 		"GET:/snippets",
 		"POST:/snippets",
+		"POST:/snippets/analytics",
 		"PUT:/snippets",
 	}
 
