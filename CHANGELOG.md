@@ -1,5 +1,36 @@
 # Changelog
 
+## v2026.06.24.1...v2026.06.30.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.06.24.1...v2026.06.30.1)
+
+### 🚀 Enhancements
+
+- Expose function triggers via api and mcp ([#320](https://github.com/stormkit-io/stormkit-io/pull/320))
+- Analytics retention, index and drain loop ([#321](https://github.com/stormkit-io/stormkit-io/pull/321))
+- Improve bot detection with crawler dataset ([#322](https://github.com/stormkit-io/stormkit-io/pull/322))
+- Custom events backend (phase 3) ([#323](https://github.com/stormkit-io/stormkit-io/pull/323))
+- Custom events dashboard with property grouping ([#325](https://github.com/stormkit-io/stormkit-io/pull/325))
+- Opt-in client-side analytics script ([#327](https://github.com/stormkit-io/stormkit-io/pull/327))
+- Client analytics first-release hardening ([#328](https://github.com/stormkit-io/stormkit-io/pull/328))
+- Partitioned raw access logs + admin viewer ([#329](https://github.com/stormkit-io/stormkit-io/pull/329))
+
+### 🩹 Fixes
+
+- Authorize domainId in analytics handlers ([#326](https://github.com/stormkit-io/stormkit-io/pull/326))
+
+### 💅 Refactors
+
+- Template-based analytics events insert ([#324](https://github.com/stormkit-io/stormkit-io/pull/324))
+
+### 🏡 Chore
+
+- Update changelog for v2026.06.24.1 ([#319](https://github.com/stormkit-io/stormkit-io/pull/319))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.06.23.1...v2026.06.24.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.06.23.1...v2026.06.24.1)
