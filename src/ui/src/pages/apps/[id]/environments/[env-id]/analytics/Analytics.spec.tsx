@@ -4,7 +4,6 @@ import { EnvironmentContext } from "~/pages/apps/[id]/environments/Environment.c
 import mockApp from "~/testing/data/mock_app";
 import mockEnvironments from "~/testing/data/mock_environments";
 import { mockFetchDomains } from "~/testing/nocks/nock_domains";
-import { mockFetchAnalyticsStatus } from "~/testing/nocks/nock_analytics";
 import Analytics from "./Analytics";
 import { renderWithRouter } from "~/testing/helpers";
 
@@ -26,12 +25,6 @@ describe("~/pages/apps/[id]/environments/[env-id]/analytics/Analytics.tsx", () =
     currentApp = mockApp();
     currentEnvs = mockEnvironments({ app: currentApp });
     currentEnv = currentEnvs[0];
-
-    mockFetchAnalyticsStatus({
-      appId: currentApp.id!,
-      envId: currentEnv.id!,
-      enabled: false,
-    });
 
     const scope = mockFetchDomains({
       envId: currentEnv.id!,

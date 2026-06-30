@@ -10,6 +10,7 @@ import {
   mockFetchEvents,
   mockFetchEventProperties,
   mockFetchEventBreakdown,
+  mockFetchAnalyticsStatus,
 } from "~/testing/nocks/nock_analytics";
 import Events from "./Events";
 
@@ -33,6 +34,12 @@ describe("~/pages/apps/[id]/environments/[env-id]/analytics/Events.tsx", () => {
       envId: currentEnv.id,
       domainId: currentDomain.id,
       response,
+    });
+
+    mockFetchAnalyticsStatus({
+      appId: currentEnv.appId,
+      envId: currentEnv.id,
+      enabled: false,
     });
 
     wrapper = render(
@@ -64,7 +71,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/analytics/Events.tsx", () => {
     await waitFor(() => {
       expect(scope.isDone()).toBe(true);
       expect(wrapper.getByText(/No events yet/)).toBeTruthy();
-      expect(wrapper.getByText("Learn how to send events")).toBeTruthy();
+      expect(wrapper.getByText("Learn how to send events.")).toBeTruthy();
     });
   });
 

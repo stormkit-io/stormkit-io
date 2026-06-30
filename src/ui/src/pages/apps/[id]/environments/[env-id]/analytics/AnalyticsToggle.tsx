@@ -62,8 +62,8 @@ export default function AnalyticsToggle({ appId, envId }: Props) {
           }}
         >
           This will {enabled ? "disable" : "enable"} the Stormkit analytics
-          script for this environment. The change takes effect on the next
-          deploy.
+          script for this environment. The change takes effect immediately, on
+          the next page load.
         </ConfirmModal>
       )}
     </>
