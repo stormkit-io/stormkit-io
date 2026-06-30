@@ -6,11 +6,13 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	jobs "github.com/stormkit-io/stormkit-io/src/ce/workerserver"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/analytics"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
+	"github.com/stormkit-io/stormkit-io/src/lib/shttp/limiter"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"gopkg.in/guregu/null.v3"
 )
@@ -25,6 +27,21 @@ const collectPath = reservedPathPrefix + "collect"
 // maxEventsPerBeacon bounds how many events a single beacon request can submit,
 // to limit abuse of the unauthenticated collect endpoint.
 const maxEventsPerBeacon = 20
+
+// collectLimiter throttles the unauthenticated collect endpoint per visitor IP.
+// Beacons are bursty (initial pageview plus events on load, then SPA
+// navigations), so the burst is generous while the sustained rate stops a single
+// client from flooding the ingestion pipeline. The Cleanup goroutine evicts idle
+// IPs so the in-memory map does not grow unbounded.
+var collectLimiter = limiter.NewStore(&limiter.Options{
+	Limit:    120,
+	Burst:    30,
+	Duration: time.Minute,
+})
+
+func init() {
+	go limiter.Cleanup()
+}
 
 // jsonNullEscape is the JSON unicode escape for a NUL code point, which is valid
 // JSON but cannot be stored in a Postgres jsonb column.
@@ -64,6 +81,10 @@ func WithCollect(req *RequestContext) (*shttp.Response, error) {
 
 	if req.Host == nil || req.Host.Config == nil || !req.Host.Config.IsEnterprise {
 		return &shttp.Response{Status: http.StatusNotFound}, nil
+	}
+
+	if !collectLimiter.Get(req.RemoteIP()).Limiter.Allow() {
+		return &shttp.Response{Status: http.StatusTooManyRequests}, nil
 	}
 
 	userAgent := req.UserAgent()
