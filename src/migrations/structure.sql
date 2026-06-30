@@ -121,7 +121,9 @@ CREATE TABLE skitapi.analytics (
     response_code integer NOT NULL,
     user_agent text,
     referrer text,
-    country_iso_code text
+    country_iso_code text,
+    request_id uuid,
+    source text
 );
 
 

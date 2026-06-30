@@ -2,7 +2,6 @@ package snippetshandlers
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appcache"
@@ -96,8 +95,10 @@ func HandlerAnalyticsSnippetDisable(req *app.RequestContext) *shttp.Response {
 }
 
 // findAnalyticsSnippet locates the managed snippet by its reserved title, falling
-// back to a content match on the served script path so a title edit does not
-// orphan the row.
+// back to an exact match on the managed content so a title edit does not orphan
+// the row. The fallback compares against the full canonical snippet rather than a
+// substring of the script path, so a user-authored snippet that merely references
+// /_stormkit/analytics.js is never mistaken for the managed one and clobbered.
 func findAnalyticsSnippet(req *app.RequestContext) (*buildconf.Snippet, error) {
 	snippets, err := buildconf.SnippetsStore().SnippetsByEnvID(req.Context(), buildconf.SnippetFilters{
 		EnvID: req.EnvID,
@@ -108,7 +109,7 @@ func findAnalyticsSnippet(req *app.RequestContext) (*buildconf.Snippet, error) {
 	}
 
 	for _, snippet := range snippets {
-		if snippet.Title == AnalyticsSnippetTitle || strings.Contains(snippet.Content, analyticsSnippetSrc) {
+		if snippet.Title == AnalyticsSnippetTitle || snippet.Content == analyticsSnippetContent {
 			return snippet, nil
 		}
 	}

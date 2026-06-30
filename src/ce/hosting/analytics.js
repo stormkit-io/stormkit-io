@@ -1,4 +1,13 @@
 (function () {
+  // Guard against a second load (managed snippet plus a user copy, or a
+  // duplicate injection): without it pushState would be wrapped more than once
+  // and every SPA navigation would be counted multiple times.
+  if (window.__skAnalytics) {
+    return;
+  }
+
+  window.__skAnalytics = true;
+
   var current = document.currentScript;
   var rid = (current && current.getAttribute("data-sk-rid")) || "";
   var endpoint = "/_stormkit/collect";
