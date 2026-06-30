@@ -337,7 +337,6 @@ func (s *ProcessManagerSuite) Test_ProcessManager_Invoke_CustomPort_Unpublished(
 	}))), " "), strings.Join(strings.Fields(string(result.Body)), " "))
 }
 
-
 func (s *ProcessManagerSuite) Test_Kill_AlreadyKilled() {
 	args := integrations.InvokeArgs{
 		URL:          &url.URL{},

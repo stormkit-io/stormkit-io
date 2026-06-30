@@ -75,4 +75,3 @@ func NormalizeSnippetRules(rules *buildconf.SnippetRule) {
 
 	rules.Hosts = hosts
 }
-

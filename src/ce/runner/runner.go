@@ -188,7 +188,7 @@ type BuildOpts struct {
 	RedirectsFile    string
 	APIFolder        string            // Relative path to the API folder (trimmed)
 	DistFolder       string            // Relative path to the distribution folder (trimmed)
-	EnvVars map[string]string // Normalized environment variables
+	EnvVars          map[string]string // Normalized environment variables
 	DeploymentID     string
 	AppID            string
 	EnvID            string
@@ -286,7 +286,7 @@ func Start(payload, rootDir string) error {
 			DistFolder:       trim(msg.Build.DistFolder),
 			MigrationsFolder: trim(msg.Build.MigrationsFolder),
 			StatusChecks:     msg.Build.StatusChecks,
-			EnvVars: msg.Build.Vars,
+			EnvVars:          msg.Build.Vars,
 		},
 		Uploader:    &msg.Config.RunnerConfig,
 		AutoInstall: msg.Config.AutoInstall,

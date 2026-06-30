@@ -20,7 +20,7 @@ type APIBuilderOpts struct {
 	APIDir         string
 	OutputDir      string
 	PackageManager string // "npm", "yarn", "pnpm"
-	EnvVarsMap map[string]string
+	EnvVarsMap     map[string]string
 	Reporter       *ReporterModel
 }
 
