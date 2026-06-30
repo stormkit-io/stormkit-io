@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/accesslog"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
@@ -157,6 +158,8 @@ func (r *RequestServer) artifacts(res *shttp.Response) {
 		data, _ = res.Data.([]byte)
 	}
 
+	bandwidth := int64(len(data)) + headersSize(res.Headers)
+
 	Queue(&jobs.HostingRecord{
 		AppID:           r.req.Host.Config.AppID,
 		EnvID:           r.req.Host.Config.EnvID,
@@ -166,8 +169,39 @@ func (r *RequestServer) artifacts(res *shttp.Response) {
 		FunctionInvoked: r.fnInvoked,
 		Logs:            r.logs,
 		Analytics:       r.record,
-		TotalBandwidth:  int64(len(data)) + headersSize(res.Headers),
+		AccessLog:       accessLogRecord(r.req, res, bandwidth),
+		TotalBandwidth:  bandwidth,
 	})
+}
+
+// accessLogRecord builds a raw access log for every request — including bots,
+// XHR, static assets and non-HTML responses. Unlike analyticsRecord it applies
+// no filtering and keeps the unmasked client IP and full user-agent; IsBot is
+// recorded as a flag so bot traffic can be included or excluded at query time.
+func accessLogRecord(req *RequestContext, res *shttp.Response, bytesSent int64) *accesslog.AccessLog {
+	if req == nil || req.Host == nil || req.Host.Config == nil {
+		return nil
+	}
+
+	userAgent := req.UserAgent()
+
+	return &accesslog.AccessLog{
+		AppID:        req.Host.Config.AppID,
+		EnvID:        req.Host.Config.EnvID,
+		DeploymentID: req.Host.Config.DeploymentID,
+		DomainID:     req.Host.Config.DomainID,
+		HostName:     req.Host.Name,
+		RequestTS:    utils.NewUnix(),
+		Method:       req.Method,
+		RequestPath:  req.OriginalPath,
+		StatusCode:   res.Status,
+		ClientIP:     req.RemoteIP(),
+		UserAgent:    userAgent,
+		Referrer:     req.Referer(),
+		IsBot:        analytics.IsBot(userAgent),
+		BytesSent:    bytesSent,
+		RequestID:    null.NewString(req.RequestID, req.RequestID != ""),
+	}
 }
 
 func (r *RequestServer) FileMeta() *FileMeta {

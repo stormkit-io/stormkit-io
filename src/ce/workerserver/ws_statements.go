@@ -25,6 +25,7 @@ type statement struct {
 	selectUserIDsWithoutAPIKeys     string
 	selectStaleSchemas              string
 	clearSchemaConf                 string
+	selectAccessLogPartitions       string
 }
 
 var stmt = &statement{
@@ -62,6 +63,13 @@ var stmt = &statement{
 			WHERE event_ts < now() - make_interval(days => $1)
 			LIMIT $2
 		)
+	`,
+	selectAccessLogPartitions: `
+		SELECT c.relname
+		FROM pg_inherits i
+		JOIN pg_class c ON c.oid = i.inhrelid
+		JOIN pg_class p ON p.oid = i.inhparent
+		WHERE p.relname = 'request_logs';
 	`,
 	deleteStaleEnvironments: fmt.Sprintf(`
 		DELETE FROM %s
