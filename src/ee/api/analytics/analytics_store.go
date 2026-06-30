@@ -3,7 +3,9 @@ package analytics
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"net/http"
@@ -14,6 +16,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/database"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
@@ -36,6 +39,10 @@ var stmt = struct {
 	avgDeploymentDurationByTeam string
 	topPerformingDomains        string
 }{
+	// visitor_ip stores a salted hash of the IP (p12), never the raw IP, so
+	// unique-visitor counts (COUNT(DISTINCT visitor_ip)) are preserved without
+	// persisting PII. The raw IP (p3) is used only transiently for the country
+	// lookup below and is not stored.
 	insertRecord: `
 		INSERT INTO analytics (
 			app_id, env_id, visitor_ip,
@@ -45,10 +52,10 @@ var stmt = struct {
 		)
 		VALUES {{ range $i, $record := .records }}
 			(
-				${{ $record.p1 }}, ${{ $record.p2 }}, ${{ $record.p3 }}::inet,
+				${{ $record.p1 }}, ${{ $record.p2 }}, ${{ $record.p12 }},
 				${{ $record.p4 }}, ${{ $record.p5 }}, ${{ $record.p6 }},
 				${{ $record.p7 }}, ${{ $record.p8 }}, ${{ $record.p9 }},
-				{{ if $record.geoLocation }} (
+				(
 					SELECT
 						gc.country_iso_code
 					FROM
@@ -58,9 +65,7 @@ var stmt = struct {
 					WHERE
 						${{ $record.p3 }}::inet <<= network
 					LIMIT 1
-				) {{ else }}
-					NULL
-				{{ end }},
+				),
 				${{ $record.p10 }}::uuid,
 				${{ $record.p11 }}
 			){{ if not (last $i $.records) }},{{ end }}
@@ -338,6 +343,20 @@ func NewStore() *Store {
 
 // fallback to localhost if its not
 // correct format
+// hashVisitorIP returns a salted, non-reversible identifier derived from a
+// visitor IP, stored in place of the raw IP. Hashing the IP (and nothing else)
+// keeps a 1:1 mapping with the IP, so COUNT(DISTINCT visitor_ip) still counts
+// unique visitors exactly while no PII is persisted at rest.
+func hashVisitorIP(ip string) null.String {
+	if ip == "" {
+		return null.String{}
+	}
+
+	sum := sha256.Sum256([]byte(config.Get().AppSecret + "|" + ip))
+
+	return null.StringFrom(hex.EncodeToString(sum[:16]))
+}
+
 func toIP(ipAddress string) null.String {
 	ip := net.ParseIP(ipAddress)
 
@@ -382,7 +401,7 @@ func (s *Store) InsertRecords(ctx context.Context, records []Record) error {
 
 	// number of fields to
 	// be parameterized $1, $2
-	insertFieldsSize := 11
+	insertFieldsSize := 12
 	c := 0
 
 	for _, record := range records {
@@ -398,12 +417,8 @@ func (s *Store) InsertRecords(ctx context.Context, records []Record) error {
 			record.AppID, record.EnvID, ip,
 			record.RequestPath, record.RequestTS.UTC(), record.StatusCode,
 			cleanNullChars(record.UserAgent), cleanReferrer(record.Referrer), record.DomainID,
-			record.RequestID, record.Source,
+			record.RequestID, record.Source, hashVisitorIP(ip.ValueOrZero()),
 		)
-
-		if ip.Valid {
-			row["geoLocation"] = true
-		}
 
 		rows = append(rows, row)
 		c = c + insertFieldsSize
