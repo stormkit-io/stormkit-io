@@ -379,3 +379,57 @@ export const useFetchByCountries = ({
 
   return { countries, loading, error };
 };
+
+interface AnalyticsStatusProps {
+  appId: string;
+  envId: string;
+  refreshToken?: number;
+}
+
+export const useFetchAnalyticsStatus = ({
+  appId,
+  envId,
+  refreshToken,
+}: AnalyticsStatusProps) => {
+  const [enabled, setEnabled] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+
+    api
+      .fetch<{ enabled: boolean }>(
+        `/snippets/analytics?appId=${appId}&envId=${envId}`
+      )
+      .then(data => {
+        setEnabled(Boolean(data.enabled));
+      })
+      .catch(() => {
+        setEnabled(false);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [appId, envId, refreshToken]);
+
+  return { enabled, loading };
+};
+
+interface ToggleAnalyticsProps {
+  appId: string;
+  envId: string;
+}
+
+export const enableAnalytics = ({
+  appId,
+  envId,
+}: ToggleAnalyticsProps): Promise<void> => {
+  return api.post(`/snippets/analytics`, { appId, envId });
+};
+
+export const disableAnalytics = ({
+  appId,
+  envId,
+}: ToggleAnalyticsProps): Promise<void> => {
+  return api.delete(`/snippets/analytics?appId=${appId}&envId=${envId}`);
+};

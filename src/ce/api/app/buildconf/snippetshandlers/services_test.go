@@ -20,6 +20,7 @@ func (s *ServicesSuite) Test_Services() {
 		"DELETE:/snippets",
 		"DELETE:/snippets/analytics",
 		"GET:/snippets",
+		"GET:/snippets/analytics",
 		"POST:/snippets",
 		"POST:/snippets/analytics",
 		"PUT:/snippets",

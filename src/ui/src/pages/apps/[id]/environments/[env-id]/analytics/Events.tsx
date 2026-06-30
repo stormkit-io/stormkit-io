@@ -12,6 +12,7 @@ import { useFetchEvents } from "./actions";
 import { truncate } from "./helpers";
 import EventsHelpContent from "./EventsHelpContent";
 import EventBreakdown from "./EventBreakdown";
+import AnalyticsToggle from "./AnalyticsToggle";
 
 interface Props {
   environment: Environment;
@@ -44,7 +45,7 @@ export default function Events({ environment, domain, ts }: Props) {
             <Help
               title={helpTitle}
               subtitle={helpSubtitle}
-              buttonText="Learn how to send events"
+              buttonText="Learn how to send events."
               buttonVariant="link"
             >
               <EventsHelpContent domain={domain} />
@@ -57,14 +58,20 @@ export default function Events({ environment, domain, ts }: Props) {
         title="Events"
         subtitle="Custom events tracked for this domain."
         actions={
-          <Help
-            title={helpTitle}
-            subtitle={helpSubtitle}
-            buttonText="How to track"
-            buttonVariant="text"
-          >
-            <EventsHelpContent domain={domain} />
-          </Help>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <AnalyticsToggle
+              appId={environment.appId}
+              envId={environment.id!}
+            />
+            <Help
+              title={helpTitle}
+              subtitle={helpSubtitle}
+              buttonText="How to track"
+              buttonVariant="text"
+            >
+              <EventsHelpContent domain={domain} />
+            </Help>
+          </Box>
         }
       />
       {selected ? (

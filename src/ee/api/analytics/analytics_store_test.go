@@ -93,7 +93,10 @@ func (s *StoreSuite) Test_InsertRecords() {
 		i = i + 1
 	}
 
-	s.Equal("85.97.11.98/32", dbRecords[0].RecordIP.ValueOrZero())
+	// visitor_ip stores a salted hash, not the raw IP: 32 hex chars, never the
+	// address itself. The raw IP is used only transiently for geo lookup.
+	s.Regexp("^[a-f0-9]{32}$", dbRecords[0].RecordIP.ValueOrZero())
+	s.NotContains(dbRecords[0].RecordIP.ValueOrZero(), "85.97.11.98")
 	s.Equal("/", dbRecords[0].Path)
 	s.Equal("google.com", dbRecords[0].Referrer.ValueOrZero())
 	s.Equal("", dbRecords[1].RecordIP.ValueOrZero())
