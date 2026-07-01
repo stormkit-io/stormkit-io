@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.06.30.1...v2026.07.01.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.06.30.1...v2026.07.01.1)
+
+### 🚀 Enhancements
+
+- Manage registered auth users ([#331](https://github.com/stormkit-io/stormkit-io/pull/331))
+
+### 🏡 Chore
+
+- Update changelog for v2026.06.30.1 ([#330](https://github.com/stormkit-io/stormkit-io/pull/330))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.06.24.1...v2026.06.30.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.06.24.1...v2026.06.30.1)
