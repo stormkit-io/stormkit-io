@@ -209,6 +209,10 @@ func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
 		return m.loginErrorRedirect(referOrigin, "We couldn't complete sign-in. Please try again."), nil
 	}
 
+	if err := store.UpdateLastLogin(req.Context(), usr.ID); err != nil {
+		slog.Errorf("oauth callback: failed to update last login: %s", err.Error())
+	}
+
 	sessionToken, err := user.JWT(jwt.MapClaims{
 		"uid": usr.UUID,
 		"eml": utils.EncryptToString(usr.Email, emlKey(env.AuthConf.Secret)),

@@ -21,7 +21,10 @@ const DURATION_UNITS: { suffix: string; minutes: number }[] = [
 // insensitive, optional whitespace) into minutes. Returns null on garbage so
 // the caller can surface a validation error.
 export const parseDuration = (input: string): number | null => {
-  const match = input.trim().toLowerCase().match(/^(\d+)\s*(min|mo|h|d|w|y)$/);
+  const match = input
+    .trim()
+    .toLowerCase()
+    .match(/^(\d+)\s*(min|mo|h|d|w|y)$/);
 
   if (!match) {
     return null;
@@ -119,7 +122,7 @@ const allProviders: AuthProvider[] = [
         value: "",
         required: true,
         helperText:
-          "Address used as the From header for magic-link emails (e.g. \"Acme <noreply@acme.com>\").",
+          'Address used as the From header for magic-link emails (e.g. "Acme <noreply@acme.com>").',
       },
     ],
     steps: [
@@ -327,12 +330,48 @@ export interface AuthUser {
   lastLoginAt: number;
 }
 
+interface UpdateAuthUserParams {
+  envId: string;
+  userId: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+}
+
+export const updateAuthUser = ({
+  envId,
+  userId,
+  email,
+  firstName,
+  lastName,
+}: UpdateAuthUserParams): Promise<AuthUser> =>
+  api.put<AuthUser>(`/skauth/users/${userId}`, {
+    envId,
+    email,
+    firstName,
+    lastName,
+  });
+
+interface DeleteAuthUserParams {
+  envId: string;
+  userId: string;
+}
+
+export const deleteAuthUser = ({
+  envId,
+  userId,
+}: DeleteAuthUserParams): Promise<void> =>
+  api.delete(`/skauth/users/${userId}?envId=${envId}`);
+
 interface FetchAuthUsersParams {
   envId: string;
   refreshToken?: number;
 }
 
-export const useFetchAuthUsers = ({ envId, refreshToken }: FetchAuthUsersParams) => {
+export const useFetchAuthUsers = ({
+  envId,
+  refreshToken,
+}: FetchAuthUsersParams) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [users, setUsers] = useState<AuthUser[]>([]);
@@ -345,7 +384,7 @@ export const useFetchAuthUsers = ({ envId, refreshToken }: FetchAuthUsersParams)
 
     api
       .fetch<{ results: AuthUser[]; hasNextPage: boolean }>(
-        `/v1/auth/users?envId=${envId}&from=${from}`
+        `/skauth/users?envId=${envId}&from=${from}`,
       )
       .then(({ results, hasNextPage }) => {
         setUsers(prev => (from === 0 ? results : [...prev, ...results]));

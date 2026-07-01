@@ -29,7 +29,34 @@ var schemaStmt = struct {
 	selectUserIDByEmail   string
 	verifyEmailUser       string
 	consumeMagicLinkToken string
+	updateAuthUser        string
+	deleteAuthUser        string
+	updateLastLogin       string
 }{
+	updateAuthUser: `
+		UPDATE stormkit_auth_users
+		SET email = $2, first_name = $3, last_name = $4
+		WHERE uuid = $1
+		RETURNING
+			user_id,
+			uuid,
+			COALESCE(first_name, '') AS first_name,
+			COALESCE(last_name, '') AS last_name,
+			email,
+			COALESCE(avatar, '') AS avatar,
+			created_at,
+			last_login_at;
+	`,
+
+	deleteAuthUser: `
+		DELETE FROM stormkit_auth_users WHERE uuid = $1;
+	`,
+
+	updateLastLogin: `
+		UPDATE stormkit_auth_users
+		SET last_login_at = NOW() AT TIME ZONE 'UTC'
+		WHERE user_id = $1;
+	`,
 	createAuthTable: `
 		CREATE TABLE IF NOT EXISTS stormkit_auth_users (
 			user_id SERIAL PRIMARY KEY NOT NULL,
@@ -809,6 +836,87 @@ func (s *schemaStore) ListAuthUsers(ctx context.Context, from, limit int) ([]*sk
 	}
 
 	return users, nil
+}
+
+type UpdateAuthUserParams struct {
+	UUID      string
+	Email     string
+	FirstName string
+	LastName  string
+}
+
+// UpdateAuthUser updates the editable profile fields (email, first and last
+// name) of the auth user identified by UUID and returns the updated record.
+// Returns nil when no user matches the UUID.
+func (s *schemaStore) UpdateAuthUser(ctx context.Context, p UpdateAuthUserParams) (*skauth.User, error) {
+	if s.conf == nil {
+		return nil, fmt.Errorf("schema configuration is required to update auth user")
+	}
+
+	row, err := s.QueryRow(ctx, schemaStmt.updateAuthUser, p.UUID, p.Email, p.FirstName, p.LastName)
+
+	if err != nil {
+		return nil, err
+	}
+
+	authUser := &skauth.User{}
+
+	err = row.Scan(
+		&authUser.ID,
+		&authUser.UUID,
+		&authUser.FirstName,
+		&authUser.LastName,
+		&authUser.Email,
+		&authUser.Avatar,
+		&authUser.CreatedAt,
+		&authUser.LastLoginAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return authUser, nil
+}
+
+// DeleteAuthUser removes the auth user identified by UUID. Attached provider
+// records are removed via ON DELETE CASCADE. Returns true when a row was
+// deleted, false when no user matched the UUID.
+func (s *schemaStore) DeleteAuthUser(ctx context.Context, uuid string) (bool, error) {
+	if s.conf == nil {
+		return false, fmt.Errorf("schema configuration is required to delete auth user")
+	}
+
+	res, err := s.Exec(ctx, schemaStmt.deleteAuthUser, uuid)
+
+	if err != nil {
+		return false, err
+	}
+
+	affected, err := res.RowsAffected()
+
+	if err != nil {
+		return false, err
+	}
+
+	return affected > 0, nil
+}
+
+// UpdateLastLogin stamps the auth user's last_login_at with the current time.
+// It is keyed by the internal user_id, which login flows already have in hand
+// after resolving or upserting the user.
+func (s *schemaStore) UpdateLastLogin(ctx context.Context, userID types.ID) error {
+	if s.conf == nil {
+		return fmt.Errorf("schema configuration is required to update last login")
+	}
+
+	_, err := s.Exec(ctx, schemaStmt.updateLastLogin, userID)
+
+	return err
 }
 
 type AuthUserByEmailParams struct {

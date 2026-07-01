@@ -58,6 +58,7 @@ func (s *ClientXSuite) Test_UserInfo_Success() {
 	s.mockServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		s.Equal("GET", r.Method)
 		s.Contains(r.URL.Path, "/users/me")
+		s.Contains(r.URL.Query().Get("user.fields"), "confirmed_email")
 		s.Equal("Bearer test-access-token", r.Header.Get("Authorization"))
 
 		w.Header().Set("Content-Type", "application/json")
@@ -68,7 +69,7 @@ func (s *ClientXSuite) Test_UserInfo_Success() {
 				"name": "John Doe",
 				"username": "johndoe",
 				"profile_image_url": "https://example.com/avatar.jpg",
-				"email": "john@example.com"
+				"confirmed_email": "john@example.com"
 			}
 		}`))
 	}))

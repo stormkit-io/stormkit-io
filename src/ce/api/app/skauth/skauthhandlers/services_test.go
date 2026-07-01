@@ -16,9 +16,12 @@ func (s *ServicesSuite) Test_Services() {
 	services := shttp.NewRouter().RegisterService(skauthhandlers.Services)
 
 	handlers := []string{
+		"DELETE:/skauth/users/{id}",
 		"GET:/skauth/providers",
+		"GET:/skauth/users",
 		"POST:/skauth",
 		"POST:/skauth/config",
+		"PUT:/skauth/users/{id}",
 	}
 
 	s.Equal(handlers, services.HandlerKeys())

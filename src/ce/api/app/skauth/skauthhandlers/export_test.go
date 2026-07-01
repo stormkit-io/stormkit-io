@@ -1,4 +1,4 @@
-package publicapiv1_test
+package skauthhandlers_test
 
 import (
 	"database/sql"

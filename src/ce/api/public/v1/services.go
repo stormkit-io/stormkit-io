@@ -98,9 +98,6 @@ func Services(r *shttp.Router) *shttp.Service {
 			Handler(shttp.MethodPost, "", app.WithAPIKey(handlerSchemaSet, &app.Opts{Env: true})).
 			Handler(shttp.MethodDelete, "", app.WithAPIKey(handlerSchemaDelete, &app.Opts{Env: true})).
 			Handler(shttp.MethodPost, "/configure", app.WithAPIKey(handlerSchemaConfigure, &app.Opts{Env: true}))
-
-		s.NewEndpoint("/v1/auth/users").
-			Handler(shttp.MethodGet, "", WithAPIKey(HandlerAuthUsersList, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 	}
 
 	if config.IsStormkitCloud() {

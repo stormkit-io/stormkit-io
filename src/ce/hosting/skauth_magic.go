@@ -10,6 +10,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
+	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
@@ -176,6 +177,10 @@ func (m *skAuthMiddleware) magicLinkVerify() *shttp.Response {
 
 	if authUser == nil {
 		return shttp.Error(fmt.Errorf("user %d not found after consuming magic link", userID), "internal error")
+	}
+
+	if err := store.UpdateLastLogin(req.Context(), userID); err != nil {
+		slog.Errorf("magic link verify: failed to update last login: %s", err.Error())
 	}
 
 	sessionToken, err := user.JWT(jwt.MapClaims{
