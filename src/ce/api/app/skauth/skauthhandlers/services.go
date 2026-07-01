@@ -22,6 +22,11 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodPost, "/config", app.WithApp(handlerAuthConfigUpdate, withEnv)).
 		Handler(shttp.MethodGet, "/providers", app.WithApp(handlerAuths, withEnv))
 
+	s.NewEndpoint("/skauth/users").
+		Handler(shttp.MethodGet, "", app.WithApp(handlerAuthUsersList, withEnv)).
+		Handler(shttp.MethodPut, "/{id}", app.WithApp(handlerAuthUserUpdate, withEnv)).
+		Handler(shttp.MethodDelete, "/{id}", app.WithApp(handlerAuthUserDelete, withEnv))
+
 	return s
 }
 

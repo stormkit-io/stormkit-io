@@ -1,39 +1,41 @@
-package publicapiv1
+package skauthhandlers
 
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 )
 
 const authUsersListLimit = 25
 
-// HandlerAuthUsersList returns a paginated list of registered auth users for the environment.
-// The environment is resolved from the API key (SCOPE_ENV).
-// GET /v1/auth/users
-func HandlerAuthUsersList(req *RequestContext) *shttp.Response {
-	env := req.Env
+// handlerAuthUsersList returns a paginated list of registered auth users for the
+// environment resolved from the request.
+// GET /skauth/users
+func handlerAuthUsersList(req *app.RequestContext) *shttp.Response {
+	env, err := buildconf.NewStore().EnvironmentByID(req.Context(), req.EnvID)
+
+	if err != nil {
+		return shttp.Error(err, fmt.Sprintf("failed to fetch environment: %s", err.Error()))
+	}
 
 	if env == nil || env.AuthConf == nil || !env.AuthConf.Status || env.SchemaConf == nil {
 		return shttp.NotFound()
 	}
 
-	v := &Validators{}
-	errs := []string{}
 	from := 0
 
 	if fromStr := req.Query().Get("from"); fromStr != "" {
-		if f, err := v.ToInt(fromStr, "from"); err != nil {
-			errs = append(errs, err.Error())
-		} else {
-			from = f
-		}
-	}
+		f, err := strconv.Atoi(fromStr)
 
-	if len(errs) > 0 {
-		return shttp.BadRequest(map[string]any{"errors": errs})
+		if err != nil {
+			return shttp.BadRequest(map[string]any{"errors": []string{"from must be a number"}})
+		}
+
+		from = f
 	}
 
 	store, err := env.SchemaConf.Store(buildconf.SchemaAccessTypeAppUser)

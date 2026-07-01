@@ -12,6 +12,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/database"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
+	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"golang.org/x/crypto/bcrypt"
@@ -123,6 +124,10 @@ func (m *skAuthMiddleware) login() *shttp.Response {
 			Status: http.StatusForbidden,
 			Data:   map[string]any{"errors": []string{"please verify your email address before logging in"}},
 		}
+	}
+
+	if err := store.UpdateLastLogin(req.Context(), authUser.ID); err != nil {
+		slog.Errorf("email login: failed to update last login: %s", err.Error())
 	}
 
 	sessionToken, err := user.JWT(jwt.MapClaims{
@@ -283,6 +288,10 @@ func (m *skAuthMiddleware) verifyEmail() *shttp.Response {
 
 	if authUser == nil {
 		return shttp.Error(fmt.Errorf("user %d not found after verification", userID), "internal error")
+	}
+
+	if err := store.UpdateLastLogin(req.Context(), userID); err != nil {
+		slog.Errorf("email verify: failed to update last login: %s", err.Error())
 	}
 
 	sessionToken, err := user.JWT(jwt.MapClaims{

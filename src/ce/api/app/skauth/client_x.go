@@ -15,9 +15,10 @@ var TwitterAPIBase = "https://api.twitter.com/2"
 var TwitterAuthBase = "https://x.com/i/oauth2/authorize"
 
 // Step 1: https://developer.x.com/en/portal/dashboard
-// Step 2: Create a new project and app with Elevated access (required for email)
+// Step 2: Create a new project and app
 // Step 3: Enable OAuth 2.0 and set the callback URL
-// Step 4: In User authentication settings, enable "Request email address from users"
+// Step 4: In User authentication settings, enable "Request email address from
+//         users" so the users.email scope returns confirmed_email
 // Step 5: Callback URL: http://sample.stormkit:8888/api/auth/callback/x
 // Step 6: Obtain client ID and client secret
 type XClient struct {
@@ -36,6 +37,7 @@ func NewXClient(clientID, secretKey, redirectURL string) Client {
 		Scopes: []string{
 			"tweet.read",
 			"users.read",
+			"users.email",    // Required to receive confirmed_email from /users/me
 			"offline.access", // Required for refresh tokens
 		},
 	}
@@ -51,13 +53,18 @@ type XUserInfo struct {
 		Name            string `json:"name"`
 		Username        string `json:"username"`
 		ProfileImageURL string `json:"profile_image_url"`
-		Email           string `json:"email"` // Only available with elevated access
+		// ConfirmedEmail is populated only when the app requests the
+		// users.email scope and has "Request email from users" enabled in the
+		// X developer portal. X exposes the address as confirmed_email on the
+		// v2 /users/me endpoint (the legacy v1.1 verify_credentials "email"
+		// field is not used here).
+		ConfirmedEmail string `json:"confirmed_email"`
 	} `json:"data"`
 }
 
 func (x *XClient) UserInfo(ctx context.Context, token *oauth2.Token) (*UserInfo, error) {
 	client := oauth2.NewClient(ctx, x.oauth2Config.TokenSource(ctx, token))
-	resp, err := client.Get(TwitterAPIBase + "/users/me?user.fields=profile_image_url,email")
+	resp, err := client.Get(TwitterAPIBase + "/users/me?user.fields=profile_image_url,confirmed_email")
 
 	if err != nil {
 		return nil, err
@@ -73,7 +80,7 @@ func (x *XClient) UserInfo(ctx context.Context, token *oauth2.Token) (*UserInfo,
 
 	return &UserInfo{
 		AccountID: userInfo.Data.ID,
-		Email:     userInfo.Data.Email, // Requires elevated access and user consent
+		Email:     userInfo.Data.ConfirmedEmail,
 		Avatar:    userInfo.Data.ProfileImageURL,
 		FirstName: userInfo.Data.Name,
 		LastName:  "",
