@@ -1,8 +1,12 @@
 package hosting
 
 import (
+	"bytes"
+	"compress/flate"
+	"compress/gzip"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path"
@@ -327,13 +331,26 @@ func (r *RequestServer) Dynamic() *shttp.Response {
 		arn = cnf.APILocation
 	}
 
+	// When snippets are configured we want the origin to hand back uncompressed
+	// HTML so it can be injected into. Ask the upstream not to compress: if it
+	// honours the header (most servers do) injectSnippets works on the plain
+	// body directly; if it ignores it, injectSnippets still decompresses as a
+	// fallback. Either way the edge gzip middleware re-compresses the final
+	// response for the client.
+	headers := r.req.Headers()
+
+	if cnf.Snippets != nil {
+		headers = headers.Clone()
+		headers.Set("Accept-Encoding", "identity")
+	}
+
 	result, err := integrations.Client().Invoke(integrations.InvokeArgs{
 		URL:           url,
 		ARN:           arn,
 		Body:          r.req.Body,
 		ContentLength: r.req.ContentLength,
 		Method:        r.req.Method,
-		Headers:       r.req.Headers(),
+		Headers:       headers,
 		HostName:      r.req.Host.Name,
 		AppID:         cnf.AppID,
 		EnvID:         cnf.EnvID,
@@ -604,47 +621,117 @@ func (r *RequestServer) OptimizeImage(content []byte) ([]byte, error) {
 }
 
 func shouldInject(_ *RequestContext, res *shttp.Response) bool {
-	// We only need to inject the snippets to the html files.
-	// We also skip if the `Content-Encoding` header is given because
-	// we're not going to unzip and re-zip.
-	if !strings.HasPrefix(res.Headers.Get("Content-Type"), "text/html") ||
-		res == nil ||
-		res.Headers.Get("Content-Encoding") != "" {
+	// We only inject snippets into HTML responses. Encoding is handled by
+	// injectSnippets, which decompresses gzip/deflate bodies before injecting.
+	if res == nil || !strings.HasPrefix(res.Headers.Get("Content-Type"), "text/html") {
 		return false
 	}
 
 	return true
 }
 
-func responseBody(res *shttp.Response) string {
-	switch res.Data.(type) {
+// responseBytes returns the raw (possibly still-encoded) response body bytes.
+func responseBytes(res *shttp.Response) ([]byte, bool) {
+	switch data := res.Data.(type) {
 	case string:
-		return res.Data.(string)
+		return []byte(data), true
 	case []byte:
-		return string(res.Data.([]byte))
+		return data, true
 	default:
-		return ""
+		return nil, false
 	}
 }
 
-// injectSnippets injects the snippets to the response data.
+// decodeBody returns the body as plaintext, transparently decompressing gzip
+// and deflate payloads. The bool is false when the encoding is one we can't
+// decode (e.g. brotli), so the caller can leave the response untouched rather
+// than corrupt it.
+func decodeBody(encoding string, data []byte) ([]byte, bool) {
+	switch strings.ToLower(strings.TrimSpace(encoding)) {
+	case "", "identity":
+		return data, true
+	case "gzip":
+		zr, err := gzip.NewReader(bytes.NewReader(data))
+
+		if err != nil {
+			return nil, false
+		}
+
+		defer zr.Close()
+
+		out, err := io.ReadAll(zr)
+
+		if err != nil {
+			return nil, false
+		}
+
+		return out, true
+	case "deflate":
+		fr := flate.NewReader(bytes.NewReader(data))
+		defer fr.Close()
+
+		out, err := io.ReadAll(fr)
+
+		if err != nil {
+			return nil, false
+		}
+
+		return out, true
+	default:
+		return nil, false
+	}
+}
+
+// injectSnippets injects the configured snippets into the HTML response body.
+// It transparently decodes gzip/deflate-encoded bodies before injecting, then
+// drops the now-stale Content-Encoding and Content-Length headers so the edge
+// gzip middleware can re-compress the modified response for the client.
 func injectSnippets(req *RequestContext, res *shttp.Response) *shttp.Response {
 	if req.Host.Config.Snippets == nil || !shouldInject(req, res) {
+		return res
+	}
+
+	raw, ok := responseBytes(res)
+
+	if !ok {
+		return res
+	}
+
+	decoded, ok := decodeBody(res.Headers.Get("Content-Encoding"), raw)
+
+	if !ok {
+		// Encoding we can't decode (e.g. brotli); leave the response as-is
+		// rather than risk corrupting it.
+		return res
+	}
+
+	body := string(decoded)
+
+	if body == "" {
 		return res
 	}
 
 	// We need to use the original path because of path rewrites.
 	filters := appconf.SnippetFilters{RequestPath: req.OriginalPath, RequestID: req.RequestID}
 	snpt := appconf.SnippetsHTML(req.Host.Config.Snippets, filters)
-	body := responseBody(res)
 
-	if body != "" {
-		body = insertAfter(body, "<head>", snpt.HeadPrepend)
-		body = insertAfter(body, "<body>", snpt.BodyPrepend)
-		body = insertBefore(body, "</head>", snpt.HeadAppend)
-		body = insertBefore(body, "</body>", snpt.BodyAppend)
-		res.Data = body
+	injected := body
+	injected = insertAfter(injected, "<head>", snpt.HeadPrepend)
+	injected = insertAfter(injected, "<body>", snpt.BodyPrepend)
+	injected = insertBefore(injected, "</head>", snpt.HeadAppend)
+	injected = insertBefore(injected, "</body>", snpt.BodyAppend)
+
+	if injected == body {
+		// Nothing matched; keep the original response (and its encoding) as-is.
+		return res
 	}
+
+	res.Data = injected
+
+	// The body is now plaintext and a different length. Drop the stale framing
+	// and encoding; the edge gzip middleware re-compresses from scratch.
+	res.Headers.Del("Content-Encoding")
+	res.Headers.Del("Content-Length")
 
 	return res
 }
