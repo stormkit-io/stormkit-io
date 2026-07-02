@@ -75,6 +75,27 @@ describe("~/pages/apps/[id]/environments/[env-id]/analytics/Events.tsx", () => {
     });
   });
 
+  it("shows the full 'How to track' button when there are no events", async () => {
+    createWrapper({ response: [] });
+
+    await waitFor(() => {
+      expect(scope.isDone()).toBe(true);
+      expect(wrapper.getByText("How to track")).toBeTruthy();
+    });
+  });
+
+  it("collapses 'How to track' to an icon button once events exist", async () => {
+    createWrapper({
+      response: [{ name: "trip_creation", total: 1, unique: 1 }],
+    });
+
+    await waitFor(() => {
+      expect(scope.isDone()).toBe(true);
+      expect(wrapper.queryByText("How to track")).toBeNull();
+      expect(wrapper.getByLabelText("How to track")).toBeTruthy();
+    });
+  });
+
   it("opens the help drawer with client and server examples", async () => {
     createWrapper({
       response: [{ name: "trip_creation", total: 1, unique: 1 }],
@@ -84,7 +105,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/analytics/Events.tsx", () => {
       expect(scope.isDone()).toBe(true);
     });
 
-    fireEvent.click(wrapper.getByText("How to track"));
+    fireEvent.click(wrapper.getByLabelText("How to track"));
 
     // The drawer renders in a portal, so query the whole document.
     expect(screen.getByText("Track events")).toBeTruthy();

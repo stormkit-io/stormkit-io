@@ -1,6 +1,8 @@
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import IconButton from "@mui/material/IconButton";
 import Link from "@mui/material/Link";
+import Tooltip from "@mui/material/Tooltip";
 import QuestionMarkOutlined from "@mui/icons-material/HelpCenter";
 import Drawer from "@mui/material/Drawer";
 import { useState } from "react";
@@ -14,6 +16,7 @@ interface Props {
   subtitle?: React.ReactNode;
   buttonText?: string;
   buttonVariant?: "text" | "contained" | "outlined" | "link";
+  iconOnly?: boolean;
 }
 
 export default function Help({
@@ -22,12 +25,22 @@ export default function Help({
   subtitle,
   buttonText = "Help",
   buttonVariant = "text",
+  iconOnly = false,
 }: Props) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   return (
     <>
-      {buttonVariant === "link" ? (
+      {iconOnly ? (
+        <Tooltip title={buttonText} arrow>
+          <IconButton
+            aria-label={buttonText}
+            onClick={() => setIsDrawerOpen(true)}
+          >
+            <QuestionMarkOutlined />
+          </IconButton>
+        </Tooltip>
+      ) : buttonVariant === "link" ? (
         <Link
           href="#"
           onClick={e => {
