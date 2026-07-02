@@ -68,6 +68,7 @@ export default function Events({ environment, domain, ts }: Props) {
               subtitle={helpSubtitle}
               buttonText="How to track"
               buttonVariant="text"
+              iconOnly={!isEmpty}
             >
               <EventsHelpContent domain={domain} />
             </Help>
