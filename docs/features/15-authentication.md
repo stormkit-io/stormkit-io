@@ -143,6 +143,35 @@ headers:
 - `X-User-Id` — the user's external identifier.
 - `X-User-Email` — the user's email address.
 
+These two headers are kept intentionally minimal so they stay cheap to forward on
+every request. For the richer profile, use the user-info endpoint below.
+
+### Fetching the full profile
+
+`GET /_stormkit/auth/me` with the current `Authorization: Bearer <token>` header
+returns the full profile for the signed-in user:
+
+```json
+{
+  "id": "…",
+  "email": "user@example.com",
+  "firstName": "John",
+  "lastName": "Doe",
+  "avatar": "https://…",
+  "username": "johndoe",
+  "profileUrl": "https://x.com/johndoe",
+  "createdAt": 0,
+  "lastLoginAt": 0
+}
+```
+
+`username` and `profileUrl` are populated from the provider when available (for
+example, the X handle and a link to the public profile); they are empty for
+providers that don't supply them. The endpoint only ever returns the caller's own
+record — identity is taken from the token, not from any parameter. Typically your
+backend calls it once, on first sight of a new `X-User-Id`, to sync the profile
+into its own store.
+
 ### Refreshing the token
 
 To keep an active user signed in without forcing a new sign-in, exchange a still

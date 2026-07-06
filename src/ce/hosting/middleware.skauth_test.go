@@ -612,6 +612,43 @@ func (s *WithSKAuthSuite) Test_Refresh_WrongMethod() {
 	s.Equal(http.StatusMethodNotAllowed, res.Status)
 }
 
+// Test_Me_MissingBearer checks that GET /_stormkit/auth/me without a bearer is
+// rejected: no X-User-Id gets injected, so the handler returns 401.
+func (s *WithSKAuthSuite) Test_Me_MissingBearer() {
+	req := s.newGetRequest(s.hostWithSKAuth(), "/_stormkit/auth/me")
+
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.Require().NotNil(res)
+	s.Equal(http.StatusUnauthorized, res.Status)
+}
+
+// Test_Me_WrongMethod checks that a non-GET request to /me returns 405.
+func (s *WithSKAuthSuite) Test_Me_WrongMethod() {
+	req := s.newPostRequest(s.hostWithSKAuth(), "/_stormkit/auth/me", nil)
+	req.Header.Set("Authorization", s.generateBearer(types.ID(42), "test-secret-padded-to-32-chars!!"))
+
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.Require().NotNil(res)
+	s.Equal(http.StatusMethodNotAllowed, res.Status)
+}
+
+// Test_Me_MissingEnv checks that a valid bearer whose env can't be resolved
+// (the test host has EnvID == 0) returns 404 rather than leaking a user.
+func (s *WithSKAuthSuite) Test_Me_MissingEnv() {
+	req := s.newGetRequest(s.hostWithSKAuth(), "/_stormkit/auth/me")
+	req.Header.Set("Authorization", s.generateBearer(types.ID(42), "test-secret-padded-to-32-chars!!"))
+
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.Require().NotNil(res)
+	s.Equal(http.StatusNotFound, res.Status)
+}
+
 func TestWithSKAuth(t *testing.T) {
 	suite.Run(t, new(WithSKAuthSuite))
 }

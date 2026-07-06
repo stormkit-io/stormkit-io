@@ -18,20 +18,21 @@ import (
 )
 
 var schemaStmt = struct {
-	selectSchema          string
-	selectTables          string
-	createAuthTable       string
-	createMigrationsTable string
-	selectMigrations      string
-	insertOAuth           string
-	upsertProvider        string
-	insertAuthUser        string
-	selectUserIDByEmail   string
-	verifyEmailUser       string
-	consumeMagicLinkToken string
-	updateAuthUser        string
-	deleteAuthUser        string
-	updateLastLogin       string
+	selectSchema           string
+	selectTables           string
+	createAuthTable        string
+	createMigrationsTable  string
+	selectMigrations       string
+	insertOAuth            string
+	upsertProvider         string
+	insertAuthUser         string
+	selectUserIDByEmail    string
+	verifyEmailUser        string
+	consumeMagicLinkToken  string
+	updateAuthUser         string
+	updateAuthUserMetadata string
+	deleteAuthUser         string
+	updateLastLogin        string
 }{
 	updateAuthUser: `
 		UPDATE stormkit_auth_users
@@ -46,6 +47,12 @@ var schemaStmt = struct {
 			COALESCE(avatar, '') AS avatar,
 			created_at,
 			last_login_at;
+	`,
+
+	updateAuthUserMetadata: `
+		UPDATE stormkit_auth_users
+		SET metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb
+		WHERE uuid = $1;
 	`,
 
 	deleteAuthUser: `
@@ -68,6 +75,11 @@ var schemaStmt = struct {
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			last_login_at TIMESTAMPTZ
 		);
+
+		-- Retroactively add columns introduced after a tenant first enabled auth.
+		-- Idempotent (no-op once present); runs as the schema's migration_user,
+		-- which owns the table, so ALTER is permitted. See SchemaConf.EnsureAuthSchema.
+		ALTER TABLE stormkit_auth_users ADD COLUMN IF NOT EXISTS metadata JSONB;
 
 		CREATE TABLE IF NOT EXISTS stormkit_auth_providers (
 			auth_id SERIAL PRIMARY KEY NOT NULL,
@@ -199,6 +211,7 @@ var sqlTemplates = struct {
 			COALESCE(u.avatar, '') AS avatar,
 			u.created_at,
 			u.last_login_at
+			{{- if .WithMetadata}}, COALESCE(u.metadata, '{}'::jsonb) AS metadata{{end}}
 			{{- if .WithHash}}, p.access_token AS password_hash, p.verified_at{{end}}
 		FROM
 			stormkit_auth_users u
@@ -783,6 +796,76 @@ func (s *schemaStore) AuthUser(ctx context.Context, authID types.ID) (*skauth.Us
 	}
 
 	return authUser, nil
+}
+
+// AuthUserByUUID retrieves the authentication user by its external UUID,
+// including the metadata JSONB column. This is what the /_stormkit/auth/me
+// endpoint uses. Returns nil when no user matches. The metadata column is
+// reconciled off the request path by the EnsureAuthSchemas startup job (and by
+// saveProvider when auth config is saved); on a schema not yet reconciled this
+// query errors, which is why /me is best-effort until the sweep converges it.
+func (s *schemaStore) AuthUserByUUID(ctx context.Context, uuid string) (*skauth.User, error) {
+	if s.conf == nil {
+		return nil, fmt.Errorf("schema configuration is required to retrieve auth user")
+	}
+
+	buf := bytes.Buffer{}
+
+	err := sqlTemplates.selectAuthUsers.Execute(&buf, map[string]any{
+		"WhereField":   "uuid",
+		"WithHash":     false,
+		"WithMetadata": true,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to render selectAuthUsers template: %w", err)
+	}
+
+	row, err := s.QueryRow(ctx, buf.String(), uuid)
+
+	if err != nil {
+		return nil, err
+	}
+
+	authUser := &skauth.User{}
+
+	err = row.Scan(
+		&authUser.ID,
+		&authUser.UUID,
+		&authUser.FirstName,
+		&authUser.LastName,
+		&authUser.Email,
+		&authUser.Avatar,
+		&authUser.CreatedAt,
+		&authUser.LastLoginAt,
+		&authUser.Metadata,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return authUser, nil
+}
+
+// UpdateAuthUserMetadata merges the provider metadata (handle, profile link)
+// for the user identified by UUID. It runs on every OAuth login so the values
+// stay fresh, using a JSONB merge so a provider that supplies no handle (e.g.
+// Google) does not clobber values a previous provider (e.g. X) stored on the
+// shared, email-linked user row. The metadata column is reconciled off the
+// request path (EnsureAuthSchemas startup job / saveProvider); this write is
+// best-effort and no-ops on a schema not yet reconciled.
+func (s *schemaStore) UpdateAuthUserMetadata(ctx context.Context, uuid string, metadata skauth.UserMetadata) error {
+	if s.conf == nil {
+		return fmt.Errorf("schema configuration is required to update auth user metadata")
+	}
+
+	_, err := s.Exec(ctx, schemaStmt.updateAuthUserMetadata, uuid, metadata)
+	return err
 }
 
 // ListAuthUsers returns a paginated list of authentication users.

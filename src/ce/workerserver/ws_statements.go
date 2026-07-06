@@ -26,6 +26,7 @@ type statement struct {
 	selectStaleSchemas              string
 	clearSchemaConf                 string
 	selectAccessLogPartitions       string
+	selectAuthEnabledEnvs           string
 }
 
 var stmt = &statement{
@@ -270,6 +271,21 @@ var stmt = &statement{
 
 	clearSchemaConf: `
 		UPDATE apps_build_conf SET schema_conf = NULL WHERE env_id = $1;
+	`,
+
+	// auth_conf is an opaque bytea blob, so its Status can't be filtered in SQL;
+	// callers decode each row and skip envs where auth is disabled.
+	selectAuthEnabledEnvs: `
+		SELECT
+			env_id, auth_conf, schema_conf
+		FROM
+			apps_build_conf
+		WHERE
+			deleted_at IS NULL AND
+			auth_conf IS NOT NULL AND
+			schema_conf IS NOT NULL
+		ORDER BY
+			env_id ASC;
 	`,
 
 	selectUserIDsWithoutAPIKeys: `

@@ -90,6 +90,32 @@ func (s *ClientXSuite) Test_UserInfo_Success() {
 	s.Equal("https://example.com/avatar.jpg", userInfo.Avatar)
 	s.Equal("John Doe", userInfo.FirstName)
 	s.Equal("", userInfo.LastName)
+	s.Equal("johndoe", userInfo.Username)
+	s.Equal("https://x.com/johndoe", userInfo.ProfileURL)
+}
+
+func (s *ClientXSuite) Test_UserInfo_NoUsername_NoProfileURL() {
+	s.mockServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{
+			"data": {
+				"id": "123456789",
+				"name": "John Doe",
+				"confirmed_email": "john@example.com"
+			}
+		}`))
+	}))
+
+	token := &oauth2.Token{AccessToken: "test-access-token", TokenType: "Bearer"}
+
+	client := skauth.NewXClient("test-client-id", "test-client-secret", "https://app.example.com/_stormkit/auth/callback")
+	userInfo, err := client.UserInfo(context.Background(), token)
+
+	s.NoError(err)
+	s.Require().NotNil(userInfo)
+	s.Equal("", userInfo.Username)
+	s.Equal("", userInfo.ProfileURL, "no handle means no profile URL is constructed")
 }
 
 func (s *ClientXSuite) Test_UserInfo_InvalidJSON() {

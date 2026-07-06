@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
 	"github.com/stormkit-io/stormkit-io/src/lib/database"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
@@ -396,6 +397,146 @@ func (s *SchemaStoreSuite) Test_SchemaConf_URL() {
 
 	expected := "postgresql://app_user:app_password@localhost:5432/test_db?options=-csearch_path=test_schema&sslmode=require"
 	s.Equal(expected, conf.URL())
+}
+
+// authSchemaConf creates the schema and returns a migration-role SchemaConf
+// wired to the test transaction, mirroring Test_Migrations_Success. Callers
+// build the store with SchemaStoreFor via := so the unexported store type is
+// never named in this external test package.
+func (s *SchemaStoreSuite) authSchemaConf(ctx context.Context) *buildconf.SchemaConf {
+	result, err := buildconf.SchemaStore().CreateSchema(ctx, s.schemaName)
+	s.Require().NoError(err)
+	s.Require().NotNil(result)
+
+	result.MigrationPassword = database.Config.Password
+	result.MigrationUserName = database.Config.User
+	result.DriverName = "txdb"
+
+	return result
+}
+
+func (s *SchemaStoreSuite) Test_AuthUserMetadata_RoundTrip() {
+	ctx := context.Background()
+
+	store, err := buildconf.SchemaStoreFor(s.authSchemaConf(ctx), buildconf.SchemaAccessTypeMigrations)
+	s.Require().NoError(err)
+	defer store.Close()
+
+	s.NoError(store.CreateAuthTable(ctx))
+	s.NoError(store.CreateAuthTable(ctx), "CreateAuthTable must be idempotent")
+
+	oauth := &skauth.OAuth{AccountID: "acct-1", ProviderName: skauth.ProviderX, AccessToken: "access", TokenType: "bearer"}
+	usr := &skauth.User{Email: "roundtrip@example.com", FirstName: "John"}
+	s.Require().NoError(store.InsertAuthUser(ctx, oauth, usr))
+	s.Require().NotEmpty(usr.UUID)
+
+	// Before any metadata is written, the column reads back as an empty struct.
+	fetched, err := store.AuthUserByUUID(ctx, usr.UUID)
+	s.Require().NoError(err)
+	s.Require().NotNil(fetched)
+	s.Equal(skauth.UserMetadata{}, fetched.Metadata)
+
+	meta := skauth.UserMetadata{Username: "johndoe", ProfileURL: "https://x.com/johndoe"}
+	s.NoError(store.UpdateAuthUserMetadata(ctx, usr.UUID, meta))
+
+	fetched, err = store.AuthUserByUUID(ctx, usr.UUID)
+	s.Require().NoError(err)
+	s.Require().NotNil(fetched)
+	s.Equal(meta, fetched.Metadata)
+	s.Equal("johndoe", fetched.JSON()["username"])
+	s.Equal("https://x.com/johndoe", fetched.JSON()["profileUrl"])
+
+	// A later login from a provider that supplies no handle (e.g. Google)
+	// merges rather than overwrites, so the X values survive on the shared,
+	// email-linked user row.
+	s.NoError(store.UpdateAuthUserMetadata(ctx, usr.UUID, skauth.UserMetadata{}))
+
+	fetched, err = store.AuthUserByUUID(ctx, usr.UUID)
+	s.Require().NoError(err)
+	s.Require().NotNil(fetched)
+	s.Equal(meta, fetched.Metadata, "empty metadata must not clobber stored values")
+}
+
+func (s *SchemaStoreSuite) Test_AuthUserByUUID_NotFound() {
+	ctx := context.Background()
+
+	store, err := buildconf.SchemaStoreFor(s.authSchemaConf(ctx), buildconf.SchemaAccessTypeMigrations)
+	s.Require().NoError(err)
+	defer store.Close()
+
+	s.NoError(store.CreateAuthTable(ctx))
+
+	fetched, err := store.AuthUserByUUID(ctx, "00000000-0000-0000-0000-000000000000")
+	s.NoError(err)
+	s.Nil(fetched)
+}
+
+// Test_CreateAuthTable_AddsMetadataColumnRetroactively proves the rollout path:
+// a schema whose users table predates the metadata column gets it added by the
+// idempotent CreateAuthTable, so EnsureAuthSchema converges existing tenants.
+func (s *SchemaStoreSuite) Test_CreateAuthTable_AddsMetadataColumnRetroactively() {
+	ctx := context.Background()
+
+	store, err := buildconf.SchemaStoreFor(s.authSchemaConf(ctx), buildconf.SchemaAccessTypeMigrations)
+	s.Require().NoError(err)
+	defer store.Close()
+
+	// Simulate a legacy schema: create the users table WITHOUT the metadata
+	// column (the shape before this change shipped). Everything goes through the
+	// store's connection so the assertions observe the same transaction.
+	_, err = store.Exec(ctx, `
+		CREATE TABLE stormkit_auth_users (
+			user_id SERIAL PRIMARY KEY NOT NULL,
+			uuid UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+			email TEXT NOT NULL UNIQUE,
+			first_name TEXT,
+			last_name TEXT,
+			avatar TEXT,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			last_login_at TIMESTAMPTZ
+		);
+	`)
+	s.Require().NoError(err)
+
+	// Scope the check to current_schema() rather than a fixed name: under the
+	// shared txdb session the store's unqualified DDL lands in the session's
+	// active schema, which is where the legacy table and the ALTER both go. A
+	// deliberate error probe would abort the shared transaction, so avoid it.
+	metadataColumnExists := `
+		SELECT EXISTS (
+			SELECT 1 FROM information_schema.columns
+			WHERE table_schema = current_schema()
+			  AND table_name = 'stormkit_auth_users'
+			  AND column_name = 'metadata'
+		)`
+
+	var hasColumn bool
+
+	row, err := store.QueryRow(ctx, metadataColumnExists)
+	s.Require().NoError(err)
+	s.Require().NoError(row.Scan(&hasColumn))
+	s.Require().False(hasColumn, "legacy table starts without the metadata column")
+
+	// Reconcile — this is what EnsureAuthSchema runs.
+	s.NoError(store.CreateAuthTable(ctx))
+
+	row, err = store.QueryRow(ctx, metadataColumnExists)
+	s.Require().NoError(err)
+	s.NoError(row.Scan(&hasColumn))
+	s.True(hasColumn, "metadata column is added retroactively")
+
+	oauth := &skauth.OAuth{AccountID: "acct-legacy", ProviderName: skauth.ProviderX, AccessToken: "access", TokenType: "bearer"}
+	usr := &skauth.User{Email: "legacy@example.com", FirstName: "John"}
+	s.Require().NoError(store.InsertAuthUser(ctx, oauth, usr))
+	s.Require().NotEmpty(usr.UUID)
+
+	meta := skauth.UserMetadata{Username: "legacy", ProfileURL: "https://x.com/legacy"}
+	s.NoError(store.UpdateAuthUserMetadata(ctx, usr.UUID, meta))
+
+	fetched, err := store.AuthUserByUUID(ctx, usr.UUID)
+	s.Require().NoError(err)
+	s.Require().NotNil(fetched)
+	s.Equal(meta, fetched.Metadata)
 }
 
 func TestSchemaStore(t *testing.T) {

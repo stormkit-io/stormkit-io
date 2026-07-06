@@ -142,7 +142,7 @@ func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
 		return m.loginErrorRedirect(referOrigin, "Sign-in is temporarily unavailable. Please try again."), nil
 	}
 
-	if env == nil || env.SchemaConf == nil || env.AuthConf == nil || !env.AuthConf.Status {
+	if !env.AuthReady() {
 		return m.loginErrorRedirect(referOrigin, "Sign-in is not available right now."), nil
 	}
 
@@ -202,11 +202,21 @@ func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
 		Avatar:    info.Avatar,
 		FirstName: info.FirstName,
 		LastName:  info.LastName,
+		Metadata:  info.UserMetadata,
 	}
 
 	if err := store.UpsertAuthUser(req.Context(), &oauth, &usr); err != nil {
 		slog.Errorf("oauth callback: failed to upsert auth user: %s", err.Error())
 		return m.loginErrorRedirect(referOrigin, "We couldn't complete sign-in. Please try again."), nil
+	}
+
+	// Metadata lives on the user row and is merged on every login, so a provider
+	// that supplies no handle can't clobber values another provider stored on the
+	// shared, email-linked row. Non-fatal: it must not block sign-in if the write
+	// fails, and if the metadata column isn't reconciled yet (see EnsureAuthSchemas
+	// job) this simply no-ops until it is.
+	if err := store.UpdateAuthUserMetadata(req.Context(), usr.UUID, usr.Metadata); err != nil {
+		slog.Errorf("oauth callback: failed to update user metadata: %s", err.Error())
 	}
 
 	if err := store.UpdateLastLogin(req.Context(), usr.ID); err != nil {

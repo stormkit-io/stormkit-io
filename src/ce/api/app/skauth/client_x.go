@@ -17,8 +17,7 @@ var TwitterAuthBase = "https://x.com/i/oauth2/authorize"
 // Step 1: https://developer.x.com/en/portal/dashboard
 // Step 2: Create a new project and app
 // Step 3: Enable OAuth 2.0 and set the callback URL
-// Step 4: In User authentication settings, enable "Request email address from
-//         users" so the users.email scope returns confirmed_email
+// Step 4: In User authentication settings, enable "Request email address from users" so the users.email scope returns confirmed_email
 // Step 5: Callback URL: http://sample.stormkit:8888/api/auth/callback/x
 // Step 6: Obtain client ID and client secret
 type XClient struct {
@@ -78,12 +77,21 @@ func (x *XClient) UserInfo(ctx context.Context, token *oauth2.Token) (*UserInfo,
 		return nil, err
 	}
 
+	var profileURL string
+
+	if userInfo.Data.Username != "" {
+		profileURL = "https://x.com/" + userInfo.Data.Username
+	}
+
 	return &UserInfo{
 		AccountID: userInfo.Data.ID,
 		Email:     userInfo.Data.ConfirmedEmail,
 		Avatar:    userInfo.Data.ProfileImageURL,
 		FirstName: userInfo.Data.Name,
-		LastName:  "",
+		UserMetadata: UserMetadata{
+			Username:   userInfo.Data.Username,
+			ProfileURL: profileURL,
+		},
 	}, nil
 }
 
