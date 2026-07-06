@@ -135,6 +135,14 @@ func (Env) TableName() string {
 	return "apps_build_conf"
 }
 
+// AuthReady reports whether authentication is fully provisioned for this
+// environment: enabled auth config and a schema to back it. Auth handlers guard
+// on this before touching the auth store, so the check lives here once instead
+// of being spelled out (in varying orders) at every call site.
+func (e *Env) AuthReady() bool {
+	return e != nil && e.AuthConf != nil && e.AuthConf.Status && e.SchemaConf != nil
+}
+
 // DomainInfo represents a domainInfo struct returned by the database.
 // It is used by the store's DomainInfo method.
 type DomainInfo struct {

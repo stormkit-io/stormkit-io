@@ -10,6 +10,7 @@ import (
 	"time"
 
 	jwt "github.com/golang-jwt/jwt/v5"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/html"
@@ -356,6 +357,10 @@ func WithSKAuth(req *RequestContext) (*shttp.Response, error) {
 		return m.handleRefresh()
 	}
 
+	if path == "/_stormkit/auth/me" {
+		return m.handleMe()
+	}
+
 	if path == skauth.CallbackPath {
 		return m.handleOAuthCallback()
 	}
@@ -425,5 +430,68 @@ func (m *skAuthMiddleware) handleRefresh() (*shttp.Response, error) {
 	return &shttp.Response{
 		Status: http.StatusOK,
 		Data:   map[string]any{"token": token},
+	}, nil
+}
+
+// handleMe returns the full profile for the user identified by the bearer token
+// — the OIDC-style userinfo endpoint. Per-request headers stay limited to
+// X-User-Id / X-User-Email; richer, sync-once fields (name, avatar, provider
+// username and profile link) are served here instead of bloating every request.
+func (m *skAuthMiddleware) handleMe() (*shttp.Response, error) {
+	if m.req.Method != http.MethodGet {
+		return &shttp.Response{
+			Status: http.StatusMethodNotAllowed,
+			Data:   map[string]any{"errors": []string{"method not allowed"}},
+		}, nil
+	}
+
+	// X-User-Id is injected by WithSKAuth from the verified bearer before
+	// dispatch, so a value here is already authenticated. Empty means no valid
+	// token accompanied the request. Identity comes solely from the token — the
+	// endpoint can only ever return the caller's own record.
+	uid := m.req.Header.Get("X-User-Id")
+
+	if uid == "" {
+		return &shttp.Response{
+			Status: http.StatusUnauthorized,
+			Data:   map[string]any{"errors": []string{"missing or invalid token"}},
+		}, nil
+	}
+
+	envID := m.req.Host.Config.EnvID
+
+	if envID == 0 {
+		return shttp.NotFound(), nil
+	}
+
+	env, err := buildconf.NewStore().EnvironmentByID(m.req.Context(), envID)
+
+	if err != nil {
+		return shttp.Error(err, "handleMe: failed to get environment"), nil
+	}
+
+	if !env.AuthReady() {
+		return shttp.NotFound(), nil
+	}
+
+	store, err := env.SchemaConf.Store(buildconf.SchemaAccessTypeAppUser)
+
+	if err != nil {
+		return shttp.Error(err, "handleMe: failed to get schema store"), nil
+	}
+
+	usr, err := store.AuthUserByUUID(m.req.Context(), uid)
+
+	if err != nil {
+		return shttp.Error(err, "handleMe: failed to get auth user"), nil
+	}
+
+	if usr == nil {
+		return shttp.NotFound(), nil
+	}
+
+	return &shttp.Response{
+		Status: http.StatusOK,
+		Data:   usr.JSON(),
 	}, nil
 }

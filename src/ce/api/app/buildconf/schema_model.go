@@ -1,6 +1,7 @@
 package buildconf
 
 import (
+	"context"
 	"database/sql/driver"
 	"fmt"
 	"sync"
@@ -14,6 +15,12 @@ import (
 // unlike the per-request SchemaConf structs that are deserialized fresh from
 // the database each time.
 var schemaStoreCache sync.Map
+
+// authSchemaEnsured tracks, per process, which schemas have had their auth
+// tables reconciled (CreateAuthTable, including idempotent column ALTERs) since
+// boot, so EnsureAuthSchema runs the DDL at most once per schema. Keyed like
+// schemaStoreCache.
+var authSchemaEnsured sync.Map
 
 type SchemaTable struct {
 	Name string
@@ -93,6 +100,31 @@ func (sc *SchemaConf) Store(accessType string) (*schemaStore, error) {
 
 	schemaStoreCache.Store(cacheKey, store)
 	return store, nil
+}
+
+// EnsureAuthSchema guarantees the auth tables in this schema match the current
+// DDL, including columns (e.g. metadata) added after the tenant first enabled
+// auth. It runs the idempotent CreateAuthTable through the migration role once
+// per schema per process; a failure is not cached, so the next call retries.
+func (sc *SchemaConf) EnsureAuthSchema(ctx context.Context) error {
+	key := sc.storeKey(SchemaAccessTypeMigrations)
+
+	if _, ok := authSchemaEnsured.Load(key); ok {
+		return nil
+	}
+
+	store, err := sc.Store(SchemaAccessTypeMigrations)
+
+	if err != nil {
+		return err
+	}
+
+	if err := store.CreateAuthTable(ctx); err != nil {
+		return err
+	}
+
+	authSchemaEnsured.Store(key, struct{}{})
+	return nil
 }
 
 // URL returns the psql connection URL.
