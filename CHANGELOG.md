@@ -1,5 +1,22 @@
 # Changelog
 
+## v2026.07.02.1...v2026.07.07.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.02.1...v2026.07.07.1)
+
+### 🚀 Enhancements
+
+- Collapse events help to icon once tracked ([#335](https://github.com/stormkit-io/stormkit-io/pull/335))
+- Add skauth /me endpoint with user metadata ([#336](https://github.com/stormkit-io/stormkit-io/pull/336))
+
+### 🏡 Chore
+
+- Update changelog for v2026.07.02.1 ([#334](https://github.com/stormkit-io/stormkit-io/pull/334))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.07.01.1...v2026.07.02.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.01.1...v2026.07.02.1)
