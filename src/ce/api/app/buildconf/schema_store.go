@@ -344,10 +344,19 @@ func SchemaStore() *schemaStore {
 func SchemaStoreFor(conf *SchemaConf, accessType string) (*schemaStore, error) {
 	var username, password string
 
+	maxOpenConns := database.Config.MaxOpenConns
+	maxIdleConns := database.Config.MaxIdleConns
+
 	switch accessType {
 	case SchemaAccessTypeMigrations:
 		username = conf.MigrationUserName
 		password = conf.MigrationPassword
+
+		// Migration roles are created with CONNECTION LIMIT 1, so cap the pool
+		// to a single connection reused for the store's lifetime. Callers must
+		// Close the store when done to release the role's only slot.
+		maxOpenConns = 1
+		maxIdleConns = 1
 	case SchemaAccessTypeAppUser:
 		username = conf.AppUserName
 		password = conf.AppPassword
@@ -365,8 +374,8 @@ func SchemaStoreFor(conf *SchemaConf, accessType string) (*schemaStore, error) {
 		SSLMode:      conf.SSLMode,
 		DriverName:   conf.DriverName,
 		MaxLifetime:  database.Config.MaxLifetime,
-		MaxOpenConns: database.Config.MaxOpenConns,
-		MaxIdleConns: database.Config.MaxIdleConns,
+		MaxOpenConns: maxOpenConns,
+		MaxIdleConns: maxIdleConns,
 	})
 
 	if err != nil {
