@@ -86,6 +86,13 @@ func (sc *SchemaConf) storeKey(accessType string) string {
 }
 
 func (sc *SchemaConf) Store(accessType string) (*schemaStore, error) {
+	// Migration stores are never cached: migration roles have CONNECTION LIMIT 1,
+	// so a pooled idle connection would permanently occupy the role's only slot.
+	// Callers open them for short-lived DDL and must Close them when done.
+	if accessType == SchemaAccessTypeMigrations {
+		return SchemaStoreFor(sc, accessType)
+	}
+
 	cacheKey := sc.storeKey(accessType)
 
 	if cached, ok := schemaStoreCache.Load(cacheKey); ok {
@@ -118,6 +125,8 @@ func (sc *SchemaConf) EnsureAuthSchema(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	defer store.Close()
 
 	if err := store.CreateAuthTable(ctx); err != nil {
 		return err
