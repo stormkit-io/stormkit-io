@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.07.07.1...v2026.07.08.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.07.1...v2026.07.08.1)
+
+### 🩹 Fixes
+
+- Close migration store in ensure auth schema ([#338](https://github.com/stormkit-io/stormkit-io/pull/338))
+
+### 🏡 Chore
+
+- Update changelog for v2026.07.07.1 ([#337](https://github.com/stormkit-io/stormkit-io/pull/337))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.07.02.1...v2026.07.07.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.02.1...v2026.07.07.1)
