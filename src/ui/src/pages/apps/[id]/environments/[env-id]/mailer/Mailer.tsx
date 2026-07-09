@@ -46,6 +46,9 @@ export default function TabMailer() {
       .then(() => {
         setSuccess("Mailer configuration saved successfully.");
         setRefreshToken(Date.now());
+      })
+      .catch(async res => {
+        setFormError((await api.errors(res)).join(" "));
       });
   };
 
@@ -189,6 +192,19 @@ export default function TabMailer() {
         />
       </Box>
 
+      <Box sx={{ mb: 4 }}>
+        <TextField
+          label="From Address"
+          name="fromAddress"
+          fullWidth
+          defaultValue={config?.fromAddress || ""}
+          variant="filled"
+          autoComplete="off"
+          placeholder="sender@example.com"
+          helperText="Optional. Default sender address for outgoing emails. Falls back to the username when empty."
+        />
+      </Box>
+
       <CardFooter>
         {config && (
           <Button
@@ -207,7 +223,7 @@ export default function TabMailer() {
                   body: JSON.stringify({
                     appId: app.id,
                     envId: env.id!,
-                    from: config.username,
+                    from: config.fromAddress || config.username,
                     to: config.username,
                     body: "Test email body",
                     subject: "Test email subject",

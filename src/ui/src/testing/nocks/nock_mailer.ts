@@ -7,6 +7,7 @@ export interface MockMailerConfig {
   port: string;
   username: string;
   password: string;
+  fromAddress?: string;
 }
 
 interface MockFetchMailerConfigProps {
@@ -35,8 +36,9 @@ interface MockSetMailerConfigProps {
   smtpPort?: string;
   username?: string;
   password?: string;
+  fromAddress?: string;
   status?: number;
-  response?: { ok: boolean };
+  response?: { ok: boolean } | { errors: Record<string, string> };
 }
 
 export const mockSetMailerConfig = ({
@@ -46,6 +48,7 @@ export const mockSetMailerConfig = ({
   smtpPort,
   username,
   password,
+  fromAddress = "",
   status = 200,
   response = { ok: true },
 }: MockSetMailerConfigProps) => {
@@ -57,6 +60,7 @@ export const mockSetMailerConfig = ({
       smtpPort,
       username,
       password,
+      fromAddress,
     })
     .reply(status, response);
 };
