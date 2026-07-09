@@ -121,7 +121,14 @@ export default function MultiSelect({
           );
         }}
       >
-        <ListSubheader sx={{ bgcolor: "transparent", p: 0, minWidth: 300 }}>
+        <ListSubheader
+          sx={{
+            bgcolor: "transparent",
+            p: 0,
+            minWidth: 300,
+            maxWidth: "calc(100vw - 32px)",
+          }}
+        >
           {onSearch && (
             <TextField
               variant="filled"

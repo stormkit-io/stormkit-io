@@ -119,6 +119,7 @@ export default function CommitInfo({
           sx={{
             display: "flex",
             alignItems: "baseline",
+            flexWrap: "wrap",
             color: "text.secondary",
             fontSize: 12,
             my: 0.5,

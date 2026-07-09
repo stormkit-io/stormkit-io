@@ -37,7 +37,9 @@ export default function ButtonDropdown({ buttonText, children, items }: Props) {
                 setIsMenuOpen(false);
               }}
             >
-              <MenuList sx={{ minWidth: 250 }}>
+              <MenuList
+                sx={{ minWidth: 250, maxWidth: "calc(100vw - 32px)" }}
+              >
                 {items?.map(item => {
                   return (
                     <MenuItem

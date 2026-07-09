@@ -50,7 +50,11 @@ export default function UserMenu({ user, onClick }: Props) {
   const { mode, setMode } = useContext(RootContext);
 
   return (
-    <Box component="section" role="menu" sx={{ p: 2, minWidth: "250px" }}>
+    <Box
+      component="section"
+      role="menu"
+      sx={{ p: 2, minWidth: "250px", maxWidth: "calc(100vw - 32px)" }}
+    >
       <Box className="flex flex-col flex-1">
         <Box
           sx={{

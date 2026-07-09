@@ -27,7 +27,17 @@ export default function AppName({ app, imageSize = 20 }: Props) {
         >
           <BoltIcon sx={{ ml: 0, fontSize: 16, color: "container.paper" }} />
         </IconBg>
-        {app.displayName}
+        <Box
+          component="span"
+          sx={{
+            maxWidth: { xs: "35vw", md: "none" },
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {app.displayName}
+        </Box>
       </Typography>
     );
   }
@@ -53,7 +63,15 @@ export default function AppName({ app, imageSize = 20 }: Props) {
         alt={provider}
       />
 
-      <Typography component="div">
+      <Typography
+        component="div"
+        sx={{
+          maxWidth: { xs: "35vw", md: "none" },
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
         {app.displayName}
         <Dot />
         <Typography component="span" color="text.secondary">
