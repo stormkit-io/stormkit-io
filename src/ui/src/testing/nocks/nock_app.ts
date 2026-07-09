@@ -44,6 +44,25 @@ export const mockFetchApps = ({
     .get(`/v1/apps?from=${from}&filter=${filter}&teamId=${teamId}`)
     .reply(status, response);
 
+interface MockFetchTeamAppsProps {
+  from?: number;
+  teamId?: string;
+  status?: number;
+  response: { apps: App[]; hasNextPage: boolean };
+}
+
+// Same endpoint as mockFetchApps, but without the `filter` query
+// parameter, which is omitted from the request when undefined.
+export const mockFetchTeamApps = ({
+  from = 0,
+  teamId = "",
+  status = 200,
+  response,
+}: MockFetchTeamAppsProps) =>
+  nock(endpoint)
+    .get(`/v1/apps?teamId=${teamId}&from=${from}`)
+    .reply(status, response);
+
 interface DeleteAppProps {
   appId: string;
   status?: number;
