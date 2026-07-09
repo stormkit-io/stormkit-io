@@ -48,7 +48,7 @@ func HandlerMail(req *app.RequestContext) *shttp.Response {
 	from := data.From
 
 	if config != nil {
-		from = utils.GetString(data.From, config.Username)
+		from = utils.GetString(data.From, config.DefaultFrom())
 
 		if err := config.Send(buildconf.SendEmailParams{
 			To:      data.To,

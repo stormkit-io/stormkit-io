@@ -6,6 +6,7 @@ interface MailerConfig {
   port: string;
   username: string;
   password: string;
+  fromAddress?: string;
 }
 
 export interface Email {

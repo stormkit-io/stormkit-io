@@ -2,6 +2,7 @@ package mailerhandlers
 
 import (
 	"net/http"
+	"net/mail"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
@@ -31,6 +32,12 @@ func validateConfig(data ConfigRequestData) map[string]string {
 		errors["host"] = "SMTP Host is a required field."
 	}
 
+	if data.FromAddress != "" {
+		if _, err := mail.ParseAddress(data.FromAddress); err != nil {
+			errors["fromAddress"] = "From Address must be a valid email address."
+		}
+	}
+
 	if len(errors) == 0 {
 		return nil
 	}
@@ -55,11 +62,12 @@ func HandlerMailerConfigSet(req *app.RequestContext) *shttp.Response {
 	}
 
 	config := &buildconf.MailerConf{
-		Host:     data.SMTPHost,
-		Port:     data.SMTPPort,
-		Username: data.Username,
-		Password: data.Password,
-		EnvID:    req.EnvID,
+		Host:        data.SMTPHost,
+		Port:        data.SMTPPort,
+		Username:    data.Username,
+		Password:    data.Password,
+		FromAddress: data.FromAddress,
+		EnvID:       req.EnvID,
 	}
 
 	if err := buildconf.MailerStore().UpsertConfig(req.Context(), config); err != nil {
