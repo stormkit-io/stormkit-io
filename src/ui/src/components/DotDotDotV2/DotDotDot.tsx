@@ -38,6 +38,7 @@ export default function DotDotDot({ label, items }: Props) {
               flexDirection: "column",
               alignItems: "flex-start",
               minWidth: "185px",
+              maxWidth: "calc(100vw - 32px)",
             }}
           >
             {items.map((item, index) => (

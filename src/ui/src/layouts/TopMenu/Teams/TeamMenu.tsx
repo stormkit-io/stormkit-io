@@ -90,6 +90,7 @@ export default function TeamMenu({
                 sx={{
                   p: 1,
                   minWidth: "220px",
+                  maxWidth: "calc(100vw - 32px)",
                   borderRadius: 1,
                   display: "flex",
                   alignItems: "center",

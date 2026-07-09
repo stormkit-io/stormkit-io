@@ -37,6 +37,7 @@ export default function AppMenu({ app, team }: Props) {
         sx={{
           display: "flex",
           alignItems: "center",
+          flexWrap: "wrap",
         }}
       >
         <Box

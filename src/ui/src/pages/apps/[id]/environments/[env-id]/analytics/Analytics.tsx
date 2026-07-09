@@ -69,7 +69,7 @@ export default function Analytics() {
                 if (domains?.[0]) {
                   setDomain(
                     domains.find(d => d.domainName === params.get("domain")) ||
-                      domains[0]
+                      domains[0],
                   );
 
                   setHasDomains(true);
@@ -97,6 +97,7 @@ export default function Analytics() {
         sx={{
           mt: 2,
           display: "flex",
+          flexDirection: { xs: "column", md: "row" },
           gap: 2,
         }}
       >

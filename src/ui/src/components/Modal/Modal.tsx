@@ -38,6 +38,7 @@ const Modal: React.FC<Props> = ({
           borderRadius: 1,
           height,
           maxHeight: "90vh",
+          mx: { xs: 2, md: 0 },
           overflow: "auto",
           border: `1px solid ${grey[900]}`,
         }}

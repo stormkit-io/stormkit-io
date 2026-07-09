@@ -1,3 +1,4 @@
+import type { SxProps } from "@mui/material";
 import React, { useContext } from "react";
 import Box from "@mui/material/Box";
 import Link from "@mui/material/Link";
@@ -14,9 +15,10 @@ import DomainStatus from "./DomainStatus";
 
 interface ColumnProps {
   children: React.ReactNode;
+  sx?: SxProps;
 }
 
-function Column({ children }: ColumnProps) {
+function Column({ children, sx }: ColumnProps) {
   return (
     <Box
       sx={{
@@ -24,6 +26,7 @@ function Column({ children }: ColumnProps) {
         mr: 2,
         borderRight: "1px solid",
         borderColor: "container.transparent",
+        ...sx,
       }}
     >
       {children}
@@ -56,13 +59,12 @@ export default function EnvironmentHeader() {
         <Column>
           <DomainStatus loading={loading} status={status} />
         </Column>
-        <Column>
+        <Column sx={{ display: { xs: "none", md: "block" } }}>
           <Typography
             component="a"
             href={domainName}
             target="_blank"
             rel="noreferrer noopener"
-            sx={{ display: { xs: "none", md: "inline" } }}
           >
             {domainName.replace(/^https?:\/\//, "")}
           </Typography>

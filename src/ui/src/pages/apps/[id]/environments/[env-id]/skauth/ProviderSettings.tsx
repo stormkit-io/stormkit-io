@@ -104,7 +104,11 @@ export default function ProviderSettings({
       <Card
         component="form"
         error={error}
-        sx={{ minHeight: "100vh", minWidth: "600px", maxWidth: "800px" }}
+        sx={{
+          minHeight: "100vh",
+          minWidth: { xs: "100vw", md: "600px" },
+          maxWidth: { xs: "100vw", md: "800px" },
+        }}
         onSubmit={e => {
           e.preventDefault();
           const form = e.target as HTMLFormElement;

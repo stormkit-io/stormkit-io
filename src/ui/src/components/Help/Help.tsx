@@ -66,7 +66,13 @@ export default function Help({
         onClose={() => setIsDrawerOpen(false)}
         sx={{ zIndex: 1600 }}
       >
-        <Card sx={{ minHeight: "100vh", minWidth: "400px", maxWidth: "600px" }}>
+        <Card
+          sx={{
+            minHeight: "100vh",
+            minWidth: { xs: "100vw", sm: "400px" },
+            maxWidth: { xs: "100vw", sm: "600px" },
+          }}
+        >
           <CardHeader title={title} subtitle={subtitle} />
           <Box>{children}</Box>
         </Card>

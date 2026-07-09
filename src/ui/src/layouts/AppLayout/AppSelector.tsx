@@ -38,6 +38,7 @@ const appLink = {
   p: 1,
   flex: 1,
   minWidth: "220px",
+  maxWidth: "calc(100vw - 32px)",
   borderRadius: 1,
   display: "flex",
   alignItems: "center",
