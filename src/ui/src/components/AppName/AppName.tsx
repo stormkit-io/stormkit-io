@@ -6,12 +6,12 @@ import IconBg from "~/components/IconBg";
 import { getLogoForProvider, parseRepo } from "~/utils/helpers/providers";
 
 interface Props {
-  app: App;
+  app: Pick<App, "displayName" | "repo" | "isBare">;
   imageSize?: number;
 }
 
 export default function AppName({ app, imageSize = 20 }: Props) {
-  if (app.isBare) {
+  if (app.isBare || !app.repo) {
     return (
       <Typography
         component="div"

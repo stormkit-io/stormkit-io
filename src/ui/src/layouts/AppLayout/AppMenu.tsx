@@ -4,6 +4,7 @@ import Box from "@mui/material/Box";
 import ArrowBack from "@mui/icons-material/ArrowBack";
 import AppName from "~/components/AppName";
 import MenuLink from "~/components/MenuLink";
+import AppSelector from "./AppSelector";
 import { appMenuItems } from "./menu_items";
 
 interface Props {
@@ -67,6 +68,7 @@ export default function AppMenu({ app, team }: Props) {
               isActive: pathname.includes(`/environments/${app.defaultEnvId}`),
             }}
           />
+          <AppSelector app={app} team={team} />
         </Box>
         <Box>
           {appMenu.map(item => (
