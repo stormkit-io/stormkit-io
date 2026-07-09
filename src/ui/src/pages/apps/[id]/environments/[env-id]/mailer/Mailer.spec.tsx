@@ -132,13 +132,33 @@ describe("~/pages/apps/[id]/environments/[env-id]/mailer/Mailer.tsx", () => {
       appId: currentApp.id,
       envId: currentEnv.id!,
       from: "joe@example.org",
-      to: "joe@example.org",
+      to: "jane@example.org",
     });
 
     fireEvent.click(wrapper.getByText("Send test email"));
 
+    // The modal pre-fills From and To with the configured username
+    await waitFor(() => {
+      expect(wrapper.getByLabelText("From")).toBeTruthy();
+    });
+
+    expect((wrapper.getByLabelText("From") as HTMLInputElement).value).toBe(
+      "joe@example.org",
+    );
+    expect((wrapper.getByLabelText("To") as HTMLInputElement).value).toBe(
+      "joe@example.org",
+    );
+
+    await userEvent.clear(wrapper.getByLabelText("To"));
+    await userEvent.type(wrapper.getByLabelText("To"), "jane@example.org");
+
+    fireEvent.click(wrapper.getByText("Send"));
+
     await waitFor(() => {
       expect(scope.isDone()).toBe(true);
+      expect(
+        wrapper.getByText("Test email sent to jane@example.org"),
+      ).toBeTruthy();
     });
   });
 
