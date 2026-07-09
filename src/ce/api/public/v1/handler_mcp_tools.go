@@ -235,6 +235,11 @@ func mcpAllTools() []mcpToolDef {
 							"required": []string{"name", "cmd"},
 						},
 					},
+					"cacheDirs": map[string]any{
+						"type":        "array",
+						"description": "Directories (relative to the build working directory) restored before install and snapshotted after a successful build. Best for compiler caches like .next/cache or .turbo. Requires a premium or ultimate subscription on Stormkit Cloud; always enabled on self-hosted.",
+						"items":       map[string]any{"type": "string"},
+					},
 				},
 				"required":             []string{"appId", "name", "branch"},
 				"additionalProperties": false,
@@ -296,6 +301,11 @@ func mcpAllTools() []mcpToolDef {
 								"description": map[string]any{"type": "string"},
 							},
 						},
+					},
+					"cacheDirs": map[string]any{
+						"type":        "array",
+						"description": "Directories (relative to the build working directory) restored before install and snapshotted after a successful build. Best for compiler caches like .next/cache or .turbo. Pass an empty array to disable caching. Requires a premium or ultimate subscription on Stormkit Cloud; always enabled on self-hosted.",
+						"items":       map[string]any{"type": "string"},
 					},
 				},
 				"required":             []string{"envId"},
@@ -711,6 +721,7 @@ func mcpCreateEnvironment(req *RequestContextMCP, id any, args map[string]any) *
 	}
 
 	body.StatusChecks = parseStatusChecksArg(args)
+	body.CacheDirs, _ = stringArrayArg(args, "cacheDirs")
 
 	resp := req.setBody(id, body)
 
@@ -796,6 +807,27 @@ func parseStatusChecksArg(args map[string]any) []buildconf.StatusCheck {
 	return out
 }
 
+// stringArrayArg reads a JSON string array argument. The second return value
+// reports whether the key was present as an array, so callers can tell an
+// omitted argument (leave unchanged) from an empty one (clear the list).
+func stringArrayArg(args map[string]any, key string) ([]string, bool) {
+	raw, ok := args[key].([]any)
+
+	if !ok {
+		return nil, false
+	}
+
+	out := make([]string, 0, len(raw))
+
+	for _, item := range raw {
+		if s, ok := item.(string); ok {
+			out = append(out, s)
+		}
+	}
+
+	return out, true
+}
+
 // stringArgMap and boolArgMap are like stringArg/boolArg but operate on a
 // plain map[string]any instead of the top-level args map.
 func stringArgMap(m map[string]any, key string) string {
@@ -857,6 +889,10 @@ func mcpUpdateEnvironment(req *RequestContextMCP, id any, args map[string]any) *
 	}
 
 	update.StatusChecks = parseStatusChecksArg(args)
+
+	if dirs, ok := stringArrayArg(args, "cacheDirs"); ok {
+		update.CacheDirs = &dirs
+	}
 
 	resp := req.setBody(id, update)
 

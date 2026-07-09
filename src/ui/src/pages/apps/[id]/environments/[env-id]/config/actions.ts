@@ -63,6 +63,16 @@ export const prepareBuildObject = (values: FormValues): BuildConfig => {
     } catch {}
   }
 
+  // One directory per line; an empty textarea clears the list.
+  let cacheDirs: string[] | undefined;
+
+  if (values["build.cacheDirs"] !== undefined) {
+    cacheDirs = values["build.cacheDirs"]
+      .split("\n")
+      .map(dir => dir.trim())
+      .filter(Boolean);
+  }
+
   const build: BuildConfig = {
     buildCmd: values["build.buildCmd"]?.trim() || "",
     serverCmd: values["build.serverCmd"]?.trim() || "",
@@ -79,6 +89,7 @@ export const prepareBuildObject = (values: FormValues): BuildConfig => {
     priorityPattern: values["build.priorityPattern"]?.trim() || "",
     statusChecks,
     redirects,
+    cacheDirs,
     vars,
   };
 
@@ -184,6 +195,7 @@ export interface EnvUpdatePayload {
   statusChecks?: StatusCheck[];
   redirects?: Redirect[];
   envVars?: Record<string, string>;
+  cacheDirs?: string[];
 }
 
 export interface FormValues {
@@ -201,6 +213,7 @@ export interface FormValues {
   "build.installCmd"?: string;
   "build.distFolder"?: string;
   "build.workDir"?: string;
+  "build.cacheDirs"?: string;
   "build.headers"?: string;
   "build.headersFile"?: string;
   "build.errorFile"?: string;

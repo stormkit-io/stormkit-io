@@ -38,8 +38,13 @@ func New() Deployer {
 }
 
 func (dd *DefaultDeployer) Deploy(ctx context.Context, a *app.App, d *deploy.Deployment) error {
+	// Build caching is available to everyone on self-hosted instances. On
+	// Stormkit Cloud it is an enterprise feature: premium and ultimate only.
+	cacheEnabled := !config.IsStormkitCloud()
+
 	if config.IsStormkitCloud() {
-		usr, err := user.NewStore().UserMetrics(ctx, user.UserMetricsArgs{AppID: a.ID})
+		store := user.NewStore()
+		usr, err := store.UserMetrics(ctx, user.UserMetricsArgs{AppID: a.ID})
 
 		if err != nil {
 			return err
@@ -48,6 +53,23 @@ func (dd *DefaultDeployer) Deploy(ctx context.Context, a *app.App, d *deploy.Dep
 		if usr != nil && !usr.HasBuildMinutes() {
 			return ErrBuildMinutesExceeded
 		}
+
+		// UserMetrics already carries the owner's package, but it returns no
+		// row until the first usage entry of the month exists; fall back to a
+		// dedicated lookup in that case. Build caching is best-effort, so a
+		// failed entitlement lookup disables caching instead of failing the
+		// deployment.
+		tier := ""
+
+		if usr != nil {
+			tier = usr.Metadata.PackageName
+		} else if t, err := store.PackageNameByAppID(ctx, a.ID); err != nil {
+			slog.Errorf("could not resolve package for app %d: %v", a.ID, err)
+		} else {
+			tier = t
+		}
+
+		cacheEnabled = tier == config.PackagePremium || tier == config.PackageUltimate
 	}
 
 	// Get git credentials
@@ -89,6 +111,14 @@ func (dd *DefaultDeployer) Deploy(ctx context.Context, a *app.App, d *deploy.Dep
 		}
 	}
 
+	// When caching is not allowed the runner receives no cache directories,
+	// which is how it decides whether to restore and snapshot the cache.
+	cacheDirs := d.BuildConfig.CacheDirs
+
+	if !cacheEnabled {
+		cacheDirs = nil
+	}
+
 	payload := DeploymentMessage{
 		Client: ClientConfig{
 			Repo:        d.RepoCloneURL(),
@@ -114,6 +144,7 @@ func (dd *DefaultDeployer) Deploy(ctx context.Context, a *app.App, d *deploy.Dep
 			APIFolder:        utils.GetString(d.BuildConfig.APIFolder, "/api"),
 			StatusChecks:     d.BuildConfig.StatusChecks,
 			MigrationsFolder: d.MigrationsFolder.ValueOrZero(),
+			CacheDirs:        cacheDirs,
 			Vars: d.BuildConfig.InterpolatedVars(
 				buildconf.InterpolatedVarsOpts{
 					DeploymentID: d.ID.String(),

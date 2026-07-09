@@ -1,11 +1,14 @@
 import type { FormValues } from "../actions";
-import { useState } from "react";
+import { useContext, useState } from "react";
 import Box from "@mui/material/Box";
 import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
+import { AuthContext } from "~/pages/auth/Auth.context";
+import { RootContext } from "~/pages/Root.context";
 import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
 import CardFooter from "~/components/CardFooter";
+import UpgradeButton from "~/components/UpgradeButton";
 import {
   updateEnvironment,
   buildFormValues,
@@ -23,10 +26,19 @@ export default function TabConfigGeneral({
   app,
   setRefreshToken,
 }: Props) {
+  const { user } = useContext(AuthContext);
+  const { details } = useContext(RootContext);
   const [error, setError] = useState<string>();
   const [success, setSuccess] = useState<string>();
   const [isLoading, setLoading] = useState(false);
   const [root, setRoot] = useState(env?.build?.workDir || "./");
+
+  // Build caching is available on self-hosted instances and for premium or
+  // ultimate subscriptions on Stormkit Cloud.
+  const isCacheAllowed =
+    details?.stormkit?.edition !== "cloud" ||
+    user?.package.id === "premium" ||
+    user?.package.id === "ultimate";
 
   if (!env) {
     return <></>;
@@ -59,6 +71,7 @@ export default function TabConfigGeneral({
             buildCmd: build.buildCmd,
             distFolder: build.distFolder,
             workDir: build.workDir,
+            cacheDirs: build.cacheDirs,
           },
           setError,
           setLoading,
@@ -143,6 +156,33 @@ export default function TabConfigGeneral({
           fullWidth
           placeholder="Defaults to `./`"
           helperText={"The working directory relative to the Repository root."}
+        />
+      </Box>
+      <Box sx={{ mb: 4 }}>
+        <TextField
+          label="Cache directories"
+          variant="filled"
+          autoComplete="off"
+          multiline
+          minRows={2}
+          disabled={!isCacheAllowed}
+          defaultValue={env?.build.cacheDirs?.join("\n") || ""}
+          fullWidth
+          name="build.cacheDirs"
+          placeholder={".next/cache\n.turbo"}
+          helperText={
+            isCacheAllowed ? (
+              "One directory per line, relative to the build root. Restored before the install step and saved after a successful build. Best for compiler caches like .next/cache, .turbo or node's build cache; caching node_modules helps incremental installs but not `npm ci`, which wipes it first. Leave empty to disable caching."
+            ) : (
+              <>
+                Build caching speeds up deployments by reusing directories like{" "}
+                <Box component="code" sx={{ fontSize: 11, px: 0.5, py: 0.25 }}>
+                  .next/cache
+                </Box>{" "}
+                between builds. <UpgradeButton variant="text" /> to enable it.
+              </>
+            )
+          }
         />
       </Box>
 

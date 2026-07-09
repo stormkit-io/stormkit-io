@@ -104,6 +104,7 @@ func (s *HandlerEnvAddSuite) Test_Success() {
 			"redirects": []map[string]any{
 				{"from": "/old", "to": "/new", "status": 301},
 			},
+			"cacheDirs": []string{".next/cache", " node_modules ", ""},
 		},
 		map[string]string{
 			"Authorization": key.Value,
@@ -133,6 +134,8 @@ func (s *HandlerEnvAddSuite) Test_Success() {
 	s.Equal("/error.html", env.Data.ErrorFile)
 	s.Equal("/headers.json", env.Data.HeadersFile)
 	s.Equal("production", env.Data.Vars["NODE_ENV"])
+	// Entries are trimmed and empty ones dropped.
+	s.Equal([]string{".next/cache", "node_modules"}, env.Data.CacheDirs)
 
 	audits, err := audit.NewStore().SelectAudits(context.Background(), audit.AuditFilters{
 		AppID: app.ID,

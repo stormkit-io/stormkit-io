@@ -147,6 +147,61 @@ func (s *HandlerEnvUpdateSuite) Test_Success_PartialUpdate_OnlyBuildCmd() {
 	s.Equal("npm run build:staging", updated.Data.BuildCmd)
 }
 
+func (s *HandlerEnvUpdateSuite) Test_Success_CacheDirs() {
+	app := s.MockApp(nil)
+	env := s.MockEnv(app)
+	key := s.MockAPIKey(nil, env, map[string]any{
+		"Scope": apikey.SCOPE_ENV,
+		"EnvID": env.ID,
+	})
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodPut,
+		fmt.Sprintf("/v1/env?envId=%s", env.ID),
+		map[string]any{
+			"cacheDirs": []string{".next/cache", " node_modules ", ""},
+		},
+		map[string]string{
+			"Authorization": key.Value,
+		},
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+
+	updated, err := buildconf.NewStore().EnvironmentByID(context.Background(), env.ID)
+
+	s.NoError(err)
+	s.NotNil(updated)
+	// Entries are trimmed and empty ones dropped.
+	s.Equal([]string{".next/cache", "node_modules"}, updated.Data.CacheDirs)
+}
+
+func (s *HandlerEnvUpdateSuite) Test_BadRequest_InvalidCacheDirs() {
+	app := s.MockApp(nil)
+	env := s.MockEnv(app)
+	key := s.MockAPIKey(nil, env, map[string]any{
+		"Scope": apikey.SCOPE_ENV,
+		"EnvID": env.ID,
+	})
+
+	for _, dir := range []string{"/absolute", "../escape", "a/../../b", "~/home"} {
+		response := shttptest.RequestWithHeaders(
+			shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+			shttp.MethodPut,
+			fmt.Sprintf("/v1/env?envId=%s", env.ID),
+			map[string]any{
+				"cacheDirs": []string{dir},
+			},
+			map[string]string{
+				"Authorization": key.Value,
+			},
+		)
+
+		s.Equal(http.StatusBadRequest, response.Code, "expected %q to be rejected", dir)
+	}
+}
+
 func (s *HandlerEnvUpdateSuite) Test_BadRequest_InvalidHeaders() {
 	app := s.MockApp(nil)
 	env := s.MockEnv(app)

@@ -96,6 +96,13 @@ type BuildConfig struct {
 
 	// MigrationsFolder is the path to the migrations folder, if any.
 	MigrationsFolder string `json:"migrationsFolder"`
+
+	// CacheDirs is the list of directories (relative to the working directory)
+	// that are restored before install and snapshotted after a successful
+	// build. It is empty when caching is not allowed for the deployment (on
+	// Stormkit Cloud this requires a premium or ultimate subscription;
+	// self-hosted instances always have it enabled).
+	CacheDirs []string `json:"cacheDirs,omitempty"`
 }
 
 // DeploymentMessage represents a deployment payload.
