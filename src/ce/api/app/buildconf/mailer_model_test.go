@@ -89,41 +89,6 @@ func (s *MailerModelSuite) Test_Send_EnvelopeUsesParamsFromAddress() {
 	s.Equal("noreply@acme.com", capturedFrom)
 }
 
-func (s *MailerModelSuite) Test_Send_FallsBackToConfiguredFromAddress() {
-	mailer := &buildconf.MailerConf{
-		Host:        "smtp.example.com",
-		Username:    "smtp-user@example.com",
-		Password:    "secret",
-		FromAddress: "no-reply@acme.com",
-	}
-
-	var capturedFrom string
-	var capturedMsg []byte
-
-	buildconf.SendMailFunc = func(_ string, _ smtp.Auth, from string, _ []string, msg []byte) error {
-		capturedFrom = from
-		capturedMsg = msg
-		return nil
-	}
-
-	s.NoError(mailer.Send(buildconf.SendEmailParams{
-		To:      "user@example.com",
-		Subject: "Hello",
-		Body:    "Body",
-	}))
-
-	s.Equal("no-reply@acme.com", capturedFrom, "FromAddress takes precedence over Username")
-	s.Contains(string(capturedMsg), "From: no-reply@acme.com")
-}
-
-func (s *MailerModelSuite) Test_DefaultFrom() {
-	mailer := &buildconf.MailerConf{Username: "smtp-user@example.com"}
-	s.Equal("smtp-user@example.com", mailer.DefaultFrom())
-
-	mailer.FromAddress = "no-reply@acme.com"
-	s.Equal("no-reply@acme.com", mailer.DefaultFrom())
-}
-
 func TestMailerModel(t *testing.T) {
 	suite.Run(t, &MailerModelSuite{})
 }

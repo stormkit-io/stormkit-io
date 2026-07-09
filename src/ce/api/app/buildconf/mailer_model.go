@@ -17,18 +17,17 @@ var SendMailFunc = smtp.SendMail
 
 type SendEmailParams struct {
 	To      string // semicolon-separated list of recipients
-	From    string // falls back to mc.DefaultFrom() when empty
+	From    string // falls back to mc.Username when empty
 	Subject string
 	Body    string
 }
 
 type MailerConf struct {
-	EnvID       types.ID `json:"-"`
-	Host        string   `json:"host"`
-	Port        string   `json:"port"`
-	Username    string   `json:"username"`
-	Password    string   `json:"password"`
-	FromAddress string   `json:"fromAddress,omitempty"`
+	EnvID    types.ID `json:"-"`
+	Host     string   `json:"host"`
+	Port     string   `json:"port"`
+	Username string   `json:"username"`
+	Password string   `json:"password"`
 }
 
 // Bytes uses the json marshaler to return the byte representation.
@@ -76,16 +75,8 @@ func (mc *MailerConf) UnmarshalJSON(data []byte) error {
 	mc.Password = utils.DecryptToString(hash["password"])
 	mc.Host = hash["host"]
 	mc.Port = hash["port"]
-	mc.FromAddress = hash["fromAddress"]
 
 	return nil
-}
-
-// DefaultFrom returns the address used as the From header when a send
-// request does not specify one: the configured FromAddress, falling back
-// to the SMTP username.
-func (mc *MailerConf) DefaultFrom() string {
-	return utils.GetString(mc.FromAddress, mc.Username)
 }
 
 // SanitizeHeader strips carriage returns and newlines from an SMTP header value
@@ -100,7 +91,7 @@ func SanitizeHeader(v string) string {
 // forms like `Acme <foo@bar.com>` are rejected by many SMTP servers with
 // a 501.
 func (mc *MailerConf) Send(p SendEmailParams) error {
-	fromHeader := SanitizeHeader(utils.GetString(p.From, mc.DefaultFrom()))
+	fromHeader := SanitizeHeader(utils.GetString(p.From, mc.Username))
 	port := utils.GetString(mc.Port, "587")
 	mime := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
 	msg := []byte(
