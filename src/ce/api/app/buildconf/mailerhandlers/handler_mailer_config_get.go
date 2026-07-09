@@ -21,11 +21,10 @@ func HandlerMailerConfigGet(req *app.RequestContext) *shttp.Response {
 
 	if env.MailerConf != nil {
 		response["config"] = map[string]any{
-			"host":        env.MailerConf.Host,
-			"port":        env.MailerConf.Port,
-			"username":    env.MailerConf.Username,
-			"password":    env.MailerConf.Password,
-			"fromAddress": env.MailerConf.FromAddress,
+			"host":     env.MailerConf.Host,
+			"port":     env.MailerConf.Port,
+			"username": env.MailerConf.Username,
+			"password": env.MailerConf.Password,
 		}
 	}
 

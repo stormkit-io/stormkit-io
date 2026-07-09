@@ -12,13 +12,14 @@ import Help, { HelpTable } from "~/components/Help";
 import { AppContext } from "~/pages/apps/[id]/App.context";
 import { EnvironmentContext } from "~/pages/apps/[id]/environments/Environment.context";
 import { useFetchMailerConfig } from "./actions";
+import SendTestEmailModal from "./SendTestEmailModal";
 
 export default function TabMailer() {
   const { app } = useContext(AppContext);
   const { environment: env } = useContext(EnvironmentContext);
   const [refreshToken, setRefreshToken] = useState<number>();
   const [formError, setFormError] = useState<string>();
-  const [sendLoading, setSendLoading] = useState<boolean>(false);
+  const [isTestModalOpen, setIsTestModalOpen] = useState<boolean>(false);
   const [success, setSuccess] = useState<string>();
   const { loading, error, config } = useFetchMailerConfig({
     appId: app.id,
@@ -46,9 +47,6 @@ export default function TabMailer() {
       .then(() => {
         setSuccess("Mailer configuration saved successfully.");
         setRefreshToken(Date.now());
-      })
-      .catch(async res => {
-        setFormError((await api.errors(res)).join(" "));
       });
   };
 
@@ -192,54 +190,15 @@ export default function TabMailer() {
         />
       </Box>
 
-      <Box sx={{ mb: 4 }}>
-        <TextField
-          label="From Address"
-          name="fromAddress"
-          fullWidth
-          defaultValue={config?.fromAddress || ""}
-          variant="filled"
-          autoComplete="off"
-          placeholder="sender@example.com"
-          helperText="Optional. Default sender address for outgoing emails. Falls back to the username when empty."
-        />
-      </Box>
-
       <CardFooter>
         {config && (
           <Button
             type="button"
             variant="text"
             color="info"
-            loading={sendLoading}
             sx={{ mr: 2 }}
             onClick={() => {
-              setSendLoading(true);
-
-              api
-                .post("/mailer", {
-                  // fetch treats the `body` argument as a json string so we
-                  // need to stringify the parameters to make this api call work.
-                  body: JSON.stringify({
-                    appId: app.id,
-                    envId: env.id!,
-                    from: config.fromAddress || config.username,
-                    to: config.username,
-                    body: "Test email body",
-                    subject: "Test email subject",
-                  }),
-                })
-                .then(() => {
-                  setSuccess("Test email sent to " + config.username);
-                })
-                .catch(() => {
-                  setFormError(
-                    "Something went wrong while sending test email.",
-                  );
-                })
-                .finally(() => {
-                  setSendLoading(false);
-                });
+              setIsTestModalOpen(true);
             }}
           >
             Send test email
@@ -250,6 +209,18 @@ export default function TabMailer() {
           Save
         </Button>
       </CardFooter>
+
+      {isTestModalOpen && config && (
+        <SendTestEmailModal
+          appId={app.id}
+          envId={env.id!}
+          defaultFrom={config.username}
+          defaultTo={config.username}
+          onClose={() => {
+            setIsTestModalOpen(false);
+          }}
+        />
+      )}
     </Card>
   );
 }

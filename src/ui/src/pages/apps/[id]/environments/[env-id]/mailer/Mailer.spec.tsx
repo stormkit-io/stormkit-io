@@ -81,7 +81,6 @@ describe("~/pages/apps/[id]/environments/[env-id]/mailer/Mailer.tsx", () => {
     const password = "my-app-token";
     const smtpHost = "smtp.example.org";
     const smtpPort = "587";
-    const fromAddress = "no-reply@example.org";
 
     const scope = mockSetMailerConfig({
       appId: currentApp.id,
@@ -90,7 +89,6 @@ describe("~/pages/apps/[id]/environments/[env-id]/mailer/Mailer.tsx", () => {
       password,
       smtpHost,
       smtpPort,
-      fromAddress,
     });
 
     await waitFor(() => {
@@ -102,7 +100,6 @@ describe("~/pages/apps/[id]/environments/[env-id]/mailer/Mailer.tsx", () => {
     await userEvent.type(wrapper.getByLabelText("SMTP Port"), smtpPort);
     await userEvent.type(wrapper.getByLabelText("Username"), username);
     await userEvent.type(wrapper.getByLabelText("Password"), password);
-    await userEvent.type(wrapper.getByLabelText("From Address"), fromAddress);
 
     setupFetchScope();
 
@@ -115,50 +112,6 @@ describe("~/pages/apps/[id]/environments/[env-id]/mailer/Mailer.tsx", () => {
 
     // Should re-fetch
     expect(fetchScope.isDone()).toBe(true);
-  });
-
-  it("should display an error when saving the configuration fails", async () => {
-    createWrapper({});
-
-    const scope = mockSetMailerConfig({
-      appId: currentApp.id,
-      envId: currentEnv.id,
-      username: "joe@example.org",
-      password: "my-app-token",
-      smtpHost: "smtp.example.org",
-      smtpPort: "587",
-      fromAddress: "not-an-email",
-      status: 400,
-      response: {
-        errors: { fromAddress: "From Address must be a valid email address." },
-      },
-    });
-
-    await waitFor(() => {
-      expect(fetchScope.isDone()).toBe(true);
-      expect(wrapper.getByLabelText("SMTP Host")).toBeTruthy();
-    });
-
-    await userEvent.type(
-      wrapper.getByLabelText("SMTP Host"),
-      "smtp.example.org",
-    );
-    await userEvent.type(wrapper.getByLabelText("SMTP Port"), "587");
-    await userEvent.type(wrapper.getByLabelText("Username"), "joe@example.org");
-    await userEvent.type(wrapper.getByLabelText("Password"), "my-app-token");
-    await userEvent.type(
-      wrapper.getByLabelText("From Address"),
-      "not-an-email",
-    );
-
-    fireEvent.click(wrapper.getByText("Save"));
-
-    await waitFor(() => {
-      expect(scope.isDone()).toBe(true);
-      expect(
-        wrapper.getByText("From Address must be a valid email address."),
-      ).toBeTruthy();
-    });
   });
 
   it("should send a test email", async () => {
@@ -179,42 +132,33 @@ describe("~/pages/apps/[id]/environments/[env-id]/mailer/Mailer.tsx", () => {
       appId: currentApp.id,
       envId: currentEnv.id!,
       from: "joe@example.org",
-      to: "joe@example.org",
+      to: "jane@example.org",
     });
 
     fireEvent.click(wrapper.getByText("Send test email"));
 
+    // The modal pre-fills From and To with the configured username
     await waitFor(() => {
-      expect(scope.isDone()).toBe(true);
-    });
-  });
-
-  it("should send a test email from the configured from address", async () => {
-    createWrapper({
-      config: {
-        host: "smtp.example.org",
-        port: "587",
-        username: "joe@example.org",
-        password: "123",
-        fromAddress: "no-reply@example.org",
-      },
+      expect(wrapper.getByLabelText("From")).toBeTruthy();
     });
 
-    await waitFor(() => {
-      expect(wrapper.getByDisplayValue("no-reply@example.org")).toBeTruthy();
-    });
+    expect((wrapper.getByLabelText("From") as HTMLInputElement).value).toBe(
+      "joe@example.org",
+    );
+    expect((wrapper.getByLabelText("To") as HTMLInputElement).value).toBe(
+      "joe@example.org",
+    );
 
-    const scope = mockSendTestEmail({
-      appId: currentApp.id,
-      envId: currentEnv.id!,
-      from: "no-reply@example.org",
-      to: "joe@example.org",
-    });
+    await userEvent.clear(wrapper.getByLabelText("To"));
+    await userEvent.type(wrapper.getByLabelText("To"), "jane@example.org");
 
-    fireEvent.click(wrapper.getByText("Send test email"));
+    fireEvent.click(wrapper.getByText("Send"));
 
     await waitFor(() => {
       expect(scope.isDone()).toBe(true);
+      expect(
+        wrapper.getByText("Test email sent to jane@example.org"),
+      ).toBeTruthy();
     });
   });
 

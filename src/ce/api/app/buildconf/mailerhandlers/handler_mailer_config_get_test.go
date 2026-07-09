@@ -37,11 +37,10 @@ func (s *HandlerMailerConfigGetSuite) Test_Success() {
 	app := s.MockApp(usr)
 	env := s.MockEnv(app, map[string]any{
 		"MailerConf": &buildconf.MailerConf{
-			Host:        "smtp.gmail.com",
-			Port:        "587",
-			Username:    "test",
-			Password:    "testpwd",
-			FromAddress: "no-reply@example.com",
+			Host:     "smtp.gmail.com",
+			Port:     "587",
+			Username: "test",
+			Password: "testpwd",
 		},
 	})
 
@@ -55,13 +54,12 @@ func (s *HandlerMailerConfigGetSuite) Test_Success() {
 		},
 	)
 
-	expected := `{
-		"config": {
+	expected := `{ 
+		"config": { 
 			"host": "smtp.gmail.com",
 			"port": "587",
 			"password": "testpwd",
-			"username": "test",
-			"fromAddress": "no-reply@example.com"
+			"username": "test"
 		}
 	}`
 
