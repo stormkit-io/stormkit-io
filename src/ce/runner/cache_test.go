@@ -5,6 +5,7 @@ import (
 	"os"
 	"path"
 	"testing"
+	"time"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/integrations"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/file"
@@ -166,6 +167,85 @@ func (s *CacheManagerSuite) Test_Snapshot_SkipsMissingDirs() {
 
 	s.FileExists(path.Join(s.opts.WorkDir, "node_modules/pkg/index.js"))
 	s.NoDirExists(path.Join(s.opts.WorkDir, ".next"))
+}
+
+func (s *CacheManagerSuite) Test_Snapshot_SkipsUpload_WhenUnchanged() {
+	ctx := context.Background()
+
+	s.writeWorkDirFile("node_modules/pkg/index.js", "module.exports = {}")
+
+	newCacheManager(s.opts).Snapshot(ctx)
+
+	s.Equal(1, s.store.uploads)
+
+	s.Require().NoError(os.RemoveAll(s.opts.WorkDir))
+	s.Require().NoError(os.MkdirAll(s.opts.WorkDir, 0775))
+
+	cache := newCacheManager(s.opts)
+	cache.Restore(ctx)
+
+	// Package managers rewrite modification times on every install; only a
+	// content change should trigger a re-upload.
+	newTime := time.Now().Add(time.Hour)
+	s.Require().NoError(os.Chtimes(path.Join(s.opts.WorkDir, "node_modules/pkg/index.js"), newTime, newTime))
+
+	cache.Snapshot(ctx)
+
+	s.Equal(1, s.store.uploads)
+}
+
+func (s *CacheManagerSuite) Test_Snapshot_Uploads_WhenContentChanged() {
+	ctx := context.Background()
+
+	s.writeWorkDirFile("node_modules/pkg/index.js", "module.exports = {}")
+
+	newCacheManager(s.opts).Snapshot(ctx)
+
+	s.Require().NoError(os.RemoveAll(s.opts.WorkDir))
+	s.Require().NoError(os.MkdirAll(s.opts.WorkDir, 0775))
+
+	cache := newCacheManager(s.opts)
+	cache.Restore(ctx)
+
+	// Same byte length as the original content: a size check would miss this.
+	s.writeWorkDirFile("node_modules/pkg/index.js", "module.exports = []")
+
+	cache.Snapshot(ctx)
+
+	s.Equal(2, s.store.uploads)
+}
+
+func (s *CacheManagerSuite) Test_Snapshot_Uploads_WhenNewDirAppears() {
+	ctx := context.Background()
+
+	s.writeWorkDirFile("node_modules/pkg/index.js", "module.exports = {}")
+
+	newCacheManager(s.opts).Snapshot(ctx)
+
+	s.Require().NoError(os.RemoveAll(s.opts.WorkDir))
+	s.Require().NoError(os.MkdirAll(s.opts.WorkDir, 0775))
+
+	cache := newCacheManager(s.opts)
+	cache.Restore(ctx)
+
+	s.writeWorkDirFile(".next/cache/build.json", "{}")
+
+	cache.Snapshot(ctx)
+
+	s.Equal(2, s.store.uploads)
+}
+
+func (s *CacheManagerSuite) Test_Snapshot_Uploads_OnCacheMiss() {
+	ctx := context.Background()
+
+	cache := newCacheManager(s.opts)
+	cache.Restore(ctx)
+
+	s.writeWorkDirFile("node_modules/pkg/index.js", "module.exports = {}")
+
+	cache.Snapshot(ctx)
+
+	s.Equal(1, s.store.uploads)
 }
 
 func (s *CacheManagerSuite) Test_Snapshot_NoUpload_WhenNoDirsExist() {

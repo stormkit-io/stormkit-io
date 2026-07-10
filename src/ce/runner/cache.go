@@ -2,9 +2,15 @@ package runner
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
 	"path"
+	"path/filepath"
+	"sort"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/lib/integrations"
@@ -27,6 +33,11 @@ var DefaultCacheStore integrations.CacheStore
 type cacheManager struct {
 	opts        RunnerOpts
 	archivePath string
+
+	// restoredHash is the content hash of the cache directories right after
+	// Restore extracted them. Snapshot compares against it to skip the upload
+	// when the build did not change the cached contents.
+	restoredHash string
 }
 
 func newCacheManager(opts RunnerOpts) *cacheManager {
@@ -135,10 +146,93 @@ func (c *cacheManager) Restore(ctx context.Context) {
 	}
 
 	c.opts.Reporter.AddLine(fmt.Sprintf("restored cached directories: %v", c.dirs()))
+
+	if hash, err := c.contentHash(ctx); err != nil {
+		slog.Errorf("could not hash restored build cache: %v", err)
+	} else {
+		c.restoredHash = hash
+	}
+}
+
+// contentHash digests the paths and contents of all files inside the cache
+// directories. It hashes contents rather than modification times, which
+// package managers rewrite on every install even when nothing changed.
+func (c *cacheManager) contentHash(ctx context.Context) (string, error) {
+	hash := sha256.New()
+	dirs := c.dirs()
+
+	sort.Strings(dirs)
+
+	for _, dir := range dirs {
+		root := path.Join(c.opts.WorkDir, dir)
+
+		if stat, err := os.Stat(root); err != nil || !stat.IsDir() {
+			continue
+		}
+
+		err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+
+			if d.IsDir() {
+				return nil
+			}
+
+			rel, err := filepath.Rel(c.opts.WorkDir, p)
+
+			if err != nil {
+				return err
+			}
+
+			fmt.Fprintf(hash, "%s\x00", rel)
+
+			if d.Type()&fs.ModeSymlink != 0 {
+				target, err := os.Readlink(p)
+
+				if err != nil {
+					return err
+				}
+
+				fmt.Fprintf(hash, "->%s\x00", target)
+
+				return nil
+			}
+
+			if !d.Type().IsRegular() {
+				return nil
+			}
+
+			f, err := os.Open(p)
+
+			if err != nil {
+				return err
+			}
+
+			defer f.Close()
+
+			if _, err := io.Copy(hash, f); err != nil {
+				return err
+			}
+
+			return nil
+		})
+
+		if err != nil {
+			return "", err
+		}
+	}
+
+	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
 // Snapshot archives the cache directories and uploads them, replacing the
-// environment's previous cache. It runs after a successful build.
+// environment's previous cache. It runs after a successful build. When the
+// contents are unchanged since Restore, the archive and upload are skipped.
 func (c *cacheManager) Snapshot(ctx context.Context) {
 	if !c.enabled() {
 		return
@@ -164,6 +258,13 @@ func (c *cacheManager) Snapshot(ctx context.Context) {
 	}
 
 	c.opts.Reporter.AddStep("saving build cache")
+
+	if hash, err := c.contentHash(ctx); err != nil {
+		slog.Errorf("could not hash build cache: %v", err)
+	} else if c.restoredHash != "" && hash == c.restoredHash {
+		c.opts.Reporter.AddLine("build cache unchanged - skipping upload")
+		return
+	}
 
 	defer os.Remove(c.archivePath)
 
