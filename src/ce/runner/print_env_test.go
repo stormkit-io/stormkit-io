@@ -1,7 +1,6 @@
 package runner
 
 import (
-	"io"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
@@ -31,10 +30,7 @@ func (s *PrintEnvVariablesSuite) Test_MasksAllValues() {
 
 	s.NoError(printEnvVariables(opts))
 
-	out, err := io.ReadAll(reporter.File())
-	s.NoError(err)
-
-	log := string(out)
+	log := reporter.Logs()
 
 	// User-defined variable names are still listed so the build log stays
 	// useful, but their values are masked.

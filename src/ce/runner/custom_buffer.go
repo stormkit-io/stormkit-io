@@ -2,7 +2,6 @@ package runner
 
 import (
 	"bytes"
-	"io"
 	"regexp"
 	"sync"
 
@@ -13,7 +12,6 @@ const ansi = "[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)
 
 type CustomBuffer struct {
 	output          []byte
-	readIndex       int
 	ansiRegexp      *regexp.Regexp
 	mu              sync.Mutex
 	isStormkitCloud bool
@@ -23,7 +21,6 @@ func NewCustomBuffer() *CustomBuffer {
 	return &CustomBuffer{
 		ansiRegexp:      regexp.MustCompile(ansi),
 		isStormkitCloud: config.IsStormkitCloud(),
-		readIndex:       0,
 	}
 }
 
@@ -59,15 +56,9 @@ func (cb *CustomBuffer) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func (cb *CustomBuffer) Read(p []byte) (int, error) {
+func (cb *CustomBuffer) String() string {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 
-	if cb.readIndex >= len(cb.output) {
-		return 0, io.EOF
-	}
-
-	n := copy(p, cb.output[cb.readIndex:])
-	cb.readIndex += n
-	return n, nil
+	return string(cb.output)
 }

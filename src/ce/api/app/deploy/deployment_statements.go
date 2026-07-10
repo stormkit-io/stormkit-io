@@ -200,7 +200,7 @@ var stmt = &statement{
 			error = $2,
 			exit_code = $3,
 			build_manifest = $4,
-			logs = COALESCE(logs, '') || $5,
+			logs = CASE WHEN $5 = '' THEN logs ELSE $5 END,
 			stopped_at = NOW() AT TIME ZONE 'UTC'
 		WHERE
 			deployment_id = $6

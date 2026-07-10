@@ -443,6 +443,8 @@ func Run(opts RunnerOpts) *RunResult {
 		manifest.CDNFiles = artifacts.CDNFiles()
 		manifest.APIFiles = artifacts.APIFiles()
 
+		opts.Reporter.AddStep("deploy")
+
 		result, err = NewUploader(opts.Uploader).Upload(UploadArgs{
 			MigrationsZip: artifacts.migrationsZip,
 			ClientZip:     artifacts.clientZip,

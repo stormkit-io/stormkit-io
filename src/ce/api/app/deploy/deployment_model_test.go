@@ -212,6 +212,51 @@ func (s *DeploymentModelSuite) Test_DeploymentLogs_WithMultipleSteps() {
 	]`, string(b))
 }
 
+func (s *DeploymentModelSuite) Test_DeploymentLogs_StepsAfterBuildingFinished() {
+	stoppedAt := utils.Unix{Time: time.Unix(1726053757, 0), Valid: true}
+
+	d := &deploy.Deployment{
+		UploadResult: &deploy.UploadResult{
+			ServerBytes: 591919,
+		},
+		ExitCode:  null.IntFrom(0),
+		StoppedAt: stoppedAt,
+		Logs: null.NewString(
+			"[sk-step] saving build cache [ts:1726053700]\n"+
+				"saved build cache (193MB)\n"+
+				"[sk-step] [system] building finished [ts:1726053745]\n"+
+				"[sk-step] database migrations [ts:1726053756]\n"+
+				"No new migrations to apply.",
+			true),
+	}
+
+	b, err := json.Marshal(d.PrepareLogs(d.Logs.ValueOrZero(), false))
+	s.Nil(err)
+	s.JSONEq(`[
+		{
+			"title": "saving build cache",
+			"duration": 45,
+			"message": "saved build cache (193MB)\n",
+			"status": true,
+			"payload": null
+		},
+		{
+			"title": "deploy",
+			"duration": 11,
+			"message": "\nSuccessfully deployed server side.\nPackage size: 591.9kB\n\n",
+			"status": true,
+			"payload": null
+		},
+		{
+			"title": "database migrations",
+			"duration": 1,
+			"message": "No new migrations to apply.\n",
+			"status": true,
+			"payload": null
+		}
+	]`, string(b))
+}
+
 func (s *DeploymentModelSuite) Test_PopulateFromEnv_SchemaDoNotInjectEnvVars() {
 	dep := &deploy.Deployment{}
 	env := &buildconf.Env{

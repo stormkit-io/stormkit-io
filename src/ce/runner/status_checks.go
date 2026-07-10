@@ -60,7 +60,7 @@ func (s *StatusChecks) Run(ctx context.Context, command string) error {
 
 	err := cmd.Run()
 
-	rep.AddStep("[system] status check passed")
+	rep.CloseStep(err == nil)
 
 	return err
 }

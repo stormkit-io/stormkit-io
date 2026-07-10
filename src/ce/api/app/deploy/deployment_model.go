@@ -414,6 +414,11 @@ func (d *Deployment) PrepareLogs(rawLogs string, isStatusChecks bool) []*Log {
 
 	}
 
+	// Structured logs written by the runner: one step record per line.
+	if steps, ok := ParseStepLogs(rawLogs); ok {
+		return d.prepareStepLogs(steps, isStatusChecks)
+	}
+
 	logs := []*Log{}
 
 	// This is a special case for old-style deployments
@@ -428,6 +433,7 @@ func (d *Deployment) PrepareLogs(rawLogs string, isStatusChecks bool) []*Log {
 
 	lastStepTimestamp := d.CreatedAt.Unix()
 	buildingFinished := len(lines) == 0 && d.ExitCode.Valid
+	buildingFinishedIdx := -1
 	deploymentComplete := false
 
 	for _, line := range lines {
@@ -457,6 +463,7 @@ func (d *Deployment) PrepareLogs(rawLogs string, isStatusChecks bool) []*Log {
 
 			if strings.Contains(line, "building finished") {
 				buildingFinished = true
+				buildingFinishedIdx = len(logs) - 1
 				lastStepTimestamp = timestamp
 			} else if strings.Contains(line, "deployment finished") {
 				deploymentComplete = true
@@ -494,7 +501,18 @@ func (d *Deployment) PrepareLogs(rawLogs string, isStatusChecks bool) []*Log {
 		if d.ExitCode.ValueOrZero() == ExitCodeMigrationsFailed && lastStep != nil {
 			lastStep.Status = false
 		} else if buildingFinished || isSuccess {
-			logs = append(logs, d.deploymentsResult(lastStepTimestamp))
+			result := d.deploymentsResult(lastStepTimestamp)
+
+			// Steps logged after the "building finished" marker (e.g. database
+			// migrations) carry later timestamps than the deploy step, which
+			// starts at the marker. Insert the deploy step right after the
+			// marker so the duration calculation below sees timestamps in
+			// chronological order.
+			if buildingFinishedIdx >= 0 && buildingFinishedIdx+1 < len(logs) {
+				logs = append(logs[:buildingFinishedIdx+1], append([]*Log{result}, logs[buildingFinishedIdx+1:]...)...)
+			} else {
+				logs = append(logs, result)
+			}
 		} else if !deploymentComplete && lastStep != nil {
 			// Let's sync the last step
 			lastStep.Status = isSuccess
@@ -583,35 +601,43 @@ func (d *Deployment) deploymentsResult(startTimestamp int64) *Log {
 	}
 
 	log.Status = true
+	log.Message = d.UploadResult.message()
 
-	if d.UploadResult.ClientBytes != 0 {
-		log.Message = strings.Join([]string{
-			log.Message,
+	return log
+}
+
+// message summarizes the upload result for the deploy step's log output.
+func (ur *UploadResult) message() string {
+	msg := ""
+
+	if ur.ClientBytes != 0 {
+		msg = strings.Join([]string{
+			msg,
 			fmt.Sprintf(
 				"Successfully deployed client side.\n"+
 					"Total bytes uploaded: %s\n\n",
-				byteCountDecimal(d.UploadResult.ClientBytes),
+				byteCountDecimal(ur.ClientBytes),
 			),
 		}, "\n")
 	}
 
-	if d.UploadResult.ServerBytes != 0 {
-		log.Message = strings.Join([]string{
-			log.Message,
+	if ur.ServerBytes != 0 {
+		msg = strings.Join([]string{
+			msg,
 			"Successfully deployed server side.",
-			fmt.Sprintf("Package size: %s\n\n", byteCountDecimal(d.UploadResult.ServerBytes)),
+			fmt.Sprintf("Package size: %s\n\n", byteCountDecimal(ur.ServerBytes)),
 		}, "\n")
 	}
 
-	if d.UploadResult.ServerlessBytes != 0 {
-		log.Message = strings.Join([]string{
-			log.Message,
+	if ur.ServerlessBytes != 0 {
+		msg = strings.Join([]string{
+			msg,
 			"Successfully deployed api.",
-			fmt.Sprintf("Package size: %s", byteCountDecimal(d.UploadResult.ServerlessBytes)),
+			fmt.Sprintf("Package size: %s", byteCountDecimal(ur.ServerlessBytes)),
 		}, "\n")
 	}
 
-	return log
+	return msg
 }
 
 // byteCountDecimal converts the given bytes into a human readable format.
