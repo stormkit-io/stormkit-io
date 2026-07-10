@@ -10,6 +10,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/authwall"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/maintenance"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/redirects"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
@@ -125,6 +126,22 @@ func (s *appconfSuite) SetupSuite() {
 
 func (s *appconfSuite) AfterTest(_, _ string) {
 	authwall.Store().SetAuthWallConfig(context.Background(), s.env.ID, nil)
+	maintenance.Store().SetConfig(context.Background(), s.env.ID, nil)
+}
+
+func (s *appconfSuite) Test_ByDeploymentID_Maintenance() {
+	s.NoError(maintenance.Store().SetConfig(context.Background(), s.env.ID, &maintenance.Config{
+		Status: "on",
+	}))
+
+	configs, err := appconf.NewStore().Configs(s.ctx, appconf.ConfigFilters{
+		DeploymentID: s.depl.ID,
+		DisplayName:  s.app.DisplayName,
+	})
+
+	s.NoError(err)
+	s.Len(configs, 1)
+	s.Equal("on", configs[0].Maintenance)
 }
 
 func (s *appconfSuite) TearDownSuite() {

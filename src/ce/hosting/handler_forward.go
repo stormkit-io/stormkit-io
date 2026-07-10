@@ -71,6 +71,7 @@ func HandlerForward(req *RequestContext) (res *shttp.Response) {
 	middlewares := []func(req *RequestContext) (*shttp.Response, error){
 		WithAnalyticsScript,
 		WithCollect,
+		WithMaintenance,
 		WithSKAuth,
 		WithAuthWall,
 		WithRedirect,

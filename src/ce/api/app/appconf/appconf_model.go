@@ -39,5 +39,6 @@ type Config struct {
 	CustomHeaders    []deploy.CustomHeader `json:"-"` // Parsed user-configured header rules; matched against request path at response time.
 	SKAuth           *buildconf.SKAuthConf `json:"-"`
 	AuthWall         string                `json:"authWall,omitempty"`     // Whether to display an auth wall or not. Possible values: dev | all
+	Maintenance      string                `json:"maintenance,omitempty"`  // Whether the environment is in maintenance mode. Possible values: on
 	IsEnterprise     bool                  `json:"isEnterprise,omitempty"` // Whether the app is running in enterprise mode
 }

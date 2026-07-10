@@ -235,6 +235,16 @@ export default function AuditMessage({ audit }: Props) {
         </AuditRow>
       );
 
+    case "UPDATE:MAINTENANCE":
+      return (
+        <AuditRow audit={audit} forceDiff>
+          {audit.diff.new.maintenanceStatus === "off"
+            ? "Disabled"
+            : "Enabled"}{" "}
+          maintenance mode in <EnvLink audit={audit} /> environment
+        </AuditRow>
+      );
+
     case "CREATE:AUTHWALL":
       return (
         <AuditRow audit={audit} forceDiff>

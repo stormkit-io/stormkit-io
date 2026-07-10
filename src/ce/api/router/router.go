@@ -11,6 +11,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/mailerhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/snippetshandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy/deployhandlers"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/maintenance/maintenancehandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/providerhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/redirects/redirectshandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth/skauthhandlers"
@@ -59,6 +60,7 @@ func Get() *shttp.Router {
 	r.RegisterService(providerhandlers.Services)
 	r.RegisterService(snippetshandlers.Services)
 	r.RegisterService(volumeshandlers.Services)
+	r.RegisterService(maintenancehandlers.Services)
 
 	// Enterprise handlers
 	r.RegisterService(authwallhandlers.Services)

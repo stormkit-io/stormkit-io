@@ -22,15 +22,16 @@ const (
 )
 
 const (
-	TypeUser       string = "USER"
-	TypeApp        string = "APP"
-	TypeEnv        string = "ENV"
-	TypeTeam       string = "TEAM"
-	TypeDomain     string = "DOMAIN"
-	TypeSnippet    string = "SNIPPET"
-	TypeAuthWall   string = "AUTHWALL"
-	TypeSchema     string = "SCHEMA"
-	TypeDeployment string = "DEPLOYMENT"
+	TypeUser        string = "USER"
+	TypeApp         string = "APP"
+	TypeEnv         string = "ENV"
+	TypeTeam        string = "TEAM"
+	TypeDomain      string = "DOMAIN"
+	TypeSnippet     string = "SNIPPET"
+	TypeAuthWall    string = "AUTHWALL"
+	TypeMaintenance string = "MAINTENANCE"
+	TypeSchema      string = "SCHEMA"
+	TypeDeployment  string = "DEPLOYMENT"
 )
 
 // AuditData is the data extracted from a request context for auditing.
@@ -76,6 +77,7 @@ type DiffFields struct {
 	AuthWallCreateLoginEmail string                 `json:"authWallCreateLoginEmail,omitempty"`
 	AuthWallCreateLoginID    string                 `json:"authWallCreateLoginId,omitempty"`
 	AuthWallDeleteLoginIDs   string                 `json:"authWallDeleteLoginIds,omitempty"`
+	MaintenanceStatus        string                 `json:"maintenanceStatus,omitempty"`
 	SchemaName               string                 `json:"schemaName,omitempty"`
 	DeploymentID             string                 `json:"deploymentId,omitempty"`
 	AutoPublished            *bool                  `json:"autoPublished,omitempty"`

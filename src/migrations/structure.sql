@@ -427,7 +427,8 @@ CREATE TABLE skitapi.apps_build_conf (
     mailer_conf jsonb,
     auth_wall_conf jsonb,
     auth_conf bytea,
-    schema_conf bytea
+    schema_conf bytea,
+    maintenance_conf jsonb
 );
 
 

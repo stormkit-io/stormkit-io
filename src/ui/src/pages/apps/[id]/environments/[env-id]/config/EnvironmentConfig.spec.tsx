@@ -74,6 +74,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/EnvironmentConfig.tsx",
     expect(wrapper.getByText("Headers")).toBeTruthy();
     expect(wrapper.getByText("Redirects")).toBeTruthy();
     expect(wrapper.getByText("Auth wall")).toBeTruthy();
+    expect(wrapper.getByText("Maintenance mode")).toBeTruthy();
     expect(wrapper.getByText("Domains")).toBeTruthy();
   });
 
@@ -83,6 +84,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/EnvironmentConfig.tsx",
     ${""}          | ${"These variables will be available to build time, status checks and serverless runtime."}
     ${""}          | ${"Use these settings to configure your build options."}
     ${"#authwall"} | ${"Limit access to your deployments with an authentication wall."}
+    ${"#maintenance"} | ${"Take your site offline temporarily and display a maintenance page to visitors."}
     ${"#api-keys"} | ${"This key will allow you to interact with our API and modify this environment."}
   `(
     "should load different tab based on hash: $hash",

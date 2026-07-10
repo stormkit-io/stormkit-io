@@ -232,6 +232,12 @@ var Templates = map[string]string{
 		</div>
 	</form>`,
 
+	"maintenance": `
+	<div class="container">
+		<h1>Under maintenance</h1>
+		<h3>This site is temporarily unavailable while we make some updates.<br/>Please check back again shortly.</h3>
+	</div>`,
+
 	"404": `
 	<div class="container">
 		<h1>4 oh 4</h1>

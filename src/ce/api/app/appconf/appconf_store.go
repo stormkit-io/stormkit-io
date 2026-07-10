@@ -16,6 +16,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/authwall"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/maintenance"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/database"
@@ -83,6 +84,7 @@ var stmt = &statement{
 				e.build_conf							 			 as build_conf,
 				e.auth_wall_conf						 			 as auth_wall_conf,
 				e.auth_conf											 as auth_conf,
+				e.maintenance_conf									 as maintenance_conf,
 				coalesce(dp.percentage_released, 0)		 			 as percentage,
 				a.display_name,
 				coalesce(u.metadata->>'package', 'free') 			 as subscription_tier,
@@ -136,7 +138,7 @@ var stmt = &statement{
 			d.manifest, d.build_conf_snapshot, d.env_updated, d.build_conf, d.percentage,
 			coalesce(d.cert_value, '') as cert_value,
 			coalesce(d.cert_key, '') as cert_key,
-			d.domain_id, d.auth_wall_conf, d.auth_conf,
+			d.domain_id, d.auth_wall_conf, d.auth_conf, d.maintenance_conf,
 			(SELECT json_data FROM snippets) as snippets,
 			d.display_name, d.env_name, d.subscription_tier, d.billing_user_id
 		FROM deployment d
@@ -312,6 +314,7 @@ func rowsToConfigs(rows *sql.Rows, err error) ([]*Config, error) {
 		var envName string
 		var tier string
 		authwall := authwall.Config{}
+		maintenanceCnf := maintenance.Config{}
 		cnf := &Config{}
 		err := rows.Scan(
 			&cnf.AppID, &cnf.DeploymentID, &cnf.EnvID,
@@ -319,7 +322,7 @@ func rowsToConfigs(rows *sql.Rows, err error) ([]*Config, error) {
 			&cnf.APILocation, &cnf.APIPathPrefix,
 			&buildManifest, &buildConfSnapshot, &cnf.UpdatedAt, &buildConf,
 			&cnf.Percentage, &certVal, &certKey, &cnf.DomainID,
-			&authwall, &authConf, &cnf.Snippets, &displayName, &envName, &tier,
+			&authwall, &authConf, &maintenanceCnf, &cnf.Snippets, &displayName, &envName, &tier,
 			&cnf.BillingUserID,
 		)
 
@@ -408,6 +411,10 @@ func rowsToConfigs(rows *sql.Rows, err error) ([]*Config, error) {
 
 		if authwall.Status != "" {
 			cnf.AuthWall = authwall.Status
+		}
+
+		if maintenanceCnf.Status != "" {
+			cnf.Maintenance = maintenanceCnf.Status
 		}
 
 		if authConf != nil {

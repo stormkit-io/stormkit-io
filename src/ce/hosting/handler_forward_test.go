@@ -1042,6 +1042,43 @@ func (s *HandlerForwardSuite) Test_ImageOptimization_PreviouslyCached() {
 	s.Equal([]byte("Image Content"), res.Data.([]byte))
 }
 
+func (s *HandlerForwardSuite) Test_Maintenance_Page() {
+	host := &hosting.Host{
+		Name: "www.stormkit.io",
+		Config: &appconf.Config{
+			Maintenance: "on",
+		},
+	}
+
+	req := s.newRequest(host, "/my-page?with=query")
+	res := hosting.HandlerForward(req)
+	data := string(res.Data.([]byte))
+
+	s.Equal(http.StatusServiceUnavailable, res.Status)
+	s.Equal("text/html; charset=utf-8", res.Headers.Get("Content-Type"))
+	s.Equal("300", res.Headers.Get("Retry-After"))
+	s.Contains(data, "Under maintenance")
+	s.Contains(data, "temporarily unavailable")
+}
+
+func (s *HandlerForwardSuite) Test_Maintenance_TakesPrecedenceOverAuthWall() {
+	host := &hosting.Host{
+		Name: "www.stormkit.io",
+		Config: &appconf.Config{
+			AuthWall:    "all",
+			Maintenance: "on",
+		},
+	}
+
+	req := s.newRequest(host, "/my-page")
+	res := hosting.HandlerForward(req)
+	data := string(res.Data.([]byte))
+
+	s.Equal(http.StatusServiceUnavailable, res.Status)
+	s.NotContains(data, `method="POST"`)
+	s.Contains(data, "Under maintenance")
+}
+
 func (s *HandlerForwardSuite) Test_AuthWall_LoginPage() {
 	admin.MustConfig().SetURL("http://stormkit:8888")
 
