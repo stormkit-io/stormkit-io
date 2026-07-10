@@ -10,7 +10,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"sort"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/lib/integrations"
@@ -19,31 +18,35 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/sys"
 )
 
-// maxCacheArchiveSize caps the snapshot size so a misconfigured cacheDirs
-// cannot fill up the storage with multi-gigabyte archives.
+// maxCacheArchiveSize caps the size of a single directory's archive so a
+// misconfigured cacheDirs cannot fill up the storage with multi-gigabyte
+// archives.
 const maxCacheArchiveSize = 2 << 30 // 2GiB
 
 // DefaultCacheStore overrides the storage client used for build caches.
 // It is meant for tests.
 var DefaultCacheStore integrations.CacheStore
 
-// cacheManager restores and snapshots the build cache archive around a
-// build. All of its operations are best-effort: a cache failure is reported
-// to the build log but never fails the deployment.
+// cacheManager restores and snapshots the build cache archives around a
+// build. Each cache directory is stored as its own archive so an unchanged
+// directory (e.g. node_modules) skips the upload even when a volatile one
+// (e.g. .next/cache) changed. All of its operations are best-effort: a cache
+// failure is reported to the build log but never fails the deployment.
 type cacheManager struct {
 	opts        RunnerOpts
-	archivePath string
+	cacheStore  integrations.CacheStore
+	initialized bool
 
-	// restoredHash is the content hash of the cache directories right after
-	// Restore extracted them. Snapshot compares against it to skip the upload
-	// when the build did not change the cached contents.
-	restoredHash string
+	// restoredHash maps each restored cache directory to the content hash
+	// taken right after extraction. Snapshot compares against it to skip the
+	// upload when the build did not change the cached contents.
+	restoredHash map[string]string
 }
 
 func newCacheManager(opts RunnerOpts) *cacheManager {
 	return &cacheManager{
-		opts:        opts,
-		archivePath: path.Join(opts.RootDir, "build-cache.tar.gz"),
+		opts:         opts,
+		restoredHash: map[string]string{},
 	}
 }
 
@@ -69,8 +72,15 @@ func (c *cacheManager) enabled() bool {
 }
 
 func (c *cacheManager) store() integrations.CacheStore {
+	if c.initialized {
+		return c.cacheStore
+	}
+
+	c.initialized = true
+
 	if DefaultCacheStore != nil {
-		return DefaultCacheStore
+		c.cacheStore = DefaultCacheStore
+		return c.cacheStore
 	}
 
 	if c.opts.Uploader == nil {
@@ -85,17 +95,24 @@ func (c *cacheManager) store() integrations.CacheStore {
 	})
 
 	if store, ok := client.(integrations.CacheStore); ok {
-		return store
+		c.cacheStore = store
 	}
 
-	return nil
+	return c.cacheStore
 }
 
-func (c *cacheManager) artifactArgs() integrations.CacheArtifactArgs {
+// archivePath returns the local path of the archive holding the given cache
+// directory.
+func (c *cacheManager) archivePath(dir string) string {
+	return path.Join(c.opts.RootDir, fmt.Sprintf("build-cache-%s.tar.gz", integrations.CacheDirToken(dir)))
+}
+
+func (c *cacheManager) artifactArgs(dir string) integrations.CacheArtifactArgs {
 	args := integrations.CacheArtifactArgs{
 		AppID:     utils.StringToID(c.opts.Build.AppID),
 		EnvID:     utils.StringToID(c.opts.Build.EnvID),
-		LocalPath: c.archivePath,
+		Dir:       dir,
+		LocalPath: c.archivePath(dir),
 	}
 
 	if c.opts.Uploader != nil {
@@ -105,142 +122,145 @@ func (c *cacheManager) artifactArgs() integrations.CacheArtifactArgs {
 	return args
 }
 
-// Restore downloads the environment's cache archive and extracts it into
+// Restore downloads the environment's cache archives and extracts them into
 // the working directory. It runs before the install step.
 func (c *cacheManager) Restore(ctx context.Context) {
-	if !c.enabled() {
-		return
-	}
-
-	store := c.store()
-
-	if store == nil {
+	if !c.enabled() || c.store() == nil {
 		return
 	}
 
 	c.opts.Reporter.AddStep("restoring build cache")
 
-	found, err := store.DownloadCacheArtifact(ctx, c.artifactArgs())
+	restored := []string{}
 
-	if err != nil {
-		c.reportError("could not download build cache", err)
-		return
+	for _, dir := range c.dirs() {
+		found, err := c.restoreDir(ctx, dir)
+
+		if err != nil {
+			c.reportError(fmt.Sprintf("could not restore build cache for %s", dir), err)
+			continue
+		}
+
+		if found {
+			restored = append(restored, dir)
+		}
 	}
 
-	if !found {
+	if len(restored) == 0 {
 		c.opts.Reporter.AddLine("no build cache found - starting from a clean state")
 		return
 	}
 
-	defer os.Remove(c.archivePath)
+	c.opts.Reporter.AddLine(fmt.Sprintf("restored cached directories: %v", restored))
+
+	for _, dir := range restored {
+		if hash, err := c.contentHash(ctx, dir); err != nil {
+			slog.Errorf("could not hash restored build cache for %s: %v", dir, err)
+		} else {
+			c.restoredHash[dir] = hash
+		}
+	}
+}
+
+// restoreDir downloads and extracts the archive holding the given cache
+// directory. It returns false with a nil error on a cache miss.
+func (c *cacheManager) restoreDir(ctx context.Context, dir string) (bool, error) {
+	found, err := c.store().DownloadCacheArtifact(ctx, c.artifactArgs(dir))
+
+	if err != nil || !found {
+		return false, err
+	}
+
+	defer os.Remove(c.archivePath(dir))
 
 	cmd := sys.Command(ctx, sys.CommandOpts{
 		Name: "tar",
-		Args: []string{"-xzf", c.archivePath, "-C", c.opts.WorkDir},
+		Args: []string{"-xzf", c.archivePath(dir), "-C", c.opts.WorkDir},
 		Dir:  c.opts.RootDir,
 	})
 
 	if out, err := cmd.CombinedOutput(); err != nil {
-		c.reportError(fmt.Sprintf("could not extract build cache: %s", string(out)), err)
-		return
+		return false, fmt.Errorf("could not extract archive: %s: %w", string(out), err)
 	}
 
-	c.opts.Reporter.AddLine(fmt.Sprintf("restored cached directories: %v", c.dirs()))
-
-	if hash, err := c.contentHash(ctx); err != nil {
-		slog.Errorf("could not hash restored build cache: %v", err)
-	} else {
-		c.restoredHash = hash
-	}
+	return true, nil
 }
 
-// contentHash digests the paths and contents of all files inside the cache
-// directories. It hashes contents rather than modification times, which
+// contentHash digests the paths and contents of all files inside the given
+// cache directory. It hashes contents rather than modification times, which
 // package managers rewrite on every install even when nothing changed.
-func (c *cacheManager) contentHash(ctx context.Context) (string, error) {
+func (c *cacheManager) contentHash(ctx context.Context, dir string) (string, error) {
 	hash := sha256.New()
-	dirs := c.dirs()
+	root := path.Join(c.opts.WorkDir, dir)
 
-	sort.Strings(dirs)
+	if stat, err := os.Stat(root); err != nil || !stat.IsDir() {
+		return hex.EncodeToString(hash.Sum(nil)), nil
+	}
 
-	for _, dir := range dirs {
-		root := path.Join(c.opts.WorkDir, dir)
-
-		if stat, err := os.Stat(root); err != nil || !stat.IsDir() {
-			continue
+	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
 
-		err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-
-			if d.IsDir() {
-				return nil
-			}
-
-			rel, err := filepath.Rel(c.opts.WorkDir, p)
-
-			if err != nil {
-				return err
-			}
-
-			fmt.Fprintf(hash, "%s\x00", rel)
-
-			if d.Type()&fs.ModeSymlink != 0 {
-				target, err := os.Readlink(p)
-
-				if err != nil {
-					return err
-				}
-
-				fmt.Fprintf(hash, "->%s\x00", target)
-
-				return nil
-			}
-
-			if !d.Type().IsRegular() {
-				return nil
-			}
-
-			f, err := os.Open(p)
-
-			if err != nil {
-				return err
-			}
-
-			defer f.Close()
-
-			if _, err := io.Copy(hash, f); err != nil {
-				return err
-			}
-
+		if d.IsDir() {
 			return nil
-		})
+		}
+
+		rel, err := filepath.Rel(c.opts.WorkDir, p)
 
 		if err != nil {
-			return "", err
+			return err
 		}
+
+		fmt.Fprintf(hash, "%s\x00", rel)
+
+		if d.Type()&fs.ModeSymlink != 0 {
+			target, err := os.Readlink(p)
+
+			if err != nil {
+				return err
+			}
+
+			fmt.Fprintf(hash, "->%s\x00", target)
+
+			return nil
+		}
+
+		if !d.Type().IsRegular() {
+			return nil
+		}
+
+		f, err := os.Open(p)
+
+		if err != nil {
+			return err
+		}
+
+		defer f.Close()
+
+		if _, err := io.Copy(hash, f); err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return "", err
 	}
 
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
 // Snapshot archives the cache directories and uploads them, replacing the
-// environment's previous cache. It runs after a successful build. When the
-// contents are unchanged since Restore, the archive and upload are skipped.
+// environment's previous cache. It runs after a successful build. A directory
+// whose contents are unchanged since Restore skips the archive and upload.
 func (c *cacheManager) Snapshot(ctx context.Context) {
-	if !c.enabled() {
-		return
-	}
-
-	store := c.store()
-
-	if store == nil {
+	if !c.enabled() || c.store() == nil {
 		return
 	}
 
@@ -259,37 +279,58 @@ func (c *cacheManager) Snapshot(ctx context.Context) {
 
 	c.opts.Reporter.AddStep("saving build cache")
 
-	if hash, err := c.contentHash(ctx); err != nil {
-		slog.Errorf("could not hash build cache: %v", err)
-	} else if c.restoredHash != "" && hash == c.restoredHash {
-		c.opts.Reporter.AddLine("build cache unchanged - skipping upload")
-		return
+	skipped := []string{}
+
+	for _, dir := range dirs {
+		hash, err := c.contentHash(ctx, dir)
+
+		if err != nil {
+			slog.Errorf("could not hash build cache for %s: %v", dir, err)
+			hash = ""
+		}
+
+		if hash != "" && hash == c.restoredHash[dir] {
+			skipped = append(skipped, dir)
+			continue
+		}
+
+		c.snapshotDir(ctx, dir)
 	}
 
-	defer os.Remove(c.archivePath)
+	if len(skipped) > 0 {
+		c.opts.Reporter.AddLine(fmt.Sprintf("build cache unchanged - skipping upload: %v", skipped))
+	}
+}
+
+// snapshotDir archives the given cache directory and uploads it, replacing
+// the directory's previous archive. Failures are reported to the build log;
+// caching is best-effort.
+func (c *cacheManager) snapshotDir(ctx context.Context, dir string) {
+	defer os.Remove(c.archivePath(dir))
 
 	cmd := sys.Command(ctx, sys.CommandOpts{
 		Name: "tar",
-		Args: append([]string{"-czf", c.archivePath, "-C", c.opts.WorkDir}, dirs...),
+		Args: []string{"-czf", c.archivePath(dir), "-C", c.opts.WorkDir, dir},
 		Dir:  c.opts.RootDir,
 	})
 
 	if out, err := cmd.CombinedOutput(); err != nil {
-		c.reportError(fmt.Sprintf("could not archive build cache: %s", string(out)), err)
+		c.reportError(fmt.Sprintf("could not archive build cache for %s", dir), fmt.Errorf("%s: %w", string(out), err))
 		return
 	}
 
-	stat, err := os.Stat(c.archivePath)
+	stat, err := os.Stat(c.archivePath(dir))
 
 	if err != nil {
-		c.reportError("could not stat build cache archive", err)
+		c.reportError(fmt.Sprintf("could not stat build cache archive for %s", dir), err)
 		return
 	}
 
 	if stat.Size() > maxCacheArchiveSize {
 		c.opts.Reporter.AddLine(
 			fmt.Sprintf(
-				"build cache is too large (%dMB > %dMB) - reduce the cache directories to enable caching",
+				"build cache for %s is too large (%dMB > %dMB) - reduce the cache directories to enable caching",
+				dir,
 				stat.Size()>>20,
 				int64(maxCacheArchiveSize)>>20,
 			),
@@ -297,12 +338,12 @@ func (c *cacheManager) Snapshot(ctx context.Context) {
 		return
 	}
 
-	if err := store.UploadCacheArtifact(ctx, c.artifactArgs()); err != nil {
-		c.reportError("could not upload build cache", err)
+	if err := c.store().UploadCacheArtifact(ctx, c.artifactArgs(dir)); err != nil {
+		c.reportError(fmt.Sprintf("could not upload build cache for %s", dir), err)
 		return
 	}
 
-	c.opts.Reporter.AddLine(fmt.Sprintf("saved build cache (%dMB): %v", stat.Size()>>20, dirs))
+	c.opts.Reporter.AddLine(fmt.Sprintf("saved build cache (%dMB): %s", stat.Size()>>20, dir))
 }
 
 func (c *cacheManager) reportError(msg string, err error) {

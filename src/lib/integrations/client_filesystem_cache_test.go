@@ -32,11 +32,12 @@ func (s *FilesysCacheStoreSuite) args(localPath string) integrations.CacheArtifa
 	return integrations.CacheArtifactArgs{
 		AppID:     1,
 		EnvID:     2,
+		Dir:       "node_modules",
 		LocalPath: localPath,
 	}
 }
 
-func (s *FilesysCacheStoreSuite) Test_UploadDownloadDelete_RoundTrip() {
+func (s *FilesysCacheStoreSuite) Test_UploadDownload_RoundTrip() {
 	ctx := context.Background()
 	client := integrations.Filesys()
 
@@ -55,13 +56,6 @@ func (s *FilesysCacheStoreSuite) Test_UploadDownloadDelete_RoundTrip() {
 
 	s.NoError(err)
 	s.Equal("archive-content", string(content))
-
-	s.NoError(client.DeleteCacheArtifact(ctx, s.args(archive)))
-
-	found, err = client.DownloadCacheArtifact(ctx, s.args(downloaded))
-
-	s.NoError(err)
-	s.False(found)
 }
 
 func (s *FilesysCacheStoreSuite) Test_Download_CacheMiss() {
@@ -72,13 +66,6 @@ func (s *FilesysCacheStoreSuite) Test_Download_CacheMiss() {
 
 	s.NoError(err)
 	s.False(found)
-}
-
-func (s *FilesysCacheStoreSuite) Test_Delete_MissingCache_IsNotAnError() {
-	s.NoError(integrations.Filesys().DeleteCacheArtifact(
-		context.Background(),
-		s.args(""),
-	))
 }
 
 func (s *FilesysCacheStoreSuite) Test_CachesAreScopedPerEnvironment() {
@@ -93,6 +80,7 @@ func (s *FilesysCacheStoreSuite) Test_CachesAreScopedPerEnvironment() {
 	otherEnv := integrations.CacheArtifactArgs{
 		AppID:     1,
 		EnvID:     3,
+		Dir:       "node_modules",
 		LocalPath: path.Join(s.localDir, "other.tar.gz"),
 	}
 
