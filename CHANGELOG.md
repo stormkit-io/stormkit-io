@@ -1,5 +1,22 @@
 # Changelog
 
+## v2026.07.10.2...v2026.07.10.3
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.10.2...v2026.07.10.3)
+
+### 🩹 Fixes
+
+- Deploy step ordering + structured deployment logs ([#352](https://github.com/stormkit-io/stormkit-io/pull/352))
+- Store build cache per directory to skip uploads ([#353](https://github.com/stormkit-io/stormkit-io/pull/353))
+
+### 🏡 Chore
+
+- Update changelog for v2026.07.10.2 ([#350](https://github.com/stormkit-io/stormkit-io/pull/350))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.07.10.1...v2026.07.10.2
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.10.1...v2026.07.10.2)
