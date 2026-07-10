@@ -46,12 +46,7 @@ func (s *CustomBufferSuite) Test_Read_Write() {
 	s.Nil(err)
 	s.Equal(11, written)
 
-	// Read hello world
-	buffer := make([]byte, 11)
-	read, err := cb.Read(buffer)
-	s.Nil(err)
-	s.Equal(11, read)
-	s.Equal("Hello World", string(buffer))
+	s.Equal("Hello World\n", cb.String())
 }
 
 func (s *CustomBufferSuite) Test_GitLogs() {
@@ -62,12 +57,7 @@ func (s *CustomBufferSuite) Test_GitLogs() {
 	s.Nil(err)
 	s.Equal(len(gitLogs), written)
 
-	// Read the whole lorem ipsum
-	buffer := make([]byte, len(expectedGitLogs))
-	read, err := cb.Read(buffer)
-	s.Nil(err)
-	s.Equal(len(expectedGitLogs), read)
-	s.Equal(expectedGitLogs, string(buffer))
+	s.Equal(expectedGitLogs, cb.String()[:len(expectedGitLogs)])
 }
 
 func (s *CustomBufferSuite) Test_Write_CarriageReturn() {
@@ -79,14 +69,9 @@ func (s *CustomBufferSuite) Test_Write_CarriageReturn() {
 	s.Nil(err)
 	s.Equal(len(text), written)
 
-	// Read all
 	expected := "Let's see\nMy World"
 
-	buffer := make([]byte, len(expected))
-	read, err := cb.Read(buffer)
-	s.Nil(err)
-	s.Equal(len(expected), read)
-	s.Equal(expected, string(buffer))
+	s.Equal(expected, cb.String()[:len(expected)])
 }
 
 func TestCustomBufferSuite(t *testing.T) {

@@ -176,7 +176,7 @@ func (s *InstallerSuite) Test_Install_Yarn() {
 	s.NoError(p.Install(context.Background()))
 
 	lines := []string{
-		"[sk-step] enable yarn workspaces",
+		`"title":"enable yarn workspaces"`,
 		"yarn",
 	}
 
@@ -216,7 +216,7 @@ func (s *InstallerSuite) Test_Install_Npm() {
 	s.NoError(p.Install(context.Background()))
 
 	lines := []string{
-		"[sk-step] npm ci",
+		`"title":"npm ci"`,
 	}
 
 	logs := s.config.Reporter.Logs()
@@ -258,7 +258,7 @@ func (s *InstallerSuite) Test_Install_Npm_Windows() {
 	s.NoError(p.Install(context.Background()))
 
 	lines := []string{
-		"[sk-step] npm ci",
+		`"title":"npm ci"`,
 	}
 
 	logs := s.config.Reporter.Logs()
@@ -291,7 +291,7 @@ func (s *InstallerSuite) Test_Install_Pnpm() {
 	s.NoError(p.Install(context.Background()))
 
 	lines := []string{
-		"[sk-step] pnpm install",
+		`"title":"pnpm install"`,
 		"pnpm install",
 	}
 
@@ -325,7 +325,7 @@ func (s *InstallerSuite) Test_Install_Bun() {
 	s.NoError(p.Install(context.Background()))
 
 	lines := []string{
-		"[sk-step] bun install",
+		`"title":"bun install"`,
 		"bun install",
 	}
 
@@ -357,7 +357,7 @@ func (s *InstallerSuite) TestInstall_Custom() {
 	s.NoError(p.Install(ctx))
 
 	lines := []string{
-		"[sk-step] npm install",
+		`"title":"npm install"`,
 		"npm install",
 	}
 
@@ -434,7 +434,7 @@ func (s *InstallerSuite) Test_InstallingRuntimeDeps() {
 	installed, err := p.InstallRuntimeDependencies(ctx)
 	s.Equal([]string{"go@1.24"}, installed)
 	s.NoError(err)
-	s.Contains(s.config.Reporter.Logs(), "[sk-step] install runtimes")
+	s.Contains(s.config.Reporter.Logs(), `"title":"install runtimes"`)
 
 	// Now let's try returning no runtimes installed
 	s.mockMise.On("InstallMise", ctx).Return(nil).Once()
@@ -450,7 +450,7 @@ func (s *InstallerSuite) Test_InstallingRuntimeDeps() {
 	installed, err = p.InstallRuntimeDependencies(ctx)
 	s.Equal([]string{"go"}, installed)
 	s.NoError(err)
-	s.Contains(s.config.Reporter.Logs(), "[sk-step] install runtimes")
+	s.Contains(s.config.Reporter.Logs(), `"title":"install runtimes"`)
 }
 
 func (s *InstallerSuite) Test_InstallingRuntimeDeps_WithFlake() {

@@ -51,7 +51,7 @@ func (s *BuildManagerSuite) Test_Build_Chaining() {
 	s.NoError(bm.ExecCommands(context.Background()))
 
 	lines := []string{
-		fmt.Sprintf("[sk-step] %s", s.config.Build.BuildCmd),
+		fmt.Sprintf(`"title":%q`, s.config.Build.BuildCmd),
 		"hello world",
 		"hi world",
 	}
@@ -95,7 +95,7 @@ func (s *BuildManagerSuite) Test_Build_WithFlake() {
 
 	bm := runner.NewBuilder(s.config)
 	s.NoError(bm.ExecCommands(context.Background()))
-	s.Contains(s.config.Reporter.Logs(), "[sk-step] npm run build")
+	s.Contains(s.config.Reporter.Logs(), `"title":"npm run build"`)
 	mockCmd.AssertExpectations(s.T())
 }
 

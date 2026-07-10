@@ -16,7 +16,7 @@ import (
 )
 
 type ReporterModel struct {
-	file        *CustomBuffer
+	steps       *stepLogger
 	baseURL     string
 	CallbackURL string
 	done        chan struct{}
@@ -30,7 +30,7 @@ var FlagPrintLogs bool
 
 func NewReporter(baseURL string) *ReporterModel {
 	return &ReporterModel{
-		file:        NewCustomBuffer(),
+		steps:       newStepLogger(),
 		done:        make(chan struct{}),
 		baseURL:     baseURL,
 		CallbackURL: baseURL + "/app/deploy/callback",
@@ -78,8 +78,13 @@ func (r *ReporterModel) request(payload map[string]any) error {
 	return err
 }
 
+// Logs returns the accumulated build logs in the structured NDJSON format.
 func (r *ReporterModel) Logs() string {
-	return string(r.file.output)
+	if r.steps == nil {
+		return ""
+	}
+
+	return r.steps.marshal()
 }
 
 func (r *ReporterModel) headers() http.Header {
@@ -99,12 +104,12 @@ func (r *ReporterModel) sendLogs() error {
 
 	return r.request(map[string]any{
 		"deployId": DeploymentIDEnc,
-		"logs":     r.Logs(),
+		"logs":     logs,
 	})
 }
 
 func (r *ReporterModel) SendLogs() {
-	if r.file == nil || r.baseURL == "" {
+	if r.steps == nil || r.baseURL == "" {
 		return
 	}
 
@@ -164,7 +169,7 @@ func (r *ReporterModel) LockDeployment(isSuccess bool) error {
 }
 
 func (r *ReporterModel) SendExit(manifest *deploy.BuildManifest, result *integrations.UploadResult, hasStatusChecks bool, uploadErr error) error {
-	if r.file == nil || r.baseURL == "" {
+	if r.steps == nil || r.baseURL == "" {
 		return nil
 	}
 
@@ -173,6 +178,10 @@ func (r *ReporterModel) SendExit(manifest *deploy.BuildManifest, result *integra
 	if manifest != nil && manifest.Success {
 		outcome = "success"
 	}
+
+	// The step that was open when the build ended carries the outcome:
+	// the deploy step on success, the failing step otherwise.
+	r.steps.closeStep(outcome == "success")
 
 	uploadErrStr := ""
 
@@ -183,8 +192,8 @@ func (r *ReporterModel) SendExit(manifest *deploy.BuildManifest, result *integra
 	// Send last remaining bits
 	r.sendLogs()
 
-	// Create a new buffer for status checks
-	r.file = NewCustomBuffer()
+	// Start over for the status check steps
+	r.steps = newStepLogger()
 
 	err := r.request(map[string]any{
 		"deployId":        DeploymentIDEnc,
@@ -203,25 +212,32 @@ func (r *ReporterModel) SendExit(manifest *deploy.BuildManifest, result *integra
 }
 
 func (r *ReporterModel) AddStep(title string) {
-	if r.file == nil {
+	if r.steps == nil {
 		return
 	}
 
-	_, err := r.file.Write([]byte(deploy.LogStep(title)))
-
-	if err != nil {
-		slog.Errorf("cannot add step: %s", title)
-	}
+	r.steps.addStep(title)
 }
 
 func (r *ReporterModel) AddLine(text string) {
-	if r.file != nil {
-		_, err := r.file.Write([]byte(fmt.Sprintf("%s\n", text)))
-
-		if err != nil {
-			slog.Errorf("cannot add line: %s", text)
-		}
+	if r.steps == nil {
+		return
 	}
+
+	if _, err := r.steps.Write([]byte(fmt.Sprintf("%s\n", text))); err != nil {
+		slog.Errorf("cannot add line: %s", text)
+	}
+}
+
+// CloseStep closes the current step with an explicit outcome. Steps closed
+// implicitly by the next AddStep are marked successful, so this is only
+// needed when a step can fail without ending the build (e.g. status checks).
+func (r *ReporterModel) CloseStep(success bool) {
+	if r.steps == nil {
+		return
+	}
+
+	r.steps.closeStep(success)
 }
 
 func (r *ReporterModel) Close(manifest *deploy.BuildManifest, result *integrations.UploadResult, err error) {
@@ -235,11 +251,18 @@ func (r *ReporterModel) Close(manifest *deploy.BuildManifest, result *integratio
 	r.isDone = true
 	close(r.done)
 
-	if r.file != nil {
-		r.file = nil
+	if r.steps != nil {
+		r.steps = nil
 	}
 }
 
-func (r *ReporterModel) File() *CustomBuffer {
-	return r.file
+// File returns the writer command output should stream into. The writer is
+// stable across steps: output is attributed to whichever step is current at
+// write time.
+func (r *ReporterModel) File() io.Writer {
+	if r.steps == nil {
+		return io.Discard
+	}
+
+	return r.steps
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
@@ -72,9 +73,15 @@ func handlerDeployCallback(req *shttp.RequestContext) *shttp.Response {
 		return shttp.NotAllowed()
 	}
 
+	// Exit callbacks with migrations append a step to the logs, and the append
+	// format depends on the stored blob (structured vs legacy text), so the
+	// logs are loaded for them. All other callbacks leave the stored logs
+	// untouched and skip the load.
+	includeLogs := data.Outcome != "" && !data.Lock && data.Result.Migrations.Location != ""
+
 	depl, err := deploy.NewStore().MyDeployment(req.Context(), &deploy.DeploymentsQueryFilters{
 		DeploymentID: deployID,
-		IncludeLogs:  aws.Bool(false),
+		IncludeLogs:  aws.Bool(includeLogs),
 	})
 
 	if err != nil {
@@ -180,8 +187,13 @@ func UpdateExit(req *shttp.RequestContext, data deployCallbackRequest) *shttp.Re
 
 	// If the deployment branch == environment branch, it means we need to migrate the environment
 	if data.Result.Migrations.Location != "" {
-		logs := []string{}
-		logs = append(logs, deploy.LogStep("database migrations"))
+		step := deploy.StepRecord{
+			Title:     "database migrations",
+			StartedAt: time.Now().UnixMilli(),
+			Status:    deploy.StepStatusSuccess,
+		}
+
+		lines := []string{}
 
 		messages, results, err := RunMigrations(req.Context(), RunMigrationsArgs{
 			DeploymentID:   data.deployment.ID,
@@ -190,11 +202,12 @@ func UpdateExit(req *shttp.RequestContext, data deployCallbackRequest) *shttp.Re
 			MigrationsFile: data.Result.Migrations.Location,
 		})
 
-		logs = append(logs, messages...)
+		lines = append(lines, messages...)
 
 		// If there was an error and no migrations were applied, set the deployment error
 		if err != nil && len(results) == 0 {
 			data.deployment.Error = null.StringFrom(err.Error())
+			step.Status = deploy.StepStatusFailed
 		}
 
 		for _, result := range results {
@@ -209,16 +222,20 @@ func UpdateExit(req *shttp.RequestContext, data deployCallbackRequest) *shttp.Re
 				tickOrCross = "✗"
 				errorMsg = " - Error: " + result.Error
 				data.deployment.ExitCode = null.IntFrom(deploy.ExitCodeMigrationsFailed)
+				step.Status = deploy.StepStatusFailed
 			}
 
-			logs = append(logs, fmt.Sprintf("%s (%dms) %s%s", result.FileName, result.Duration.Milliseconds(), tickOrCross, errorMsg))
+			lines = append(lines, fmt.Sprintf("%s (%dms) %s%s", result.FileName, result.Duration.Milliseconds(), tickOrCross, errorMsg))
 		}
 
 		if len(results) == 0 && len(messages) == 0 {
-			logs = append(logs, "No new migrations to apply.")
+			lines = append(lines, "No new migrations to apply.")
 		}
 
-		data.deployment.AddLogs(logs)
+		step.Message = strings.Join(lines, "\n")
+		step.FinishedAt = time.Now().UnixMilli()
+
+		data.deployment.AddLogStep(step)
 	}
 
 	if err := deploy.NewStore().UpdateDeploymentResult(req.Context(), data.deployment, data.Result); err != nil {

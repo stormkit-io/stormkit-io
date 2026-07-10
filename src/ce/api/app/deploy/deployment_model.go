@@ -414,6 +414,11 @@ func (d *Deployment) PrepareLogs(rawLogs string, isStatusChecks bool) []*Log {
 
 	}
 
+	// Structured logs written by the runner: one step record per line.
+	if steps, ok := ParseStepLogs(rawLogs); ok {
+		return d.prepareStepLogs(steps, isStatusChecks)
+	}
+
 	logs := []*Log{}
 
 	// This is a special case for old-style deployments
@@ -596,35 +601,43 @@ func (d *Deployment) deploymentsResult(startTimestamp int64) *Log {
 	}
 
 	log.Status = true
+	log.Message = d.UploadResult.message()
 
-	if d.UploadResult.ClientBytes != 0 {
-		log.Message = strings.Join([]string{
-			log.Message,
+	return log
+}
+
+// message summarizes the upload result for the deploy step's log output.
+func (ur *UploadResult) message() string {
+	msg := ""
+
+	if ur.ClientBytes != 0 {
+		msg = strings.Join([]string{
+			msg,
 			fmt.Sprintf(
 				"Successfully deployed client side.\n"+
 					"Total bytes uploaded: %s\n\n",
-				byteCountDecimal(d.UploadResult.ClientBytes),
+				byteCountDecimal(ur.ClientBytes),
 			),
 		}, "\n")
 	}
 
-	if d.UploadResult.ServerBytes != 0 {
-		log.Message = strings.Join([]string{
-			log.Message,
+	if ur.ServerBytes != 0 {
+		msg = strings.Join([]string{
+			msg,
 			"Successfully deployed server side.",
-			fmt.Sprintf("Package size: %s\n\n", byteCountDecimal(d.UploadResult.ServerBytes)),
+			fmt.Sprintf("Package size: %s\n\n", byteCountDecimal(ur.ServerBytes)),
 		}, "\n")
 	}
 
-	if d.UploadResult.ServerlessBytes != 0 {
-		log.Message = strings.Join([]string{
-			log.Message,
+	if ur.ServerlessBytes != 0 {
+		msg = strings.Join([]string{
+			msg,
 			"Successfully deployed api.",
-			fmt.Sprintf("Package size: %s", byteCountDecimal(d.UploadResult.ServerlessBytes)),
+			fmt.Sprintf("Package size: %s", byteCountDecimal(ur.ServerlessBytes)),
 		}, "\n")
 	}
 
-	return log
+	return msg
 }
 
 // byteCountDecimal converts the given bytes into a human readable format.
