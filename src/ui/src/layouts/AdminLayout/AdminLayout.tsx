@@ -61,7 +61,7 @@ export default function AdminLayout({ children }: Props) {
           justifyContent: "center",
         }}
       >
-        <Box maxWidth="lg" sx={{ flex: 1, height: "100%", pb: 2 }}>
+        <Box maxWidth={1280} sx={{ flex: 1, height: "100%", pb: 2 }}>
           <Card sx={{ height: "100%" }}>
             <CardHeader
               title="Admin"
