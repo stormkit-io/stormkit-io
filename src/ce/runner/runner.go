@@ -427,9 +427,9 @@ func Run(opts RunnerOpts) *RunResult {
 		return &RunResult{opts: opts, err: err}
 	}
 
-	opts.Reporter.AddStep("[system] building finished")
-
 	cache.Snapshot(ctx)
+
+	opts.Reporter.AddStep("[system] building finished")
 
 	manifest = &deploy.BuildManifest{
 		Success:  err == nil,
