@@ -11,15 +11,16 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/file"
 )
 
-// cachePath returns the on-disk location of an environment's build cache
-// archive, stored under the deployer's storage directory next to the
-// deployment artifacts.
+// cachePath returns the on-disk location of a build cache archive, stored
+// under the deployer's storage directory next to the deployment artifacts.
+// Each cache directory has its own archive.
 func (c *FilesysClient) cachePath(args CacheArtifactArgs) string {
 	return path.Join(
 		config.Get().Deployer.StorageDir,
 		"cache",
 		fmt.Sprintf("app-%d", args.AppID),
-		fmt.Sprintf("env-%d.tar.gz", args.EnvID),
+		fmt.Sprintf("env-%d", args.EnvID),
+		CacheDirToken(args.Dir)+".tar.gz",
 	)
 }
 
@@ -53,16 +54,4 @@ func (c *FilesysClient) DownloadCacheArtifact(ctx context.Context, args CacheArt
 	}
 
 	return true, nil
-}
-
-// DeleteCacheArtifact implements CacheStore. Deleting a missing cache is
-// not an error.
-func (c *FilesysClient) DeleteCacheArtifact(ctx context.Context, args CacheArtifactArgs) error {
-	err := os.Remove(c.cachePath(args))
-
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-
-	return nil
 }

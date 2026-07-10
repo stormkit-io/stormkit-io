@@ -14,12 +14,13 @@ import (
 
 const cacheContentType = "application/gzip"
 
-// cacheKey returns the S3 key for an environment's build cache archive.
-// It lives under the app prefix (next to `{appID}/{deploymentID}/...`
-// deployment artifacts) so deleting the app prefix also removes caches.
-// The literal "cache" segment cannot collide with numeric deployment IDs.
+// cacheKey returns the S3 key for a build cache archive. It lives under the
+// app prefix (next to `{appID}/{deploymentID}/...` deployment artifacts) so
+// deleting the app prefix also removes caches. The literal "cache" segment
+// cannot collide with numeric deployment IDs. Each cache directory has its
+// own key.
 func (a *AWSClient) cacheKey(args CacheArtifactArgs) string {
-	return fmt.Sprintf("%d/cache/env-%d.tar.gz", args.AppID, args.EnvID)
+	return fmt.Sprintf("%d/cache/env-%d/%s.tar.gz", args.AppID, args.EnvID, CacheDirToken(args.Dir))
 }
 
 func (a *AWSClient) cacheBucket(args CacheArtifactArgs) string {
@@ -84,15 +85,4 @@ func (a *AWSClient) DownloadCacheArtifact(ctx context.Context, args CacheArtifac
 	}
 
 	return true, nil
-}
-
-// DeleteCacheArtifact implements CacheStore. Deleting a missing cache is a
-// no-op on S3, so this is safe to call unconditionally.
-func (a *AWSClient) DeleteCacheArtifact(ctx context.Context, args CacheArtifactArgs) error {
-	_, err := a.S3Client.DeleteObject(ctx, &s3.DeleteObjectInput{
-		Bucket: utils.Ptr(a.cacheBucket(args)),
-		Key:    utils.Ptr(a.cacheKey(args)),
-	})
-
-	return err
 }
