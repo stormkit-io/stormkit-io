@@ -36,6 +36,7 @@ type EnvAddRequest struct {
 	ServerCmd          string                  `json:"serverCmd,omitempty"`
 	ServerFolder       string                  `json:"serverFolder,omitempty"`
 	StatusChecks       []buildconf.StatusCheck `json:"statusChecks,omitempty"`
+	CacheDirs          []string                `json:"cacheDirs,omitempty"`
 }
 
 func handlerEnvAdd(req *RequestContext) *shttp.Response {
@@ -69,6 +70,7 @@ func handlerEnvAdd(req *RequestContext) *shttp.Response {
 			Redirects:     data.Redirects,
 			Vars:          data.EnvVars,
 			StatusChecks:  data.StatusChecks,
+			CacheDirs:     buildconf.NormalizeCacheDirs(data.CacheDirs),
 		},
 		Name:        data.Name,
 		AppID:       req.App.ID,

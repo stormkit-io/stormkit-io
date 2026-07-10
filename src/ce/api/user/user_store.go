@@ -561,6 +561,29 @@ func (s *Store) UserMetrics(ctx context.Context, args UserMetricsArgs) (*UserMet
 	return metrics, nil
 }
 
+// PackageNameByAppID returns the subscription package of the user owning the
+// team the given app belongs to. It falls back to the free package when the
+// user metadata does not specify one.
+func (s *Store) PackageNameByAppID(ctx context.Context, appID types.ID) (string, error) {
+	row, err := s.QueryRow(ctx, ustmt.packageNameByAppID, appID)
+
+	if err != nil {
+		return "", err
+	}
+
+	meta := UserMeta{}
+
+	if err := row.Scan(&meta); err != nil {
+		if err == sql.ErrNoRows {
+			return config.PackageFree, nil
+		}
+
+		return "", err
+	}
+
+	return utils.GetString(meta.PackageName, config.PackageFree), nil
+}
+
 // MustUser inserts an auth user if it is not inserted yet.
 func (s *Store) MustUser(authUser *oauth.User) (*User, error) {
 	var user *User

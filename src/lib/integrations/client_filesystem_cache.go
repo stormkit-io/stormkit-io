@@ -1,0 +1,68 @@
+package integrations
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"path"
+
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils/file"
+)
+
+// cachePath returns the on-disk location of an environment's build cache
+// archive, stored under the deployer's storage directory next to the
+// deployment artifacts.
+func (c *FilesysClient) cachePath(args CacheArtifactArgs) string {
+	return path.Join(
+		config.Get().Deployer.StorageDir,
+		"cache",
+		fmt.Sprintf("app-%d", args.AppID),
+		fmt.Sprintf("env-%d.tar.gz", args.EnvID),
+	)
+}
+
+// UploadCacheArtifact implements CacheStore by copying the archive into the
+// storage directory, replacing any previous cache for the environment.
+func (c *FilesysClient) UploadCacheArtifact(ctx context.Context, args CacheArtifactArgs) error {
+	dest := c.cachePath(args)
+
+	if err := os.MkdirAll(path.Dir(dest), 0774); err != nil {
+		return err
+	}
+
+	return file.Copy(args.LocalPath, dest, 0664)
+}
+
+// DownloadCacheArtifact implements CacheStore by copying the archive to
+// LocalPath. It returns false with a nil error on a cache miss.
+func (c *FilesysClient) DownloadCacheArtifact(ctx context.Context, args CacheArtifactArgs) (bool, error) {
+	src := c.cachePath(args)
+
+	if _, err := os.Stat(src); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	if err := file.Copy(src, args.LocalPath, 0664); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+// DeleteCacheArtifact implements CacheStore. Deleting a missing cache is
+// not an error.
+func (c *FilesysClient) DeleteCacheArtifact(ctx context.Context, args CacheArtifactArgs) error {
+	err := os.Remove(c.cachePath(args))
+
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	return nil
+}

@@ -26,6 +26,7 @@ type userStatement struct {
 	deleteLicense             string
 	updateLastLogin           string
 	userMetrics               string
+	packageNameByAppID        string
 	updateUsageMetrics        string
 	updateApprovalStatus      string
 }
@@ -236,6 +237,19 @@ var ustmt = &userStatement{
 			um.user_id = {{ .where }} AND
 			um.year = EXTRACT(YEAR FROM CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::INTEGER AND
 			um.month = EXTRACT(MONTH FROM CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::INTEGER;
+	`,
+
+	packageNameByAppID: `
+		SELECT
+			u.metadata
+		FROM
+			users u
+		JOIN
+			teams t ON t.user_id = u.user_id
+		JOIN
+			apps a ON a.team_id = t.team_id
+		WHERE
+			a.app_id = $1;
 	`,
 
 	updateUsageMetrics: `

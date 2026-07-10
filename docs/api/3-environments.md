@@ -93,6 +93,7 @@ Creates a new environment for an application.
 | `autoDeployCommits`  | string                  | No       | Glob/regex pattern to filter which commit messages trigger auto-deploys. Setting this enables `autoDeploy`. |
 | `autoPublish`        | boolean                 | No       | Whether to automatically publish successful deployments.                                                    |
 | `buildCmd`           | string                  | No       | Command to build the application.                                                                           |
+| `cacheDirs`          | `string[]`              | No       | Directories (relative to `workDir`) restored before the install step and snapshotted after a successful build. Best for compiler caches like `.next/cache` or `.turbo`. Requires a premium or ultimate subscription on Stormkit Cloud; always enabled on self-hosted. |
 | `distFolder`         | string                  | No       | Output folder containing the build artifacts.                                                               |
 | `envVars`            | `Record<string,string>` | No       | Environment variables to inject into deployments.                                                           |
 | `errorFile`          | string                  | No       | File served on errors. Must be inside `distFolder`.                                                         |
@@ -173,6 +174,7 @@ All fields are **optional**. Only the fields you include will be updated.
 | `autoDeployCommits`  | string                  | Glob/regex pattern to filter which commit messages trigger auto-deploys. Setting this enables `autoDeploy`.                                  |
 | `autoPublish`        | boolean                 | Whether to automatically publish successful deployments.                                                                                     |
 | `buildCmd`           | string                  | Command to build the application.                                                                                                            |
+| `cacheDirs`          | `string[]`              | Directories (relative to `workDir`) restored before the install step and snapshotted after a successful build. Replaces the existing list; pass `[]` to disable caching. Requires a premium or ultimate subscription on Stormkit Cloud; always enabled on self-hosted. |
 | `distFolder`         | string                  | Output folder containing the build artifacts.                                                                                                |
 | `envVars`            | `Record<string,string>` | Environment variables to inject into deployments. Replaces all existing variables.                                                           |
 | `errorFile`          | string                  | File served on errors. Must be inside `distFolder`.                                                                                          |

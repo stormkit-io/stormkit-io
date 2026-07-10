@@ -194,6 +194,7 @@ type BuildOpts struct {
 	EnvID            string
 	MigrationsFolder string
 	StatusChecks     []buildconf.StatusCheck
+	CacheDirs        []string // Directories (relative to WorkDir) restored before install and snapshotted after a successful build; empty disables caching
 }
 
 type RunnerOpts struct {
@@ -287,6 +288,7 @@ func Start(payload, rootDir string) error {
 			MigrationsFolder: trim(msg.Build.MigrationsFolder),
 			StatusChecks:     msg.Build.StatusChecks,
 			EnvVars:          msg.Build.Vars,
+			CacheDirs:        msg.Build.CacheDirs,
 		},
 		Uploader:    &msg.Config.RunnerConfig,
 		AutoInstall: msg.Config.AutoInstall,
@@ -386,6 +388,9 @@ func Run(opts RunnerOpts) *RunResult {
 		return &RunResult{opts: opts, err: err}
 	}
 
+	cache := newCacheManager(opts)
+	cache.Restore(ctx)
+
 	if err := installer.Install(ctx); err != nil {
 		return &RunResult{opts: opts, err: err}
 	}
@@ -423,6 +428,8 @@ func Run(opts RunnerOpts) *RunResult {
 	}
 
 	opts.Reporter.AddStep("[system] building finished")
+
+	cache.Snapshot(ctx)
 
 	manifest = &deploy.BuildManifest{
 		Success:  err == nil,

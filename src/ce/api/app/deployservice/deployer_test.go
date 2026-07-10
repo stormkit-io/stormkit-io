@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/hibiken/asynq"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deployservice"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
@@ -123,6 +126,116 @@ func (s *DeploySuite) Test_Deployment() {
 	s.NoError(err)
 	s.Equal(depl.ID, d.ID)
 	s.Equal(depl.Branch, d.Branch)
+}
+
+// enqueueCapture is a TaskClient that records the enqueued task instead of
+// sending it to Redis, so tests can inspect the deployment message without
+// relying on shared queue state.
+type enqueueCapture struct {
+	task *asynq.Task
+}
+
+func (c *enqueueCapture) Enqueue(task *asynq.Task, opts ...asynq.Option) (*asynq.TaskInfo, error) {
+	c.task = task
+	return &asynq.TaskInfo{}, nil
+}
+
+func (s *DeploySuite) deployAndReadMessage(a *app.App, d *deploy.Deployment) *deployservice.DeploymentMessage {
+	capture := &enqueueCapture{}
+	prevClient := tasks.Client
+	tasks.Client = func() tasks.TaskClient { return capture }
+
+	defer func() { tasks.Client = prevClient }()
+
+	deployer := &deployservice.DefaultDeployer{}
+	s.Require().NoError(deployer.Deploy(context.Background(), a, d))
+	s.Require().NotNil(capture.task)
+
+	message, err := deployservice.FromEncrypted(string(capture.task.Payload()))
+	s.Require().NoError(err)
+
+	return message
+}
+
+func (s *DeploySuite) Test_Deployment_BuildCache_SelfHosted() {
+	config.SetIsSelfHosted(true)
+
+	defer config.SetIsSelfHosted(false)
+
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+
+	depl := s.MockDeployment(env, map[string]any{
+		"BuildConfig": &buildconf.BuildConf{
+			CacheDirs: []string{".next/cache", "node_modules"},
+		},
+	})
+
+	message := s.deployAndReadMessage(app.App, depl.Deployment)
+
+	s.Equal([]string{".next/cache", "node_modules"}, message.Build.CacheDirs)
+}
+
+func (s *DeploySuite) Test_Deployment_BuildCache_Cloud_PremiumTier() {
+	config.SetIsStormkitCloud(true)
+
+	defer config.SetIsStormkitCloud(false)
+
+	usr := s.MockUser() // Mock users are premium by default.
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+
+	depl := s.MockDeployment(env, map[string]any{
+		"BuildConfig": &buildconf.BuildConf{
+			CacheDirs: []string{".next/cache"},
+		},
+	})
+
+	message := s.deployAndReadMessage(app.App, depl.Deployment)
+
+	s.Equal([]string{".next/cache"}, message.Build.CacheDirs)
+}
+
+func (s *DeploySuite) Test_Deployment_BuildCache_Cloud_FreeTier() {
+	config.SetIsStormkitCloud(true)
+
+	defer config.SetIsStormkitCloud(false)
+
+	usr := s.MockUser(map[string]any{
+		"Metadata": user.UserMeta{
+			SeatsPurchased: 1,
+			PackageName:    config.PackageFree,
+		},
+	})
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+
+	depl := s.MockDeployment(env, map[string]any{
+		"BuildConfig": &buildconf.BuildConf{
+			CacheDirs: []string{".next/cache"},
+		},
+	})
+
+	message := s.deployAndReadMessage(app.App, depl.Deployment)
+
+	// Free tier users on the cloud get no cache directories, which disables
+	// caching in the runner.
+	s.Empty(message.Build.CacheDirs)
+}
+
+func (s *DeploySuite) Test_Deployment_BuildCache_NoDirs() {
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+
+	depl := s.MockDeployment(env, map[string]any{
+		"BuildConfig": &buildconf.BuildConf{},
+	})
+
+	message := s.deployAndReadMessage(app.App, depl.Deployment)
+
+	s.Empty(message.Build.CacheDirs)
 }
 
 func (s *DeploySuite) Test_Deployment_NoMoreBuildMinutes() {
