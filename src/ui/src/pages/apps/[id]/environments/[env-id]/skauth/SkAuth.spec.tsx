@@ -347,7 +347,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
           tokenTtl: 0,
           status: true,
           allowedOrigins: [],
-          oauthEnabled: false,
+          oauthServerEnabled: false,
         })
         .reply(200);
 
@@ -370,7 +370,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
             "https://app.example.com",
             "https://dev.example.com",
           ],
-          oauthEnabled: false,
+          oauthServerEnabled: false,
         })
         .reply(200);
 
@@ -401,7 +401,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
           tokenTtl: 0,
           status: true,
           allowedOrigins: [],
-          oauthEnabled: true,
+          oauthServerEnabled: true,
         })
         .reply(200);
 

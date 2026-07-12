@@ -181,11 +181,11 @@ export default function SkAuth() {
 
   // The OAuth toggle is a controlled Switch (not part of FormData), so it needs
   // its own state, synced from the config once it loads.
-  const [oauthEnabled, setOauthEnabled] = useState(false);
+  const [oauthServerEnabled, setOauthServerEnabled] = useState(false);
 
   useEffect(() => {
-    setOauthEnabled(Boolean(config?.oauthEnabled));
-  }, [config?.oauthEnabled]);
+    setOauthServerEnabled(Boolean(config?.oauthServerEnabled));
+  }, [config?.oauthServerEnabled]);
 
   const hasSchema = !result.loading && !result.error && Boolean(result.schema);
   const title = "Authentication";
@@ -252,7 +252,7 @@ export default function SkAuth() {
             tokenTtl: tokenTtl || 0,
             status: true,
             allowedOrigins,
-            oauthEnabled,
+            oauthServerEnabled,
           })
             .then(() => {
               setSuccess("Settings saved successfully");
@@ -340,13 +340,13 @@ export default function SkAuth() {
 
         <Box sx={{ mb: 4 }}>
           <Switch
-            name="oauthEnabled"
-            checked={oauthEnabled}
-            setChecked={setOauthEnabled}
+            name="oauthServerEnabled"
+            checked={oauthServerEnabled}
+            setChecked={setOauthServerEnabled}
             label="Enable OAuth server (MCP connectors)"
             description="Turns this environment into an OAuth 2.1 authorization server so AI clients like ChatGPT and Claude can connect to it as an MCP server, signing in your app's own users. Add each connector's redirect origin to Allowed origins above."
           />
-          {oauthEnabled &&
+          {oauthServerEnabled &&
             (config?.allowedOrigins || []).length === 0 && (
               <Alert severity="warning" sx={{ mt: 2 }}>
                 OAuth is enabled but no allowed origins are set. A connector's
@@ -354,7 +354,7 @@ export default function SkAuth() {
                 requests will be rejected.
               </Alert>
             )}
-          {oauthEnabled && (
+          {oauthServerEnabled && (
             <Alert severity="info" sx={{ mt: 2 }}>
               <Typography sx={{ mb: 1 }}>
                 Discovery documents, served on this environment's domain:

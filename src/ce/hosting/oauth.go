@@ -34,7 +34,7 @@ type oauthServer struct {
 // app serving (this also keeps an app's own /.well-known files reachable).
 func serveOAuth(fn func(*oauthServer) *shttp.Response) func(*RequestContext) *shttp.Response {
 	return func(req *RequestContext) *shttp.Response {
-		if req.Host.Config == nil || !req.Host.Config.SKAuth.OAuthEnabled() {
+		if req.Host.Config == nil || !req.Host.Config.SKAuth.OAuthServerEnabled() {
 			return HandlerForward(req)
 		}
 

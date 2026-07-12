@@ -41,25 +41,29 @@ type SKAuthConf struct {
 	// that origin after clicking the email link.
 	AllowedOrigins []string
 
-	// OAuth, when enabled, turns this environment into an OAuth 2.1
+	// OAuthServer, when enabled, turns this environment into an OAuth 2.1
 	// authorization server for MCP connectors (see /_stormkit/oauth and the
-	// .well-known discovery documents). It builds on the SkAuth identity above;
+	// .well-known discovery documents). Note this is the opposite role from the
+	// Google/X provider logins above: here the app IS the OAuth server that
+	// external clients connect to. It builds on the SkAuth identity;
 	// redirect_uri targets are validated against AllowedOrigins.
-	OAuth *OAuthConf
+	OAuthServer *OAuthServerConf
 }
 
-// OAuthConf configures the OAuth 2.1 authorization server layered on SkAuth.
-type OAuthConf struct {
+// OAuthServerConf configures the OAuth 2.1 authorization server layered on
+// SkAuth. Distinct from the OAuth *provider* logins (Google, X), where the app
+// is instead an OAuth client of an external identity provider.
+type OAuthServerConf struct {
 	// Enabled turns the /_stormkit/oauth/* endpoints and the .well-known
 	// discovery documents on for this environment.
 	Enabled bool
 }
 
-// OAuthEnabled reports whether the OAuth authorization server is active. It
-// requires SkAuth itself to be enabled, since OAuth reuses its signing secret
-// and app-user identities.
-func (ac *SKAuthConf) OAuthEnabled() bool {
-	return ac != nil && ac.Status && ac.OAuth != nil && ac.OAuth.Enabled
+// OAuthServerEnabled reports whether the OAuth authorization server is active.
+// It requires SkAuth itself to be enabled, since the server reuses its signing
+// secret and app-user identities.
+func (ac *SKAuthConf) OAuthServerEnabled() bool {
+	return ac != nil && ac.Status && ac.OAuthServer != nil && ac.OAuthServer.Enabled
 }
 
 // Value implements the Sql Driver interface.

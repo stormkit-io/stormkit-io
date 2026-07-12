@@ -39,7 +39,7 @@ func (s *OAuthSuite) host(enabled bool) *hosting.Host {
 				Status:         true,
 				TTL:            10,
 				AllowedOrigins: []string{"https://client.example.com"},
-				OAuth:          &buildconf.OAuthConf{Enabled: enabled},
+				OAuthServer:    &buildconf.OAuthServerConf{Enabled: enabled},
 			},
 		},
 	}
