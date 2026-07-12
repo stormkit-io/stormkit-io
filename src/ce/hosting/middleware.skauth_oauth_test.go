@@ -123,7 +123,7 @@ func (s *WithSKAuthOAuthSuite) Test_Initiate_AllowedRedirect_Redirects() {
 		Referrer:     "https://app.example.com",
 	}).Return("https://accounts.google.com/o/oauth2/auth", nil)
 
-	res, err := hosting.WithSKAuth(s.oauthRequest(
+	res, err := hosting.ServeAuth(s.oauthRequest(
 		s.hostFor(env.ID),
 		"/_stormkit/auth/google?redirect=https://app.example.com",
 		nil,
@@ -139,7 +139,7 @@ func (s *WithSKAuthOAuthSuite) Test_Initiate_AllowedRedirect_Redirects() {
 func (s *WithSKAuthOAuthSuite) Test_Initiate_DisallowedRedirect_Returns403() {
 	env := s.setupEnv([]string{"https://app.example.com"}, true)
 
-	res, err := hosting.WithSKAuth(s.oauthRequest(
+	res, err := hosting.ServeAuth(s.oauthRequest(
 		s.hostFor(env.ID),
 		"/_stormkit/auth/google?redirect=https://evil.example.com",
 		nil,
@@ -160,7 +160,7 @@ func (s *WithSKAuthOAuthSuite) Test_Initiate_NoAllowList_FallsBackToOwnOrigin() 
 		Referrer:     "https://api.example.com",
 	}).Return("https://accounts.google.com/o/oauth2/auth", nil)
 
-	res, err := hosting.WithSKAuth(s.oauthRequest(
+	res, err := hosting.ServeAuth(s.oauthRequest(
 		s.hostFor(env.ID),
 		"/_stormkit/auth/google?redirect=https://other.example.com",
 		nil,
@@ -180,7 +180,7 @@ func (s *WithSKAuthOAuthSuite) Test_Initiate_FallsBackToRefererHeader() {
 		Referrer:     "https://app.example.com",
 	}).Return("https://accounts.google.com/o/oauth2/auth", nil)
 
-	res, err := hosting.WithSKAuth(s.oauthRequest(
+	res, err := hosting.ServeAuth(s.oauthRequest(
 		s.hostFor(env.ID),
 		"/_stormkit/auth/google",
 		map[string]string{"Referer": "https://app.example.com/login"},
@@ -193,7 +193,7 @@ func (s *WithSKAuthOAuthSuite) Test_Initiate_FallsBackToRefererHeader() {
 func (s *WithSKAuthOAuthSuite) Test_Initiate_ProviderDisabled_NotFound() {
 	env := s.setupEnv([]string{"https://app.example.com"}, false)
 
-	res, err := hosting.WithSKAuth(s.oauthRequest(
+	res, err := hosting.ServeAuth(s.oauthRequest(
 		s.hostFor(env.ID),
 		"/_stormkit/auth/google?redirect=https://app.example.com",
 		nil,

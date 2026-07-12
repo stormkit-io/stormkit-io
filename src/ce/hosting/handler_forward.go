@@ -68,9 +68,13 @@ func HandlerForward(req *RequestContext) (res *shttp.Response) {
 		return rs.NotFound()
 	}
 
+	// The reserved /_stormkit/* endpoints (analytics.js, collect, auth/*) are now
+	// declared as routes (see registerReservedRoutes) and short-circuit before
+	// this handler. What remains here is genuinely cross-cutting: WithSKAuth still
+	// injects verified-bearer identity headers on every app request and serves the
+	// bare one-time-code landing, and the auth-wall / redirect rules apply to any
+	// path.
 	middlewares := []func(req *RequestContext) (*shttp.Response, error){
-		WithAnalyticsScript,
-		WithCollect,
 		WithSKAuth,
 		WithAuthWall,
 		WithRedirect,

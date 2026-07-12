@@ -65,39 +65,37 @@ type collectPayload struct {
 	Pageviews []collectPageview `json:"pageviews"`
 }
 
-// WithCollect handles the client-side (and server-to-server) analytics beacon
+// handleCollect handles the client-side (and server-to-server) analytics beacon
 // at /_stormkit/collect. It resolves the app/env/domain from the host, computes
 // a cookieless visitor id, drops bots, and queues the events through the same
 // async pipeline as server-side analytics. Custom events are enterprise-only,
 // matching server-side analytics.
-func WithCollect(req *RequestContext) (*shttp.Response, error) {
-	if req.URL().Path != collectPath {
-		return nil, nil
-	}
+func handleCollect(req *RequestContext) (res *shttp.Response) {
+	defer func() { res = finalizeReserved(req, res) }()
 
 	if req.Method != http.MethodPost {
-		return &shttp.Response{Status: http.StatusMethodNotAllowed}, nil
+		return &shttp.Response{Status: http.StatusMethodNotAllowed}
 	}
 
 	if req.Host == nil || req.Host.Config == nil || !req.Host.Config.IsEnterprise {
-		return &shttp.Response{Status: http.StatusNotFound}, nil
+		return &shttp.Response{Status: http.StatusNotFound}
 	}
 
 	if !collectLimiter.Get(req.RemoteIP()).Limiter.Allow() {
-		return &shttp.Response{Status: http.StatusTooManyRequests}, nil
+		return &shttp.Response{Status: http.StatusTooManyRequests}
 	}
 
 	userAgent := req.UserAgent()
 
 	// Bots never reach human-facing aggregates; drop silently.
 	if analytics.IsBot(userAgent) || !analytics.IsUtf8(userAgent) {
-		return &shttp.Response{Status: http.StatusNoContent}, nil
+		return &shttp.Response{Status: http.StatusNoContent}
 	}
 
 	payload, ok := parseCollectBody(req.Body)
 
 	if !ok {
-		return &shttp.Response{Status: http.StatusBadRequest}, nil
+		return &shttp.Response{Status: http.StatusBadRequest}
 	}
 
 	cfg := req.Host.Config
@@ -174,7 +172,7 @@ func WithCollect(req *RequestContext) (*shttp.Response, error) {
 		})
 	}
 
-	return &shttp.Response{Status: http.StatusNoContent}, nil
+	return &shttp.Response{Status: http.StatusNoContent}
 }
 
 func parseCollectBody(body io.ReadCloser) (collectPayload, bool) {

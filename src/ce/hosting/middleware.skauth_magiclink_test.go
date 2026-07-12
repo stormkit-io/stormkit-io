@@ -163,7 +163,7 @@ func (s *WithSKAuthMagicLinkSuite) Test_Request_InvalidEmail() {
 	env, err := s.setupEnv()
 	s.Require().NoError(err)
 
-	res, err := hosting.WithSKAuth(s.magicRequest(s.hostFor(env.ID), "/_stormkit/auth/magic?email=not-an-email"))
+	res, err := hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), "/_stormkit/auth/magic?email=not-an-email"))
 
 	s.NoError(err)
 	s.Equal(http.StatusBadRequest, res.Status)
@@ -172,7 +172,7 @@ func (s *WithSKAuthMagicLinkSuite) Test_Request_InvalidEmail() {
 func (s *WithSKAuthMagicLinkSuite) Test_Request_ProviderNotEnabled() {
 	env := s.MockEnv(s.app, nil)
 
-	res, err := hosting.WithSKAuth(s.magicRequest(s.hostFor(env.ID), "/_stormkit/auth/magic?email=user@example.com"))
+	res, err := hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), "/_stormkit/auth/magic?email=user@example.com"))
 
 	s.NoError(err)
 	s.Equal(http.StatusNotFound, res.Status)
@@ -182,7 +182,7 @@ func (s *WithSKAuthMagicLinkSuite) Test_Request_Success() {
 	env, err := s.setupEnv()
 	s.Require().NoError(err)
 
-	res, err := hosting.WithSKAuth(s.magicRequest(s.hostFor(env.ID), "/_stormkit/auth/magic?email=user@example.com"))
+	res, err := hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), "/_stormkit/auth/magic?email=user@example.com"))
 
 	s.NoError(err)
 	s.Equal(http.StatusCreated, res.Status)
@@ -198,7 +198,7 @@ func (s *WithSKAuthMagicLinkSuite) Test_Request_CreatesNewUser() {
 	env, err := s.setupEnv()
 	s.Require().NoError(err)
 
-	_, err = hosting.WithSKAuth(s.magicRequest(s.hostFor(env.ID), "/_stormkit/auth/magic?email=newuser@example.com"))
+	_, err = hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), "/_stormkit/auth/magic?email=newuser@example.com"))
 	s.Require().NoError(err)
 
 	store, err := env.SchemaConf.Store(buildconf.SchemaAccessTypeAppUser)
@@ -220,7 +220,7 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_InvalidToken() {
 	env, err := s.setupEnv()
 	s.Require().NoError(err)
 
-	res, err := hosting.WithSKAuth(s.magicRequest(s.hostFor(env.ID), "/_stormkit/auth/magic?token=bad-token"))
+	res, err := hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), "/_stormkit/auth/magic?token=bad-token"))
 
 	s.NoError(err)
 	s.Require().NotNil(res)
@@ -233,13 +233,13 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_Success() {
 	env, err := s.setupEnv()
 	s.Require().NoError(err)
 
-	_, err = hosting.WithSKAuth(s.magicRequest(s.hostFor(env.ID), "/_stormkit/auth/magic?email=verify@example.com"))
+	_, err = hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), "/_stormkit/auth/magic?email=verify@example.com"))
 	s.Require().NoError(err)
 
 	token := s.captureToken(env.ID)
 	s.Require().NotEmpty(token)
 
-	res, err := hosting.WithSKAuth(s.magicRequest(s.hostFor(env.ID), fmt.Sprintf("/_stormkit/auth/magic?token=%s", token)))
+	res, err := hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), fmt.Sprintf("/_stormkit/auth/magic?token=%s", token)))
 
 	s.NoError(err)
 	s.Equal(http.StatusOK, res.Status)
@@ -253,13 +253,13 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_UIDClaimIsUUID() {
 	env, err := s.setupEnv()
 	s.Require().NoError(err)
 
-	_, err = hosting.WithSKAuth(s.magicRequest(s.hostFor(env.ID), "/_stormkit/auth/magic?email=uuidcheck@example.com"))
+	_, err = hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), "/_stormkit/auth/magic?email=uuidcheck@example.com"))
 	s.Require().NoError(err)
 
 	token := s.captureToken(env.ID)
 	s.Require().NotEmpty(token)
 
-	res, err := hosting.WithSKAuth(s.magicRequest(s.hostFor(env.ID), fmt.Sprintf("/_stormkit/auth/magic?token=%s", token)))
+	res, err := hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), fmt.Sprintf("/_stormkit/auth/magic?token=%s", token)))
 	s.Require().NoError(err)
 	s.Require().Equal(http.StatusOK, res.Status)
 
@@ -294,7 +294,7 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_TokenConsumedOnce() {
 	env, err := s.setupEnv()
 	s.Require().NoError(err)
 
-	_, err = hosting.WithSKAuth(s.magicRequest(s.hostFor(env.ID), "/_stormkit/auth/magic?email=once@example.com"))
+	_, err = hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), "/_stormkit/auth/magic?email=once@example.com"))
 	s.Require().NoError(err)
 
 	token := s.captureToken(env.ID)
@@ -302,12 +302,12 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_TokenConsumedOnce() {
 
 	path := fmt.Sprintf("/_stormkit/auth/magic?token=%s", token)
 
-	first, err := hosting.WithSKAuth(s.magicRequest(s.hostFor(env.ID), path))
+	first, err := hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), path))
 	s.NoError(err)
 	s.Equal(http.StatusOK, first.Status)
 
 	// Reusing a consumed token bounces back to the app with a login_error.
-	second, err := hosting.WithSKAuth(s.magicRequest(s.hostFor(env.ID), path))
+	second, err := hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), path))
 	s.NoError(err)
 	s.Equal(http.StatusFound, second.Status)
 	s.Require().NotNil(second.Redirect)
@@ -322,7 +322,7 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_Error_CrossOrigin_RedirectsToInit
 	s.Require().NoError(err)
 
 	post := s.magicRequestWith(s.hostFor(env.ID), "/_stormkit/auth/magic?email=err@example.com", http.MethodPost, "https://app.example.com")
-	_, err = hosting.WithSKAuth(post)
+	_, err = hosting.ServeAuth(post)
 	s.Require().NoError(err)
 
 	token := s.captureToken(env.ID)
@@ -330,13 +330,13 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_Error_CrossOrigin_RedirectsToInit
 
 	path := fmt.Sprintf("/_stormkit/auth/magic?token=%s", token)
 
-	first, err := hosting.WithSKAuth(s.magicRequest(s.hostFor(env.ID), path))
+	first, err := hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), path))
 	s.Require().NoError(err)
 	s.Require().Equal(http.StatusOK, first.Status)
 
 	// Replaying the consumed token: the error redirect must target the initiating
 	// origin, not the verify host.
-	second, err := hosting.WithSKAuth(s.magicRequest(s.hostFor(env.ID), path))
+	second, err := hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), path))
 	s.NoError(err)
 	s.Equal(http.StatusFound, second.Status)
 	s.Require().NotNil(second.Redirect)
@@ -348,7 +348,7 @@ func (s *WithSKAuthMagicLinkSuite) Test_Request_NoOriginCheck_WhenAllowListEmpty
 	s.Require().NoError(err)
 
 	rq := s.magicRequestWith(s.hostFor(env.ID), "/_stormkit/auth/magic?email=user@example.com", http.MethodPost, "https://other.example.com")
-	res, err := hosting.WithSKAuth(rq)
+	res, err := hosting.ServeAuth(rq)
 
 	s.NoError(err)
 	s.Equal(http.StatusCreated, res.Status)
@@ -359,7 +359,7 @@ func (s *WithSKAuthMagicLinkSuite) Test_Request_AllowedOrigin_Accepted() {
 	s.Require().NoError(err)
 
 	rq := s.magicRequestWith(s.hostFor(env.ID), "/_stormkit/auth/magic?email=user@example.com", http.MethodPost, "https://app.example.com")
-	res, err := hosting.WithSKAuth(rq)
+	res, err := hosting.ServeAuth(rq)
 
 	s.NoError(err)
 	s.Equal(http.StatusCreated, res.Status)
@@ -370,7 +370,7 @@ func (s *WithSKAuthMagicLinkSuite) Test_Request_DisallowedOrigin_Returns403() {
 	s.Require().NoError(err)
 
 	rq := s.magicRequestWith(s.hostFor(env.ID), "/_stormkit/auth/magic?email=user@example.com", http.MethodPost, "https://evil.example.com")
-	res, err := hosting.WithSKAuth(rq)
+	res, err := hosting.ServeAuth(rq)
 
 	s.NoError(err)
 	s.Equal(http.StatusForbidden, res.Status)
@@ -381,13 +381,13 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_CrossOrigin_RedirectsToInitiator(
 	s.Require().NoError(err)
 
 	post := s.magicRequestWith(s.hostFor(env.ID), "/_stormkit/auth/magic?email=cross@example.com", http.MethodPost, "https://app.example.com")
-	_, err = hosting.WithSKAuth(post)
+	_, err = hosting.ServeAuth(post)
 	s.Require().NoError(err)
 
 	token := s.captureToken(env.ID)
 	s.Require().NotEmpty(token)
 
-	res, err := hosting.WithSKAuth(s.magicRequest(s.hostFor(env.ID), fmt.Sprintf("/_stormkit/auth/magic?token=%s", token)))
+	res, err := hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), fmt.Sprintf("/_stormkit/auth/magic?token=%s", token)))
 
 	s.NoError(err)
 	s.Equal(http.StatusOK, res.Status)
@@ -406,7 +406,7 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_StaleRedirect_FallsBackToLocal() 
 	s.Require().NoError(err)
 
 	post := s.magicRequestWith(s.hostFor(env.ID), "/_stormkit/auth/magic?email=stale@example.com", http.MethodPost, "https://app.example.com")
-	_, err = hosting.WithSKAuth(post)
+	_, err = hosting.ServeAuth(post)
 	s.Require().NoError(err)
 
 	token := s.captureToken(env.ID)
@@ -420,7 +420,7 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_StaleRedirect_FallsBackToLocal() 
 	stored.AuthConf.AllowedOrigins = nil
 	s.Require().NoError(envStore.SaveAuthConf(context.Background(), env.ID, stored.AuthConf))
 
-	res, err := hosting.WithSKAuth(s.magicRequest(s.hostFor(env.ID), fmt.Sprintf("/_stormkit/auth/magic?token=%s", token)))
+	res, err := hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), fmt.Sprintf("/_stormkit/auth/magic?token=%s", token)))
 
 	s.NoError(err)
 	s.Equal(http.StatusOK, res.Status)

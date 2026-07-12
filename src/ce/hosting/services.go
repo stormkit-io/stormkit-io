@@ -58,6 +58,11 @@ func Services(r *shttp.Router) *shttp.Service {
 	}
 
 	s := r.NewService()
+
+	// Reserved /_stormkit/* endpoints are declared as explicit routes and MUST
+	// be registered before the catch-all so mux matches them first.
+	registerReservedRoutes(s)
+
 	s.NewEndpoint("/").CatchAll(WithHost(HandlerForward), devDomain)
 
 	return s

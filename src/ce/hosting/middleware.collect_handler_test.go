@@ -123,47 +123,41 @@ func (s *CollectHandlerSuite) waitForRecords(n int) []*jobs.HostingRecord {
 func (s *CollectHandlerSuite) Test_NonEnterprise_NotFound() {
 	s.host.Config.IsEnterprise = false
 
-	res, err := WithCollect(s.request(http.MethodPost, "203.0.113.1", collectTestUA, `{"events":[{"name":"x"}]}`))
+	res := handleCollect(s.request(http.MethodPost, "203.0.113.1", collectTestUA, `{"events":[{"name":"x"}]}`))
 
-	s.NoError(err)
 	s.Equal(http.StatusNotFound, res.Status)
 }
 
 func (s *CollectHandlerSuite) Test_MethodNotAllowed() {
-	res, err := WithCollect(s.request(http.MethodGet, "203.0.113.2", collectTestUA, ""))
+	res := handleCollect(s.request(http.MethodGet, "203.0.113.2", collectTestUA, ""))
 
-	s.NoError(err)
 	s.Equal(http.StatusMethodNotAllowed, res.Status)
 }
 
 func (s *CollectHandlerSuite) Test_Bot_Dropped() {
-	res, err := WithCollect(s.request(http.MethodPost, "203.0.113.3", "Googlebot/2.1", `{"events":[{"name":"x"}]}`))
+	res := handleCollect(s.request(http.MethodPost, "203.0.113.3", "Googlebot/2.1", `{"events":[{"name":"x"}]}`))
 
-	s.NoError(err)
 	s.Equal(http.StatusNoContent, res.Status)
 	s.Empty(s.waitForRecords(1))
 }
 
 func (s *CollectHandlerSuite) Test_BadBody() {
-	res, err := WithCollect(s.request(http.MethodPost, "203.0.113.4", collectTestUA, `not-json`))
+	res := handleCollect(s.request(http.MethodPost, "203.0.113.4", collectTestUA, `not-json`))
 
-	s.NoError(err)
 	s.Equal(http.StatusBadRequest, res.Status)
 }
 
 func (s *CollectHandlerSuite) Test_EmptyPayload() {
-	res, err := WithCollect(s.request(http.MethodPost, "203.0.113.5", collectTestUA, `{"events":[],"pageviews":[]}`))
+	res := handleCollect(s.request(http.MethodPost, "203.0.113.5", collectTestUA, `{"events":[],"pageviews":[]}`))
 
-	s.NoError(err)
 	s.Equal(http.StatusBadRequest, res.Status)
 }
 
 func (s *CollectHandlerSuite) Test_Events_Queued() {
 	body := `{"events":[{"name":"purchase","path":"/checkout","metadata":{"plan":"pro"}},{"name":""}]}`
 
-	res, err := WithCollect(s.request(http.MethodPost, "203.0.113.6", collectTestUA, body))
+	res := handleCollect(s.request(http.MethodPost, "203.0.113.6", collectTestUA, body))
 
-	s.NoError(err)
 	s.Equal(http.StatusNoContent, res.Status)
 
 	records := s.waitForRecords(1)
@@ -180,9 +174,8 @@ func (s *CollectHandlerSuite) Test_Events_Queued() {
 func (s *CollectHandlerSuite) Test_Pageviews_TaggedClient() {
 	body := `{"pageviews":[{"path":"/pricing","referrer":"https://google.com"},{"path":""}]}`
 
-	res, err := WithCollect(s.request(http.MethodPost, "203.0.113.7", collectTestUA, body))
+	res := handleCollect(s.request(http.MethodPost, "203.0.113.7", collectTestUA, body))
 
-	s.NoError(err)
 	s.Equal(http.StatusNoContent, res.Status)
 
 	records := s.waitForRecords(1)
@@ -208,9 +201,8 @@ func (s *CollectHandlerSuite) Test_Events_Truncated() {
 
 	b.WriteString(`]}`)
 
-	res, err := WithCollect(s.request(http.MethodPost, "203.0.113.8", collectTestUA, b.String()))
+	res := handleCollect(s.request(http.MethodPost, "203.0.113.8", collectTestUA, b.String()))
 
-	s.NoError(err)
 	s.Equal(http.StatusNoContent, res.Status)
 
 	records := s.waitForRecords(1)
@@ -223,8 +215,7 @@ func (s *CollectHandlerSuite) Test_RateLimited() {
 	statuses := make([]int, 0, 40)
 
 	for i := 0; i < 40; i++ {
-		res, err := WithCollect(s.request(http.MethodPost, "198.51.100.42", collectTestUA, body))
-		s.NoError(err)
+		res := handleCollect(s.request(http.MethodPost, "198.51.100.42", collectTestUA, body))
 		statuses = append(statuses, res.Status)
 	}
 

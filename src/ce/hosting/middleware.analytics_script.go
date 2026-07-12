@@ -15,8 +15,6 @@ import (
 //go:embed analytics.js
 var analyticsScript []byte
 
-const analyticsScriptPath = reservedPathPrefix + "analytics.js"
-
 // embeddedScriptETag is the content hash of the embedded default, served when no
 // admin override is configured so clients refetch only when the script changes.
 var embeddedScriptETag = etagFor(analyticsScript)
@@ -59,11 +57,12 @@ func resolveAnalyticsScript(cfg admin.InstanceConfig) ([]byte, string) {
 	return analyticsScript, embeddedScriptETag
 }
 
-// WithAnalyticsScript serves the client-side analytics script at a stable URL.
-func WithAnalyticsScript(req *RequestContext) (*shttp.Response, error) {
-	if req.URL().Path != analyticsScriptPath {
-		return nil, nil
-	}
+// handleAnalyticsScript serves the client-side analytics script at a stable URL.
+// It is wired as a route (see registerReservedRoutes), so the path is guaranteed
+// by the router and needs no guard here. finalizeReserved layers on the platform
+// response headers.
+func handleAnalyticsScript(req *RequestContext) (res *shttp.Response) {
+	defer func() { res = finalizeReserved(req, res) }()
 
 	content, etag := analyticsScriptContent(req.Context())
 
@@ -73,12 +72,12 @@ func WithAnalyticsScript(req *RequestContext) (*shttp.Response, error) {
 	headers.Set("ETag", etag)
 
 	if req.Header.Get("If-None-Match") == etag {
-		return &shttp.Response{Status: http.StatusNotModified, Headers: headers}, nil
+		return &shttp.Response{Status: http.StatusNotModified, Headers: headers}
 	}
 
 	return &shttp.Response{
 		Status:  http.StatusOK,
 		Headers: headers,
 		Data:    content,
-	}, nil
+	}
 }

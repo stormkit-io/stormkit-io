@@ -41,9 +41,8 @@ func htmlResponse(body string) *shttp.Response {
 
 func (s *AnalyticsScriptSuite) Test_ServesScript() {
 	req := s.newRequest(&hosting.Host{Name: "x"}, "/_stormkit/analytics.js")
-	res, err := hosting.WithAnalyticsScript(req)
+	res := hosting.HandleAnalyticsScript(req)
 
-	s.NoError(err)
 	s.Require().NotNil(res)
 	s.Equal(http.StatusOK, res.Status)
 	s.Contains(res.Headers.Get("Content-Type"), "javascript")
@@ -55,21 +54,13 @@ func (s *AnalyticsScriptSuite) Test_ServesScript() {
 
 func (s *AnalyticsScriptSuite) Test_NotModifiedOnMatchingETag() {
 	req := s.newRequest(&hosting.Host{Name: "x"}, "/_stormkit/analytics.js")
-	first, _ := hosting.WithAnalyticsScript(req)
+	first := hosting.HandleAnalyticsScript(req)
 
 	req2 := s.newRequest(&hosting.Host{Name: "x"}, "/_stormkit/analytics.js")
 	req2.Header.Set("If-None-Match", first.Headers.Get("ETag"))
-	res, _ := hosting.WithAnalyticsScript(req2)
+	res := hosting.HandleAnalyticsScript(req2)
 
 	s.Equal(http.StatusNotModified, res.Status)
-}
-
-func (s *AnalyticsScriptSuite) Test_PassesThroughOtherPaths() {
-	req := s.newRequest(&hosting.Host{Name: "x"}, "/index.html")
-	res, err := hosting.WithAnalyticsScript(req)
-
-	s.NoError(err)
-	s.Nil(res)
 }
 
 func (s *AnalyticsScriptSuite) Test_ServesEmbeddedDefaultWhenNoOverride() {

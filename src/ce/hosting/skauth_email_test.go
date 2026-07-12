@@ -177,7 +177,7 @@ func (s *WithSKAuthEmailSuite) setupEnv(withMailer bool) (*factory.MockEnv, erro
 }
 
 func (s *WithSKAuthEmailSuite) register(host *hosting.Host, email, password string) *shttp.Response {
-	res, err := hosting.WithSKAuth(s.postRequest(host, "/_stormkit/auth/register", map[string]any{
+	res, err := hosting.ServeAuth(s.postRequest(host, "/_stormkit/auth/register", map[string]any{
 		"email":    email,
 		"password": password,
 	}))
@@ -186,7 +186,7 @@ func (s *WithSKAuthEmailSuite) register(host *hosting.Host, email, password stri
 }
 
 func (s *WithSKAuthEmailSuite) login(host *hosting.Host, email, password string) *shttp.Response {
-	res, err := hosting.WithSKAuth(s.postRequest(host, "/_stormkit/auth/login", map[string]any{
+	res, err := hosting.ServeAuth(s.postRequest(host, "/_stormkit/auth/login", map[string]any{
 		"email":    email,
 		"password": password,
 	}))
@@ -219,7 +219,7 @@ func (s *WithSKAuthEmailSuite) Test_Register_BodyEnvIdIgnored() {
 	s.Require().NoError(err)
 
 	// Post with a different envId in the body — should still succeed using the host's env.
-	res, err := hosting.WithSKAuth(s.postRequest(s.hostFor(env.ID), "/_stormkit/auth/register", map[string]any{
+	res, err := hosting.ServeAuth(s.postRequest(s.hostFor(env.ID), "/_stormkit/auth/register", map[string]any{
 		"envId":    "9999999",
 		"email":    "crossenv@example.com",
 		"password": "supersecret123",
@@ -465,9 +465,8 @@ func (s *WithSKAuthEmailSuite) Test_Verify_Success() {
 	s.Require().Equal(http.StatusCreated, s.register(host, "willverify@example.com", "supersecret123").Status)
 	s.Require().NotEmpty(capturedToken)
 
-	res, err := hosting.WithSKAuth(s.getRequest(host, fmt.Sprintf("/_stormkit/auth/verify?token=%s&envId=%d", capturedToken, env.ID)))
+	res := hosting.HandleAuthVerify(s.getRequest(host, fmt.Sprintf("/_stormkit/auth/verify?token=%s&envId=%d", capturedToken, env.ID)))
 
-	s.Require().NoError(err)
 	s.Equal(http.StatusOK, res.Status)
 
 	body := string(res.Data.([]byte))
@@ -478,9 +477,8 @@ func (s *WithSKAuthEmailSuite) Test_Verify_InvalidToken() {
 	env, err := s.setupEnv(true)
 	s.Require().NoError(err)
 
-	res, err := hosting.WithSKAuth(s.getRequest(s.hostFor(env.ID), fmt.Sprintf("/_stormkit/auth/verify?token=not-a-real-token&envId=%d", env.ID)))
+	res := hosting.HandleAuthVerify(s.getRequest(s.hostFor(env.ID), fmt.Sprintf("/_stormkit/auth/verify?token=not-a-real-token&envId=%d", env.ID)))
 
-	s.Require().NoError(err)
 	s.Equal(http.StatusBadRequest, res.Status)
 	s.Contains(string(res.Data.([]byte)), "invalid or expired verification token")
 }
@@ -515,8 +513,7 @@ func (s *WithSKAuthEmailSuite) Test_Verify_AfterVerification_LoginSucceeds() {
 	s.Require().Equal(http.StatusCreated, s.register(host, "loginafter@example.com", "supersecret123").Status)
 	s.Require().NotEmpty(capturedToken)
 
-	_, err = hosting.WithSKAuth(s.getRequest(host, fmt.Sprintf("/_stormkit/auth/verify?token=%s&envId=%d", capturedToken, env.ID)))
-	s.Require().NoError(err)
+	hosting.HandleAuthVerify(s.getRequest(host, fmt.Sprintf("/_stormkit/auth/verify?token=%s&envId=%d", capturedToken, env.ID)))
 
 	res := s.login(host, "loginafter@example.com", "supersecret123")
 

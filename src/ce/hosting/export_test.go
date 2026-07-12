@@ -3,6 +3,7 @@ package hosting
 import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/analytics"
 	"github.com/stormkit-io/stormkit-io/src/lib/pool"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -23,6 +24,43 @@ func ResolveAnalyticsScript(cfg admin.InstanceConfig) ([]byte, string) {
 // InjectSnippets exposes injectSnippets for tests.
 func InjectSnippets(req *RequestContext, res *shttp.Response) *shttp.Response {
 	return injectSnippets(req, res)
+}
+
+// HandleAuthVerify exposes the reserved /_stormkit/auth/verify route handler.
+// Reserved endpoints are unexported handlers now that they are routes rather
+// than middleware branches; this seam lets the existing tests drive the handler
+// directly without standing up the mux router.
+func HandleAuthVerify(req *RequestContext) *shttp.Response {
+	return handleAuthVerify(req)
+}
+
+// HandleAnalyticsScript exposes the reserved /_stormkit/analytics.js route
+// handler to the external hosting_test package.
+func HandleAnalyticsScript(req *RequestContext) *shttp.Response {
+	return handleAnalyticsScript(req)
+}
+
+// ServeAuth dispatches a /_stormkit/auth/* request to its route handler, the
+// same way registerReservedRoutes wires them into mux. It mirrors the WithSKAuth
+// (*shttp.Response, error) signature — always a nil error — so the terminal
+// endpoint tests migrate from WithSKAuth with a plain rename.
+func ServeAuth(req *RequestContext) (*shttp.Response, error) {
+	switch req.URL().Path {
+	case "/_stormkit/auth/register", "/_stormkit/auth/login":
+		return handleAuthRegisterLogin(req), nil
+	case "/_stormkit/auth/verify":
+		return handleAuthVerify(req), nil
+	case "/_stormkit/auth/magic":
+		return handleAuthMagic(req), nil
+	case "/_stormkit/auth/refresh":
+		return handleAuthRefresh(req), nil
+	case "/_stormkit/auth/me":
+		return handleAuthMe(req), nil
+	case skauth.CallbackPath:
+		return handleAuthOAuthCallback(req), nil
+	default:
+		return handleAuthProvider(req), nil
+	}
 }
 
 // EmbeddedScriptETag exposes the embedded default's ETag for tests.

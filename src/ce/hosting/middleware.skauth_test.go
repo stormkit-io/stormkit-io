@@ -120,7 +120,7 @@ func (s *WithSKAuthSuite) Test_CORSPreflight() {
 	req := s.newRequest(s.hostWithSKAuth(), "/_stormkit/auth/magic")
 	req.RequestContext.Method = http.MethodOptions
 
-	res, err := hosting.WithSKAuth(req)
+	res, err := hosting.ServeAuth(req)
 
 	s.NoError(err)
 	s.NotNil(res)
@@ -249,7 +249,7 @@ func (s *WithSKAuthSuite) Test_RegisterPath_SKAuthDisabled() {
 // Test_RegisterPath_MethodNotAllowed checks that /_stormkit/auth/register rejects non-POST requests.
 func (s *WithSKAuthSuite) Test_RegisterPath_MethodNotAllowed() {
 	req := s.newRequest(s.hostWithSKAuth(), "/_stormkit/auth/register")
-	res, err := hosting.WithSKAuth(req)
+	res, err := hosting.ServeAuth(req)
 
 	s.NoError(err)
 	s.NotNil(res)
@@ -263,7 +263,7 @@ func (s *WithSKAuthSuite) Test_RegisterPath_MissingEnv() {
 		"email":    "test@example.com",
 		"password": "supersecret123",
 	})
-	res, err := hosting.WithSKAuth(req)
+	res, err := hosting.ServeAuth(req)
 
 	s.NoError(err)
 	s.NotNil(res)
@@ -290,7 +290,7 @@ func (s *WithSKAuthSuite) Test_LoginPath_SKAuthDisabled() {
 // Test_LoginPath_MethodNotAllowed checks that /_stormkit/auth/login rejects non-POST requests.
 func (s *WithSKAuthSuite) Test_LoginPath_MethodNotAllowed() {
 	req := s.newRequest(s.hostWithSKAuth(), "/_stormkit/auth/login")
-	res, err := hosting.WithSKAuth(req)
+	res, err := hosting.ServeAuth(req)
 
 	s.NoError(err)
 	s.NotNil(res)
@@ -304,7 +304,7 @@ func (s *WithSKAuthSuite) Test_LoginPath_MissingEnv() {
 		"email":    "test@example.com",
 		"password": "supersecret123",
 	})
-	res, err := hosting.WithSKAuth(req)
+	res, err := hosting.ServeAuth(req)
 
 	s.NoError(err)
 	s.NotNil(res)
@@ -314,9 +314,8 @@ func (s *WithSKAuthSuite) Test_LoginPath_MissingEnv() {
 // Test_VerifyPath_MethodNotAllowed checks that /_stormkit/auth/verify rejects non-GET requests.
 func (s *WithSKAuthSuite) Test_VerifyPath_MethodNotAllowed() {
 	req := s.newPostRequest(s.hostWithSKAuth(), "/_stormkit/auth/verify", nil)
-	res, err := hosting.WithSKAuth(req)
+	res := hosting.HandleAuthVerify(req)
 
-	s.NoError(err)
 	s.NotNil(res)
 	s.Equal(http.StatusMethodNotAllowed, res.Status)
 }
@@ -324,9 +323,8 @@ func (s *WithSKAuthSuite) Test_VerifyPath_MethodNotAllowed() {
 // Test_VerifyPath_MissingToken checks that /_stormkit/auth/verify returns 400 when no token is provided.
 func (s *WithSKAuthSuite) Test_VerifyPath_MissingToken() {
 	req := s.newGetRequest(s.hostWithSKAuth(), "/_stormkit/auth/verify")
-	res, err := hosting.WithSKAuth(req)
+	res := hosting.HandleAuthVerify(req)
 
-	s.NoError(err)
 	s.NotNil(res)
 	s.Equal(http.StatusBadRequest, res.Status)
 }
@@ -335,9 +333,8 @@ func (s *WithSKAuthSuite) Test_VerifyPath_MissingToken() {
 // has no EnvID configured — the env lookup finds nothing and auth is unavailable.
 func (s *WithSKAuthSuite) Test_VerifyPath_MissingEnv() {
 	req := s.newGetRequest(s.hostWithSKAuth(), "/_stormkit/auth/verify?token=some-token")
-	res, err := hosting.WithSKAuth(req)
+	res := hosting.HandleAuthVerify(req)
 
-	s.NoError(err)
 	s.NotNil(res)
 	s.Equal(http.StatusNotFound, res.Status)
 }
@@ -346,7 +343,7 @@ func (s *WithSKAuthSuite) Test_VerifyPath_MissingEnv() {
 // the host has no EnvID configured — the zero-envId guard fires first.
 func (s *WithSKAuthSuite) Test_MagicPath_MissingEnv() {
 	req := s.newGetRequest(s.hostWithSKAuth(), "/_stormkit/auth/magic?email=user@example.com")
-	res, err := hosting.WithSKAuth(req)
+	res, err := hosting.ServeAuth(req)
 
 	s.NoError(err)
 	s.NotNil(res)
@@ -357,7 +354,7 @@ func (s *WithSKAuthSuite) Test_MagicPath_MissingEnv() {
 // EnvID configured returns 404 — the zero-envId guard fires before token validation.
 func (s *WithSKAuthSuite) Test_MagicPath_VerifyInvalidToken() {
 	req := s.newGetRequest(s.hostWithSKAuth(), "/_stormkit/auth/magic?token=bad-token")
-	res, err := hosting.WithSKAuth(req)
+	res, err := hosting.ServeAuth(req)
 
 	s.NoError(err)
 	s.NotNil(res)
@@ -521,7 +518,7 @@ func (s *WithSKAuthSuite) Test_Refresh_ValidToken() {
 	req := s.newPostRequest(host, "/_stormkit/auth/refresh", nil)
 	req.Header.Set("Authorization", s.generateBearer(types.ID(42), "test-secret-padded-to-32-chars!!"))
 
-	res, err := hosting.WithSKAuth(req)
+	res, err := hosting.ServeAuth(req)
 
 	s.NoError(err)
 	s.Require().NotNil(res)
@@ -551,7 +548,7 @@ func (s *WithSKAuthSuite) Test_Refresh_PreservesEmail() {
 	req := s.newPostRequest(host, "/_stormkit/auth/refresh", nil)
 	req.Header.Set("Authorization", s.generateBearerWithEmail(types.ID(42), "user@example.com", secret))
 
-	res, err := hosting.WithSKAuth(req)
+	res, err := hosting.ServeAuth(req)
 
 	s.NoError(err)
 	s.Require().NotNil(res)
@@ -579,7 +576,7 @@ func (s *WithSKAuthSuite) Test_Refresh_ExpiredToken() {
 	req := s.newPostRequest(host, "/_stormkit/auth/refresh", nil)
 	req.Header.Set("Authorization", s.generateBearerIssuedAt(types.ID(7), "test-secret-padded-to-32-chars!!", time.Now().Add(-30*time.Minute)))
 
-	res, err := hosting.WithSKAuth(req)
+	res, err := hosting.ServeAuth(req)
 
 	s.NoError(err)
 	s.Require().NotNil(res)
@@ -592,7 +589,7 @@ func (s *WithSKAuthSuite) Test_Refresh_MissingBearer() {
 	host := s.hostWithSKAuth()
 	req := s.newPostRequest(host, "/_stormkit/auth/refresh", nil)
 
-	res, err := hosting.WithSKAuth(req)
+	res, err := hosting.ServeAuth(req)
 
 	s.NoError(err)
 	s.Require().NotNil(res)
@@ -605,7 +602,7 @@ func (s *WithSKAuthSuite) Test_Refresh_WrongMethod() {
 	req := s.newGetRequest(host, "/_stormkit/auth/refresh")
 	req.Header.Set("Authorization", s.generateBearer(types.ID(1), "test-secret-padded-to-32-chars!!"))
 
-	res, err := hosting.WithSKAuth(req)
+	res, err := hosting.ServeAuth(req)
 
 	s.NoError(err)
 	s.Require().NotNil(res)
@@ -617,7 +614,7 @@ func (s *WithSKAuthSuite) Test_Refresh_WrongMethod() {
 func (s *WithSKAuthSuite) Test_Me_MissingBearer() {
 	req := s.newGetRequest(s.hostWithSKAuth(), "/_stormkit/auth/me")
 
-	res, err := hosting.WithSKAuth(req)
+	res, err := hosting.ServeAuth(req)
 
 	s.NoError(err)
 	s.Require().NotNil(res)
@@ -629,7 +626,7 @@ func (s *WithSKAuthSuite) Test_Me_WrongMethod() {
 	req := s.newPostRequest(s.hostWithSKAuth(), "/_stormkit/auth/me", nil)
 	req.Header.Set("Authorization", s.generateBearer(types.ID(42), "test-secret-padded-to-32-chars!!"))
 
-	res, err := hosting.WithSKAuth(req)
+	res, err := hosting.ServeAuth(req)
 
 	s.NoError(err)
 	s.Require().NotNil(res)
@@ -642,7 +639,7 @@ func (s *WithSKAuthSuite) Test_Me_MissingEnv() {
 	req := s.newGetRequest(s.hostWithSKAuth(), "/_stormkit/auth/me")
 	req.Header.Set("Authorization", s.generateBearer(types.ID(42), "test-secret-padded-to-32-chars!!"))
 
-	res, err := hosting.WithSKAuth(req)
+	res, err := hosting.ServeAuth(req)
 
 	s.NoError(err)
 	s.Require().NotNil(res)
