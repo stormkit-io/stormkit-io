@@ -85,7 +85,7 @@ func (s *WithSKAuthOAuthSuite) Test_Callback_Success() {
 
 	state := s.stateToken(skauth.ProviderGoogle, "https://app.example.com/login")
 
-	res, err := hosting.WithSKAuth(s.oauthRequest(
+	res, err := hosting.ServeAuth(s.oauthRequest(
 		host,
 		fmt.Sprintf("/_stormkit/auth/callback?state=%s&code=test-code", state),
 		nil,
@@ -135,7 +135,7 @@ func (s *WithSKAuthOAuthSuite) Test_Callback_LinksToExistingMagicLinkUser() {
 
 	state := s.stateToken(skauth.ProviderGoogle, "https://app.example.com/login")
 
-	res, err := hosting.WithSKAuth(s.oauthRequest(
+	res, err := hosting.ServeAuth(s.oauthRequest(
 		host,
 		fmt.Sprintf("/_stormkit/auth/callback?state=%s&code=test-code", state),
 		nil,
@@ -163,7 +163,7 @@ func (s *WithSKAuthOAuthSuite) Test_Callback_LinksToExistingMagicLinkUser() {
 func (s *WithSKAuthOAuthSuite) Test_Callback_InvalidState() {
 	host := s.setupCallbackEnv(true)
 
-	res, err := hosting.WithSKAuth(s.oauthRequest(
+	res, err := hosting.ServeAuth(s.oauthRequest(
 		host,
 		"/_stormkit/auth/callback?state=not-a-jwt&code=test-code",
 		nil,
@@ -181,7 +181,7 @@ func (s *WithSKAuthOAuthSuite) Test_Callback_ProviderDisabled_RedirectsWithError
 
 	state := s.stateToken(skauth.ProviderGoogle, "https://app.example.com/login")
 
-	res, err := hosting.WithSKAuth(s.oauthRequest(
+	res, err := hosting.ServeAuth(s.oauthRequest(
 		host,
 		fmt.Sprintf("/_stormkit/auth/callback?state=%s&code=test-code", state),
 		nil,
@@ -203,7 +203,7 @@ func (s *WithSKAuthOAuthSuite) Test_Callback_ProviderDenied_RedirectsWithError()
 
 	state := s.stateToken(skauth.ProviderGoogle, "https://app.example.com/login")
 
-	res, err := hosting.WithSKAuth(s.oauthRequest(
+	res, err := hosting.ServeAuth(s.oauthRequest(
 		host,
 		fmt.Sprintf("/_stormkit/auth/callback?state=%s&error=access_denied", state),
 		nil,
@@ -227,7 +227,7 @@ func (s *WithSKAuthOAuthSuite) Test_Callback_ExchangeFails_RedirectsWithError() 
 
 	state := s.stateToken(skauth.ProviderGoogle, "https://app.example.com/login")
 
-	res, err := hosting.WithSKAuth(s.oauthRequest(
+	res, err := hosting.ServeAuth(s.oauthRequest(
 		host,
 		fmt.Sprintf("/_stormkit/auth/callback?state=%s&code=bad-code", state),
 		nil,

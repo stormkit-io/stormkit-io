@@ -6,12 +6,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/html"
 	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
@@ -274,6 +272,11 @@ func (m *skAuthMiddleware) renderVerifyPage(status int, head, content string) *s
 	}
 }
 
+// WithSKAuth carries the cross-cutting auth concerns that must run for every app
+// request: the config-independent one-time-code login landing and the
+// verified-bearer -> identity header injection. The discrete /_stormkit/auth/*
+// endpoints (register, login, verify, magic, refresh, me, callback, provider)
+// are served by dedicated routes — see registerReservedRoutes.
 func WithSKAuth(req *RequestContext) (*shttp.Response, error) {
 	path := req.URL().Path
 
@@ -296,80 +299,66 @@ func WithSKAuth(req *RequestContext) (*shttp.Response, error) {
 		return nil, nil
 	}
 
-	// Strip the headers to prevent clients from spoofing them.
-	req.Header.Del("X-User-Id")
-	req.Header.Del("X-User-Email")
+	injectUserHeaders(req)
 
-	if bearer := user.ParseBearer(req.Header.Get("Authorization")); bearer != "" {
-		secret := req.Host.Config.SKAuth.Secret
-
-		claims := user.ParseJWT(&user.ParseJWTArgs{
-			Bearer:  bearer,
-			Secret:  secret,
-			MaxMins: req.Host.Config.SKAuth.TTL,
-		})
-
-		if claims != nil {
-			if userID, ok := claims["uid"].(string); ok && userID != "" {
-				req.Header.Set("X-User-Id", userID)
-			}
-
-			if encEmail, ok := claims["eml"].(string); ok && encEmail != "" {
-				if email := utils.DecryptToString(encEmail, emlKey(secret)); email != "" {
-					req.Header.Set("X-User-Email", email)
-				}
-			}
-		}
-	}
-
-	if !strings.HasPrefix(path, "/_stormkit/auth") {
+	// Only the bare landing remains here; its terminal states (missing/unknown
+	// code) render the auth page. Everything under /_stormkit/auth/ is routed.
+	if path != "/_stormkit/auth" {
 		return nil, nil
 	}
 
-	// CORS preflight — respond 204 so the browser proceeds with the actual
-	// request. Per-path custom headers (e.g. Access-Control-Allow-Origin)
-	// are layered on by finalize() afterwards. Without this short-circuit
-	// the request would fall through to handlers that expect a JSON body
-	// and reject OPTIONS with 400, breaking the preflight.
 	if req.Method == http.MethodOptions {
 		return &shttp.Response{Status: http.StatusNoContent}, nil
 	}
 
-	m := &skAuthMiddleware{req: req}
+	return (&skAuthMiddleware{req: req}).handleCallback()
+}
 
-	if path == "/_stormkit/auth/register" || path == "/_stormkit/auth/login" {
-		return m.handleRegisterLogin(path)
+// injectUserHeaders strips any client-supplied identity headers and, when a
+// valid skauth bearer accompanies the request, re-injects the authenticated
+// X-User-Id / X-User-Email for downstream handlers and the customer app.
+func injectUserHeaders(req *RequestContext) {
+	// Strip the headers to prevent clients from spoofing them.
+	req.Header.Del("X-User-Id")
+	req.Header.Del("X-User-Email")
+
+	bearer := user.ParseBearer(req.Header.Get("Authorization"))
+
+	if bearer == "" {
+		return
 	}
 
-	if path == "/_stormkit/auth/verify" {
-		return m.handleVerify()
+	secret := req.Host.Config.SKAuth.Secret
+
+	claims := user.ParseJWT(&user.ParseJWTArgs{
+		Bearer:  bearer,
+		Secret:  secret,
+		MaxMins: req.Host.Config.SKAuth.TTL,
+	})
+
+	if claims == nil {
+		return
 	}
 
-	if path == "/_stormkit/auth/magic" {
-		if m.req.Query().Get("token") != "" {
-			return m.handleMagicLinkVerify()
+	if userID, ok := claims["uid"].(string); ok && userID != "" {
+		req.Header.Set("X-User-Id", userID)
+	}
+
+	if encEmail, ok := claims["eml"].(string); ok && encEmail != "" {
+		if email := utils.DecryptToString(encEmail, emlKey(secret)); email != "" {
+			req.Header.Set("X-User-Email", email)
 		}
+	}
+}
 
-		return m.handleMagicLinkRequest()
+// handleMagic dispatches the magic-link endpoint: a token query parameter means
+// the user is following a link (verify), otherwise it's a request to send one.
+func (m *skAuthMiddleware) handleMagic() (*shttp.Response, error) {
+	if m.req.Query().Get("token") != "" {
+		return m.handleMagicLinkVerify()
 	}
 
-	if path == "/_stormkit/auth/refresh" {
-		return m.handleRefresh()
-	}
-
-	if path == "/_stormkit/auth/me" {
-		return m.handleMe()
-	}
-
-	if path == skauth.CallbackPath {
-		return m.handleOAuthCallback()
-	}
-
-	if provider, ok := isOAuthProviderPath(path); ok {
-		return m.handleOAuthInitiate(provider)
-	}
-
-	return m.handleCallback()
+	return m.handleMagicLinkRequest()
 }
 
 // handleRefresh trades a currently-valid skauth bearer for a freshly signed
