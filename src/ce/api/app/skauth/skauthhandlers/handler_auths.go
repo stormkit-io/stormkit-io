@@ -51,7 +51,7 @@ func handlerAuths(req *app.RequestContext) *shttp.Response {
 	if env.AuthConf != nil {
 		successURL = env.AuthConf.SuccessURL
 		ttl = env.AuthConf.TTL
-		oauthServerEnabled = env.AuthConf.OAuthServer != nil && env.AuthConf.OAuthServer.Enabled
+		oauthServerEnabled = env.AuthConf.OAuthServerEnabled()
 
 		if env.AuthConf.AllowedOrigins != nil {
 			allowedOrigins = env.AuthConf.AllowedOrigins

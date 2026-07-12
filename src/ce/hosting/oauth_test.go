@@ -145,6 +145,32 @@ func (s *OAuthSuite) Test_Authorize_RejectsBadRedirect() {
 	s.Nil(res.Redirect, "must not redirect to an unvalidated redirect_uri")
 }
 
+// Test_Authorize_SetsAntiFramingHeaders guards the consent page against
+// clickjacking: it must forbid being framed.
+func (s *OAuthSuite) Test_Authorize_SetsAntiFramingHeaders() {
+	res := hosting.HandleOAuthAuthorize(s.req(s.host(true), http.MethodGet, "/_stormkit/oauth/authorize", s.authzQuery(pkce("verifier")), nil, nil))
+
+	s.Equal(http.StatusOK, res.Status)
+	s.Equal("DENY", res.Headers.Get("X-Frame-Options"))
+	s.Contains(res.Headers.Get("Content-Security-Policy"), "frame-ancestors 'none'")
+}
+
+// Test_Authorize_AcceptsMixedCaseRedirectHost verifies the redirect_uri host is
+// matched case-insensitively against the allow-list.
+func (s *OAuthSuite) Test_Authorize_AcceptsMixedCaseRedirectHost() {
+	q := url.Values{}
+	q.Set("response_type", "code")
+	q.Set("client_id", "chatgpt")
+	q.Set("redirect_uri", "https://Client.Example.com/callback")
+	q.Set("code_challenge", pkce("verifier"))
+	q.Set("code_challenge_method", "S256")
+
+	res := hosting.HandleOAuthAuthorize(s.req(s.host(true), http.MethodGet, "/_stormkit/oauth/authorize", q.Encode(), nil, nil))
+
+	s.Equal(http.StatusOK, res.Status)
+	s.Contains(string(res.Data.([]byte)), "Authorize access")
+}
+
 func (s *OAuthSuite) Test_Grant_RequiresAuth() {
 	res := hosting.HandleOAuthGrant(s.req(s.host(true), http.MethodPost, "/_stormkit/oauth/authorize", s.authzQuery(pkce("v")), nil, nil))
 
@@ -187,6 +213,7 @@ func (s *OAuthSuite) Test_Token_ExchangeSucceeds() {
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
 	form.Set("code", code)
+	form.Set("client_id", "chatgpt")
 	form.Set("redirect_uri", oauthRedirect)
 	form.Set("code_verifier", verifier)
 
@@ -214,8 +241,26 @@ func (s *OAuthSuite) Test_Token_RejectsWrongVerifier() {
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
 	form.Set("code", code)
+	form.Set("client_id", "chatgpt")
 	form.Set("redirect_uri", oauthRedirect)
 	form.Set("code_verifier", "wrong-verifier-value-9999999999999")
+
+	res := hosting.HandleOAuthToken(s.tokenReq(form))
+
+	s.Equal(http.StatusBadRequest, res.Status)
+	s.Equal("invalid_grant", s.json(res)["error"])
+}
+
+func (s *OAuthSuite) Test_Token_RejectsWrongClientID() {
+	verifier := "client-bind-verifier-1234567890abc"
+	code := s.codeFromGrant("user-uuid-42", pkce(verifier))
+
+	form := url.Values{}
+	form.Set("grant_type", "authorization_code")
+	form.Set("code", code)
+	form.Set("client_id", "not-chatgpt")
+	form.Set("redirect_uri", oauthRedirect)
+	form.Set("code_verifier", verifier)
 
 	res := hosting.HandleOAuthToken(s.tokenReq(form))
 
@@ -230,6 +275,7 @@ func (s *OAuthSuite) Test_Token_CodeIsSingleUse() {
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
 	form.Set("code", code)
+	form.Set("client_id", "chatgpt")
 	form.Set("redirect_uri", oauthRedirect)
 	form.Set("code_verifier", verifier)
 

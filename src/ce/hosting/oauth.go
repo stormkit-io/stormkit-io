@@ -4,22 +4,23 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
-	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/html"
-	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
-// oauthCodePrefix namespaces authorization codes in Redis so they can't collide
-// with the bare one-time login codes used by the magic-link landing.
-const oauthCodePrefix = "oauth:code:"
+// oauthCodeStore holds the OAuth authorization codes. The "oauth:code:" prefix
+// namespaces them in Redis so they can't collide with the bare one-time login
+// codes used by the magic-link landing.
+var oauthCodeStore = oneTimeCode{prefix: "oauth:code:", ttl: 5 * time.Minute}
 
 // oauthServer implements the OAuth 2.1 authorization server layered on SkAuth.
 // The end user (an app's own SkAuth user) is the resource owner; access tokens
@@ -58,6 +59,17 @@ var (
 
 func (o *oauthServer) secret() string {
 	return o.req.Host.Config.SKAuth.Secret
+}
+
+// tokenTTLMinutes is the effective access-token lifetime. It mirrors the edge's
+// user.ParseJWT default (24h when the env TTL is unset), so the advertised
+// expires_in matches how long the token is actually accepted.
+func (o *oauthServer) tokenTTLMinutes() int {
+	if ttl := o.req.Host.Config.SKAuth.TTL; ttl > 0 {
+		return ttl
+	}
+
+	return 24 * 60
 }
 
 // issuer is the app's own origin; every AS/RS URL hangs off it.
@@ -127,7 +139,9 @@ func (o *oauthServer) redirectAllowed(redirectURI string) bool {
 		return false
 	}
 
-	return o.req.Host.Config.SKAuth.IsAllowedOrigin(u.Scheme + "://" + u.Host)
+	// Host is compared case-insensitively: url.Parse lowercases the scheme but
+	// preserves host case, and DNS names are case-insensitive.
+	return o.req.Host.Config.SKAuth.IsAllowedOrigin(u.Scheme + "://" + strings.ToLower(u.Host))
 }
 
 // authorize serves GET /_stormkit/oauth/authorize — the consent screen. Because
@@ -188,9 +202,8 @@ func (o *oauthServer) grant() *shttp.Response {
 	}
 
 	eml, _ := claims["eml"].(string)
-	code := utils.RandomToken(64)
 
-	payload, err := json.Marshal(oauthAuthCode{
+	code, err := oauthCodeStore.issue(o.req.Context(), oauthAuthCode{
 		UID:           uid,
 		EML:           eml,
 		ClientID:      p.clientID,
@@ -200,10 +213,6 @@ func (o *oauthServer) grant() *shttp.Response {
 	})
 
 	if err != nil {
-		return oauthJSON(http.StatusInternalServerError, oauthErr("server_error", ""))
-	}
-
-	if err := rediscache.Client().Set(o.req.Context(), oauthCodePrefix+code, payload, 5*time.Minute).Err(); err != nil {
 		return oauthJSON(http.StatusInternalServerError, oauthErr("server_error", ""))
 	}
 
@@ -237,20 +246,25 @@ func (o *oauthServer) token() *shttp.Response {
 		return oauthJSON(http.StatusBadRequest, oauthErr("invalid_request", "code and code_verifier are required"))
 	}
 
-	raw, err := rediscache.Client().GetDel(o.req.Context(), oauthCodePrefix+code).Result()
-
-	if err != nil || raw == "" {
-		return oauthJSON(http.StatusBadRequest, oauthErr("invalid_grant", "authorization code is invalid or expired"))
-	}
-
 	var ac oauthAuthCode
 
-	if err := json.Unmarshal([]byte(raw), &ac); err != nil {
-		return oauthJSON(http.StatusBadRequest, oauthErr("invalid_grant", ""))
+	if err := oauthCodeStore.redeem(o.req.Context(), code, &ac); err != nil {
+		if errors.Is(err, errCodeNotFound) {
+			return oauthJSON(http.StatusBadRequest, oauthErr("invalid_grant", "authorization code is invalid or expired"))
+		}
+
+		return oauthJSON(http.StatusInternalServerError, oauthErr("server_error", ""))
 	}
 
 	if o.req.PostFormValue("redirect_uri") != ac.RedirectURI {
 		return oauthJSON(http.StatusBadRequest, oauthErr("invalid_grant", "redirect_uri mismatch"))
+	}
+
+	// Bind the code to the client_id it was issued for. Without this, origin-level
+	// redirect_uri matching alone would let a different client on an allowed
+	// origin redeem a code minted for another.
+	if o.req.PostFormValue("client_id") != ac.ClientID {
+		return oauthJSON(http.StatusBadRequest, oauthErr("invalid_grant", "client_id mismatch"))
 	}
 
 	if !verifyPKCE(verifier, ac.CodeChallenge) {
@@ -276,7 +290,7 @@ func (o *oauthServer) token() *shttp.Response {
 	return oauthJSON(http.StatusOK, map[string]any{
 		"access_token": accessToken,
 		"token_type":   "Bearer",
-		"expires_in":   o.req.Host.Config.SKAuth.TTL * 60,
+		"expires_in":   o.tokenTTLMinutes() * 60,
 		"scope":        ac.Scope,
 	})
 }
@@ -306,8 +320,13 @@ func (o *oauthServer) redirectError(p authzParams, code, desc string) *shttp.Res
 
 func (o *oauthServer) errorPage(msg string) *shttp.Response {
 	return &shttp.Response{
-		Status:  http.StatusBadRequest,
-		Headers: shttp.HeadersFromMap(map[string]string{"Content-Type": "text/html", "Cache-Control": "no-store"}),
+		Status: http.StatusBadRequest,
+		Headers: shttp.HeadersFromMap(map[string]string{
+			"Content-Type":            "text/html",
+			"Cache-Control":           "no-store",
+			"X-Frame-Options":         "DENY",
+			"Content-Security-Policy": "frame-ancestors 'none'",
+		}),
 		Data: html.MustRender(html.RenderArgs{
 			PageTitle:   "Stormkit - Authorize",
 			PageContent: `<div class="container"><h1>Authorization error</h1><p>{{ .message }}</p></div>`,
@@ -373,9 +392,11 @@ func (o *oauthServer) consentPage(p authzParams) *shttp.Response {
 	return &shttp.Response{
 		Status: http.StatusOK,
 		Headers: shttp.HeadersFromMap(map[string]string{
-			"Content-Type":    "text/html",
-			"Referrer-Policy": "no-referrer",
-			"Cache-Control":   "no-store",
+			"Content-Type":            "text/html",
+			"Referrer-Policy":         "no-referrer",
+			"Cache-Control":           "no-store",
+			"X-Frame-Options":         "DENY",
+			"Content-Security-Policy": "frame-ancestors 'none'",
 		}),
 		Data: html.MustRender(html.RenderArgs{
 			PageTitle:   "Stormkit - Authorize",

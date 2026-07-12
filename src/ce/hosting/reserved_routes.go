@@ -39,7 +39,7 @@ func registerReservedRoutes(s *shttp.Service) {
 	oauth := s.NewEndpoint("/_stormkit/oauth")
 	oauth.Handler(http.MethodGet, "/authorize", WithHost(handleOAuthAuthorize))
 	oauth.Handler(http.MethodPost, "/authorize", WithHost(handleOAuthGrant))
-	oauth.Handler(http.MethodOptions, "/authorize", WithHost(handleOAuthGrant))
+	oauth.Handler(http.MethodOptions, "/authorize", WithHost(handleOAuthAuthorize))
 	oauth.Handler(http.MethodPost, "/token", WithHost(handleOAuthToken))
 	oauth.Handler(http.MethodOptions, "/token", WithHost(handleOAuthToken))
 

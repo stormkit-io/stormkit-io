@@ -2,7 +2,6 @@ package hosting
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -12,7 +11,6 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/html"
-	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
@@ -161,21 +159,20 @@ type sessionCode struct {
 	Redirect string `json:"redirect"`
 }
 
+// magicLinkCodeStore holds the one-time login codes for the magic-link landing.
+// The empty prefix keeps the bare-code keyspace the landing URL embeds; OAuth
+// codes live under their own prefix so the two never collide.
+var magicLinkCodeStore = oneTimeCode{prefix: "", ttl: 2 * time.Minute}
+
 // stashSessionToken stores the session token and its post-login redirect under a
 // fresh one-time code and returns the landing URL on the destination origin. The
 // browser is sent there; codeLanding reads the payload back and injects the token
 // into localStorage on that origin. origin is scheme+host (no trailing slash);
 // successURL is validated at config time to start with '/'.
 func stashSessionToken(ctx context.Context, origin, successURL, token string) (string, error) {
-	payload, err := json.Marshal(sessionCode{Token: token, Redirect: origin + successURL})
+	code, err := magicLinkCodeStore.issue(ctx, sessionCode{Token: token, Redirect: origin + successURL})
 
 	if err != nil {
-		return "", err
-	}
-
-	code := utils.RandomToken(64)
-
-	if err := rediscache.Client().Set(ctx, code, payload, time.Minute*2).Err(); err != nil {
 		return "", err
 	}
 
@@ -211,15 +208,9 @@ func (m *skAuthMiddleware) codeLanding() *shttp.Response {
 		return nil
 	}
 
-	raw, err := rediscache.Client().GetDel(m.req.Context(), code).Result()
-
-	if err != nil || raw == "" {
-		return nil
-	}
-
 	var sc sessionCode
 
-	if err := json.Unmarshal([]byte(raw), &sc); err != nil {
+	if err := magicLinkCodeStore.redeem(m.req.Context(), code, &sc); err != nil {
 		return nil
 	}
 
