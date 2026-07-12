@@ -47,12 +47,12 @@ export const envMenuItems = ({
   app,
   env,
   pathname,
-  isSelfHosted,
+  isNotCloud,
 }: {
   app: App;
   env: Environment;
   pathname: string;
-  isSelfHosted: boolean;
+  isNotCloud: boolean;
 }): Path[] => {
   if (!env) {
     return [];
@@ -100,9 +100,9 @@ export const envMenuItems = ({
     },
   ];
 
-  // Authentication relies on a database, so it is shown on the self-hosted
-  // edition only.
-  if (isSelfHosted) {
+  // Authentication relies on a database, which is available on every
+  // non-cloud edition (self-hosted and development).
+  if (isNotCloud) {
     items.push({
       text: "Authentication",
       path: `${envPath}/auth`,

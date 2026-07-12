@@ -16,7 +16,7 @@ export default function EnvMenu() {
   const { app, environments } = useContext(AppContext);
   const { details } = useContext(RootContext);
   const { pathname } = useLocation();
-  const isSelfHosted = details?.stormkit?.edition === "self-hosted";
+  const isNotCloud = details?.stormkit?.edition !== "cloud";
   const [isModalOpen, toggleModal] = useState(false);
   const navigate = useNavigate();
 
@@ -29,8 +29,8 @@ export default function EnvMenu() {
   const selectedEnvId = envId || "";
 
   const envMenu = useMemo(
-    () => envMenuItems({ app, env, pathname, isSelfHosted }),
-    [app, env, pathname, isSelfHosted],
+    () => envMenuItems({ app, env, pathname, isNotCloud }),
+    [app, env, pathname, isNotCloud],
   );
 
   if (!selectedEnvId || !env) {
