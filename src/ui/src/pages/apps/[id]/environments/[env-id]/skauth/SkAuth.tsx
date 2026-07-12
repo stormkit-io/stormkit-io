@@ -1,8 +1,9 @@
-import { useContext, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
+import { Switch } from "~/components/Form";
 import AddIcon from "@mui/icons-material/Add";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
@@ -178,6 +179,14 @@ export default function SkAuth() {
     refreshToken,
   });
 
+  // The OAuth toggle is a controlled Switch (not part of FormData), so it needs
+  // its own state, synced from the config once it loads.
+  const [oauthEnabled, setOauthEnabled] = useState(false);
+
+  useEffect(() => {
+    setOauthEnabled(Boolean(config?.oauthEnabled));
+  }, [config?.oauthEnabled]);
+
   const hasSchema = !result.loading && !result.error && Boolean(result.schema);
   const title = "Authentication";
   const subtitle = "Enable authentication providers for this environment";
@@ -243,6 +252,7 @@ export default function SkAuth() {
             tokenTtl: tokenTtl || 0,
             status: true,
             allowedOrigins,
+            oauthEnabled,
           })
             .then(() => {
               setSuccess("Settings saved successfully");
@@ -324,6 +334,37 @@ export default function SkAuth() {
               A provider is enabled but no allowed origins are set. If your
               frontend runs on a separate domain (or a native app), add its
               origin — otherwise sign-in returns users here instead of your app.
+            </Alert>
+          )}
+        </Box>
+
+        <Box sx={{ mb: 4 }}>
+          <Switch
+            name="oauthEnabled"
+            checked={oauthEnabled}
+            setChecked={setOauthEnabled}
+            label="Enable OAuth server (MCP connectors)"
+            description="Turns this environment into an OAuth 2.1 authorization server so AI clients like ChatGPT and Claude can connect to it as an MCP server, signing in your app's own users. Add each connector's redirect origin to Allowed origins above."
+          />
+          {oauthEnabled &&
+            (config?.allowedOrigins || []).length === 0 && (
+              <Alert severity="warning" sx={{ mt: 2 }}>
+                OAuth is enabled but no allowed origins are set. A connector's
+                redirect_uri must live on an allowed origin, or authorization
+                requests will be rejected.
+              </Alert>
+            )}
+          {oauthEnabled && (
+            <Alert severity="info" sx={{ mt: 2 }}>
+              <Typography sx={{ mb: 1 }}>
+                Discovery documents, served on this environment's domain:
+              </Typography>
+              <Box component="code" sx={{ display: "block", fontSize: 12 }}>
+                /.well-known/oauth-authorization-server
+              </Box>
+              <Box component="code" sx={{ display: "block", fontSize: 12 }}>
+                /.well-known/oauth-protected-resource
+              </Box>
             </Alert>
           )}
         </Box>

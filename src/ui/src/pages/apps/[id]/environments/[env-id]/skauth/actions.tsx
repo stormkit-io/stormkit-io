@@ -223,6 +223,7 @@ interface FetchProvidersResult {
   successUrl?: string;
   tokenTtl?: number;
   allowedOrigins?: string[];
+  oauthEnabled?: boolean;
   redirectUrl: string;
   authUrl: string;
   providers: {
@@ -234,6 +235,7 @@ interface AuthConfig {
   sessionTtl?: number; // in minutes
   successUrl?: string;
   allowedOrigins?: string[];
+  oauthEnabled?: boolean;
 }
 
 interface SaveConfigParams {
@@ -242,6 +244,7 @@ interface SaveConfigParams {
   tokenTtl: number;
   status: boolean;
   allowedOrigins: string[];
+  oauthEnabled: boolean;
 }
 
 export const saveConfig = ({
@@ -250,6 +253,7 @@ export const saveConfig = ({
   tokenTtl,
   status,
   allowedOrigins,
+  oauthEnabled,
 }: SaveConfigParams): Promise<void> =>
   api.post("/skauth/config", {
     envId,
@@ -257,6 +261,7 @@ export const saveConfig = ({
     tokenTtl,
     status,
     allowedOrigins,
+    oauthEnabled,
   });
 
 export const useFetchProviders = ({
@@ -282,6 +287,7 @@ export const useFetchProviders = ({
           successUrl,
           tokenTtl: sessionTtl,
           allowedOrigins,
+          oauthEnabled,
         }) => {
           const result: AuthProvider[] = [];
 
@@ -306,7 +312,7 @@ export const useFetchProviders = ({
             });
 
           setProviders(result);
-          setConfig({ successUrl, sessionTtl, allowedOrigins });
+          setConfig({ successUrl, sessionTtl, allowedOrigins, oauthEnabled });
         },
       )
       .catch(() => {
