@@ -29,6 +29,20 @@ func registerReservedRoutes(s *shttp.Service) {
 	sk.Handler(http.MethodGet, "/collect", WithHost(handleCollect))
 	sk.Handler(http.MethodPost, "/collect", WithHost(handleCollect))
 
+	// OAuth 2.1 authorization server (opt-in per environment). The .well-known
+	// discovery documents live off the app root, not under /_stormkit. All fall
+	// through to normal app serving when OAuth is disabled for the host.
+	wk := s.NewEndpoint("/.well-known")
+	wk.Handler(http.MethodGet, "/oauth-authorization-server", WithHost(handleOAuthMetadataAS))
+	wk.Handler(http.MethodGet, "/oauth-protected-resource", WithHost(handleOAuthMetadataResource))
+
+	oauth := s.NewEndpoint("/_stormkit/oauth")
+	oauth.Handler(http.MethodGet, "/authorize", WithHost(handleOAuthAuthorize))
+	oauth.Handler(http.MethodPost, "/authorize", WithHost(handleOAuthGrant))
+	oauth.Handler(http.MethodOptions, "/authorize", WithHost(handleOAuthGrant))
+	oauth.Handler(http.MethodPost, "/token", WithHost(handleOAuthToken))
+	oauth.Handler(http.MethodOptions, "/token", WithHost(handleOAuthToken))
+
 	auth := s.NewEndpoint("/_stormkit/auth")
 
 	// Every path is registered for GET, POST and OPTIONS regardless of the

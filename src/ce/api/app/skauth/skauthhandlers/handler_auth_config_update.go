@@ -17,6 +17,7 @@ type AuthConfigUpdateRequest struct {
 	TTL            int      `json:"tokenTtl"`
 	Status         bool     `json:"status"`
 	AllowedOrigins []string `json:"allowedOrigins"`
+	OAuthEnabled   bool     `json:"oauthEnabled"`
 }
 
 func handlerAuthConfigUpdate(req *app.RequestContext) *shttp.Response {
@@ -92,6 +93,7 @@ func handlerAuthConfigUpdate(req *app.RequestContext) *shttp.Response {
 	env.AuthConf.TTL = data.TTL
 	env.AuthConf.Status = data.Status
 	env.AuthConf.AllowedOrigins = allowedOrigins
+	env.AuthConf.OAuth = &buildconf.OAuthConf{Enabled: data.OAuthEnabled}
 
 	err = store.SaveAuthConf(req.Context(), req.EnvID, env.AuthConf)
 

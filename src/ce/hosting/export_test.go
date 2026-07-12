@@ -40,6 +40,15 @@ func HandleAnalyticsScript(req *RequestContext) *shttp.Response {
 	return handleAnalyticsScript(req)
 }
 
+// OAuth route handler seams for the external hosting_test package.
+func HandleOAuthMetadataAS(req *RequestContext) *shttp.Response { return handleOAuthMetadataAS(req) }
+func HandleOAuthMetadataResource(req *RequestContext) *shttp.Response {
+	return handleOAuthMetadataResource(req)
+}
+func HandleOAuthAuthorize(req *RequestContext) *shttp.Response { return handleOAuthAuthorize(req) }
+func HandleOAuthGrant(req *RequestContext) *shttp.Response     { return handleOAuthGrant(req) }
+func HandleOAuthToken(req *RequestContext) *shttp.Response     { return handleOAuthToken(req) }
+
 // ServeAuth dispatches a /_stormkit/auth/* request to its route handler, the
 // same way registerReservedRoutes wires them into mux. It mirrors the WithSKAuth
 // (*shttp.Response, error) signature — always a nil error — so the terminal
