@@ -29,6 +29,11 @@ func InjectSnippets(req *RequestContext, res *shttp.Response) *shttp.Response {
 	return injectSnippets(req, res)
 }
 
+// InjectOAuthChallenge exposes injectOAuthChallenge for tests.
+func InjectOAuthChallenge(req *RequestContext, res *shttp.Response) *shttp.Response {
+	return injectOAuthChallenge(req, res)
+}
+
 // HandleAuthVerify exposes the reserved /_stormkit/auth/verify route handler.
 // Reserved endpoints are unexported handlers now that they are routes rather
 // than middleware branches; this seam lets the existing tests drive the handler
