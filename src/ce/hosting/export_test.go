@@ -1,11 +1,14 @@
 package hosting
 
 import (
+	"context"
+
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/analytics"
 	"github.com/stormkit-io/stormkit-io/src/lib/pool"
+	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 )
 
@@ -45,9 +48,27 @@ func HandleOAuthMetadataAS(req *RequestContext) *shttp.Response { return handleO
 func HandleOAuthMetadataResource(req *RequestContext) *shttp.Response {
 	return handleOAuthMetadataResource(req)
 }
+func HandleOAuthRegister(req *RequestContext) *shttp.Response  { return handleOAuthRegister(req) }
 func HandleOAuthAuthorize(req *RequestContext) *shttp.Response { return handleOAuthAuthorize(req) }
 func HandleOAuthGrant(req *RequestContext) *shttp.Response     { return handleOAuthGrant(req) }
 func HandleOAuthToken(req *RequestContext) *shttp.Response     { return handleOAuthToken(req) }
+
+// OAuthRegisterRateMax exposes the per-host registration limit so the rate-limit
+// test can drive it up to the threshold without hard-coding the constant.
+func OAuthRegisterRateMax() int { return registerRateMax }
+
+// ResetOAuthRateLimit clears the registration counters for a host (across every
+// caller-IP window) so tests start from a clean slate regardless of prior runs
+// against the shared Redis.
+func ResetOAuthRateLimit(host string) {
+	c := rediscache.Client()
+
+	keys, _ := c.Keys(context.Background(), "oauth:reg:rate:"+host+":*")
+
+	if len(keys) > 0 {
+		c.Del(context.Background(), keys...)
+	}
+}
 
 // ServeAuth dispatches a /_stormkit/auth/* request to its route handler, the
 // same way registerReservedRoutes wires them into mux. It mirrors the WithSKAuth

@@ -22,6 +22,58 @@ import (
 // codes used by the magic-link landing.
 var oauthCodeStore = oneTimeCode{prefix: "oauth:code:", ttl: 5 * time.Minute}
 
+// oauthScope pairs a scope token with the human-readable label shown on the
+// consent screen. The catalog is advertised via scopes_supported so clients can
+// discover what they may request.
+type oauthScope struct {
+	Name  string
+	Label string
+}
+
+// oauthScopeCatalog is the fixed set of scopes this authorization server
+// understands. Because the access token only carries identity (uid/eml) and the
+// edge injects X-User-Id, scopes are informational — they give the consent
+// screen meaningful labels rather than enforcing per-scope access. Unknown
+// requested scopes still render, using their raw token as the label.
+var oauthScopeCatalog = []oauthScope{
+	{Name: "openid", Label: "Verify your identity"},
+	{Name: "email", Label: "Access your email address"},
+	{Name: "profile", Label: "Access your basic profile information"},
+}
+
+func oauthScopesSupported() []string {
+	names := make([]string, len(oauthScopeCatalog))
+
+	for i, s := range oauthScopeCatalog {
+		names[i] = s.Name
+	}
+
+	return names
+}
+
+// scopeLabels maps a space-separated scope request to the display labels shown
+// on consent. A requested scope missing from the catalog falls back to its raw
+// token, so the user always sees exactly what was asked for.
+func scopeLabels(scope string) []string {
+	fields := strings.Fields(scope)
+	labels := make([]string, 0, len(fields))
+
+	for _, f := range fields {
+		label := f
+
+		for _, s := range oauthScopeCatalog {
+			if s.Name == f {
+				label = s.Label
+				break
+			}
+		}
+
+		labels = append(labels, label)
+	}
+
+	return labels
+}
+
 // oauthServer implements the OAuth 2.1 authorization server layered on SkAuth.
 // The end user (an app's own SkAuth user) is the resource owner; access tokens
 // are signed with the environment's SkAuth secret, so the existing edge
@@ -52,6 +104,7 @@ func serveOAuth(fn func(*oauthServer) *shttp.Response) func(*RequestContext) *sh
 var (
 	handleOAuthMetadataAS       = serveOAuth((*oauthServer).metadataAS)
 	handleOAuthMetadataResource = serveOAuth((*oauthServer).metadataResource)
+	handleOAuthRegister         = serveOAuth((*oauthServer).register)
 	handleOAuthAuthorize        = serveOAuth((*oauthServer).authorize)
 	handleOAuthGrant            = serveOAuth((*oauthServer).grant)
 	handleOAuthToken            = serveOAuth((*oauthServer).token)
@@ -85,10 +138,12 @@ func (o *oauthServer) metadataAS() *shttp.Response {
 		"issuer":                                iss,
 		"authorization_endpoint":                iss + "/_stormkit/oauth/authorize",
 		"token_endpoint":                        iss + "/_stormkit/oauth/token",
+		"registration_endpoint":                 iss + "/_stormkit/oauth/register",
 		"response_types_supported":              []string{"code"},
 		"grant_types_supported":                 []string{"authorization_code"},
 		"code_challenge_methods_supported":      []string{"S256"},
 		"token_endpoint_auth_methods_supported": []string{"none"},
+		"scopes_supported":                      oauthScopesSupported(),
 	})
 }
 
@@ -103,6 +158,110 @@ func (o *oauthServer) metadataResource() *shttp.Response {
 		"authorization_servers":    []string{iss},
 		"bearer_methods_supported": []string{"header"},
 	})
+}
+
+// registrationRequest is the subset of RFC 7591 client metadata we honour. MCP
+// connectors are public PKCE clients, so we only need their redirect_uris and a
+// display name; everything else is validated for compatibility but not stored.
+type registrationRequest struct {
+	RedirectURIs            []string `json:"redirect_uris"`
+	ClientName              string   `json:"client_name"`
+	Scope                   string   `json:"scope"`
+	TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method"`
+}
+
+// Bounds on the unauthenticated registration request. They cap how much an
+// anonymous caller can push into Redis under the sliding 30-day TTL: the body
+// cap fences off the raw read, and the field caps bound what actually gets
+// persisted so a single record can't be inflated with a giant name or thousands
+// of redirect_uris.
+const (
+	maxRegisterBodyBytes = 16 * 1024
+	maxRedirectURIs      = 10
+	maxClientNameLen     = 256
+	maxScopeLen          = 512
+)
+
+// register serves POST /_stormkit/oauth/register — Dynamic Client Registration
+// (RFC 7591). It is unauthenticated by design (MCP clients self-provision before
+// any user is involved), so it is rate-limited per host and every redirect_uri
+// must sit on an operator-declared AllowedOrigin. Public clients only: we never
+// mint a client_secret.
+func (o *oauthServer) register() *shttp.Response {
+	if !oauthClients.registerAllowed(o.req.Context(), o.req.Host.Name, o.req.RemoteIP()) {
+		return oauthJSON(http.StatusTooManyRequests, oauthErr("temporarily_unavailable", "registration rate limit exceeded, retry later"))
+	}
+
+	if o.req.Request != nil && o.req.Request.Body != nil {
+		o.req.Request.Body = http.MaxBytesReader(nil, o.req.Request.Body, maxRegisterBodyBytes)
+	}
+
+	var body registrationRequest
+
+	if err := o.req.Post(&body); err != nil {
+		return oauthJSON(http.StatusBadRequest, oauthErr("invalid_client_metadata", "request body must be valid JSON within the size limit"))
+	}
+
+	if len(body.RedirectURIs) == 0 {
+		return oauthJSON(http.StatusBadRequest, oauthErr("invalid_redirect_uri", "at least one redirect_uri is required"))
+	}
+
+	if len(body.RedirectURIs) > maxRedirectURIs {
+		return oauthJSON(http.StatusBadRequest, oauthErr("invalid_redirect_uri", "too many redirect_uris"))
+	}
+
+	if len(body.ClientName) > maxClientNameLen || len(body.Scope) > maxScopeLen {
+		return oauthJSON(http.StatusBadRequest, oauthErr("invalid_client_metadata", "client_name or scope is too long"))
+	}
+
+	for _, uri := range body.RedirectURIs {
+		if !o.redirectAllowed(uri) {
+			return oauthJSON(http.StatusBadRequest, oauthErr("invalid_redirect_uri", "every redirect_uri must be on an allowed origin"))
+		}
+	}
+
+	// We only issue public (PKCE) clients, so a request for a confidential auth
+	// method is refused rather than silently downgraded to none.
+	if body.TokenEndpointAuthMethod != "" && body.TokenEndpointAuthMethod != "none" {
+		return oauthJSON(http.StatusBadRequest, oauthErr("invalid_client_metadata", "only token_endpoint_auth_method=none (public client) is supported"))
+	}
+
+	client, err := oauthClients.register(o.req.Context(), oauthClient{
+		ClientName:   body.ClientName,
+		RedirectURIs: body.RedirectURIs,
+		Scope:        body.Scope,
+		IssuedAt:     time.Now().Unix(),
+	})
+
+	if err != nil {
+		return oauthJSON(http.StatusInternalServerError, oauthErr("server_error", ""))
+	}
+
+	return oauthJSON(http.StatusCreated, map[string]any{
+		"client_id":                  client.ClientID,
+		"client_id_issued_at":        client.IssuedAt,
+		"redirect_uris":              client.RedirectURIs,
+		"client_name":                client.ClientName,
+		"scope":                      client.Scope,
+		"grant_types":                []string{"authorization_code"},
+		"response_types":             []string{"code"},
+		"token_endpoint_auth_method": "none",
+	})
+}
+
+// resolveClient looks up the Dynamic Client Registration record for clientID.
+// It returns (client, true) when a record exists and (zero, false) for an
+// unregistered client_id — including on a Redis outage — so callers fall back to
+// the origin-only redirect check. The AllowedOrigins gate still holds in the
+// fallback, so degrading is safe.
+func (o *oauthServer) resolveClient(clientID string) (oauthClient, bool) {
+	client, err := oauthClients.get(o.req.Context(), clientID)
+
+	if err != nil {
+		return oauthClient{}, false
+	}
+
+	return client, true
 }
 
 type authzParams struct {
@@ -156,6 +315,14 @@ func (o *oauthServer) authorize() *shttp.Response {
 		return o.errorPage("The redirect_uri is not allowed for this application.")
 	}
 
+	// A registered client narrows the check to exactly the redirect_uris it
+	// registered; an unregistered client_id falls back to the origin-only gate.
+	client, registered := o.resolveClient(p.clientID)
+
+	if registered && !client.allowsRedirect(p.redirectURI) {
+		return o.errorPage("The redirect_uri is not registered for this client.")
+	}
+
 	if p.responseType != "code" {
 		return o.redirectError(p, "unsupported_response_type", "only response_type=code is supported")
 	}
@@ -164,7 +331,7 @@ func (o *oauthServer) authorize() *shttp.Response {
 		return o.redirectError(p, "invalid_request", "a PKCE code_challenge using S256 is required")
 	}
 
-	return o.consentPage(p)
+	return o.consentPage(p, client)
 }
 
 // grant serves POST /_stormkit/oauth/authorize. The consent page calls it with
@@ -183,6 +350,10 @@ func (o *oauthServer) grant() *shttp.Response {
 
 	if p.codeChallenge == "" || p.codeChallengeMethod != "S256" {
 		return oauthJSON(http.StatusBadRequest, oauthErr("invalid_request", "PKCE S256 required"))
+	}
+
+	if client, registered := o.resolveClient(p.clientID); registered && !client.allowsRedirect(p.redirectURI) {
+		return oauthJSON(http.StatusBadRequest, oauthErr("invalid_request", "redirect_uri is not registered for this client"))
 	}
 
 	claims := user.ParseJWT(&user.ParseJWTArgs{
@@ -338,12 +509,18 @@ func (o *oauthServer) errorPage(msg string) *shttp.Response {
 // consentPage renders the client-assisted consent screen. The script pulls the
 // SkAuth token from localStorage and POSTs it back to grant(); when signed out
 // it prompts the user to sign in first. html/template escapes the injected
-// values in both HTML and JS contexts.
-func (o *oauthServer) consentPage(p authzParams) *shttp.Response {
-	client := p.clientID
+// values in both HTML and JS contexts. A registered client is shown by its
+// declared client_name; the requested scopes are listed with human-readable
+// labels so the user sees exactly what is being granted.
+func (o *oauthServer) consentPage(p authzParams, client oauthClient) *shttp.Response {
+	name := client.ClientName
 
-	if client == "" {
-		client = "An application"
+	if name == "" {
+		name = p.clientID
+	}
+
+	if name == "" {
+		name = "An application"
 	}
 
 	deny := appendQuery(p.redirectURI, map[string]string{"error": "access_denied", "state": p.state})
@@ -352,6 +529,11 @@ func (o *oauthServer) consentPage(p authzParams) *shttp.Response {
 <div class="container">
 	<h1>Authorize access</h1>
 	<h3><strong>{{ .client }}</strong> is requesting access to your account.</h3>
+	{{ if .scopes }}
+	<ul class="skoauth-scopes">
+		{{ range .scopes }}<li>{{ . }}</li>{{ end }}
+	</ul>
+	{{ end }}
 	<div id="skoauth-signedout" class="form-group error" style="display:none">
 		You are not signed in. Please sign in to this application in another tab, then reload this page to continue.
 	</div>
@@ -401,7 +583,7 @@ func (o *oauthServer) consentPage(p authzParams) *shttp.Response {
 		Data: html.MustRender(html.RenderArgs{
 			PageTitle:   "Stormkit - Authorize",
 			PageContent: content,
-			ContentData: map[string]any{"client": client, "deny": deny},
+			ContentData: map[string]any{"client": name, "deny": deny, "scopes": scopeLabels(p.scope)},
 		}),
 	}
 }
