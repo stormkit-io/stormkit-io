@@ -116,6 +116,7 @@ func (r *RequestServer) finalize(res *shttp.Response) *shttp.Response {
 
 	res = injectHeaders(r.req, res)
 	res = injectSnippets(r.req, res)
+	res = injectOAuthChallenge(r.req, res)
 
 	if r.req.Host.Config.IsEnterprise {
 		contentType := strings.ToLower(res.Headers.Get("Content-Type"))
@@ -809,6 +810,36 @@ func injectHeaders(req *RequestContext, res *shttp.Response) *shttp.Response {
 			}
 		}
 	}
+
+	return res
+}
+
+// injectOAuthChallenge adds the RFC 9728 resource-metadata challenge to 401
+// responses from an OAuth-server-enabled environment. MCP connectors
+// (ChatGPT/Claude) rely on this header to discover the authorization server and
+// begin the OAuth flow — without it an unauthenticated request to a protected
+// app route just looks like a dead endpoint. It is only added when the app did
+// not set its own WWW-Authenticate, so an app that speaks OAuth itself is never
+// overridden. The metadata URL mirrors the issuer used by the .well-known docs.
+func injectOAuthChallenge(req *RequestContext, res *shttp.Response) *shttp.Response {
+	if res == nil || res.Status != http.StatusUnauthorized {
+		return res
+	}
+
+	if req.Host.Config == nil || !req.Host.Config.SKAuth.OAuthServerEnabled() {
+		return res
+	}
+
+	if res.Headers == nil {
+		res.Headers = make(http.Header)
+	}
+
+	if res.Headers.Get("WWW-Authenticate") != "" {
+		return res
+	}
+
+	metadataURL := "https://" + req.Host.Name + "/.well-known/oauth-protected-resource"
+	res.Headers.Set("WWW-Authenticate", `Bearer resource_metadata="`+metadataURL+`"`)
 
 	return res
 }
