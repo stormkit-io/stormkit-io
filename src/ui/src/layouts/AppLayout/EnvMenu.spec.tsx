@@ -97,10 +97,24 @@ describe("~/layouts/AppLayout/EnvMenu.tsx", () => {
     ]);
   });
 
-  // Auth requires a database and is self-hosted only — both cloud and the
-  // development edition must hide it.
-  it.each<Edition>(["cloud", "development"])(
-    "hides the Authentication link on the %s edition",
+  // Auth requires a database, which every non-cloud edition has — so only the
+  // cloud edition hides it.
+  it("hides the Authentication link on the cloud edition", () => {
+    wrapper.unmount(); // drop the self-hosted render from beforeEach
+    createWrapper({ edition: "cloud" });
+
+    const links = wrapper
+      .getAllByRole("link")
+      .map(link => link.getAttribute("href"));
+
+    expect(links).not.toContain(
+      `/apps/${defaultApp.id}/environments/${defaultEnvs[0].id}/auth`,
+    );
+    expect(wrapper.queryByText("Authentication")).toBeNull();
+  });
+
+  it.each<Edition>(["self-hosted", "development"])(
+    "shows the Authentication link on the %s edition",
     edition => {
       wrapper.unmount(); // drop the self-hosted render from beforeEach
       createWrapper({ edition });
@@ -109,10 +123,9 @@ describe("~/layouts/AppLayout/EnvMenu.tsx", () => {
         .getAllByRole("link")
         .map(link => link.getAttribute("href"));
 
-      expect(links).not.toContain(
+      expect(links).toContain(
         `/apps/${defaultApp.id}/environments/${defaultEnvs[0].id}/auth`,
       );
-      expect(wrapper.queryByText("Authentication")).toBeNull();
     },
   );
 });

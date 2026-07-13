@@ -46,10 +46,12 @@ func handlerAuths(req *app.RequestContext) *shttp.Response {
 	successURL := ""
 	ttl := 0
 	allowedOrigins := []string{}
+	oauthServerEnabled := false
 
 	if env.AuthConf != nil {
 		successURL = env.AuthConf.SuccessURL
 		ttl = env.AuthConf.TTL
+		oauthServerEnabled = env.AuthConf.OAuthServerEnabled()
 
 		if env.AuthConf.AllowedOrigins != nil {
 			allowedOrigins = env.AuthConf.AllowedOrigins
@@ -58,12 +60,13 @@ func handlerAuths(req *app.RequestContext) *shttp.Response {
 
 	return &shttp.Response{
 		Data: map[string]any{
-			"providers":      returnValue,
-			"successUrl":     successURL,
-			"tokenTtl":       ttl,
-			"allowedOrigins": allowedOrigins,
-			"redirectUrl":    skauth.RedirectURL(),
-			"authUrl":        skauth.AuthURL(),
+			"providers":          returnValue,
+			"successUrl":         successURL,
+			"tokenTtl":           ttl,
+			"allowedOrigins":     allowedOrigins,
+			"oauthServerEnabled": oauthServerEnabled,
+			"redirectUrl":        skauth.RedirectURL(),
+			"authUrl":            skauth.AuthURL(),
 		},
 	}
 }

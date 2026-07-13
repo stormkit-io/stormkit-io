@@ -17,6 +17,11 @@ type AuthConfigUpdateRequest struct {
 	TTL            int      `json:"tokenTtl"`
 	Status         bool     `json:"status"`
 	AllowedOrigins []string `json:"allowedOrigins"`
+
+	// OAuthServerEnabled is a pointer so an omitted field leaves the stored
+	// setting untouched: a client that saves other fields (or an older UI that
+	// doesn't know the field) must not silently disable a live OAuth server.
+	OAuthServerEnabled *bool `json:"oauthServerEnabled"`
 }
 
 func handlerAuthConfigUpdate(req *app.RequestContext) *shttp.Response {
@@ -92,6 +97,10 @@ func handlerAuthConfigUpdate(req *app.RequestContext) *shttp.Response {
 	env.AuthConf.TTL = data.TTL
 	env.AuthConf.Status = data.Status
 	env.AuthConf.AllowedOrigins = allowedOrigins
+
+	if data.OAuthServerEnabled != nil {
+		env.AuthConf.OAuthServer = &buildconf.OAuthServerConf{Enabled: *data.OAuthServerEnabled}
+	}
 
 	err = store.SaveAuthConf(req.Context(), req.EnvID, env.AuthConf)
 

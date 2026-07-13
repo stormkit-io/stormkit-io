@@ -347,6 +347,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
           tokenTtl: 0,
           status: true,
           allowedOrigins: [],
+          oauthServerEnabled: false,
         })
         .reply(200);
 
@@ -369,6 +370,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
             "https://app.example.com",
             "https://dev.example.com",
           ],
+          oauthServerEnabled: false,
         })
         .reply(200);
 
@@ -388,6 +390,31 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
       await waitFor(() => {
         expect(scope.isDone()).toBe(true);
         expect(wrapper.getByText("Settings saved successfully")).toBeTruthy();
+      });
+    });
+
+    it("should submit the OAuth toggle when enabled", async () => {
+      const scope = nock(apiDomain)
+        .post("/skauth/config", {
+          envId: currentEnv.id,
+          successUrl: "",
+          tokenTtl: 0,
+          status: true,
+          allowedOrigins: [],
+          oauthServerEnabled: true,
+        })
+        .reply(200);
+
+      fireEvent.click(
+        await wrapper.findByLabelText("Enable OAuth server (MCP connectors)"),
+      );
+
+      fireEvent.submit(
+        wrapper.getByRole("button", { name: "Save" }).closest("form")!,
+      );
+
+      await waitFor(() => {
+        expect(scope.isDone()).toBe(true);
       });
     });
 
