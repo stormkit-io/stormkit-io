@@ -365,6 +365,13 @@ export default function SkAuth() {
               <Box component="code" sx={{ display: "block", fontSize: 12 }}>
                 /.well-known/oauth-protected-resource
               </Box>
+              <Typography sx={{ mt: 2, mb: 1 }}>
+                Connectors self-register via Dynamic Client Registration (RFC
+                7591); no manual client setup is needed:
+              </Typography>
+              <Box component="code" sx={{ display: "block", fontSize: 12 }}>
+                POST /_stormkit/oauth/register
+              </Box>
             </Alert>
           )}
         </Box>
