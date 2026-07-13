@@ -1,0 +1,56 @@
+*.swp
+build/
+vendor/
+tmp/
+.DS_Store
+.idea/
+.idea
+.vscode
+# Binary execs
+backend
+migrate
+fmt
+main
+.env
+
+# Ignore the store for now
+api-store/
+
+node_modules/
+
+# Ignore the main.go on the top level.
+# It is used to do quick manual tests.
+/main.go
+/test.go
+
+### Go ###
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Ignore secret environment variables
+.env.secret
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+### Go Patch ###
+/vendor/
+/Godeps/
+
+# binary names
+release/
+bin/
+
+.overmind.sock
+
+.claude/

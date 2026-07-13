@@ -1,0 +1,58 @@
+{
+  "name": "www-stormkit-io",
+  "version": "1.0.0",
+  "description": "Stormkit is a serverless platform for users to deploy fullstack javascript applications using git providers. It comes with application previews, code injections and  many more features.",
+  "author": {
+    "email": "hello@stormkit.io",
+    "name": "Stormkit",
+    "url": "https://www.stormkit.io"
+  },
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/vite-server.ts",
+    "build": "npm run build:docs && npm run build:spa && npm run build:ssr && npm run build:ssg && rm -rf .stormkit/server && npm run build:api",
+    "build:docs": "DOCS=true tsx ./src/vite-server.ts",
+    "build:spa": "rm -rf .stormkit && vite build -c vite.config.ts",
+    "build:ssg": "SSG=true tsx ./src/vite-server.ts",
+    "build:ssr": "vite build -c vite.config.ssr.ts",
+    "build:api": "rm -rf .stormkit/api && tsx vite.config.api.ts"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@mui/icons-material": "^7.1.2",
+    "@mui/material": "^7.1.2",
+    "@mui/utils": "^7.1.1",
+    "minisearch": "^6.3.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-router": "^7.6.2",
+    "react-router-dom": "^7.6.2"
+  },
+  "devDependencies": {
+    "@emotion/server": "^11.11.0",
+    "@stormkit/serverless": "^2.5.4",
+    "@types/express": "^4.17.21",
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^18.19.75",
+    "@types/react-autosuggest": "^10.1.11",
+    "@types/react-dom": "^19.1.6",
+    "@types/react-highlight-words": "^0.16.7",
+    "@types/react-router-dom": "^5.3.3",
+    "@vitejs/plugin-react": "^4.3.4",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "glob": "^10.4.5",
+    "jose": "^5.9.6",
+    "markdown-it": "^14.1.0",
+    "markdown-it-prism": "^2.3.0",
+    "node-fetch": "^3.3.2",
+    "prismjs": "^1.29.0",
+    "react-type-animation": "^3.2.0",
+    "tsx": "^4.19.3",
+    "typescript": "^4.9.5",
+    "vite": "^6.3.5",
+    "vite-plugin-static-copy": "^3.0.2"
+  }
+}

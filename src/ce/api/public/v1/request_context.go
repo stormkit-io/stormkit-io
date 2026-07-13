@@ -1,0 +1,382 @@
+package publicapiv1
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
+	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
+	"github.com/stormkit-io/stormkit-io/src/ee/api/team"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
+	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
+	"github.com/stormkit-io/stormkit-io/src/lib/slog"
+	"github.com/stormkit-io/stormkit-io/src/lib/types"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
+)
+
+type RequestContext struct {
+	*shttp.RequestContext
+	Token  *apikey.Token
+	Env    *buildconf.Env
+	App    *app.App
+	TeamID types.ID
+	// User is populated for JWT-authenticated requests. It is nil for SK_-key requests.
+	User *user.User
+	// vars is an optional override for URL path variables used by MCP tool
+	// wrappers, which call handlers directly without going through gorilla mux.
+	vars map[string]string
+}
+
+// Vars shadows the embedded shttp.RequestContext.Vars() so that MCP tool
+// wrappers can inject path variables without a live gorilla mux route match.
+func (r *RequestContext) Vars() map[string]string {
+	if r.vars != nil {
+		return r.vars
+	}
+
+	return r.RequestContext.Vars()
+}
+
+func (req *RequestContext) License() *admin.License {
+	if config.IsSelfHosted() {
+		return admin.CurrentLicense()
+	}
+
+	if req.Token == nil {
+		return &admin.License{}
+	}
+
+	var usr *user.User
+	var err error
+
+	if req.Token.UserID != 0 {
+		usr, err = user.NewStore().UserByID(req.Token.UserID)
+	} else if req.Token.TeamID != 0 {
+		usr, err = user.NewStore().TeamOwner(req.Context(), req.Token.TeamID)
+	} else if req.Token.EnvID != 0 {
+		usr, err = user.NewStore().EnvOwner(req.Context(), req.Token.EnvID)
+	} else if req.Token.AppID != 0 {
+		usr, err = user.NewStore().AppOwner(req.Context(), req.Token.AppID)
+	}
+
+	if err != nil {
+		slog.Errorf("error fetching user for license check: %s", err.Error())
+		return &admin.License{}
+	}
+
+	if usr == nil {
+		return &admin.License{}
+	}
+
+	return user.License(usr)
+}
+
+// RequireEnterprise guards enterprise-only handlers in the API-key
+// authenticated public API, mirroring user.WithEE for session auth. It returns
+// a non-nil response when the principal is not on an enterprise license, which
+// the caller must return immediately.
+func (req *RequestContext) RequireEnterprise() *shttp.Response {
+	if !req.License().IsEnterprise() {
+		return shttp.Error(user.ErrEnterpriseOnly)
+	}
+
+	return nil
+}
+
+// GetAuditData satisfies the audit.AuditContexter interface without importing
+// the audit package (Go structural typing eliminates the import cycle).
+func (req *RequestContext) GetAuditData() audit.AuditData {
+	d := audit.AuditData{
+		Ctx: req.Context(),
+	}
+
+	// Only API-key requests carry a meaningful token name. JWT (dashboard)
+	// requests get a synthetic token whose name is the user's display name —
+	// recording it would duplicate UserDisplay and misrepresent the audit, so
+	// leave TokenName empty for them (req.User is set only for JWT callers).
+	if req.Token != nil && req.User == nil {
+		d.TokenName = req.Token.Name
+	}
+
+	if req.App != nil {
+		d.AppID = req.App.ID
+		d.TeamID = req.App.TeamID
+	}
+
+	if req.TeamID != 0 {
+		d.TeamID = req.TeamID
+	}
+
+	if req.Env != nil {
+		d.EnvID = req.Env.ID
+		d.AppID = req.Env.AppID
+	}
+
+	if req.User != nil {
+		d.UserID = req.User.ID
+		d.UserDisplay = req.User.Display()
+	}
+
+	return d
+}
+
+// asAppContext converts this RequestContext into an *app.RequestContext so that
+// internal handlers can be reused without duplicating logic.
+func (req *RequestContext) asAppContext() *app.RequestContext {
+	envID := types.ID(0)
+
+	if req.Env != nil {
+		envID = req.Env.ID
+	}
+
+	return &app.RequestContext{
+		RequestContext: &user.RequestContext{
+			RequestContext: req.RequestContext,
+		},
+		App:   req.App,
+		EnvID: envID,
+		Token: req.Token,
+	}
+}
+
+type Opts struct {
+	MinimumScope string // apikey.SCOPE_*
+}
+
+func getOpts(opts ...*Opts) *Opts {
+	o := &Opts{}
+
+	if len(opts) == 1 && opts[0] != nil {
+		o = opts[0]
+	}
+
+	return o
+}
+
+func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) shttp.RequestFunc {
+	options := getOpts(opts...)
+
+	return func(req *shttp.RequestContext) *shttp.Response {
+		token := strings.Replace(req.Headers().Get("Authorization"), "Bearer ", "", 1)
+		request := &RequestContext{
+			RequestContext: req,
+		}
+
+		if !strings.HasPrefix(token, "SK_") {
+			uid := user.UIDFromBearer(token)
+
+			if uid == 0 {
+				return shttp.Forbidden()
+			}
+
+			usr, err := user.NewStore().UserByID(uid)
+
+			if err != nil {
+				return shttp.Error(err)
+			}
+
+			if usr == nil {
+				return shttp.Forbidden()
+			}
+
+			request.User = usr
+			request.Token = &apikey.Token{
+				UserID: usr.ID,
+				Scope:  apikey.SCOPE_USER,
+				Name:   usr.Display(),
+			}
+		} else {
+			key, err := apikey.NewStore().APIKey(req.Context(), token)
+
+			if err != nil {
+				return shttp.Error(err)
+			}
+
+			// This is an invalid key. A key needs to have either an app ID, user ID or team ID.
+			if key == nil || (key.UserID == 0 && key.AppID == 0 && key.TeamID == 0) {
+				return shttp.Forbidden()
+			}
+
+			request.Token = key
+		}
+
+		switch options.MinimumScope {
+		case apikey.SCOPE_USER:
+			if request.Token.UserID == 0 {
+				return shttp.Forbidden()
+			}
+		case apikey.SCOPE_TEAM:
+			request.TeamID = request.Token.TeamID
+
+			if request.TeamID == 0 {
+				request.TeamID = getTeamIDFromRequest(req)
+			}
+
+			// Validate membership if the key is not already tied to a team.
+			if request.Token.TeamID == 0 {
+				isMember := team.NewStore().IsMember(req.Context(), request.Token.UserID, request.TeamID)
+
+				if !isMember {
+					return shttp.Forbidden()
+				}
+			}
+		case apikey.SCOPE_APP:
+			appID := request.Token.AppID
+
+			if appID == 0 {
+				appID = getAppIDFromRequest(req)
+			}
+
+			if appID == 0 {
+				return shttp.NotFound()
+			}
+
+			app, err := app.NewStore().AppByID(req.Context(), appID)
+
+			if err != nil {
+				return shttp.Error(err)
+			}
+
+			if app == nil {
+				return shttp.NotFound()
+			}
+
+			request.App = app
+			request.TeamID = app.TeamID
+
+			// Validate membership if the key is not already tied to an app.
+			if request.Token.AppID == 0 {
+				if request.Token.TeamID != 0 {
+					if app.TeamID != request.Token.TeamID {
+						return shttp.Forbidden()
+					}
+				} else if request.Token.UserID != 0 {
+					isMember := team.NewStore().IsMember(req.Context(), request.Token.UserID, app.TeamID)
+
+					if !isMember {
+						return shttp.Forbidden()
+					}
+				}
+			}
+		case apikey.SCOPE_ENV:
+			envID := request.Token.EnvID
+
+			if envID == 0 {
+				envID = getEnvIDFromRequest(req)
+			}
+
+			env, err := buildconf.NewStore().EnvironmentByID(req.Context(), envID)
+
+			if err != nil {
+				return shttp.Error(err, fmt.Sprintf("error while fetching environment in v1: %s", err.Error()))
+			}
+
+			if env == nil {
+				return shttp.NotFound()
+			}
+
+			app, err := app.NewStore().AppByID(req.Context(), env.AppID)
+
+			if err != nil {
+				return shttp.Error(err, fmt.Sprintf("error while fetching app for environment in v1: %s", err.Error()))
+			}
+
+			if app == nil {
+				return shttp.NotFound()
+			}
+
+			request.Env = env
+			request.App = app
+			request.TeamID = app.TeamID
+
+			// Validate membership if the key is not already tied to an environment.
+			if request.Token.EnvID == 0 {
+				if request.Token.AppID != 0 && request.Token.AppID != env.AppID {
+					return shttp.Forbidden()
+				} else if request.Token.TeamID != 0 {
+					if app.TeamID != request.Token.TeamID {
+						return shttp.Forbidden()
+					}
+
+					request.App = app
+					request.TeamID = app.TeamID
+				} else if request.Token.UserID != 0 {
+					isMember := buildconf.NewStore().IsMember(req.Context(), env.ID, request.Token.UserID)
+
+					if !isMember {
+						return shttp.Forbidden()
+					}
+				}
+			}
+		}
+
+		return handler(request)
+	}
+}
+
+func isMultipart(req *shttp.RequestContext) bool {
+	return strings.HasPrefix(req.Header.Get("content-type"), "multipart/form-data")
+}
+
+func getEnvIDFromRequest(req *shttp.RequestContext) types.ID {
+	if req.Method == shttp.MethodGet || req.Method == shttp.MethodDelete {
+		return utils.StringToID(req.Query().Get("envId"))
+	}
+
+	data := struct {
+		EnvId types.ID `json:"envId,string"`
+	}{}
+
+	if req.Method != shttp.MethodGet {
+		if isMultipart(req) {
+			data.EnvId = utils.StringToID(req.FormValue("envId"))
+		} else {
+			_ = req.Post(&data)
+		}
+	}
+
+	return data.EnvId
+}
+
+func getAppIDFromRequest(req *shttp.RequestContext) types.ID {
+	if req.Method == shttp.MethodGet || req.Method == shttp.MethodDelete {
+		return utils.StringToID(
+			utils.GetString(req.Vars()["appId"], req.Query().Get("appId")))
+	}
+
+	data := struct {
+		AppID types.ID `json:"appId,string"`
+	}{}
+
+	if req.Method != shttp.MethodGet {
+		if isMultipart(req) {
+			data.AppID = utils.StringToID(req.FormValue("appId"))
+		} else {
+			_ = req.Post(&data)
+		}
+	}
+
+	return data.AppID
+}
+
+func getTeamIDFromRequest(req *shttp.RequestContext) types.ID {
+	if req.Method == shttp.MethodGet || req.Method == shttp.MethodDelete {
+		return utils.StringToID(req.Query().Get("teamId"))
+	}
+
+	data := struct {
+		TeamID types.ID `json:"teamId,string"`
+	}{}
+
+	if isMultipart(req) {
+		data.TeamID = utils.StringToID(req.FormValue("teamId"))
+	} else {
+		_ = req.Post(&data)
+	}
+
+	return data.TeamID
+}

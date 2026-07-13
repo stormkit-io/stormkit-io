@@ -1,0 +1,131 @@
+package publicapiv1
+
+import (
+	"net/http"
+
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/redirects"
+	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
+	"github.com/stormkit-io/stormkit-io/src/lib/database"
+	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
+	"gopkg.in/guregu/null.v3"
+)
+
+type EnvAddRequest struct {
+	APIFolder          string                  `json:"apiFolder,omitempty"`
+	APIPathPrefix      string                  `json:"apiPathPrefix,omitempty"`
+	AutoDeploy         bool                    `json:"autoDeploy"`
+	AutoDeployBranches null.String             `json:"autoDeployBranches,omitempty"`
+	AutoDeployCommits  null.String             `json:"autoDeployCommits,omitempty"`
+	AutoPublish        bool                    `json:"autoPublish"`
+	Branch             string                  `json:"branch"`
+	BuildCmd           string                  `json:"buildCmd,omitempty"`
+	DistFolder         string                  `json:"distFolder,omitempty"`
+	WorkDir            string                  `json:"workDir,omitempty"`
+	EnvVars            map[string]string       `json:"envVars,omitempty"`
+	ErrorFile          string                  `json:"errorFile,omitempty"`
+	Headers            string                  `json:"headers,omitempty"`
+	HeadersFile        string                  `json:"headersFile,omitempty"`
+	InstallCmd         string                  `json:"installCmd,omitempty"`
+	Name               string                  `json:"name"`
+	PreviewLinks       null.Bool               `json:"previewLinks,omitempty"`
+	Redirects          []redirects.Redirect    `json:"redirects,omitempty"`
+	RedirectsFile      string                  `json:"redirectsFile,omitempty"`
+	ServerCmd          string                  `json:"serverCmd,omitempty"`
+	ServerFolder       string                  `json:"serverFolder,omitempty"`
+	StatusChecks       []buildconf.StatusCheck `json:"statusChecks,omitempty"`
+	CacheDirs          []string                `json:"cacheDirs,omitempty"`
+}
+
+func handlerEnvAdd(req *RequestContext) *shttp.Response {
+	data := &EnvAddRequest{}
+
+	if err := req.Post(data); err != nil {
+		return shttp.Error(err)
+	}
+
+	if data.Headers != "" {
+		if _, err := deploy.ParseHeaders(data.Headers); err != nil {
+			return shttp.BadRequest(map[string]any{"error": err.Error()})
+		}
+	}
+
+	cnf := &buildconf.Env{
+		Data: &buildconf.BuildConf{
+			APIFolder:     utils.TrimPath(data.APIFolder),
+			APIPathPrefix: utils.TrimPath(data.APIPathPrefix),
+			DistFolder:    utils.TrimPath(data.DistFolder),
+			WorkDir:       utils.TrimPath(data.WorkDir),
+			ErrorFile:     utils.TrimPath(data.ErrorFile),
+			HeadersFile:   utils.TrimPath(data.HeadersFile),
+			ServerFolder:  utils.TrimPath(data.ServerFolder),
+			RedirectsFile: utils.TrimPath(data.RedirectsFile),
+			Headers:       data.Headers,
+			BuildCmd:      data.BuildCmd,
+			InstallCmd:    data.InstallCmd,
+			PreviewLinks:  data.PreviewLinks,
+			ServerCmd:     data.ServerCmd,
+			Redirects:     data.Redirects,
+			Vars:          data.EnvVars,
+			StatusChecks:  data.StatusChecks,
+			CacheDirs:     buildconf.NormalizeCacheDirs(data.CacheDirs),
+		},
+		Name:        data.Name,
+		AppID:       req.App.ID,
+		Branch:      data.Branch,
+		AutoPublish: data.AutoPublish,
+		AutoDeploy:  data.AutoDeploy,
+	}
+
+	if data.AutoDeployBranches.Valid {
+		cnf.AutoDeployBranches = data.AutoDeployBranches
+	} else if data.AutoDeployCommits.Valid {
+		cnf.AutoDeployCommits = data.AutoDeployCommits
+	}
+
+	cnf.AutoDeploy = cnf.AutoDeploy || data.AutoDeployBranches.Valid || data.AutoDeployCommits.Valid
+
+	if err := buildconf.Validate(cnf); err != nil {
+		return &shttp.Response{
+			Status: http.StatusBadRequest,
+			Data: map[string][]string{
+				"errors": err,
+			},
+		}
+	}
+
+	if err := buildconf.NewStore().Insert(req.Context(), cnf); err != nil {
+		if database.IsDuplicate(err) {
+			return &shttp.Response{
+				Status: http.StatusConflict,
+				Data: map[string][]string{
+					"errors": {
+						"Environment name already exists for this application.",
+					},
+				},
+			}
+		}
+
+		return shttp.Error(err)
+	}
+
+	if req.License().IsEnterprise() {
+		err := audit.FromRequestContext(req).
+			WithAction(audit.CreateAction, audit.TypeEnv).
+			WithDiff(&audit.Diff{New: audit.DiffFields{EnvName: cnf.Name, EnvID: cnf.ID.String()}}).
+			Insert()
+
+		if err != nil {
+			return shttp.Error(err)
+		}
+	}
+
+	return &shttp.Response{
+		Status: http.StatusCreated,
+		Data: map[string]any{
+			"envId": cnf.ID.String(),
+		},
+	}
+}

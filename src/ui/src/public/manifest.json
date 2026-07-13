@@ -1,0 +1,20 @@
+{
+  "short_name": "SK",
+  "name": "Stormkit",
+  "icons": [
+    {
+      "src": "/favicon-69x69.png",
+      "sizes": "69x69",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon-299x299.png",
+      "sizes": "299x299",
+      "type": "image/png"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#f6005c",
+  "background_color": "#0f092b"
+}

@@ -1,0 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.min-h-12 {
+  min-height: 3rem;
+}

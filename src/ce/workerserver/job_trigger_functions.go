@@ -1,0 +1,110 @@
+package jobs
+
+import (
+	"context"
+	"encoding/json"
+	"time"
+
+	"github.com/adhocore/gronx"
+	"github.com/hibiken/asynq"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/functiontrigger"
+	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
+	"github.com/stormkit-io/stormkit-io/src/lib/slog"
+	"github.com/stormkit-io/stormkit-io/src/lib/tasks"
+	"github.com/stormkit-io/stormkit-io/src/lib/types"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
+)
+
+type FunctionTriggerMessage struct {
+	ID        types.ID      `json:"id,string"`
+	Payload   []byte        `json:"payload"`
+	Headers   shttp.Headers `json:"headers"`
+	Method    string        `json:"method"`
+	URL       string        `json:"url"`
+	NextRunAt utils.Unix    `json:"nextRunAt"`
+}
+
+// InvokeDueFunctionTriggers fetches function triggers from the database that are due date. Matching
+// function triggers will be prepared and sent to the queue for execution.
+func InvokeDueFunctionTriggers(ctx context.Context) error {
+	tfs, err := functiontrigger.NewStore().DueTriggers(ctx)
+
+	if err != nil {
+		slog.Errorf("error while selecting due function trigger: %v", err)
+		return err
+	}
+
+	messages := []FunctionTriggerMessage{}
+
+	for _, tf := range tfs {
+		nextRunAt, err := gronx.NextTickAfter(tf.Cron, time.Now().UTC(), false)
+
+		if err != nil {
+			slog.Errorf("error while calculating next tick: %s", err.Error())
+		}
+
+		messages = append(messages, FunctionTriggerMessage{
+			URL:       tf.Options.URL,
+			Payload:   tf.Options.Payload,
+			Headers:   tf.Options.Headers,
+			Method:    tf.Options.Method,
+			ID:        tf.ID,
+			NextRunAt: utils.UnixFrom(nextRunAt),
+		})
+	}
+
+	if len(messages) == 0 {
+		return nil
+	}
+
+	if _, err := tasks.Enqueue(ctx, tasks.TriggerFunctionHttp, messages, nil); err != nil {
+		slog.Errorf("error occurred while enqueuing task %s", err.Error())
+		return err
+	}
+
+	return nil
+}
+
+// HandleFunctionTrigger handles triggering a function trigger.
+func HandleFunctionTrigger(ctx context.Context, t *asynq.Task) error {
+	tfs := []FunctionTriggerMessage{}
+
+	if err := json.Unmarshal(t.Payload(), &tfs); err != nil {
+		slog.Errorf("HandleTriggerFunction cannot unmarshal payload information: %v", err)
+		return err
+	}
+
+	logs := []functiontrigger.TriggerLog{}
+	updates := map[types.ID]utils.Unix{}
+
+	for _, tf := range tfs {
+		log, err := functiontrigger.Run(functiontrigger.RunParams{
+			TriggerID: tf.ID,
+			Method:    tf.Method,
+			URL:       tf.URL,
+			Headers:   tf.Headers,
+			Payload:   tf.Payload,
+		})
+
+		logs = append(logs, log)
+
+		if err != nil {
+			slog.Errorf("trigger function request failed %v", err)
+			continue
+		}
+
+		updates[tf.ID] = tf.NextRunAt
+	}
+
+	store := functiontrigger.NewStore()
+
+	if err := store.InsertLogs(ctx, logs); err != nil {
+		slog.Errorf("error while inserting function trigger logs: %s", err.Error())
+	}
+
+	if err := store.SetNextRunAt(ctx, updates); err != nil {
+		slog.Errorf("error while inserting function trigger batch updates: %s", err.Error())
+	}
+
+	return nil
+}

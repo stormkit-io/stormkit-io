@@ -1,0 +1,59 @@
+html {
+  box-sizing: border-box;
+}
+
+*,
+*:before,
+*:after {
+  box-sizing: inherit;
+}
+
+body {
+  line-height: 1.3;
+  font-weight: 200;
+  font-size: 14px;
+}
+
+a {
+  @apply text-secondary;
+}
+
+a:hover {
+  @apply text-pink-50;
+  text-decoration: none;
+}
+
+::-webkit-input-placeholder {
+  @apply text-gray-50;
+}
+::-moz-placeholder {
+  @apply text-gray-50;
+}
+:-ms-input-placeholder {
+  @apply text-gray-50;
+}
+:-moz-placeholder {
+  @apply text-gray-50;
+}
+
+b {
+  font-weight: bold;
+}
+
+i {
+  font-style: italic;
+}
+
+.cm-line,
+.cm-gutterElement {
+  font-size: 0.75rem;
+}
+
+.cm-theme-dark .cm-editor {
+  background-color: rgba(0, 0, 0, 0.1);
+  font-family: monospace;
+}
+
+.cm-theme-dark .cm-content .cm-activeLine {
+  background-color: rgba(0, 0, 0, 0.1);
+}

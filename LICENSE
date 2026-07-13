@@ -1,0 +1,69 @@
+# Stormkit License
+
+This repository contains both Community Edition (CE) and Enterprise Edition (EE) components of Stormkit, each governed by different licensing terms.
+
+## Community Edition (CE)
+
+The Community Edition components, located in the `src/ce/` directory, are licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
+
+### GNU Affero General Public License v3.0
+
+**Licensor:** Stormkit OÜ  
+**Licensed Work:** Stormkit Community Edition (the software in the `src/ce/` directory)
+
+#### Terms
+
+The Community Edition is licensed under the GNU Affero General Public License v3.0. This means:
+
+- You are free to use, modify, and distribute the software
+- You must provide the source code for any modifications
+- If you run the software on a server and provide it as a service to others, you must provide the source code to users
+- Any derivative works must also be licensed under AGPL-3.0
+
+#### Key AGPL Requirements
+
+- **Source Code Availability**: If you modify the CE and use it to provide a network service, you must offer the complete source code to users of that service
+- **Copyleft**: All derivative works must remain under AGPL-3.0
+- **Attribution**: You must preserve copyright notices and license information
+
+For the complete license text, see: https://www.gnu.org/licenses/agpl-3.0.html
+
+#### Commercial Use
+
+Commercial use is permitted under AGPL-3.0, but you must comply with all license requirements, including source code disclosure if providing network services.
+
+---
+
+## Enterprise Edition (EE)
+
+The Enterprise Edition components, located in the `src/ee/` directory, are proprietary software owned by Stormkit OÜ and are subject to a separate commercial license agreement.
+
+### Commercial License Required
+
+Use of any Enterprise Edition components requires a valid commercial license from Stormkit OÜ.
+
+### License Terms for Enterprise Edition
+
+- **NO LICENSE GRANTED**: No rights are granted to use, copy, modify, or distribute the Enterprise Edition components without a valid commercial license
+- **PURCHASE REQUIRED**: Commercial licenses must be purchased from Stormkit OÜ at https://www.stormkit.io
+- **CONTACT**: For licensing inquiries, contact hello@stormkit.io
+
+### Evaluation Use
+
+Limited evaluation use of Enterprise Edition features may be permitted under separate evaluation agreement terms. Contact Stormkit OÜ for evaluation licensing.
+
+---
+
+## Shared Components
+
+Components in the `src/lib/`, `src/migrations/`, and other shared directories are licensed under the same terms as the Community Edition above, unless specifically marked otherwise.
+
+---
+
+## Contact Information
+
+**Stormkit OÜ**  
+Email: hello@stormkit.io
+Website: https://www.stormkit.io
+
+For licensing questions or to purchase a commercial license for Enterprise Edition components, please contact hello@stormkit.io.

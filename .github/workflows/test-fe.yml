@@ -1,0 +1,41 @@
+name: Test Frontend
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install dependencies
+        working-directory: src/ui
+        run: npm install
+
+      - name: Run tests
+        run: make test-fe
+
+      - name: Generate test summary
+        if: always()
+        run: |
+          echo "## Frontend Tests Completed" >> $GITHUB_STEP_SUMMARY
+          echo "Test run finished for frontend components" >> $GITHUB_STEP_SUMMARY

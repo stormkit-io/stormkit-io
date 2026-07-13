@@ -1,0 +1,187 @@
+package publicapiv1_test
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"testing"
+
+	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
+	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
+	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
+	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
+	"github.com/stormkit-io/stormkit-io/src/lib/factory"
+	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
+	"github.com/stormkit-io/stormkit-io/src/lib/shttp/shttptest"
+	"github.com/stretchr/testify/suite"
+)
+
+type HandlerSchemaSetSuite struct {
+	suite.Suite
+	*factory.Factory
+	conn databasetest.TestDB
+	usr  *factory.MockUser
+	app  *factory.MockApp
+	env  *factory.MockEnv
+}
+
+func (s *HandlerSchemaSetSuite) BeforeTest(suiteName, _ string) {
+	s.conn = databasetest.InitTx(suiteName)
+	s.Factory = factory.New(s.conn)
+	config.SetIsSelfHosted(true)
+
+	// Create test user, app, and environment
+	s.usr = s.MockUser(nil)
+	s.app = s.MockApp(s.usr, nil)
+	s.env = s.MockEnv(s.app, nil)
+}
+
+func (s *HandlerSchemaSetSuite) AfterTest(_, _ string) {
+	// Clean up schema if it was created
+	schemaName := buildconf.SchemaName(s.app.ID, s.env.ID)
+
+	if _, err := s.conn.Exec(fmt.Sprintf("DROP SCHEMA IF EXISTS %s CASCADE", schemaName)); err != nil {
+		panic(err)
+	}
+
+	s.conn.CloseTx()
+}
+
+func (s *HandlerSchemaSetSuite) Test_Success_CreateSchema() {
+	admin.ResetMockLicense()
+	config.SetIsSelfHosted(true)
+	defer config.SetIsSelfHosted(false)
+
+	schemaName := buildconf.SchemaName(s.app.ID, s.env.ID)
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/v1/schema",
+		map[string]any{
+			"envId": s.env.ID,
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(s.usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+	s.JSONEq(fmt.Sprintf(`{"schema": "%s"}`, schemaName), response.String())
+
+	// Verify schema was created by querying information_schema
+	var exists bool
+
+	s.NoError(s.conn.
+		QueryRow(`SELECT EXISTS ( SELECT 1 FROM information_schema.schemata  WHERE schema_name = $1 )`, schemaName).
+		Scan(&exists),
+	)
+
+	s.True(exists, "Schema should exist in database")
+
+	env, err := buildconf.NewStore().EnvironmentByID(context.Background(), s.env.ID)
+	s.NoError(err)
+	s.NotNil(env.SchemaConf, "SchemaConf should be set in environment")
+	s.Equal(schemaName, env.SchemaConf.SchemaName, "SchemaName should match")
+	s.Equal(fmt.Sprintf("a%de%d_migration_user", s.app.ID, s.env.ID), env.SchemaConf.MigrationUserName, "MigrationUserName should match")
+	s.Equal(fmt.Sprintf("a%de%d_user", s.app.ID, s.env.ID), env.SchemaConf.AppUserName, "AppUserName should match")
+
+	// Should not create audit logs for non-enterprise
+	audits, err := audit.NewStore().SelectAudits(context.Background(), audit.AuditFilters{
+		EnvID: env.ID,
+	})
+
+	s.NoError(err)
+	s.Len(audits, 0)
+}
+
+func (s *HandlerSchemaSetSuite) Test_Success_CreateSchema_AuditLogs() {
+	admin.SetMockLicense()
+	defer admin.ResetMockLicense()
+
+	schemaName := buildconf.SchemaName(s.app.ID, s.env.ID)
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/v1/schema",
+		map[string]any{
+			"envId": s.env.ID,
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(s.usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+	s.JSONEq(fmt.Sprintf(`{"schema": "%s"}`, schemaName), response.String())
+
+	// Should create audit logs for enterprise
+	audits, err := audit.NewStore().SelectAudits(context.Background(), audit.AuditFilters{
+		EnvID: s.env.ID,
+	})
+
+	s.NoError(err)
+	s.Len(audits, 1)
+	s.Equal(audit.Audit{
+		ID:          audits[0].ID,
+		Timestamp:   audits[0].Timestamp,
+		Action:      "CREATE:SCHEMA",
+		EnvName:     s.env.Name,
+		EnvID:       s.env.ID,
+		AppID:       s.app.ID,
+		TeamID:      s.app.TeamID,
+		UserID:      s.usr.ID,
+		UserDisplay: s.usr.Display(),
+		Diff: &audit.Diff{
+			New: audit.DiffFields{
+				SchemaName: schemaName,
+			},
+		},
+	}, audits[0])
+}
+
+func (s *HandlerSchemaSetSuite) Test_Success_SchemaAlreadyExists() {
+	schemaName := buildconf.SchemaName(s.app.ID, s.env.ID)
+
+	// Create schema first
+	_, err := s.conn.Exec(fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", schemaName))
+	s.NoError(err)
+
+	// Try to create again - should succeed with IF NOT EXISTS
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/v1/schema",
+		map[string]any{
+			"envId": s.env.ID,
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(s.usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusConflict, response.Code)
+	s.JSONEq(`{"error": "Schema already exists for this environment."}`, response.String())
+}
+
+func (s *HandlerSchemaSetSuite) Test_MissingEnvId() {
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/v1/schema",
+		nil,
+		map[string]string{
+			"Authorization": usertest.Authorization(s.usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusBadRequest, response.Code)
+}
+
+func TestHandlerSchemaSet(t *testing.T) {
+	suite.Run(t, &HandlerSchemaSetSuite{})
+}

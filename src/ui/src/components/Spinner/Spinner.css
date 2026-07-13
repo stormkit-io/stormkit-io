@@ -1,0 +1,25 @@
+@keyframes bounce {
+  0%,
+  100% {
+    transform: scale(0);
+  }
+  50% {
+    transform: scale(1);
+  }
+}
+
+.spinner-bounce {
+  opacity: 0.6;
+  animation: bounce 2s infinite ease-in-out;
+}
+
+.spinner-bounce:last-child {
+  animation-delay: -1s;
+}
+
+.spinner.page-center {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}

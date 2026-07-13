@@ -1,0 +1,102 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`~/layouts/AppLayout/routes.ts should match routes 1`] = `
+[
+  {
+    "element": <React.Suspense
+      fallback={
+        <Spinner
+          pageCenter={true}
+        />
+      }
+    >
+      <UNDEFINED />
+    </React.Suspense>,
+    "path": "/environments",
+  },
+  {
+    "element": <React.Suspense
+      fallback={
+        <Spinner
+          pageCenter={true}
+        />
+      }
+    >
+      <UNDEFINED />
+    </React.Suspense>,
+    "path": "/environments/default",
+  },
+  {
+    "element": <React.Suspense
+      fallback={
+        <Spinner
+          pageCenter={true}
+        />
+      }
+    >
+      <UNDEFINED />
+    </React.Suspense>,
+    "path": "/environments/:envId/*",
+  },
+  {
+    "element": <React.Suspense
+      fallback={
+        <Spinner
+          pageCenter={true}
+        />
+      }
+    >
+      <UNDEFINED />
+    </React.Suspense>,
+    "path": "/settings",
+  },
+  {
+    "element": <React.Suspense
+      fallback={
+        <Spinner
+          pageCenter={true}
+        />
+      }
+    >
+      <UNDEFINED />
+    </React.Suspense>,
+    "path": "/deployments",
+  },
+  {
+    "element": <React.Suspense
+      fallback={
+        <Spinner
+          pageCenter={true}
+        />
+      }
+    >
+      <UNDEFINED />
+    </React.Suspense>,
+    "path": "/deployments/:deploymentId",
+  },
+  {
+    "element": <React.Suspense
+      fallback={
+        <Spinner
+          pageCenter={true}
+        />
+      }
+    >
+      <UNDEFINED />
+    </React.Suspense>,
+    "path": "/feed",
+  },
+  {
+    "element": <React.Suspense
+      fallback={
+        <Spinner
+          pageCenter={true}
+        />
+      }
+    >
+      <UNDEFINED />
+    </React.Suspense>,
+    "path": "/usage",
+  },
+]
+`;

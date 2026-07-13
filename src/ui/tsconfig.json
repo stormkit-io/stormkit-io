@@ -1,0 +1,24 @@
+{
+  "compileOnSave": true,
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "es2019",
+    "outDir": "./dist",
+    "skipLibCheck": true,
+    "allowJs": true,
+    "sourceMap": true,
+    "isolatedModules": true,
+    "noUnusedLocals": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "newLine": "lf",
+    "jsx": "react-jsx",
+    "types": ["react", "node", "vitest/globals"],
+    "paths": {
+      "~/*": ["./src/*"],
+    }
+  },
+  "exclude": ["node_modules", "dist"]
+}

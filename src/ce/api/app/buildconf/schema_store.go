@@ -1,0 +1,1142 @@
+package buildconf
+
+import (
+	"bytes"
+	"context"
+	"database/sql"
+	"fmt"
+	"regexp"
+	"strings"
+	"text/template"
+	"time"
+
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
+	"github.com/stormkit-io/stormkit-io/src/lib/database"
+	"github.com/stormkit-io/stormkit-io/src/lib/types"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
+	"gopkg.in/guregu/null.v3"
+)
+
+var schemaStmt = struct {
+	selectSchema           string
+	selectTables           string
+	createAuthTable        string
+	createMigrationsTable  string
+	selectMigrations       string
+	insertOAuth            string
+	upsertProvider         string
+	insertAuthUser         string
+	selectUserIDByEmail    string
+	verifyEmailUser        string
+	consumeMagicLinkToken  string
+	updateAuthUser         string
+	updateAuthUserMetadata string
+	deleteAuthUser         string
+	updateLastLogin        string
+}{
+	updateAuthUser: `
+		UPDATE stormkit_auth_users
+		SET email = $2, first_name = $3, last_name = $4
+		WHERE uuid = $1
+		RETURNING
+			user_id,
+			uuid,
+			COALESCE(first_name, '') AS first_name,
+			COALESCE(last_name, '') AS last_name,
+			email,
+			COALESCE(avatar, '') AS avatar,
+			created_at,
+			last_login_at;
+	`,
+
+	updateAuthUserMetadata: `
+		UPDATE stormkit_auth_users
+		SET metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb
+		WHERE uuid = $1;
+	`,
+
+	deleteAuthUser: `
+		DELETE FROM stormkit_auth_users WHERE uuid = $1;
+	`,
+
+	updateLastLogin: `
+		UPDATE stormkit_auth_users
+		SET last_login_at = NOW() AT TIME ZONE 'UTC'
+		WHERE user_id = $1;
+	`,
+	createAuthTable: `
+		CREATE TABLE IF NOT EXISTS stormkit_auth_users (
+			user_id SERIAL PRIMARY KEY NOT NULL,
+			uuid UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+			email TEXT NOT NULL UNIQUE,
+			first_name TEXT,
+			last_name TEXT,
+			avatar TEXT,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			last_login_at TIMESTAMPTZ
+		);
+
+		-- Retroactively add columns introduced after a tenant first enabled auth.
+		-- Idempotent (no-op once present); runs as the schema's migration_user,
+		-- which owns the table, so ALTER is permitted. See SchemaConf.EnsureAuthSchema.
+		ALTER TABLE stormkit_auth_users ADD COLUMN IF NOT EXISTS metadata JSONB;
+
+		CREATE TABLE IF NOT EXISTS stormkit_auth_providers (
+			auth_id SERIAL PRIMARY KEY NOT NULL,
+			user_id BIGINT NOT NULL REFERENCES stormkit_auth_users(user_id) ON DELETE CASCADE,
+			account_id TEXT,
+			access_token TEXT,
+			refresh_token TEXT,
+			token_type TEXT NOT NULL,
+			provider_name TEXT NOT NULL,
+			expiry TIMESTAMPTZ NULL,
+			verified_at TIMESTAMPTZ NULL,
+			verification_token TEXT NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			UNIQUE (user_id, provider_name)
+		);
+	`,
+
+	createMigrationsTable: `
+		CREATE TABLE IF NOT EXISTS stormkit_schema_migrations (
+			migration_id SERIAL PRIMARY KEY,
+			migration_name TEXT NOT NULL UNIQUE,
+			migration_duration_ms BIGINT NOT NULL DEFAULT 0,
+			deployment_id BIGINT NOT NULL,
+			content_hash TEXT NOT NULL,
+			error_message TEXT,
+			applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);
+	`,
+
+	selectMigrations: `
+		SELECT
+			migration_id, migration_name, content_hash, error_message
+		FROM
+			stormkit_schema_migrations
+		ORDER BY
+			migration_id ASC;
+	`,
+
+	selectSchema: `
+		SELECT EXISTS (
+			SELECT 1 FROM information_schema.schemata where schema_name = $1
+		);
+	`,
+
+	selectTables: `
+		SELECT
+			t.table_name,
+			pg_relation_size(quote_ident(t.table_schema)||'.'||quote_ident(t.table_name)) AS size_bytes,
+			coalesce(s.n_live_tup, 0) AS estimated_rows
+		FROM information_schema.tables t
+		LEFT JOIN pg_stat_user_tables s
+			ON s.schemaname = t.table_schema
+			AND s.relname = t.table_name
+		WHERE
+			t.table_schema = $1
+			AND t.table_type = 'BASE TABLE'
+		ORDER BY 3;
+	`,
+
+	insertOAuth: `
+		INSERT INTO stormkit_auth_providers (
+			user_id, account_id, access_token, refresh_token, token_type, provider_name, expiry, verification_token
+		) VALUES (
+			$1, $2, $3, $4, $5, $6, $7, NULLIF($8, '')
+		);
+	`,
+
+	// upsertProvider attaches a provider to an existing user, or refreshes the
+	// record (tokens / verification token) when the user already has it. The
+	// (user_id, provider_name) conflict target matches the table's unique
+	// constraint, so re-logins and account linking are both idempotent.
+	upsertProvider: `
+		INSERT INTO stormkit_auth_providers (
+			user_id, account_id, access_token, refresh_token, token_type, provider_name, expiry, verification_token
+		) VALUES (
+			$1, $2, $3, $4, $5, $6, $7, NULLIF($8, '')
+		)
+		ON CONFLICT (user_id, provider_name) DO UPDATE SET
+			account_id = EXCLUDED.account_id,
+			access_token = EXCLUDED.access_token,
+			refresh_token = EXCLUDED.refresh_token,
+			token_type = EXCLUDED.token_type,
+			expiry = EXCLUDED.expiry,
+			verification_token = EXCLUDED.verification_token;
+	`,
+
+	selectUserIDByEmail: `
+		SELECT user_id, uuid FROM stormkit_auth_users WHERE email = $1;
+	`,
+
+	insertAuthUser: `
+		INSERT INTO stormkit_auth_users (
+			email, first_name, last_name, avatar
+		) VALUES (
+			$1, $2, $3, $4
+		) RETURNING
+			user_id, uuid;
+	`,
+
+	verifyEmailUser: `
+		UPDATE stormkit_auth_providers
+		SET verified_at = NOW(), verification_token = NULL
+		WHERE verification_token = $1 AND provider_name = 'email'
+		RETURNING user_id;
+	`,
+
+	consumeMagicLinkToken: `
+		UPDATE stormkit_auth_providers
+		SET verified_at = NOW(), verification_token = NULL
+		WHERE verification_token = $1 AND provider_name = 'magiclink'
+		RETURNING user_id;
+	`,
+}
+
+var sqlTemplates = struct {
+	createSchema        *template.Template
+	createMigrationUser *template.Template
+	createAppUser       *template.Template
+	dropSchema          *template.Template
+	selectAuthUsers     *template.Template
+}{
+	selectAuthUsers: template.Must(template.New("selectAuthUsers").Parse(`
+		SELECT
+			u.user_id,
+			u.uuid,
+			COALESCE(u.first_name, '') AS first_name,
+			COALESCE(u.last_name, '') AS last_name,
+			u.email,
+			COALESCE(u.avatar, '') AS avatar,
+			u.created_at,
+			u.last_login_at
+			{{- if .WithMetadata}}, COALESCE(u.metadata, '{}'::jsonb) AS metadata{{end}}
+			{{- if .WithHash}}, p.access_token AS password_hash, p.verified_at{{end}}
+		FROM
+			stormkit_auth_users u
+			{{- if .WithHash}}
+			JOIN stormkit_auth_providers p ON u.user_id = p.user_id AND p.provider_name = $2
+			{{- end}}
+		{{- if .WhereField}}
+		WHERE
+			u.{{.WhereField}} = $1
+		{{- else}}
+		ORDER BY u.user_id ASC
+		LIMIT $1 OFFSET $2
+		{{- end}};
+	`)),
+	createSchema: template.Must(template.New("createSchema").Parse(`CREATE SCHEMA IF NOT EXISTS {{.SchemaName}}`)),
+
+	createMigrationUser: template.Must(template.New("createMigrationUser").Parse(`
+		DO $$
+		BEGIN
+			IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{{.MigrationUserName}}') THEN
+				CREATE ROLE "{{.MigrationUserName}}" WITH LOGIN PASSWORD '{{.MigrationUserPassword}}';
+
+				-- Set resource limits for safety
+				ALTER ROLE "{{.MigrationUserName}}" SET statement_timeout = '30s';
+				ALTER ROLE "{{.MigrationUserName}}" SET lock_timeout = '10s';
+				ALTER ROLE "{{.MigrationUserName}}" SET idle_in_transaction_session_timeout = '60s';
+				ALTER ROLE "{{.MigrationUserName}}" SET temp_file_limit = '100MB';
+				ALTER ROLE "{{.MigrationUserName}}" SET work_mem = '4MB';
+				ALTER ROLE "{{.MigrationUserName}}" CONNECTION LIMIT 1;
+
+				-- Prevent superuser privileges
+				ALTER ROLE "{{.MigrationUserName}}" WITH NOSUPERUSER NOCREATEDB NOCREATEROLE;
+
+				-- Revoke public schema access
+				REVOKE ALL ON SCHEMA public FROM "{{.MigrationUserName}}";
+				REVOKE ALL ON DATABASE postgres FROM "{{.MigrationUserName}}";
+
+				-- Grant DDL permissions (schema changes only)
+				GRANT USAGE ON SCHEMA "{{.SchemaName}}" TO "{{.MigrationUserName}}";
+				GRANT CREATE ON SCHEMA "{{.SchemaName}}" TO "{{.MigrationUserName}}";
+				GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA "{{.SchemaName}}" TO "{{.MigrationUserName}}";
+				ALTER DEFAULT PRIVILEGES IN SCHEMA "{{.SchemaName}}" GRANT USAGE, SELECT ON SEQUENCES TO "{{.MigrationUserName}}";
+			END IF;
+		END
+		$$;
+	`)),
+
+	createAppUser: template.Must(template.New("createAppUser").Parse(`
+		DO $$
+		BEGIN
+			IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{{.AppUserName}}') THEN
+				CREATE ROLE "{{.AppUserName}}" WITH LOGIN PASSWORD '{{.AppUserPassword}}';
+
+				-- Prevent superuser privileges
+				ALTER ROLE "{{.AppUserName}}" WITH NOSUPERUSER NOCREATEDB NOCREATEROLE;
+				ALTER ROLE "{{.AppUserName}}" SET statement_timeout = '15s';
+				ALTER ROLE "{{.AppUserName}}" SET lock_timeout = '5s';
+				ALTER ROLE "{{.AppUserName}}" SET idle_in_transaction_session_timeout = '60s';
+				ALTER ROLE "{{.AppUserName}}" SET temp_file_limit = '100MB';
+				ALTER ROLE "{{.AppUserName}}" SET work_mem = '8MB';
+				ALTER ROLE "{{.AppUserName}}" CONNECTION LIMIT 10;
+
+				-- Revoke public schema access
+				REVOKE ALL ON SCHEMA public FROM "{{.AppUserName}}";
+				REVOKE ALL ON DATABASE postgres FROM "{{.AppUserName}}";
+
+				-- Grant DML permissions (data operations only)
+				GRANT USAGE ON SCHEMA "{{.SchemaName}}" TO "{{.AppUserName}}";
+				GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "{{.SchemaName}}" TO "{{.AppUserName}}";
+				GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA "{{.SchemaName}}" TO "{{.AppUserName}}";
+
+				-- Grant permissions on future objects created by migration user
+				ALTER DEFAULT PRIVILEGES FOR ROLE "{{.MigrationUserName}}" IN SCHEMA "{{.SchemaName}}" GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "{{.AppUserName}}";
+				ALTER DEFAULT PRIVILEGES FOR ROLE "{{.MigrationUserName}}" IN SCHEMA "{{.SchemaName}}" GRANT USAGE, SELECT ON SEQUENCES TO "{{.AppUserName}}";
+			END IF;
+		END
+		$$;
+	`)),
+
+	dropSchema: template.Must(template.New("dropSchema").Parse(`
+		DO $$
+		DECLARE
+			db_name TEXT := current_database();
+		BEGIN
+			-- Terminate any active connections using the schema
+			PERFORM pg_terminate_backend(pid)
+			FROM pg_stat_activity
+			WHERE datname = db_name
+			  AND (usename = '{{.MigrationUserName}}' OR usename = '{{.AppUserName}}');
+
+			-- Drop schema with cascade (drops all contained objects)
+			DROP SCHEMA IF EXISTS "{{.SchemaName}}" CASCADE;
+
+			-- Revoke all role memberships and drop roles
+			BEGIN
+				EXECUTE format('REVOKE ALL ON DATABASE %I FROM %I', db_name, '{{.MigrationUserName}}');
+			EXCEPTION WHEN OTHERS THEN
+				NULL; -- Ignore if user has no grants
+			END;
+
+			BEGIN
+				EXECUTE format('REVOKE ALL ON DATABASE %I FROM %I', db_name, '{{.AppUserName}}');
+			EXCEPTION WHEN OTHERS THEN
+				NULL; -- Ignore if user has no grants
+			END;
+
+			-- Drop the users/roles (only if they exist)
+			DROP ROLE IF EXISTS "{{.MigrationUserName}}";
+			DROP ROLE IF EXISTS "{{.AppUserName}}";
+		END
+		$$;
+	`)),
+}
+
+type schemaStore struct {
+	*database.Store
+
+	conf       *SchemaConf
+	accessType string
+}
+
+// SchemaStore returns a store instance.
+func SchemaStore() *schemaStore {
+	return &schemaStore{
+		Store: database.NewStore(),
+	}
+}
+
+// SchemaStoreFor returns a schema store for the given configuration and credentials.
+func SchemaStoreFor(conf *SchemaConf, accessType string) (*schemaStore, error) {
+	var username, password string
+
+	maxOpenConns := database.Config.MaxOpenConns
+	maxIdleConns := database.Config.MaxIdleConns
+
+	switch accessType {
+	case SchemaAccessTypeMigrations:
+		username = conf.MigrationUserName
+		password = conf.MigrationPassword
+
+		// Migration roles are created with CONNECTION LIMIT 1, so cap the pool
+		// to a single connection reused for the store's lifetime. Callers must
+		// Close the store when done to release the role's only slot.
+		maxOpenConns = 1
+		maxIdleConns = 1
+	case SchemaAccessTypeAppUser:
+		username = conf.AppUserName
+		password = conf.AppPassword
+	default:
+		return nil, fmt.Errorf("unknown schema access type: %s", accessType)
+	}
+
+	conn, err := database.NewConnectionWithConfig(database.DBConf{
+		Host:         conf.Host,
+		Port:         conf.Port,
+		User:         username,
+		Password:     password,
+		DBName:       conf.DBName,
+		Schema:       conf.SchemaName,
+		SSLMode:      conf.SSLMode,
+		DriverName:   conf.DriverName,
+		MaxLifetime:  database.Config.MaxLifetime,
+		MaxOpenConns: maxOpenConns,
+		MaxIdleConns: maxIdleConns,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &schemaStore{
+		conf:       conf,
+		accessType: accessType,
+		Store: &database.Store{
+			Conn: conn,
+		},
+	}, nil
+}
+
+// GetSchema retrieves schema information from the database.
+func (s *schemaStore) GetSchema(ctx context.Context, schemaName string) (*Schema, error) {
+	var exists bool
+
+	row, err := s.QueryRow(ctx, schemaStmt.selectSchema, schemaName)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := row.Scan(&exists); err != sql.ErrNoRows && err != nil {
+		return nil, err
+	}
+
+	if !exists {
+		return nil, nil
+	}
+
+	rows, err := s.Query(ctx, schemaStmt.selectTables, schemaName)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if rows == nil {
+		return nil, nil
+	}
+
+	defer rows.Close()
+
+	schema := &Schema{
+		Name:   schemaName,
+		Tables: []SchemaTable{},
+	}
+
+	for rows.Next() {
+		table := SchemaTable{}
+
+		if err := rows.Scan(&table.Name, &table.Size, &table.Rows); err != nil {
+			return nil, err
+		}
+
+		schema.Tables = append(schema.Tables, table)
+	}
+
+	return schema, nil
+}
+
+// CreateSchema creates a new schema in the database if it doesn't exist.
+// It also creates schema-specific users and grants permissions.
+func (s *schemaStore) CreateSchema(ctx context.Context, schemaName string) (*SchemaConf, error) {
+	schema, err := s.GetSchema(ctx, schemaName)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if schema != nil {
+		return nil, ErrSchemaExists
+	}
+
+	// Validate schema name to prevent SQL injection
+	if !isSQLSafe(schemaName) {
+		return nil, ErrInvalidSchemaName
+	}
+
+	// Create schema
+	buf := bytes.Buffer{}
+
+	err = sqlTemplates.createSchema.Execute(&buf, map[string]string{
+		"SchemaName": schemaName,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to render create schema template: %w", err)
+	}
+
+	if _, err := s.Exec(ctx, buf.String()); err != nil {
+		return nil, fmt.Errorf("failed to create schema: %w", err)
+	}
+
+	buf.Reset()
+
+	// Create migration user (with DDL permissions)
+	migrationUserName := fmt.Sprintf("%s_migration_user", schemaName)
+	migrationPassword := utils.RandomToken(32)
+
+	err = sqlTemplates.createMigrationUser.Execute(&buf, map[string]string{
+		"SchemaName":            schemaName,
+		"MigrationUserName":     migrationUserName,
+		"MigrationUserPassword": migrationPassword,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to render migration user template: %w", err)
+	}
+
+	if _, err := s.Exec(ctx, buf.String()); err != nil {
+		return nil, fmt.Errorf("failed to create migration user for schema: %w", err)
+	}
+
+	buf.Reset()
+
+	// Create app user (with DML permissions)
+	appUserName := fmt.Sprintf("%s_user", schemaName)
+	appPassword := utils.RandomToken(32)
+
+	err = sqlTemplates.createAppUser.Execute(&buf, map[string]string{
+		"SchemaName":        schemaName,
+		"AppUserName":       appUserName,
+		"AppUserPassword":   appPassword,
+		"MigrationUserName": migrationUserName,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to render app user template: %w", err)
+	}
+
+	if _, err := s.Exec(ctx, buf.String()); err != nil {
+		return nil, fmt.Errorf("failed to create app user for schema: %w", err)
+	}
+
+	return &SchemaConf{
+		AppUserName:       appUserName,
+		AppPassword:       appPassword,
+		MigrationUserName: migrationUserName,
+		MigrationPassword: migrationPassword,
+		SchemaName:        schemaName,
+		DBName:            database.Config.DBName,
+		Port:              database.Config.Port,
+		Host:              database.Config.Host,
+	}, nil
+}
+
+// DropSchema removes a schema and its associated users.
+func (s *schemaStore) DropSchema(ctx context.Context, schemaName string) error {
+	// Validate schema name to prevent SQL injection
+	if !isSQLSafe(schemaName) {
+		return fmt.Errorf("invalid schema name: %s", schemaName)
+	}
+
+	migrationUserName := fmt.Sprintf("%s_migration_user", schemaName)
+	appUserName := fmt.Sprintf("%s_user", schemaName)
+
+	buf := bytes.Buffer{}
+
+	err := sqlTemplates.dropSchema.Execute(&buf, map[string]string{
+		"SchemaName":        schemaName,
+		"MigrationUserName": migrationUserName,
+		"AppUserName":       appUserName,
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to render drop schema template: %w", err)
+	}
+
+	if _, err := s.Exec(ctx, buf.String()); err != nil {
+		return fmt.Errorf("failed to drop schema: %w", err)
+	}
+
+	// Close any cached per-schema connections — DROP terminated their backends.
+	suffix := "/" + schemaName
+
+	schemaStoreCache.Range(func(key, value any) bool {
+		if k, ok := key.(string); ok && strings.HasSuffix(k, suffix) {
+			if store, ok := value.(*schemaStore); ok {
+				_ = store.Close()
+			}
+		}
+
+		return true
+	})
+
+	return nil
+}
+
+// EnsureMigrationsTable ensures that the migrations table exists in the schema.
+// This table is used to track applied migrations.
+func (s *schemaStore) EnsureMigrationsTable() error {
+	if s.conf == nil {
+		return fmt.Errorf("schema configuration is required to ensure migrations table")
+	}
+
+	_, err := s.Exec(context.Background(), schemaStmt.createMigrationsTable)
+	return err
+}
+
+// CreateAuthTable creates the authentication table in the schema for the given environment.
+func (s *schemaStore) CreateAuthTable(ctx context.Context) error {
+	if s.conf == nil {
+		return fmt.Errorf("schema configuration is required to create auth table")
+	}
+
+	_, err := s.Conn.ExecContext(ctx, schemaStmt.createAuthTable)
+	return err
+}
+
+type Migration struct {
+	ID          types.ID
+	Name        string
+	ContentHash string
+	ErrorMsg    null.String
+}
+
+// Migrations retrieves the list of last migrations.
+func (s *schemaStore) Migrations(ctx context.Context) ([]Migration, error) {
+	if s.conf == nil {
+		return nil, fmt.Errorf("schema configuration is required to retrieve migrations")
+	}
+
+	rows, err := s.Query(ctx, schemaStmt.selectMigrations)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	var migrations []Migration
+
+	for rows.Next() {
+		migration := Migration{}
+
+		if err := rows.Scan(&migration.ID, &migration.Name, &migration.ContentHash, &migration.ErrorMsg); err != nil {
+			return nil, err
+		}
+
+		migrations = append(migrations, migration)
+	}
+
+	return migrations, nil
+}
+
+type MigrationResult struct {
+	Duration time.Duration
+	FileName string
+	Error    string
+}
+
+type ApplyMigrationArgs struct {
+	MigrationName string
+	Content       []byte
+	SHA           string
+	DeploymentID  types.ID
+}
+
+// ApplyMigration applies a migration to the schema if it hasn't been applied yet.
+func (s *schemaStore) ApplyMigration(ctx context.Context, args ApplyMigrationArgs) (*MigrationResult, error) {
+	if s.conf == nil {
+		return nil, fmt.Errorf("schema configuration is required to apply migrations")
+	}
+
+	// Apply migration
+	now := time.Now()
+	_, migrationErr := s.Conn.ExecContext(ctx, string(args.Content))
+
+	result := MigrationResult{
+		Duration: time.Since(now),
+		FileName: args.MigrationName,
+	}
+
+	if migrationErr != nil {
+		result.Error = migrationErr.Error()
+	}
+
+	// Record applied migration
+	_, err := s.Exec(ctx, `
+		INSERT INTO
+			stormkit_schema_migrations (
+				migration_name, migration_duration_ms, deployment_id, content_hash, error_message
+			)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (migration_name)
+		DO UPDATE SET
+			content_hash = EXCLUDED.content_hash,
+			migration_duration_ms = EXCLUDED.migration_duration_ms,
+			deployment_id = EXCLUDED.deployment_id,
+			error_message = EXCLUDED.error_message,
+			applied_at = NOW();
+	`,
+		args.MigrationName,
+		result.Duration.Milliseconds(),
+		args.DeploymentID,
+		args.SHA,
+		null.NewString(result.Error, result.Error != ""),
+	)
+
+	if err != nil {
+		return &result, fmt.Errorf("failed to record applied migration %s: %w", args.MigrationName, err)
+	}
+
+	return &result, migrationErr
+}
+
+// InsertAuthUser inserts a new authentication user into the database.
+func (s *schemaStore) InsertAuthUser(ctx context.Context, oauth *skauth.OAuth, user *skauth.User) error {
+	if s.conf == nil {
+		return fmt.Errorf("schema configuration is required to insert auth user")
+	}
+
+	tx, err := s.Conn.BeginTx(ctx, nil)
+
+	if err != nil {
+		return err
+	}
+
+	// Defer rollback - will be a no-op if transaction is committed successfully
+	defer tx.Rollback()
+
+	err = tx.QueryRowContext(ctx, schemaStmt.insertAuthUser, user.Email, user.FirstName, user.LastName, user.Avatar).Scan(&user.ID, &user.UUID)
+
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.ExecContext(ctx, schemaStmt.insertOAuth,
+		user.ID,
+		oauth.AccountID,
+		null.NewString(utils.EncryptToString(oauth.AccessToken), oauth.AccessToken != ""),
+		null.NewString(utils.EncryptToString(oauth.RefreshToken), oauth.RefreshToken != ""),
+		oauth.TokenType,
+		oauth.ProviderName,
+		oauth.Expiry,
+		oauth.VerificationToken,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// UpsertAuthUser links a provider login to a user identified by email (account
+// linking). It looks the user up by email — independently of which provider
+// originally created them — and attaches or refreshes the given provider record.
+// When no user with the email exists, a new user is inserted together with the
+// provider. This prevents the duplicate-email failure that occurs when the same
+// person signs in through a second provider (e.g. magic link first, then OAuth).
+// On success user.ID and user.UUID are populated.
+func (s *schemaStore) UpsertAuthUser(ctx context.Context, oauth *skauth.OAuth, user *skauth.User) error {
+	if s.conf == nil {
+		return fmt.Errorf("schema configuration is required to upsert auth user")
+	}
+
+	err := s.Conn.QueryRowContext(ctx, schemaStmt.selectUserIDByEmail, user.Email).Scan(&user.ID, &user.UUID)
+
+	if err == sql.ErrNoRows {
+		return s.InsertAuthUser(ctx, oauth, user)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	_, err = s.Exec(ctx, schemaStmt.upsertProvider,
+		user.ID,
+		oauth.AccountID,
+		null.NewString(utils.EncryptToString(oauth.AccessToken), oauth.AccessToken != ""),
+		null.NewString(utils.EncryptToString(oauth.RefreshToken), oauth.RefreshToken != ""),
+		oauth.TokenType,
+		oauth.ProviderName,
+		oauth.Expiry,
+		oauth.VerificationToken,
+	)
+
+	return err
+}
+
+// AuthUser retrieves the authentication user by its ID.
+func (s *schemaStore) AuthUser(ctx context.Context, authID types.ID) (*skauth.User, error) {
+	if s.conf == nil {
+		return nil, fmt.Errorf("schema configuration is required to retrieve auth user")
+	}
+
+	buf := bytes.Buffer{}
+
+	err := sqlTemplates.selectAuthUsers.Execute(&buf, map[string]any{
+		"WhereField": "user_id",
+		"WithHash":   false,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to render selectAuthUsers template: %w", err)
+	}
+
+	row, err := s.QueryRow(ctx, buf.String(), authID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	authUser := &skauth.User{}
+
+	err = row.Scan(
+		&authUser.ID,
+		&authUser.UUID,
+		&authUser.FirstName,
+		&authUser.LastName,
+		&authUser.Email,
+		&authUser.Avatar,
+		&authUser.CreatedAt,
+		&authUser.LastLoginAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return authUser, nil
+}
+
+// AuthUserByUUID retrieves the authentication user by its external UUID,
+// including the metadata JSONB column. This is what the /_stormkit/auth/me
+// endpoint uses. Returns nil when no user matches. The metadata column is
+// reconciled off the request path by the EnsureAuthSchemas startup job (and by
+// saveProvider when auth config is saved); on a schema not yet reconciled this
+// query errors, which is why /me is best-effort until the sweep converges it.
+func (s *schemaStore) AuthUserByUUID(ctx context.Context, uuid string) (*skauth.User, error) {
+	if s.conf == nil {
+		return nil, fmt.Errorf("schema configuration is required to retrieve auth user")
+	}
+
+	buf := bytes.Buffer{}
+
+	err := sqlTemplates.selectAuthUsers.Execute(&buf, map[string]any{
+		"WhereField":   "uuid",
+		"WithHash":     false,
+		"WithMetadata": true,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to render selectAuthUsers template: %w", err)
+	}
+
+	row, err := s.QueryRow(ctx, buf.String(), uuid)
+
+	if err != nil {
+		return nil, err
+	}
+
+	authUser := &skauth.User{}
+
+	err = row.Scan(
+		&authUser.ID,
+		&authUser.UUID,
+		&authUser.FirstName,
+		&authUser.LastName,
+		&authUser.Email,
+		&authUser.Avatar,
+		&authUser.CreatedAt,
+		&authUser.LastLoginAt,
+		&authUser.Metadata,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return authUser, nil
+}
+
+// UpdateAuthUserMetadata merges the provider metadata (handle, profile link)
+// for the user identified by UUID. It runs on every OAuth login so the values
+// stay fresh, using a JSONB merge so a provider that supplies no handle (e.g.
+// Google) does not clobber values a previous provider (e.g. X) stored on the
+// shared, email-linked user row. The metadata column is reconciled off the
+// request path (EnsureAuthSchemas startup job / saveProvider); this write is
+// best-effort and no-ops on a schema not yet reconciled.
+func (s *schemaStore) UpdateAuthUserMetadata(ctx context.Context, uuid string, metadata skauth.UserMetadata) error {
+	if s.conf == nil {
+		return fmt.Errorf("schema configuration is required to update auth user metadata")
+	}
+
+	_, err := s.Exec(ctx, schemaStmt.updateAuthUserMetadata, uuid, metadata)
+	return err
+}
+
+// ListAuthUsers returns a paginated list of authentication users.
+func (s *schemaStore) ListAuthUsers(ctx context.Context, from, limit int) ([]*skauth.User, error) {
+	if s.conf == nil {
+		return nil, fmt.Errorf("schema configuration is required to list auth users")
+	}
+
+	buf := bytes.Buffer{}
+
+	if err := sqlTemplates.selectAuthUsers.Execute(&buf, map[string]any{
+		"WhereField": "",
+		"WithHash":   false,
+	}); err != nil {
+		return nil, fmt.Errorf("failed to render selectAuthUsers template: %w", err)
+	}
+
+	rows, err := s.Query(ctx, buf.String(), limit, from)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if rows == nil {
+		return []*skauth.User{}, nil
+	}
+
+	defer rows.Close()
+
+	users := []*skauth.User{}
+
+	for rows.Next() {
+		u := &skauth.User{}
+
+		err = rows.Scan(
+			&u.ID,
+			&u.UUID,
+			&u.FirstName,
+			&u.LastName,
+			&u.Email,
+			&u.Avatar,
+			&u.CreatedAt,
+			&u.LastLoginAt,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		users = append(users, u)
+	}
+
+	return users, nil
+}
+
+type UpdateAuthUserParams struct {
+	UUID      string
+	Email     string
+	FirstName string
+	LastName  string
+}
+
+// UpdateAuthUser updates the editable profile fields (email, first and last
+// name) of the auth user identified by UUID and returns the updated record.
+// Returns nil when no user matches the UUID.
+func (s *schemaStore) UpdateAuthUser(ctx context.Context, p UpdateAuthUserParams) (*skauth.User, error) {
+	if s.conf == nil {
+		return nil, fmt.Errorf("schema configuration is required to update auth user")
+	}
+
+	row, err := s.QueryRow(ctx, schemaStmt.updateAuthUser, p.UUID, p.Email, p.FirstName, p.LastName)
+
+	if err != nil {
+		return nil, err
+	}
+
+	authUser := &skauth.User{}
+
+	err = row.Scan(
+		&authUser.ID,
+		&authUser.UUID,
+		&authUser.FirstName,
+		&authUser.LastName,
+		&authUser.Email,
+		&authUser.Avatar,
+		&authUser.CreatedAt,
+		&authUser.LastLoginAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return authUser, nil
+}
+
+// DeleteAuthUser removes the auth user identified by UUID. Attached provider
+// records are removed via ON DELETE CASCADE. Returns true when a row was
+// deleted, false when no user matched the UUID.
+func (s *schemaStore) DeleteAuthUser(ctx context.Context, uuid string) (bool, error) {
+	if s.conf == nil {
+		return false, fmt.Errorf("schema configuration is required to delete auth user")
+	}
+
+	res, err := s.Exec(ctx, schemaStmt.deleteAuthUser, uuid)
+
+	if err != nil {
+		return false, err
+	}
+
+	affected, err := res.RowsAffected()
+
+	if err != nil {
+		return false, err
+	}
+
+	return affected > 0, nil
+}
+
+// UpdateLastLogin stamps the auth user's last_login_at with the current time.
+// It is keyed by the internal user_id, which login flows already have in hand
+// after resolving or upserting the user.
+func (s *schemaStore) UpdateLastLogin(ctx context.Context, userID types.ID) error {
+	if s.conf == nil {
+		return fmt.Errorf("schema configuration is required to update last login")
+	}
+
+	_, err := s.Exec(ctx, schemaStmt.updateLastLogin, userID)
+
+	return err
+}
+
+type AuthUserByEmailParams struct {
+	Email    string
+	Provider string
+}
+
+// AuthUserByEmail retrieves an auth user by email together with their stored password hash.
+// The hash is decrypted and placed in User.PasswordHash.
+func (s *schemaStore) AuthUserByEmail(ctx context.Context, p AuthUserByEmailParams) (*skauth.User, error) {
+	if s.conf == nil {
+		return nil, fmt.Errorf("schema configuration is required to retrieve auth user")
+	}
+
+	buf := bytes.Buffer{}
+
+	err := sqlTemplates.selectAuthUsers.Execute(&buf, map[string]any{
+		"WhereField": "email",
+		"WithHash":   true,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to render selectAuthUsers template: %w", err)
+	}
+
+	row, err := s.QueryRow(ctx, buf.String(), p.Email, p.Provider)
+
+	if err != nil {
+		return nil, err
+	}
+
+	authUser := &skauth.User{}
+
+	var encryptedHash null.String
+
+	err = row.Scan(
+		&authUser.ID,
+		&authUser.UUID,
+		&authUser.FirstName,
+		&authUser.LastName,
+		&authUser.Email,
+		&authUser.Avatar,
+		&authUser.CreatedAt,
+		&authUser.LastLoginAt,
+		&encryptedHash,
+		&authUser.VerifiedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	authUser.PasswordHash = utils.DecryptToString(encryptedHash.String)
+
+	return authUser, nil
+}
+
+// VerifyEmailUser stamps verified_at and clears the verification token for the provider
+// matching the given token. Returns the user ID on success, or 0 if the token is not found.
+func (s *schemaStore) VerifyEmailUser(ctx context.Context, token string) (types.ID, error) {
+	if s.conf == nil {
+		return 0, fmt.Errorf("schema configuration is required to verify auth user")
+	}
+
+	var userID types.ID
+
+	err := s.Conn.QueryRowContext(ctx, schemaStmt.verifyEmailUser, token).Scan(&userID)
+
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+
+	return userID, err
+}
+
+// UpsertMagicLinkUser finds or creates a user by email and sets a new magic link
+// token on their magiclink provider record. The lookup is by email regardless of
+// provider, so a user who first signed in through OAuth (or email/password) is
+// reused and a magiclink provider record is attached to them. Returns the user ID.
+func (s *schemaStore) UpsertMagicLinkUser(ctx context.Context, email, token string) (types.ID, error) {
+	user := &skauth.User{Email: email}
+
+	err := s.UpsertAuthUser(ctx, &skauth.OAuth{
+		AccountID:         email,
+		ProviderName:      skauth.ProviderMagicLink,
+		TokenType:         skauth.ProviderMagicLink,
+		VerificationToken: token,
+	}, user)
+
+	return user.ID, err
+}
+
+// ConsumeMagicLinkToken validates and consumes a magic link token. On success it stamps
+// verified_at, clears the token, and returns the user ID. Returns 0 if not found.
+func (s *schemaStore) ConsumeMagicLinkToken(ctx context.Context, token string) (types.ID, error) {
+	if s.conf == nil {
+		return 0, fmt.Errorf("schema configuration is required to consume magic link token")
+	}
+
+	var userID types.ID
+
+	err := s.Conn.QueryRowContext(ctx, schemaStmt.consumeMagicLinkToken, token).Scan(&userID)
+
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+
+	return userID, err
+}
+
+// Close closes the schema store and its underlying database connection.
+func (s *schemaStore) Close() error {
+	if s.conf != nil {
+		schemaStoreCache.Delete(s.conf.storeKey(s.accessType))
+	}
+
+	return s.Conn.Close()
+}
+
+// See https://github.com/stormkit-io/stormkit-io/pull/56#discussion_r2603452242
+const MaxSchemaNameLength = 47
+
+// isSQLSafe validates that the name argument contains only safe characters
+func isSQLSafe(name string) bool {
+	matched, _ := regexp.MatchString(`^[a-zA-Z_][a-zA-Z0-9_]*$`, name)
+	return matched && len(name) <= MaxSchemaNameLength
+}

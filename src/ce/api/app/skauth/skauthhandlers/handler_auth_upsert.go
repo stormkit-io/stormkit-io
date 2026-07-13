@@ -1,0 +1,166 @@
+package skauthhandlers
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appcache"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
+	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
+)
+
+type AuthUpsertRequest struct {
+	ProviderName string `json:"providerName"`
+	ClientID     string `json:"clientId"`
+	ClientSecret string `json:"clientSecret"`
+	FromAddress  string `json:"fromAddress"`
+	Status       bool   `json:"status"`
+}
+
+// handlerAuthUpsert handles the upsert of an authentication provider configuration.
+// It delegates to a provider-specific helper based on the provider name.
+func handlerAuthUpsert(req *app.RequestContext) *shttp.Response {
+	data := &AuthUpsertRequest{}
+
+	if err := req.Post(data); err != nil {
+		return shttp.Error(err)
+	}
+
+	ctx := req.Context()
+	envStore := buildconf.NewStore()
+	env, err := envStore.EnvironmentByID(ctx, req.EnvID)
+
+	if err != nil {
+		return shttp.Error(err)
+	}
+
+	if env.SchemaConf == nil {
+		return shttp.BadRequest(map[string]any{
+			"error": "Schema configuration is not set for this environment. Please configure it first.",
+		})
+	}
+
+	// Let's create an auth conf on the fly, with default settings
+	if env.AuthConf == nil {
+		env.AuthConf = &buildconf.SKAuthConf{
+			TTL:        7 * 24 * 60,
+			SuccessURL: "/",
+			Secret:     utils.RandomToken(128),
+			Status:     true,
+		}
+
+		if err := envStore.SaveAuthConf(req.Context(), req.EnvID, env.AuthConf); err != nil {
+			return shttp.Error(err, fmt.Sprintf("error while saving auth config: %s, envId: %s", err.Error(), req.EnvID.String()))
+		}
+
+		if err := appcache.Service().Reset(req.EnvID); err != nil {
+			return shttp.Error(err)
+		}
+	}
+
+	data.ProviderName = strings.TrimSpace(strings.ToLower(data.ProviderName))
+
+	switch data.ProviderName {
+	case skauth.ProviderEmail, skauth.ProviderMagicLink:
+		return handleEmailProvider(req, data, env)
+	default:
+		return handleOAuthProvider(req, data, env)
+	}
+}
+
+// handleOAuthProvider validates OAuth-specific fields (clientId, clientSecret) and saves
+// the provider configuration.
+func handleOAuthProvider(req *app.RequestContext, data *AuthUpsertRequest, env *buildconf.Env) *shttp.Response {
+	ctx := req.Context()
+
+	// If updating an existing provider and client secret is not provided, retain the existing secret.
+	if data.ClientSecret == "" || data.ClientSecret == ClientSecretPlaceholder {
+		existingProvider, err := skauth.NewStore().Provider(ctx, req.EnvID, data.ProviderName)
+
+		if err != nil {
+			return shttp.Error(err)
+		}
+
+		if existingProvider != nil && existingProvider.Data.ClientSecret != "" {
+			data.ClientSecret = existingProvider.Data.ClientSecret
+		}
+	}
+
+	if data.ClientID == "" {
+		return shttp.BadRequest(map[string]any{
+			"error": "Client ID is required",
+		})
+	}
+
+	if data.ClientSecret == "" {
+		return shttp.BadRequest(map[string]any{
+			"error": "Client Secret is required",
+		})
+	}
+
+	return saveProvider(req, data, env, skauth.ProviderData{
+		ClientID:     data.ClientID,
+		ClientSecret: data.ClientSecret,
+	})
+}
+
+// handleEmailProvider saves the email/password provider configuration.
+// Email providers do not require OAuth credentials.
+func handleEmailProvider(req *app.RequestContext, data *AuthUpsertRequest, env *buildconf.Env) *shttp.Response {
+	fromAddress := strings.TrimSpace(data.FromAddress)
+
+	if data.ProviderName == skauth.ProviderMagicLink && fromAddress == "" {
+		return shttp.BadRequest(map[string]any{
+			"error": "From address is required",
+		})
+	}
+
+	return saveProvider(req, data, env, skauth.ProviderData{
+		FromAddress: fromAddress,
+	})
+}
+
+// saveProvider creates the auth table (idempotent) and upserts the provider record.
+func saveProvider(req *app.RequestContext, data *AuthUpsertRequest, env *buildconf.Env, providerData skauth.ProviderData) *shttp.Response {
+	ctx := req.Context()
+
+	migrationStore, err := env.SchemaConf.Store(buildconf.SchemaAccessTypeMigrations)
+
+	if err != nil {
+		return shttp.Error(err)
+	}
+
+	defer migrationStore.Close()
+
+	// This is idempotent - if the table already exists, no error is returned.
+	if err := migrationStore.CreateAuthTable(ctx); err != nil {
+		return shttp.Error(err)
+	}
+
+	provider := &skauth.Provider{
+		Name:   data.ProviderName,
+		Status: data.Status,
+		Data:   providerData,
+	}
+
+	if !provider.Supported() {
+		return shttp.BadRequest(map[string]any{
+			"error": "Invalid provider",
+		})
+	}
+
+	err = skauth.NewStore().SaveProvider(ctx, skauth.SaveProviderArgs{
+		EnvID:    req.EnvID,
+		AppID:    req.App.ID,
+		Provider: provider,
+	})
+
+	if err != nil {
+		return shttp.Error(err)
+	}
+
+	return shttp.OK()
+}

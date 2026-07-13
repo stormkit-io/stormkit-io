@@ -1,0 +1,447 @@
+package integrations_test
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"io"
+	"os"
+	"path"
+	"strings"
+	"testing"
+
+	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go/middleware"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
+	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
+	"github.com/stormkit-io/stormkit-io/src/lib/factory"
+	"github.com/stormkit-io/stormkit-io/src/lib/integrations"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils/file"
+	"github.com/stretchr/testify/suite"
+)
+
+type AwsS3Suite struct {
+	suite.Suite
+	*factory.Factory
+
+	conn   databasetest.TestDB
+	tmpdir string
+}
+
+func (s *AwsS3Suite) BeforeTest(suiteName, _ string) {
+	setAwsEnvVars()
+	s.conn = databasetest.InitTx(suiteName)
+	s.Factory = factory.New(s.conn)
+	tmpDir, err := os.MkdirTemp("", "tmp-integrations-aws-")
+	s.NoError(err)
+
+	s.tmpdir = tmpDir
+	clientDir := path.Join(tmpDir, "client")
+
+	s.NoError(os.MkdirAll(clientDir, 0774))
+	s.NoError(os.WriteFile(path.Join(clientDir, "index.html"), []byte("Hello world"), 0664))
+	s.NoError(file.ZipV2(file.ZipArgs{Source: []string{clientDir}, ZipName: path.Join(tmpDir, "sk-client.zip")}))
+}
+
+func (s *AwsS3Suite) AfterTest(_, _ string) {
+	if strings.Contains(s.tmpdir, os.TempDir()) {
+		os.RemoveAll(s.tmpdir)
+	}
+
+	integrations.CachedAWSClient = nil
+
+	s.conn.CloseTx()
+}
+
+func (s *AwsS3Suite) TearDownSuite() {
+	config.Get().AWS = nil
+}
+
+func (s *AwsS3Suite) Test_Upload() {
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+
+	stat, err := os.Stat(path.Join(s.tmpdir, "sk-client.zip"))
+	s.NoError(err)
+
+	aws, err := integrations.AWS(integrations.ClientArgs{
+		SessionToken: "my-session",
+		AccessKey:    "my-access-key",
+		SecretKey:    "my-secret-key",
+		Middlewares: []func(stack *middleware.Stack) error{
+			func(stack *middleware.Stack) error {
+				return stack.Initialize.Add(
+					middleware.InitializeMiddlewareFunc("Upload", func(ctx context.Context, fi middleware.InitializeInput, next middleware.InitializeHandler) (middleware.InitializeOutput, middleware.Metadata, error) {
+						switch v := fi.Parameters.(type) {
+						case *s3.PutObjectInput:
+							s.Equal("my-s3-bucket", *v.Bucket)
+							s.Equal(s3types.ServerSideEncryptionAes256, v.ServerSideEncryption)
+							s.Equal(stat.Size(), *v.ContentLength)
+						default:
+							s.NoError(errors.New("unknown call"))
+						}
+
+						return next.HandleInitialize(ctx, fi)
+					}),
+					middleware.Before,
+				)
+			},
+			func(stack *middleware.Stack) error {
+				return stack.Finalize.Add(
+					middleware.FinalizeMiddlewareFunc("Upload", func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
+						opName := awsmiddleware.GetOperationName(ctx)
+
+						if opName == "PutObject" {
+							return middleware.FinalizeOutput{
+								Result: &s3.PutObjectOutput{},
+							}, middleware.Metadata{}, nil
+						}
+
+						s.NoError(errors.New("unknown call"))
+
+						return middleware.FinalizeOutput{}, middleware.Metadata{}, nil
+					}),
+					middleware.Before,
+				)
+			},
+		},
+	}, nil)
+
+	s.NoError(err)
+	s.NotNil(aws)
+
+	result, err := aws.Upload(integrations.UploadArgs{
+		AppID:        app.ID,
+		EnvID:        env.ID,
+		DeploymentID: 50919,
+		ClientZip:    path.Join(s.tmpdir, "sk-client.zip"),
+		BucketName:   "my-s3-bucket",
+	})
+
+	s.NoError(err)
+	s.Empty(result.API.BytesUploaded)
+	s.Empty(result.Server.BytesUploaded)
+	s.Equal(stat.Size(), result.Client.BytesUploaded)
+	s.Equal("aws:my-s3-bucket/1/50919/sk-client.zip", result.Client.Location)
+	s.Equal("", result.Server.Location)
+	s.Equal("", result.API.Location)
+}
+
+func (s *AwsS3Suite) Test_GetFile() {
+	aws, err := integrations.AWS(integrations.ClientArgs{
+		SessionToken: "my-session",
+		AccessKey:    "my-access-key",
+		SecretKey:    "my-secret-key",
+		Middlewares: []func(stack *middleware.Stack) error{
+			func(stack *middleware.Stack) error {
+				return stack.Initialize.Add(
+					middleware.InitializeMiddlewareFunc("GetObject", func(ctx context.Context, fi middleware.InitializeInput, next middleware.InitializeHandler) (middleware.InitializeOutput, middleware.Metadata, error) {
+						switch v := fi.Parameters.(type) {
+						case *s3.GetObjectInput:
+							s.Equal("my-s3-bucket", *v.Bucket)
+							s.Equal("client/index.html", *v.Key)
+						default:
+							s.NoError(errors.New("unknown call"))
+						}
+
+						return next.HandleInitialize(ctx, fi)
+					}),
+					middleware.Before,
+				)
+			},
+			func(stack *middleware.Stack) error {
+				return stack.Finalize.Add(
+					middleware.FinalizeMiddlewareFunc("GetObject", func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
+						opName := awsmiddleware.GetOperationName(ctx)
+
+						if opName == "GetObject" {
+							return middleware.FinalizeOutput{
+								Result: &s3.GetObjectOutput{
+									Body:          io.NopCloser(bytes.NewReader([]byte("Hello world"))),
+									ContentType:   utils.Ptr("text/html; charset=utf-8"),
+									ContentLength: utils.Ptr(int64(len("Hello world"))),
+								},
+							}, middleware.Metadata{}, nil
+						}
+
+						s.NoError(errors.New("unknown call"))
+
+						return middleware.FinalizeOutput{}, middleware.Metadata{}, nil
+					}),
+					middleware.Before,
+				)
+			},
+		},
+	}, nil)
+
+	s.NoError(err)
+	s.NotNil(aws)
+
+	result, err := aws.GetFile(integrations.GetFileArgs{
+		Location: "aws:my-s3-bucket/client/index.html",
+	})
+
+	s.NoError(err)
+	s.Equal("Hello world", string(result.Content))
+	s.Equal(int64(len("Hello world")), result.Size)
+	s.Equal("text/html; charset=utf-8", result.ContentType)
+}
+
+func (s *AwsS3Suite) Test_ZipDownloader() {
+	zip, err := os.ReadFile(path.Join(s.tmpdir, "sk-client.zip"))
+	s.NoError(err)
+
+	aws, err := integrations.AWS(integrations.ClientArgs{
+		SessionToken: "my-session",
+		AccessKey:    "my-access-key",
+		SecretKey:    "my-secret-key",
+		Middlewares: []func(stack *middleware.Stack) error{
+			func(stack *middleware.Stack) error {
+				return stack.Initialize.Add(
+					middleware.InitializeMiddlewareFunc("Download", func(ctx context.Context, fi middleware.InitializeInput, next middleware.InitializeHandler) (middleware.InitializeOutput, middleware.Metadata, error) {
+						switch v := fi.Parameters.(type) {
+						case *s3.GetObjectInput:
+							s.Equal("my-s3-bucket", *v.Bucket)
+							s.Equal("my.zip", *v.Key)
+						default:
+							s.NoError(errors.New("unknown call"))
+						}
+
+						return next.HandleInitialize(ctx, fi)
+					}),
+					middleware.Before,
+				)
+			},
+			func(stack *middleware.Stack) error {
+				return stack.Finalize.Add(
+					middleware.FinalizeMiddlewareFunc("Download", func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
+						opName := awsmiddleware.GetOperationName(ctx)
+
+						if opName == "GetObject" {
+							return middleware.FinalizeOutput{
+								Result: &s3.GetObjectOutput{
+									Body:          io.NopCloser(bytes.NewReader([]byte(zip))),
+									ContentType:   utils.Ptr("text/html; charset=utf-8"),
+									ContentLength: utils.Ptr(int64(len(zip))),
+								},
+							}, middleware.Metadata{}, nil
+						}
+
+						s.NoError(errors.New("unknown call"))
+
+						return middleware.FinalizeOutput{}, middleware.Metadata{}, nil
+					}),
+					middleware.Before,
+				)
+			},
+		},
+	}, nil)
+
+	s.NoError(err)
+	s.NotNil(aws)
+
+	result, err := aws.ZipDownloader("1", "my-s3-bucket", "my.zip")
+	s.Contains(result, "d-1")
+	s.NoError(err)
+}
+
+func TestAwsS3(t *testing.T) {
+	suite.Run(t, &AwsS3Suite{})
+}
+
+func (s *AwsS3Suite) Test_DeleteArtifacts_Success() {
+	listCallCount := 0
+	deleteCallCount := 0
+
+	aws, err := integrations.AWS(integrations.ClientArgs{
+		SessionToken: "my-session",
+		AccessKey:    "my-access-key",
+		SecretKey:    "my-secret-key",
+		Middlewares: []func(stack *middleware.Stack) error{
+			func(stack *middleware.Stack) error {
+				return stack.Finalize.Add(
+					middleware.FinalizeMiddlewareFunc("DeleteArtifacts", func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
+						opName := awsmiddleware.GetOperationName(ctx)
+
+						switch opName {
+						case "ListObjectsV2":
+							listCallCount++
+							return middleware.FinalizeOutput{
+								Result: &s3.ListObjectsV2Output{
+									Contents: []s3types.Object{
+										{Key: utils.Ptr("1/50919/index.html")},
+										{Key: utils.Ptr("1/50919/main.js")},
+									},
+									IsTruncated: utils.Ptr(false),
+								},
+							}, middleware.Metadata{}, nil
+						case "DeleteObjects":
+							deleteCallCount++
+							return middleware.FinalizeOutput{
+								Result: &s3.DeleteObjectsOutput{},
+							}, middleware.Metadata{}, nil
+						default:
+							s.T().Fatalf("unexpected AWS operation: %s", opName)
+							return middleware.FinalizeOutput{}, middleware.Metadata{}, errors.New("unexpected AWS operation: " + opName)
+						}
+					}),
+					middleware.Before,
+				)
+			},
+		},
+	}, nil)
+
+	s.Require().NoError(err)
+
+	err = aws.DeleteArtifacts(context.Background(), integrations.DeleteArtifactsArgs{
+		StorageLocation: "aws:my-s3-bucket/1/50919",
+	})
+
+	s.NoError(err)
+	s.Equal(1, listCallCount)
+	s.Equal(1, deleteCallCount)
+}
+
+// Test_DeleteArtifacts_NilKeysAreFiltered verifies that objects returned by ListObjectsV2
+// with a nil Key are skipped and do not cause a MissingArgument error on DeleteObjects.
+func (s *AwsS3Suite) Test_DeleteArtifacts_NilKeysAreFiltered() {
+	deleteCallCount := 0
+
+	aws, err := integrations.AWS(integrations.ClientArgs{
+		SessionToken: "my-session",
+		AccessKey:    "my-access-key",
+		SecretKey:    "my-secret-key",
+		Middlewares: []func(stack *middleware.Stack) error{
+			func(stack *middleware.Stack) error {
+				return stack.Initialize.Add(
+					middleware.InitializeMiddlewareFunc("DeleteNilKeysInit", func(ctx context.Context, fi middleware.InitializeInput, next middleware.InitializeHandler) (middleware.InitializeOutput, middleware.Metadata, error) {
+						if v, ok := fi.Parameters.(*s3.DeleteObjectsInput); ok {
+							deleteCallCount++
+							s.Require().Len(v.Delete.Objects, 1)
+							s.Equal("1/50919/index.html", *v.Delete.Objects[0].Key)
+						}
+						return next.HandleInitialize(ctx, fi)
+					}),
+					middleware.Before,
+				)
+			},
+			func(stack *middleware.Stack) error {
+				return stack.Finalize.Add(
+					middleware.FinalizeMiddlewareFunc("DeleteNilKeys", func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
+						opName := awsmiddleware.GetOperationName(ctx)
+
+						switch opName {
+						case "ListObjectsV2":
+							return middleware.FinalizeOutput{
+								Result: &s3.ListObjectsV2Output{
+									// One valid key, one nil key — the nil must be filtered out.
+									Contents: []s3types.Object{
+										{Key: utils.Ptr("1/50919/index.html")},
+										{Key: nil},
+									},
+									IsTruncated: utils.Ptr(false),
+								},
+							}, middleware.Metadata{}, nil
+						case "DeleteObjects":
+							return middleware.FinalizeOutput{
+								Result: &s3.DeleteObjectsOutput{},
+							}, middleware.Metadata{}, nil
+						default:
+							return middleware.FinalizeOutput{}, middleware.Metadata{}, errors.New("unexpected AWS operation: " + opName)
+						}
+					}),
+					middleware.Before,
+				)
+			},
+		},
+	}, nil)
+
+	s.Require().NoError(err)
+
+	err = aws.DeleteArtifacts(context.Background(), integrations.DeleteArtifactsArgs{
+		StorageLocation: "aws:my-s3-bucket/1/50919",
+	})
+
+	s.NoError(err)
+	s.Equal(1, deleteCallCount)
+}
+
+// Test_DeleteArtifacts_Paginated verifies that deleteS3Folder follows ListObjectsV2
+// pagination and issues a DeleteObjects call for each page.
+func (s *AwsS3Suite) Test_DeleteArtifacts_Paginated() {
+	listCallCount := 0
+	deleteCallCount := 0
+
+	aws, err := integrations.AWS(integrations.ClientArgs{
+		SessionToken: "my-session",
+		AccessKey:    "my-access-key",
+		SecretKey:    "my-secret-key",
+		Middlewares: []func(stack *middleware.Stack) error{
+			func(stack *middleware.Stack) error {
+				return stack.Finalize.Add(
+					middleware.FinalizeMiddlewareFunc("DeletePaginated", func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
+						opName := awsmiddleware.GetOperationName(ctx)
+
+						switch opName {
+						case "ListObjectsV2":
+							listCallCount++
+							if listCallCount == 1 {
+								return middleware.FinalizeOutput{
+									Result: &s3.ListObjectsV2Output{
+										Contents:              []s3types.Object{{Key: utils.Ptr("1/50919/page1.js")}},
+										IsTruncated:           utils.Ptr(true),
+										NextContinuationToken: utils.Ptr("token-page-2"),
+									},
+								}, middleware.Metadata{}, nil
+							}
+							return middleware.FinalizeOutput{
+								Result: &s3.ListObjectsV2Output{
+									Contents:    []s3types.Object{{Key: utils.Ptr("1/50919/page2.js")}},
+									IsTruncated: utils.Ptr(false),
+								},
+							}, middleware.Metadata{}, nil
+						case "DeleteObjects":
+							deleteCallCount++
+							return middleware.FinalizeOutput{
+								Result: &s3.DeleteObjectsOutput{},
+							}, middleware.Metadata{}, nil
+						default:
+							return middleware.FinalizeOutput{}, middleware.Metadata{}, errors.New("unexpected S3 operation: " + opName)
+						}
+					}),
+					middleware.Before,
+				)
+			},
+			func(stack *middleware.Stack) error {
+				return stack.Initialize.Add(
+					middleware.InitializeMiddlewareFunc("DeletePaginatedInit", func(ctx context.Context, fi middleware.InitializeInput, next middleware.InitializeHandler) (middleware.InitializeOutput, middleware.Metadata, error) {
+						if v, ok := fi.Parameters.(*s3.ListObjectsV2Input); ok {
+							if listCallCount == 0 {
+								s.Nil(v.ContinuationToken)
+							} else {
+								s.Require().NotNil(v.ContinuationToken)
+								s.Equal("token-page-2", *v.ContinuationToken)
+							}
+						}
+						return next.HandleInitialize(ctx, fi)
+					}),
+					middleware.Before,
+				)
+			},
+		},
+	}, nil)
+
+	s.Require().NoError(err)
+
+	err = aws.DeleteArtifacts(context.Background(), integrations.DeleteArtifactsArgs{
+		StorageLocation: "aws:my-s3-bucket/1/50919",
+	})
+
+	s.NoError(err)
+	s.Equal(2, listCallCount)
+	s.Equal(2, deleteCallCount)
+}
