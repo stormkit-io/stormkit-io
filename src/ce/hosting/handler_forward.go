@@ -838,8 +838,12 @@ func injectOAuthChallenge(req *RequestContext, res *shttp.Response) *shttp.Respo
 		return res
 	}
 
-	metadataURL := "https://" + req.Host.Name + "/.well-known/oauth-protected-resource"
-	res.Headers.Set("WWW-Authenticate", `Bearer resource_metadata="`+metadataURL+`"`)
+	// Point at the RFC 9728 path-aware metadata document for the configured MCP
+	// path, and advertise the scopes so Claude requests them directly instead of
+	// falling back to whatever scopes_supported lists.
+	metadataURL := "https://" + req.Host.Name + "/.well-known/oauth-protected-resource" + req.Host.Config.SKAuth.ResourcePath()
+	challenge := `Bearer resource_metadata="` + metadataURL + `", scope="` + strings.Join(oauthScopesSupported(), " ") + `"`
+	res.Headers.Set("WWW-Authenticate", challenge)
 
 	return res
 }

@@ -57,6 +57,20 @@ type OAuthServerConf struct {
 	// Enabled turns the /_stormkit/oauth/* endpoints and the .well-known
 	// discovery documents on for this environment.
 	Enabled bool
+
+	// ResourcePath is the path this environment serves its MCP server on (e.g.
+	// "/mcp"). When set it is appended to the resource identifier in the
+	// protected-resource metadata and the access-token audience, and it selects
+	// which /.well-known/oauth-protected-resource/<path> probe is answered. MCP
+	// clients (Claude, ChatGPT) require the resource to match the URL the user
+	// entered, path included, so this must equal the connector URL's path.
+	ResourcePath string
+
+	// AllowLoopback opts in to RFC 8252 loopback redirects for native/CLI
+	// clients (e.g. Claude Code), which listen on an ephemeral localhost port.
+	// When on, a redirect_uri whose host is a loopback literal is matched on
+	// scheme+path only, ignoring the port.
+	AllowLoopback bool
 }
 
 // OAuthServerEnabled reports whether the OAuth authorization server is active.
@@ -64,6 +78,29 @@ type OAuthServerConf struct {
 // secret and app-user identities.
 func (ac *SKAuthConf) OAuthServerEnabled() bool {
 	return ac != nil && ac.Status && ac.OAuthServer != nil && ac.OAuthServer.Enabled
+}
+
+// ResourcePath returns the configured MCP resource path normalized to a leading
+// slash with no trailing slash (e.g. "mcp/" -> "/mcp"). An unset path returns
+// "", meaning the resource identifier is the bare issuer.
+func (ac *SKAuthConf) ResourcePath() string {
+	if !ac.OAuthServerEnabled() || ac.OAuthServer.ResourcePath == "" {
+		return ""
+	}
+
+	p := utils.TrimPath(ac.OAuthServer.ResourcePath)
+
+	if p == "/" {
+		return ""
+	}
+
+	return p
+}
+
+// AllowLoopbackRedirects reports whether native/CLI clients using RFC 8252
+// loopback redirects are permitted for this environment.
+func (ac *SKAuthConf) AllowLoopbackRedirects() bool {
+	return ac.OAuthServerEnabled() && ac.OAuthServer.AllowLoopback
 }
 
 // Value implements the Sql Driver interface.

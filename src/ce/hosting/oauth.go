@@ -39,6 +39,23 @@ var oauthScopeCatalog = []oauthScope{
 	{Name: "openid", Label: "Verify your identity"},
 	{Name: "email", Label: "Access your email address"},
 	{Name: "profile", Label: "Access your basic profile information"},
+	{Name: "offline_access", Label: "Maintain access when you are offline"},
+}
+
+// scopeOfflineAccess is the scope a client requests to receive a refresh token.
+// It must be advertised in scopes_supported: Claude only appends it (and thus
+// only obtains a refresh token) when the server declares it.
+const scopeOfflineAccess = "offline_access"
+
+// scopeRequested reports whether the space-separated scope string contains name.
+func scopeRequested(scope, name string) bool {
+	for _, f := range strings.Fields(scope) {
+		if f == name {
+			return true
+		}
+	}
+
+	return false
 }
 
 func oauthScopesSupported() []string {
@@ -92,11 +109,39 @@ func serveOAuth(fn func(*oauthServer) *shttp.Response) func(*RequestContext) *sh
 		}
 
 		if req.Method == http.MethodOptions {
-			return finalizeReserved(req, &shttp.Response{Status: http.StatusNoContent})
+			return finalizeReserved(req, withOAuthCORS(&shttp.Response{Status: http.StatusNoContent}))
 		}
 
 		return finalizeReserved(req, fn(&oauthServer{req: req}))
 	}
+}
+
+// oauthCORSHeaders makes the discovery, registration and token endpoints
+// reachable from browser-based MCP clients (e.g. MCP Inspector), which probe
+// them cross-origin. The endpoints authenticate via the Authorization header,
+// never cookies, so a wildcard origin carries no ambient-authority risk.
+var oauthCORSHeaders = map[string]string{
+	"Access-Control-Allow-Origin":  "*",
+	"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+	"Access-Control-Allow-Headers": "Authorization, Content-Type",
+}
+
+// withOAuthCORS adds the permissive CORS headers to res, allocating the header
+// map if needed. Existing headers are preserved.
+func withOAuthCORS(res *shttp.Response) *shttp.Response {
+	if res == nil {
+		return res
+	}
+
+	if res.Headers == nil {
+		res.Headers = make(http.Header)
+	}
+
+	for k, v := range oauthCORSHeaders {
+		res.Headers.Set(k, v)
+	}
+
+	return res
 }
 
 // OAuth route handlers, wired in registerReservedRoutes and exercised by tests
@@ -130,6 +175,21 @@ func (o *oauthServer) issuer() string {
 	return "https://" + o.req.Host.Name
 }
 
+// resourceID is the protected-resource identifier: the issuer plus the
+// configured MCP path (e.g. "https://host/mcp"). MCP clients require this to
+// match the connector URL the user entered, path included — a bare issuer is
+// rejected outright. When no path is configured it degrades to the issuer.
+func (o *oauthServer) resourceID() string {
+	return o.issuer() + o.req.Host.Config.SKAuth.ResourcePath()
+}
+
+// resourceMetadataURL is the RFC 9728 §3.1 location of the protected-resource
+// metadata for resourceID: the /.well-known/oauth-protected-resource segment is
+// inserted between the host and the resource path.
+func (o *oauthServer) resourceMetadataURL() string {
+	return o.issuer() + "/.well-known/oauth-protected-resource" + o.req.Host.Config.SKAuth.ResourcePath()
+}
+
 // metadataAS serves the RFC 8414 authorization-server metadata document.
 func (o *oauthServer) metadataAS() *shttp.Response {
 	iss := o.issuer()
@@ -140,7 +200,7 @@ func (o *oauthServer) metadataAS() *shttp.Response {
 		"token_endpoint":                        iss + "/_stormkit/oauth/token",
 		"registration_endpoint":                 iss + "/_stormkit/oauth/register",
 		"response_types_supported":              []string{"code"},
-		"grant_types_supported":                 []string{"authorization_code"},
+		"grant_types_supported":                 []string{"authorization_code", "refresh_token"},
 		"code_challenge_methods_supported":      []string{"S256"},
 		"token_endpoint_auth_methods_supported": []string{"none"},
 		"scopes_supported":                      oauthScopesSupported(),
@@ -151,13 +211,29 @@ func (o *oauthServer) metadataAS() *shttp.Response {
 // It points MCP clients at this same host as the authorization server and binds
 // the resource identity, which the access-token audience is stamped with.
 func (o *oauthServer) metadataResource() *shttp.Response {
-	iss := o.issuer()
+	// A per-path probe (/.well-known/oauth-protected-resource/<path>) is only
+	// answered when it matches this environment's configured MCP path; any other
+	// subpath falls through to normal app serving so the app keeps its own
+	// well-known files.
+	if sub := o.protectedResourceSubpath(); sub != "" && sub != o.req.Host.Config.SKAuth.ResourcePath() {
+		return HandlerForward(o.req)
+	}
 
 	return oauthJSON(http.StatusOK, map[string]any{
-		"resource":                 iss,
-		"authorization_servers":    []string{iss},
+		"resource":                 o.resourceID(),
+		"authorization_servers":    []string{o.issuer()},
 		"bearer_methods_supported": []string{"header"},
+		"scopes_supported":         oauthScopesSupported(),
 	})
+}
+
+// protectedResourceSubpath returns the path component the client probed after
+// /.well-known/oauth-protected-resource, normalized to a leading slash (e.g.
+// "/mcp"), or "" for the bare root document.
+func (o *oauthServer) protectedResourceSubpath() string {
+	const prefix = "/.well-known/oauth-protected-resource"
+
+	return utils.TrimPath(strings.TrimPrefix(o.req.URL().Path, prefix))
 }
 
 // registrationRequest is the subset of RFC 7591 client metadata we honour. MCP
@@ -185,8 +261,8 @@ const (
 // register serves POST /_stormkit/oauth/register — Dynamic Client Registration
 // (RFC 7591). It is unauthenticated by design (MCP clients self-provision before
 // any user is involved), so it is rate-limited per host and every redirect_uri
-// must sit on an operator-declared AllowedOrigin. Public clients only: we never
-// mint a client_secret.
+// must pass redirectAllowed — a curated connector preset or, when opted in, an
+// RFC 8252 loopback address. Public clients only: we never mint a client_secret.
 func (o *oauthServer) register() *shttp.Response {
 	if !oauthClients.registerAllowed(o.req.Context(), o.req.Host.Name, o.req.RemoteIP()) {
 		return oauthJSON(http.StatusTooManyRequests, oauthErr("temporarily_unavailable", "registration rate limit exceeded, retry later"))
@@ -252,8 +328,8 @@ func (o *oauthServer) register() *shttp.Response {
 // resolveClient looks up the Dynamic Client Registration record for clientID.
 // It returns (client, true) when a record exists and (zero, false) for an
 // unregistered client_id — including on a Redis outage — so callers fall back to
-// the origin-only redirect check. The AllowedOrigins gate still holds in the
-// fallback, so degrading is safe.
+// the origin-only redirect check. The connector-preset (and opt-in loopback) gate
+// in redirectAllowed still holds in the fallback, so degrading is safe.
 func (o *oauthServer) resolveClient(clientID string) (oauthClient, bool) {
 	client, err := oauthClients.get(o.req.Context(), clientID)
 
@@ -272,6 +348,7 @@ type authzParams struct {
 	codeChallengeMethod string
 	state               string
 	scope               string
+	resource            string
 }
 
 func (o *oauthServer) parseAuthzParams() authzParams {
@@ -285,12 +362,59 @@ func (o *oauthServer) parseAuthzParams() authzParams {
 		codeChallengeMethod: q.Get("code_challenge_method"),
 		state:               q.Get("state"),
 		scope:               q.Get("scope"),
+		resource:            q.Get("resource"),
 	}
 }
 
-// redirectAllowed reports whether redirectURI is an absolute URL whose origin is
-// in the environment's SkAuth AllowedOrigins list. Reusing that list means an
-// operator declares the trusted connector origins in one place.
+// validResource reports whether an RFC 8707 resource indicator names this
+// server's protected resource. Only one resource is served per environment, so
+// the accepted values are the path-qualified resource id and, tolerantly, the
+// bare issuer. An empty resource is treated as "not requested" by callers.
+func (o *oauthServer) validResource(resource string) bool {
+	return resource == o.resourceID() || resource == o.issuer()
+}
+
+// audienceFor resolves the access-token audience (RFC 8707). A client may bind
+// the token to a specific resource via the resource indicator; when it does, that
+// value is echoed into aud. Otherwise the token is scoped to this environment's
+// resource id. The caller has already rejected an invalid requested resource.
+func (o *oauthServer) audienceFor(requested, stored string) string {
+	return utils.GetString(requested, stored, o.resourceID())
+}
+
+// oauthConnectorPresets is the curated allow-list of MCP connector redirect
+// origins. These are fixed, public, well-known values published by each vendor,
+// and they move over time (ChatGPT migrated its callback path; Claude added
+// claude.com alongside claude.ai). Maintaining them here — rather than asking
+// every operator to hand-enter them into AllowedOrigins, where they silently rot
+// on the next vendor change — means one edit propagates to every environment.
+// Redirect matching for unregistered clients is origin-only, so a dynamic
+// callback path (e.g. ChatGPT's /connector/oauth/{id}) is covered for free.
+//
+// Allow-listing an origin grants nothing on its own: every token still requires
+// the user to clear the consent screen, and these origins are not
+// attacker-controlled.
+//
+// Last verified: 2026-07-14.
+var oauthConnectorPresets = []string{
+	"https://claude.ai",
+	"https://claude.com",
+	"https://chatgpt.com",
+}
+
+// loopbackHosts are the RFC 8252 §7.3 loopback IP literals, keyed as
+// url.Hostname() reports them (IPv6 brackets stripped). localhost is handled
+// separately (see isLoopbackHost) so it matches case-insensitively as a DNS name.
+var loopbackHosts = map[string]bool{
+	"127.0.0.1": true,
+	"::1":       true,
+}
+
+// redirectAllowed reports whether redirectURI is an absolute URL permitted to
+// receive an authorization code. It trusts the curated connector presets and,
+// when the environment opts in, RFC 8252 loopback redirects for native/CLI
+// clients. Enabling the OAuth server is itself the opt-in to the presets, so no
+// per-origin configuration is required for the supported connectors.
 func (o *oauthServer) redirectAllowed(redirectURI string) bool {
 	u, err := url.Parse(redirectURI)
 
@@ -298,9 +422,34 @@ func (o *oauthServer) redirectAllowed(redirectURI string) bool {
 		return false
 	}
 
+	if o.isLoopbackRedirect(u) {
+		return true
+	}
+
 	// Host is compared case-insensitively: url.Parse lowercases the scheme but
 	// preserves host case, and DNS names are case-insensitive.
-	return o.req.Host.Config.SKAuth.IsAllowedOrigin(u.Scheme + "://" + strings.ToLower(u.Host))
+	origin := u.Scheme + "://" + strings.ToLower(u.Host)
+
+	for _, preset := range oauthConnectorPresets {
+		if preset == origin {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isLoopbackRedirect reports whether u is a loopback redirect the environment
+// has opted in to. Per RFC 8252 §7.3 the port is ignored — the native client
+// binds an ephemeral port on the user's machine — so only scheme+host are
+// checked here; the caller's exact-match narrowing (for registered clients)
+// likewise compares on host, not port.
+func (o *oauthServer) isLoopbackRedirect(u *url.URL) bool {
+	if !o.req.Host.Config.SKAuth.AllowLoopbackRedirects() {
+		return false
+	}
+
+	return isLoopbackHost(u.Hostname())
 }
 
 // authorize serves GET /_stormkit/oauth/authorize — the consent screen. Because
@@ -352,6 +501,10 @@ func (o *oauthServer) grant() *shttp.Response {
 		return oauthJSON(http.StatusBadRequest, oauthErr("invalid_request", "PKCE S256 required"))
 	}
 
+	if p.resource != "" && !o.validResource(p.resource) {
+		return oauthJSON(http.StatusBadRequest, oauthErr("invalid_target", "the requested resource is not served by this server"))
+	}
+
 	if client, registered := o.resolveClient(p.clientID); registered && !client.allowsRedirect(p.redirectURI) {
 		return oauthJSON(http.StatusBadRequest, oauthErr("invalid_request", "redirect_uri is not registered for this client"))
 	}
@@ -381,6 +534,7 @@ func (o *oauthServer) grant() *shttp.Response {
 		RedirectURI:   p.redirectURI,
 		CodeChallenge: p.codeChallenge,
 		Scope:         p.scope,
+		Resource:      p.resource,
 	})
 
 	if err != nil {
@@ -400,16 +554,28 @@ type oauthAuthCode struct {
 	RedirectURI   string `json:"redirectUri"`
 	CodeChallenge string `json:"codeChallenge"`
 	Scope         string `json:"scope"`
+	Resource      string `json:"resource,omitempty"`
 }
 
-// token serves POST /_stormkit/oauth/token — the authorization_code exchange.
-// It verifies the PKCE proof and mints an access token in the SkAuth format, so
-// the edge validates it like any session token.
+// token serves POST /_stormkit/oauth/token. It dispatches on grant_type: the
+// authorization_code exchange (the initial connection) and the refresh_token
+// rotation (silent renewal at access-token expiry). Both mint an access token in
+// the SkAuth format, so the edge validates it like any session token.
 func (o *oauthServer) token() *shttp.Response {
-	if o.req.PostFormValue("grant_type") != "authorization_code" {
+	switch o.req.PostFormValue("grant_type") {
+	case "authorization_code":
+		return o.tokenAuthorizationCode()
+	case "refresh_token":
+		return o.tokenRefresh()
+	default:
 		return oauthJSON(http.StatusBadRequest, oauthErr("unsupported_grant_type", ""))
 	}
+}
 
+// tokenAuthorizationCode redeems a PKCE-bound authorization code. When the grant
+// carried offline_access it also mints a rotating refresh token so the
+// connection survives past the first access-token expiry.
+func (o *oauthServer) tokenAuthorizationCode() *shttp.Response {
 	code := o.req.PostFormValue("code")
 	verifier := o.req.PostFormValue("code_verifier")
 
@@ -442,14 +608,105 @@ func (o *oauthServer) token() *shttp.Response {
 		return oauthJSON(http.StatusBadRequest, oauthErr("invalid_grant", "PKCE verification failed"))
 	}
 
-	claims := jwt.MapClaims{"uid": ac.UID, "aud": o.issuer()}
+	// The token request may repeat the RFC 8707 resource indicator; if present it
+	// must name the same resource the code was issued for.
+	requested := o.req.PostFormValue("resource")
 
-	if ac.EML != "" {
-		claims["eml"] = ac.EML
+	if requested != "" && !o.validResource(requested) {
+		return oauthJSON(http.StatusBadRequest, oauthErr("invalid_target", "the requested resource is not served by this server"))
 	}
 
-	if ac.Scope != "" {
-		claims["scope"] = ac.Scope
+	if requested != "" && ac.Resource != "" && requested != ac.Resource {
+		return oauthJSON(http.StatusBadRequest, oauthErr("invalid_grant", "resource does not match the authorization request"))
+	}
+
+	aud := o.audienceFor(requested, ac.Resource)
+
+	return o.issueTokens(oauthTokenGrant{
+		uid:      ac.UID,
+		eml:      ac.EML,
+		clientID: ac.ClientID,
+		scope:    ac.Scope,
+		aud:      aud,
+	})
+}
+
+// tokenRefresh rotates a refresh token: the presented token is consumed and a
+// fresh access/refresh pair is minted from the identity and grant it stood in
+// for. An unknown or already-rotated token yields invalid_grant per RFC 6749.
+func (o *oauthServer) tokenRefresh() *shttp.Response {
+	refresh := o.req.PostFormValue("refresh_token")
+
+	if refresh == "" {
+		return oauthJSON(http.StatusBadRequest, oauthErr("invalid_request", "refresh_token is required"))
+	}
+
+	// rotate() consumes the presented token atomically (single-use), which is the
+	// correct security primitive: a peek-then-delete would open a replay window
+	// where two concurrent refreshes both mint. The tradeoff is fail-closed — if
+	// re-issue below fails on a transient Redis error the consumed token is gone
+	// and the connector re-consents, which is preferable to a replayable token.
+	payload, err := oauthRefreshTokens.rotate(o.req.Context(), refresh)
+
+	if err != nil {
+		if errors.Is(err, errRefreshNotFound) {
+			return oauthJSON(http.StatusBadRequest, oauthErr("invalid_grant", "refresh token is invalid or expired"))
+		}
+
+		return oauthJSON(http.StatusInternalServerError, oauthErr("server_error", ""))
+	}
+
+	// OAuth 2.1 requires public clients to send client_id; when present it must
+	// match the one the refresh token was issued to. We don't hard-require it, so
+	// a client that omits it still works — the single-use refresh token is itself
+	// the proof of possession.
+	if clientID := o.req.PostFormValue("client_id"); clientID != "" && clientID != payload.ClientID {
+		return oauthJSON(http.StatusBadRequest, oauthErr("invalid_grant", "client_id mismatch"))
+	}
+
+	// A resource indicator on refresh may narrow, but not redirect, the audience.
+	if requested := o.req.PostFormValue("resource"); requested != "" {
+		if !o.validResource(requested) {
+			return oauthJSON(http.StatusBadRequest, oauthErr("invalid_target", "the requested resource is not served by this server"))
+		}
+
+		if payload.Audience != "" && requested != payload.Audience {
+			return oauthJSON(http.StatusBadRequest, oauthErr("invalid_grant", "resource does not match the original grant"))
+		}
+	}
+
+	return o.issueTokens(oauthTokenGrant{
+		uid:      payload.UID,
+		eml:      payload.EML,
+		clientID: payload.ClientID,
+		scope:    payload.Scope,
+		aud:      payload.Audience,
+	})
+}
+
+// oauthTokenGrant is the identity + grant parameters an access (and optional
+// refresh) token is minted from.
+type oauthTokenGrant struct {
+	uid      string
+	eml      string
+	clientID string
+	scope    string
+	aud      string
+}
+
+// issueTokens mints the SkAuth-format access token for g and, when the grant
+// includes offline_access, a rotating refresh token. The refresh token is always
+// re-issued on this path, so a refresh grant rotates it (the presented one was
+// already consumed by rotate()).
+func (o *oauthServer) issueTokens(g oauthTokenGrant) *shttp.Response {
+	claims := jwt.MapClaims{"uid": g.uid, "aud": g.aud}
+
+	if g.eml != "" {
+		claims["eml"] = g.eml
+	}
+
+	if g.scope != "" {
+		claims["scope"] = g.scope
 	}
 
 	accessToken, err := user.JWT(claims, o.secret())
@@ -458,12 +715,30 @@ func (o *oauthServer) token() *shttp.Response {
 		return oauthJSON(http.StatusInternalServerError, oauthErr("server_error", ""))
 	}
 
-	return oauthJSON(http.StatusOK, map[string]any{
+	body := map[string]any{
 		"access_token": accessToken,
 		"token_type":   "Bearer",
 		"expires_in":   o.tokenTTLMinutes() * 60,
-		"scope":        ac.Scope,
-	})
+		"scope":        g.scope,
+	}
+
+	if scopeRequested(g.scope, scopeOfflineAccess) {
+		refresh, err := oauthRefreshTokens.issue(o.req.Context(), oauthRefreshPayload{
+			UID:      g.uid,
+			EML:      g.eml,
+			ClientID: g.clientID,
+			Scope:    g.scope,
+			Audience: g.aud,
+		})
+
+		if err != nil {
+			return oauthJSON(http.StatusInternalServerError, oauthErr("server_error", ""))
+		}
+
+		body["refresh_token"] = refresh
+	}
+
+	return oauthJSON(http.StatusOK, body)
 }
 
 // verifyPKCE checks the S256 proof: base64url(sha256(verifier)) == challenge.
@@ -589,14 +864,14 @@ func (o *oauthServer) consentPage(p authzParams, client oauthClient) *shttp.Resp
 }
 
 func oauthJSON(status int, data any) *shttp.Response {
-	return &shttp.Response{
+	return withOAuthCORS(&shttp.Response{
 		Status: status,
 		Headers: shttp.HeadersFromMap(map[string]string{
 			"Content-Type":  "application/json",
 			"Cache-Control": "no-store",
 		}),
 		Data: data,
-	}
+	})
 }
 
 func oauthErr(code, desc string) map[string]any {

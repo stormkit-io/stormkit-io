@@ -179,13 +179,15 @@ export default function SkAuth() {
     refreshToken,
   });
 
-  // The OAuth toggle is a controlled Switch (not part of FormData), so it needs
-  // its own state, synced from the config once it loads.
+  // The OAuth toggles are controlled Switches (not part of FormData), so they
+  // need their own state, synced from the config once it loads.
   const [oauthServerEnabled, setOauthServerEnabled] = useState(false);
+  const [oauthAllowLoopback, setOauthAllowLoopback] = useState(false);
 
   useEffect(() => {
     setOauthServerEnabled(Boolean(config?.oauthServerEnabled));
-  }, [config?.oauthServerEnabled]);
+    setOauthAllowLoopback(Boolean(config?.oauthAllowLoopback));
+  }, [config?.oauthServerEnabled, config?.oauthAllowLoopback]);
 
   const hasSchema = !result.loading && !result.error && Boolean(result.schema);
   const title = "Authentication";
@@ -253,6 +255,9 @@ export default function SkAuth() {
             status: true,
             allowedOrigins,
             oauthServerEnabled,
+            oauthResourcePath:
+              ((data.get("oauthResourcePath") as string) || "").trim(),
+            oauthAllowLoopback,
           })
             .then(() => {
               setSuccess("Settings saved successfully");
@@ -344,35 +349,56 @@ export default function SkAuth() {
             checked={oauthServerEnabled}
             setChecked={setOauthServerEnabled}
             label="Enable OAuth server (MCP connectors)"
-            description="Turns this environment into an OAuth 2.1 authorization server so AI clients like ChatGPT and Claude can connect to it as an MCP server, signing in your app's own users. Add each connector's redirect origin to Allowed origins above."
+            description="Turns this environment into an OAuth 2.1 authorization server so AI clients like ChatGPT and Claude can connect to it as an MCP server, signing in your app's own users. The Claude and ChatGPT connector origins are trusted automatically — no manual origin setup needed."
           />
-          {oauthServerEnabled &&
-            (config?.allowedOrigins || []).length === 0 && (
-              <Alert severity="warning" sx={{ mt: 2 }}>
-                OAuth is enabled but no allowed origins are set. A connector's
-                redirect_uri must live on an allowed origin, or authorization
-                requests will be rejected.
-              </Alert>
-            )}
           {oauthServerEnabled && (
-            <Alert severity="info" sx={{ mt: 2 }}>
-              <Typography sx={{ mb: 1 }}>
-                Discovery documents, served on this environment's domain:
-              </Typography>
-              <Box component="code" sx={{ display: "block", fontSize: 12 }}>
-                /.well-known/oauth-authorization-server
+            <>
+              <Box sx={{ mt: 3 }}>
+                <TextField
+                  label="MCP server path"
+                  name="oauthResourcePath"
+                  placeholder="/mcp"
+                  fullWidth
+                  defaultValue={config?.oauthResourcePath || ""}
+                  variant="filled"
+                  autoComplete="off"
+                  helperText="The path this environment serves its MCP server on. Connectors require the resource identifier to match the URL you enter (path included), so set this to the connector URL's path — e.g. /mcp for https://your-app.com/mcp."
+                  slotProps={{
+                    inputLabel: {
+                      shrink: true,
+                    },
+                  }}
+                />
               </Box>
-              <Box component="code" sx={{ display: "block", fontSize: 12 }}>
-                /.well-known/oauth-protected-resource
+              <Box sx={{ mt: 3 }}>
+                <Switch
+                  name="oauthAllowLoopback"
+                  checked={oauthAllowLoopback}
+                  setChecked={setOauthAllowLoopback}
+                  label="Allow native / CLI clients"
+                  description="Permit RFC 8252 loopback redirects (http://127.0.0.1 and http://localhost on any port) so native tools like Claude Code can connect. Leave off if you only use browser-based connectors."
+                />
               </Box>
-              <Typography sx={{ mt: 2, mb: 1 }}>
-                Connectors self-register via Dynamic Client Registration (RFC
-                7591); no manual client setup is needed:
-              </Typography>
-              <Box component="code" sx={{ display: "block", fontSize: 12 }}>
-                POST /_stormkit/oauth/register
-              </Box>
-            </Alert>
+              <Alert severity="info" sx={{ mt: 2 }}>
+                <Typography sx={{ mb: 1 }}>
+                  Discovery documents, served on this environment's domain:
+                </Typography>
+                <Box component="code" sx={{ display: "block", fontSize: 12 }}>
+                  /.well-known/oauth-authorization-server
+                </Box>
+                <Box component="code" sx={{ display: "block", fontSize: 12 }}>
+                  /.well-known/oauth-protected-resource
+                  {config?.oauthResourcePath || ""}
+                </Box>
+                <Typography sx={{ mt: 2, mb: 1 }}>
+                  Connectors self-register via Dynamic Client Registration (RFC
+                  7591); no manual client setup is needed:
+                </Typography>
+                <Box component="code" sx={{ display: "block", fontSize: 12 }}>
+                  POST /_stormkit/oauth/register
+                </Box>
+              </Alert>
+            </>
           )}
         </Box>
 

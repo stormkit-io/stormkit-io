@@ -20,7 +20,12 @@ import (
 )
 
 const oauthSecret = "test-secret-padded-to-32-chars!!"
-const oauthRedirect = "https://client.example.com/callback"
+
+// oauthRedirect is a curated connector preset origin (ChatGPT's dynamic callback
+// path), which the OAuth server trusts automatically once enabled. Redirect
+// validation is preset-based, not AllowedOrigins-based, so tests exercise the
+// real connector path.
+const oauthRedirect = "https://chatgpt.com/connector/oauth/cb"
 
 type OAuthSuite struct {
 	suite.Suite
@@ -192,12 +197,12 @@ func (s *OAuthSuite) Test_Authorize_SetsAntiFramingHeaders() {
 }
 
 // Test_Authorize_AcceptsMixedCaseRedirectHost verifies the redirect_uri host is
-// matched case-insensitively against the allow-list.
+// matched case-insensitively against the preset origins.
 func (s *OAuthSuite) Test_Authorize_AcceptsMixedCaseRedirectHost() {
 	q := url.Values{}
 	q.Set("response_type", "code")
 	q.Set("client_id", "chatgpt")
-	q.Set("redirect_uri", "https://Client.Example.com/callback")
+	q.Set("redirect_uri", "https://ChatGPT.com/connector/oauth/cb")
 	q.Set("code_challenge", pkce("verifier"))
 	q.Set("code_challenge_method", "S256")
 
@@ -326,7 +331,7 @@ func (s *OAuthSuite) Test_Token_CodeIsSingleUse() {
 // --- Dynamic Client Registration (RFC 7591) ---
 
 func (s *OAuthSuite) Test_Register_Success() {
-	body := `{"client_name":"ChatGPT","redirect_uris":["https://client.example.com/callback"]}`
+	body := `{"client_name":"ChatGPT","redirect_uris":["https://chatgpt.com/connector/oauth/cb"]}`
 
 	res := hosting.HandleOAuthRegister(s.registerReq(s.host(true), body))
 
@@ -340,7 +345,7 @@ func (s *OAuthSuite) Test_Register_Success() {
 	s.False(hasSecret, "public clients must not receive a client_secret")
 }
 
-func (s *OAuthSuite) Test_Register_RejectsRedirectOffAllowedOrigin() {
+func (s *OAuthSuite) Test_Register_RejectsRedirectOffPreset() {
 	body := `{"redirect_uris":["https://evil.example.com/cb"]}`
 
 	res := hosting.HandleOAuthRegister(s.registerReq(s.host(true), body))
@@ -357,7 +362,7 @@ func (s *OAuthSuite) Test_Register_RequiresRedirectURIs() {
 }
 
 func (s *OAuthSuite) Test_Register_RejectsConfidentialAuthMethod() {
-	body := `{"redirect_uris":["https://client.example.com/callback"],"token_endpoint_auth_method":"client_secret_basic"}`
+	body := `{"redirect_uris":["https://chatgpt.com/connector/oauth/cb"],"token_endpoint_auth_method":"client_secret_basic"}`
 
 	res := hosting.HandleOAuthRegister(s.registerReq(s.host(true), body))
 
@@ -368,7 +373,7 @@ func (s *OAuthSuite) Test_Register_RejectsConfidentialAuthMethod() {
 func (s *OAuthSuite) Test_Register_RejectsOversizedBody() {
 	// An oversized body must be refused before anything is written to Redis, so
 	// the unauthenticated endpoint can't be used to amplify storage.
-	body := `{"client_name":"` + strings.Repeat("a", 32*1024) + `","redirect_uris":["https://client.example.com/callback"]}`
+	body := `{"client_name":"` + strings.Repeat("a", 32*1024) + `","redirect_uris":["https://chatgpt.com/connector/oauth/cb"]}`
 
 	res := hosting.HandleOAuthRegister(s.registerReq(s.host(true), body))
 
@@ -379,7 +384,7 @@ func (s *OAuthSuite) Test_Register_RejectsOversizedBody() {
 func (s *OAuthSuite) Test_Register_RejectsTooManyRedirectURIs() {
 	uris := make([]string, 0, 32)
 	for i := 0; i < 32; i++ {
-		uris = append(uris, `"https://client.example.com/callback"`)
+		uris = append(uris, `"https://chatgpt.com/connector/oauth/cb"`)
 	}
 
 	body := `{"redirect_uris":[` + strings.Join(uris, ",") + `]}`
@@ -393,7 +398,7 @@ func (s *OAuthSuite) Test_Register_RejectsTooManyRedirectURIs() {
 func (s *OAuthSuite) Test_Register_Disabled_FallsThrough() {
 	// When OAuth is off the path is not reserved: serveOAuth forwards to normal
 	// app serving instead of registering a client.
-	res := hosting.HandleOAuthRegister(s.registerReq(s.host(false), `{"redirect_uris":["https://client.example.com/callback"]}`))
+	res := hosting.HandleOAuthRegister(s.registerReq(s.host(false), `{"redirect_uris":["https://chatgpt.com/connector/oauth/cb"]}`))
 
 	s.NotEqual(http.StatusCreated, res.Status)
 }
@@ -402,7 +407,7 @@ func (s *OAuthSuite) Test_Register_RateLimited() {
 	host := &hosting.Host{Name: "ratelimit.example.com", Config: s.host(true).Config}
 	hosting.ResetOAuthRateLimit(host.Name)
 
-	body := `{"redirect_uris":["https://client.example.com/callback"]}`
+	body := `{"redirect_uris":["https://chatgpt.com/connector/oauth/cb"]}`
 
 	for i := 0; i < hosting.OAuthRegisterRateMax(); i++ {
 		res := hosting.HandleOAuthRegister(s.registerReq(host, body))
@@ -414,7 +419,7 @@ func (s *OAuthSuite) Test_Register_RateLimited() {
 }
 
 // Test_Authorize_RegisteredClient_BindsRedirect verifies a registered client is
-// held to its declared redirect_uris, even for another path on the same allowed
+// held to its declared redirect_uris, even for another path on the same preset
 // origin (which the origin-only gate alone would permit).
 func (s *OAuthSuite) Test_Authorize_RegisteredClient_BindsRedirect() {
 	clientID := s.registerClient("ChatGPT", oauthRedirect)
@@ -422,7 +427,7 @@ func (s *OAuthSuite) Test_Authorize_RegisteredClient_BindsRedirect() {
 	q := url.Values{}
 	q.Set("response_type", "code")
 	q.Set("client_id", clientID)
-	q.Set("redirect_uri", "https://client.example.com/other")
+	q.Set("redirect_uri", "https://chatgpt.com/connector/oauth/other")
 	q.Set("code_challenge", pkce("verifier"))
 	q.Set("code_challenge_method", "S256")
 

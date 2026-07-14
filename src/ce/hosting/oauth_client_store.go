@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -37,18 +39,48 @@ type oauthClient struct {
 	IssuedAt     int64    `json:"issuedAt"`
 }
 
-// allowsRedirect reports whether redirectURI exactly matches one of the client's
-// registered redirect_uris. Registration validates every URI against the
-// operator's AllowedOrigins, so a registered match is strictly tighter than the
-// origin-only check.
+// allowsRedirect reports whether redirectURI matches one of the client's
+// registered redirect_uris. The match is exact except for RFC 8252 loopback
+// redirects, where the port is ignored: native/CLI clients register a bare
+// loopback URI (e.g. http://127.0.0.1/callback) but redirect back on an
+// ephemeral port chosen at runtime. The AllowLoopback gate and the connector
+// preset check already ran in redirectAllowed, so this only narrows an
+// already-permitted redirect to the registered set.
 func (c oauthClient) allowsRedirect(redirectURI string) bool {
 	for _, uri := range c.RedirectURIs {
-		if uri == redirectURI {
+		if uri == redirectURI || loopbackRedirectMatches(uri, redirectURI) {
 			return true
 		}
 	}
 
 	return false
+}
+
+// loopbackRedirectMatches reports whether registered and actual are the same
+// loopback redirect ignoring the port (RFC 8252 §7.3). Both must be loopback
+// URLs matching on scheme, host and path.
+func loopbackRedirectMatches(registered, actual string) bool {
+	r, err1 := url.Parse(registered)
+	a, err2 := url.Parse(actual)
+
+	if err1 != nil || err2 != nil {
+		return false
+	}
+
+	if !isLoopbackHost(r.Hostname()) || !isLoopbackHost(a.Hostname()) {
+		return false
+	}
+
+	return r.Scheme == a.Scheme &&
+		strings.EqualFold(r.Hostname(), a.Hostname()) &&
+		r.Path == a.Path
+}
+
+// isLoopbackHost reports whether host is a loopback literal or "localhost".
+func isLoopbackHost(host string) bool {
+	host = strings.ToLower(host)
+
+	return host == "localhost" || loopbackHosts[host]
 }
 
 // oauthClientStore is the Redis-backed Dynamic Client Registration registry. The
