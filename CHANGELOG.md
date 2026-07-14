@@ -1,5 +1,27 @@
 # Changelog
 
+## v2026.07.10.3...v2026.07.13.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.10.3...v2026.07.13.1)
+
+### 🚀 Enhancements
+
+- Add oauth 2.1 authorization server (phase 1) ([#357](https://github.com/stormkit-io/stormkit-io/pull/357))
+- Add oauth dynamic client registration ([#359](https://github.com/stormkit-io/stormkit-io/pull/359))
+
+### 💅 Refactors
+
+- Serve /_stormkit endpoints as routes ([#355](https://github.com/stormkit-io/stormkit-io/pull/355))
+- Rename reserved endpoint files ([#356](https://github.com/stormkit-io/stormkit-io/pull/356))
+
+### 🏡 Chore
+
+- Update changelog for v2026.07.10.3 ([#354](https://github.com/stormkit-io/stormkit-io/pull/354))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.07.10.2...v2026.07.10.3
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.10.2...v2026.07.10.3)
