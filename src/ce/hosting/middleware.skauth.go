@@ -58,6 +58,32 @@ func (m *skAuthMiddleware) sessionCookieFor(token string) http.Cookie {
 	return cookie
 }
 
+// expiredSessionCookie is the deletion counterpart of sessionCookieFor: the same
+// Name/Path/Domain (which the browser matches on) with MaxAge<0, so a Set-Cookie
+// carrying it clears the session cookie.
+func (m *skAuthMiddleware) expiredSessionCookie() http.Cookie {
+	return http.Cookie{
+		Name:     buildconf.SessionCookieName,
+		Value:    "",
+		Path:     "/",
+		Domain:   m.req.Host.Config.SKAuth.CookieDomain,
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	}
+}
+
+// handleLogout clears the session cookie. The session is an HttpOnly cookie the
+// app's JS cannot clear, so sign-out must expire it server side. Registered
+// POST-only (see registerReservedRoutes), so a cross-site GET can't force it.
+func (m *skAuthMiddleware) handleLogout() (*shttp.Response, error) {
+	return &shttp.Response{
+		Status:  http.StatusOK,
+		Cookies: []http.Cookie{m.expiredSessionCookie()},
+	}, nil
+}
+
 // deliverSession sets the session cookie and 302s to redirectURL. Used by the
 // browser login landings (email verify, magic link, OAuth-provider callback);
 // the cookie is first-party to this auth host, so it is also readable by the

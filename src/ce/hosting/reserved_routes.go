@@ -67,6 +67,7 @@ func registerReservedRoutes(s *shttp.Service) {
 
 	reg("/register", handleAuthRegisterLogin, http.MethodPost, http.MethodOptions)
 	reg("/login", handleAuthRegisterLogin, http.MethodPost, http.MethodOptions)
+	reg("/logout", handleAuthLogout, http.MethodPost, http.MethodOptions)
 	reg("/refresh", handleAuthRefresh, http.MethodPost, http.MethodOptions)
 	reg("/me", handleAuthMe, http.MethodGet, http.MethodOptions)
 	// Magic link: GET follows the emailed verification link, POST requests one.
@@ -109,6 +110,7 @@ func serveReservedAuth(fn func(*skAuthMiddleware) (*shttp.Response, error)) func
 var (
 	handleAuthVerify        = serveReservedAuth((*skAuthMiddleware).handleVerify)
 	handleAuthRefresh       = serveReservedAuth((*skAuthMiddleware).handleRefresh)
+	handleAuthLogout        = serveReservedAuth((*skAuthMiddleware).handleLogout)
 	handleAuthMe            = serveReservedAuth((*skAuthMiddleware).handleMe)
 	handleAuthMagic         = serveReservedAuth((*skAuthMiddleware).handleMagic)
 	handleAuthOAuthCallback = serveReservedAuth((*skAuthMiddleware).handleOAuthCallback)
