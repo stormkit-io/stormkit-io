@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.07.14.1...v2026.07.15.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.14.1...v2026.07.15.1)
+
+### 🚀 Enhancements
+
+- Mcp connector support for oauth server ([#364](https://github.com/stormkit-io/stormkit-io/pull/364))
+
+### 🏡 Chore
+
+- Update changelog for v2026.07.14.1 ([#362](https://github.com/stormkit-io/stormkit-io/pull/362))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.07.13.1...v2026.07.14.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.13.1...v2026.07.14.1)
