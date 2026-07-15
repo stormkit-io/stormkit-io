@@ -19,14 +19,19 @@ import (
 // bcrypt migration stored an AES-encrypted plaintext. The legacy path is still
 // accepted with a constant-time compare, and legacy reports true so the caller
 // can upgrade the stored value to bcrypt.
-func verifyAdminPassword(stored, provided string) (ok bool, legacy bool) {
-	if strings.HasPrefix(stored, "$2") {
-		return bcrypt.CompareHashAndPassword([]byte(stored), []byte(provided)) == nil, false
+type verifyAdminPasswordParams struct {
+	Stored   string
+	Provided string
+}
+
+func verifyAdminPassword(p verifyAdminPasswordParams) (ok bool, legacy bool) {
+	if strings.HasPrefix(p.Stored, "$2") {
+		return bcrypt.CompareHashAndPassword([]byte(p.Stored), []byte(p.Provided)) == nil, false
 	}
 
-	decrypted := utils.DecryptToString(stored)
+	decrypted := utils.DecryptToString(p.Stored)
 
-	return subtle.ConstantTimeCompare([]byte(decrypted), []byte(provided)) == 1, true
+	return subtle.ConstantTimeCompare([]byte(decrypted), []byte(p.Provided)) == 1, true
 }
 
 func handlerAdminLogin(req *shttp.RequestContext) *shttp.Response {
@@ -69,7 +74,10 @@ func handlerAdminLogin(req *shttp.RequestContext) *shttp.Response {
 		return shttp.NotAllowed()
 	}
 
-	ok, legacy := verifyAdminPassword(cfg.AdminUserConfig.Password, data.Password)
+	ok, legacy := verifyAdminPassword(verifyAdminPasswordParams{
+		Stored:   cfg.AdminUserConfig.Password,
+		Provided: data.Password,
+	})
 
 	if !ok {
 		return shttp.NotAllowed()

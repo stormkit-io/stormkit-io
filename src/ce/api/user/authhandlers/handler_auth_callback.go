@@ -87,29 +87,35 @@ func handlerAuthCallback(req *shttp.RequestContext) *shttp.Response {
 
 	authUser, err := authUser(providerName, code)
 
+	// A provider can hand back a usable user object alongside an error — most
+	// commonly the profile loaded but carried no usable email. Filter the emails
+	// first (when we have a user at all) so that "no usable email" surfaces as the
+	// dedicated {email:false} response the frontend keys on, rather than a generic
+	// error. The nil check keeps this safe when the error left authUser nil.
+	if authUser != nil {
+		emails := []oauth.Email{}
+
+		for _, email := range authUser.Emails {
+			if strings.Contains(email.Address, "no-reply") || strings.Contains(email.Address, "noreply") {
+				continue
+			}
+
+			emails = append(emails, email)
+		}
+
+		authUser.Emails = emails
+
+		if len(authUser.Emails) == 0 {
+			return cbResponse(http.StatusForbidden).json(jsonMsg{"email": false}).send()
+		}
+	}
+
 	if err != nil {
 		return cbResponse(http.StatusForbidden).json(jsonMsg{"auth": false, "error": err.Error()}).send()
 	}
 
 	if authUser == nil {
 		return cbResponse(http.StatusForbidden).json(jsonMsg{"auth": false, "error": "no-user"}).send()
-	}
-
-	// Remove no-reply emails
-	emails := []oauth.Email{}
-
-	for _, email := range authUser.Emails {
-		if strings.Contains(email.Address, "no-reply") || strings.Contains(email.Address, "noreply") {
-			continue
-		}
-
-		emails = append(emails, email)
-	}
-
-	authUser.Emails = emails
-
-	if len(authUser.Emails) == 0 {
-		return cbResponse(http.StatusForbidden).json(jsonMsg{"email": false}).send()
 	}
 
 	return Login(req.Context(), authUser)

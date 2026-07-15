@@ -1119,7 +1119,10 @@ func (s *HandlerForwardSuite) Test_AuthWall_LoginSuccess() {
 	s.Equal(http.Cookie{
 		Name:     hosting.SESSION_COOKIE_NAME,
 		Value:    token,
+		Path:     "/",
 		Expires:  utils.NewUnix().Add(time.Hour * 24),
+		HttpOnly: true,
+		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	}, res.Cookies[0])
 }

@@ -256,24 +256,20 @@ func (m *skAuthMiddleware) resolveRedirect(env *buildconf.Env) (string, *shttp.R
 		m.req.Header.Get("Referer"),
 	)
 
-	if candidate != "" {
-		parsed, err := url.ParseRequestURI(candidate)
-
-		if err != nil {
-			return "", shttp.BadRequest(map[string]any{
-				"errors": []string{"redirect is not a valid absolute URL"},
-			})
-		}
-
-		candidate = utils.GetString(parsed.Scheme, "https") + "://" + parsed.Host
-	}
-
 	// The app's own origin — the fallback whenever no allow-listed cross-origin
 	// target applies. Hosting always serves over HTTPS in production.
 	own := "https://" + m.req.Host.Name
 
 	if candidate == "" {
 		return own, nil
+	}
+
+	candidate, ok := originOf(candidate)
+
+	if !ok {
+		return "", shttp.BadRequest(map[string]any{
+			"errors": []string{"redirect is not a valid absolute URL"},
+		})
 	}
 
 	if len(env.AuthConf.AllowedOrigins) > 0 {
@@ -298,19 +294,28 @@ func (m *skAuthMiddleware) resolveRedirect(env *buildconf.Env) (string, *shttp.R
 // referrer is honoured only when it is on the environment's allow-list,
 // otherwise the flow stays first-party on the app's own origin.
 func (m *skAuthMiddleware) validateReferOrigin(env *buildconf.Env, refer, own string) string {
-	parsed, err := url.ParseRequestURI(refer)
+	origin, ok := originOf(refer)
 
-	if err != nil {
-		return own
-	}
-
-	origin := utils.GetString(parsed.Scheme, "https") + "://" + parsed.Host
-
-	if len(env.AuthConf.AllowedOrigins) > 0 && env.AuthConf.IsAllowedOrigin(origin) {
+	if ok && len(env.AuthConf.AllowedOrigins) > 0 && env.AuthConf.IsAllowedOrigin(origin) {
 		return origin
 	}
 
 	return own
+}
+
+// originOf reduces an absolute URL to its scheme://host origin (scheme
+// defaulting to https), with no path. ok is false when candidate is not a valid
+// absolute URL. It is the single place both the initiate and callback paths
+// derive an origin from, so their allow-list matching cannot drift on how a URL
+// is canonicalized.
+func originOf(candidate string) (origin string, ok bool) {
+	parsed, err := url.ParseRequestURI(candidate)
+
+	if err != nil {
+		return "", false
+	}
+
+	return utils.GetString(parsed.Scheme, "https") + "://" + parsed.Host, true
 }
 
 // isOAuthProviderPath reports whether path is /_stormkit/auth/<oauth-provider>

@@ -430,6 +430,16 @@ func (m *skAuthMiddleware) handleRefresh() (*shttp.Response, error) {
 		}, nil
 	}
 
+	// Only session tokens are refreshable. An OAuth-issued access token carries
+	// an `aud` (and often `scope`); refreshing it here would strip that binding
+	// and hand back an unrestricted session token, so reject it outright.
+	if aud, ok := claims["aud"].(string); ok && aud != "" {
+		return &shttp.Response{
+			Status: http.StatusUnauthorized,
+			Data:   map[string]any{"errors": []string{"token is not refreshable"}},
+		}, nil
+	}
+
 	newClaims := jwt.MapClaims{"uid": uid, "eml": claims["eml"]}
 
 	token, err := user.JWT(newClaims, m.req.Host.Config.SKAuth.Secret)
