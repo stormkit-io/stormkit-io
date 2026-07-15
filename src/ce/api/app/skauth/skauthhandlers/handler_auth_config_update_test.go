@@ -161,6 +161,58 @@ func (s *HandlerAuthConfigUpdateSuite) Test_AbsoluteURL_ShouldFail() {
 	s.JSONEq(expected, response.String())
 }
 
+// Test_Update_OAuthServerFields persists the MCP path and loopback toggle and
+// normalizes the path to a leading slash.
+func (s *HandlerAuthConfigUpdateSuite) Test_Update_OAuthServerFields() {
+	s.mockCacheService.On("Reset", types.ID(s.env.ID)).Return(nil).Once()
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/skauth/config",
+		map[string]any{
+			"envId":              s.env.ID,
+			"status":             true,
+			"oauthServerEnabled": true,
+			"oauthResourcePath":  "mcp",
+			"oauthAllowLoopback": true,
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(s.usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+
+	env, err := buildconf.NewStore().EnvironmentByID(context.Background(), s.env.ID)
+	s.NoError(err)
+	s.Require().NotNil(env.AuthConf.OAuthServer)
+	s.True(env.AuthConf.OAuthServer.Enabled)
+	s.Equal("/mcp", env.AuthConf.OAuthServer.ResourcePath)
+	s.True(env.AuthConf.OAuthServer.AllowLoopback)
+}
+
+// Test_Update_OAuthResourcePath_RejectsQuery guards against a path with a query
+// string, which would be stored verbatim and never match the well-known probe.
+func (s *HandlerAuthConfigUpdateSuite) Test_Update_OAuthResourcePath_RejectsQuery() {
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/skauth/config",
+		map[string]any{
+			"envId":              s.env.ID,
+			"status":             true,
+			"oauthServerEnabled": true,
+			"oauthResourcePath":  "/mcp?x=1",
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(s.usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusBadRequest, response.Code)
+}
+
 func TestHandlerAuthConfigUpdate(t *testing.T) {
 	suite.Run(t, &HandlerAuthConfigUpdateSuite{})
 }

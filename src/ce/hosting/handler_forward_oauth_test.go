@@ -21,25 +21,43 @@ func TestOAuthChallengeSuite(t *testing.T) {
 }
 
 func (s *OAuthChallengeSuite) req(oauthEnabled bool) *hosting.RequestContext {
+	return s.reqWithPath(oauthEnabled, "")
+}
+
+func (s *OAuthChallengeSuite) reqWithPath(oauthEnabled bool, resourcePath string) *hosting.RequestContext {
 	return &hosting.RequestContext{
 		Host: &hosting.Host{
 			Name: "app.example.com",
 			Config: &appconf.Config{
 				SKAuth: &buildconf.SKAuthConf{
-					Status:      true,
-					OAuthServer: &buildconf.OAuthServerConf{Enabled: oauthEnabled},
+					Status: true,
+					OAuthServer: &buildconf.OAuthServerConf{
+						Enabled:      oauthEnabled,
+						ResourcePath: resourcePath,
+					},
 				},
 			},
 		},
 	}
 }
 
-const expectedChallenge = `Bearer resource_metadata="https://app.example.com/.well-known/oauth-protected-resource"`
+const expectedChallenge = `Bearer resource_metadata="https://app.example.com/.well-known/oauth-protected-resource", scope="openid email profile offline_access"`
 
 func (s *OAuthChallengeSuite) Test_AddsChallenge_On401_WhenEnabled() {
 	res := hosting.InjectOAuthChallenge(s.req(true), &shttp.Response{Status: http.StatusUnauthorized})
 
 	s.Equal(expectedChallenge, res.Headers.Get("WWW-Authenticate"))
+}
+
+// With an MCP path configured, the challenge must point at the RFC 9728
+// path-aware metadata document so Claude probes the right resource.
+func (s *OAuthChallengeSuite) Test_Challenge_IncludesResourcePath() {
+	res := hosting.InjectOAuthChallenge(s.reqWithPath(true, "/mcp"), &shttp.Response{Status: http.StatusUnauthorized})
+
+	s.Equal(
+		`Bearer resource_metadata="https://app.example.com/.well-known/oauth-protected-resource/mcp", scope="openid email profile offline_access"`,
+		res.Headers.Get("WWW-Authenticate"),
+	)
 }
 
 func (s *OAuthChallengeSuite) Test_NoChallenge_WhenOAuthDisabled() {

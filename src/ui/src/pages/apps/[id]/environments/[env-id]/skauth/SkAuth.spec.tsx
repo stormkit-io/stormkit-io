@@ -348,6 +348,8 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
           status: true,
           allowedOrigins: [],
           oauthServerEnabled: false,
+          oauthResourcePath: "",
+          oauthAllowLoopback: false,
         })
         .reply(200);
 
@@ -371,6 +373,8 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
             "https://dev.example.com",
           ],
           oauthServerEnabled: false,
+          oauthResourcePath: "",
+          oauthAllowLoopback: false,
         })
         .reply(200);
 
@@ -402,12 +406,47 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
           status: true,
           allowedOrigins: [],
           oauthServerEnabled: true,
+          oauthResourcePath: "",
+          oauthAllowLoopback: false,
         })
         .reply(200);
 
       fireEvent.click(
         await wrapper.findByLabelText("Enable OAuth server (MCP connectors)"),
       );
+
+      fireEvent.submit(
+        wrapper.getByRole("button", { name: "Save" }).closest("form")!,
+      );
+
+      await waitFor(() => {
+        expect(scope.isDone()).toBe(true);
+      });
+    });
+
+    it("should submit the MCP path and loopback toggle", async () => {
+      const scope = nock(apiDomain)
+        .post("/skauth/config", {
+          envId: currentEnv.id,
+          successUrl: "",
+          tokenTtl: 0,
+          status: true,
+          allowedOrigins: [],
+          oauthServerEnabled: true,
+          oauthResourcePath: "/mcp",
+          oauthAllowLoopback: true,
+        })
+        .reply(200);
+
+      fireEvent.click(
+        await wrapper.findByLabelText("Enable OAuth server (MCP connectors)"),
+      );
+
+      fireEvent.change(await wrapper.findByLabelText("MCP server path"), {
+        target: { value: "/mcp" },
+      });
+
+      fireEvent.click(await wrapper.findByLabelText("Allow native / CLI clients"));
 
       fireEvent.submit(
         wrapper.getByRole("button", { name: "Save" }).closest("form")!,

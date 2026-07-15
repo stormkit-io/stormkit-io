@@ -34,7 +34,14 @@ func registerReservedRoutes(s *shttp.Service) {
 	// through to normal app serving when OAuth is disabled for the host.
 	wk := s.NewEndpoint("/.well-known")
 	wk.Handler(http.MethodGet, "/oauth-authorization-server", WithHost(handleOAuthMetadataAS))
+	wk.Handler(http.MethodOptions, "/oauth-authorization-server", WithHost(handleOAuthMetadataAS))
 	wk.Handler(http.MethodGet, "/oauth-protected-resource", WithHost(handleOAuthMetadataResource))
+	wk.Handler(http.MethodOptions, "/oauth-protected-resource", WithHost(handleOAuthMetadataResource))
+	// RFC 9728 path-aware probe: /.well-known/oauth-protected-resource/<path>.
+	// The handler answers only when <path> matches the environment's configured
+	// MCP path and otherwise falls through to normal app serving.
+	wk.Handler(http.MethodGet, "/oauth-protected-resource/{path:.*}", WithHost(handleOAuthMetadataResource))
+	wk.Handler(http.MethodOptions, "/oauth-protected-resource/{path:.*}", WithHost(handleOAuthMetadataResource))
 
 	oauth := s.NewEndpoint("/_stormkit/oauth")
 	oauth.Handler(http.MethodPost, "/register", WithHost(handleOAuthRegister))

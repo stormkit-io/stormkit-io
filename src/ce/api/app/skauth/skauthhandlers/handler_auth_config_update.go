@@ -18,10 +18,13 @@ type AuthConfigUpdateRequest struct {
 	Status         bool     `json:"status"`
 	AllowedOrigins []string `json:"allowedOrigins"`
 
-	// OAuthServerEnabled is a pointer so an omitted field leaves the stored
+	// The OAuth-server fields are pointers so an omitted field leaves the stored
 	// setting untouched: a client that saves other fields (or an older UI that
-	// doesn't know the field) must not silently disable a live OAuth server.
-	OAuthServerEnabled *bool `json:"oauthServerEnabled"`
+	// doesn't know the field) must not silently disable a live OAuth server or
+	// clear its MCP configuration.
+	OAuthServerEnabled *bool   `json:"oauthServerEnabled"`
+	OAuthResourcePath  *string `json:"oauthResourcePath"`
+	OAuthAllowLoopback *bool   `json:"oauthAllowLoopback"`
 }
 
 func handlerAuthConfigUpdate(req *app.RequestContext) *shttp.Response {
@@ -98,8 +101,11 @@ func handlerAuthConfigUpdate(req *app.RequestContext) *shttp.Response {
 	env.AuthConf.Status = data.Status
 	env.AuthConf.AllowedOrigins = allowedOrigins
 
-	if data.OAuthServerEnabled != nil {
-		env.AuthConf.OAuthServer = &buildconf.OAuthServerConf{Enabled: *data.OAuthServerEnabled}
+	if err := applyOAuthServerConf(env.AuthConf, data); err != nil {
+		return shttp.BadRequest(map[string]any{
+			"error": err.Error(),
+			"hint":  "Provide a relative path such as: /mcp",
+		})
 	}
 
 	err = store.SaveAuthConf(req.Context(), req.EnvID, env.AuthConf)
@@ -118,4 +124,49 @@ func handlerAuthConfigUpdate(req *app.RequestContext) *shttp.Response {
 	}
 
 	return shttp.OK()
+}
+
+// applyOAuthServerConf merges the OAuth-server fields from data into conf,
+// leaving any field the client omitted untouched. It validates and normalizes
+// the MCP resource path to a leading-slash relative path.
+func applyOAuthServerConf(conf *buildconf.SKAuthConf, data AuthConfigUpdateRequest) error {
+	if data.OAuthServerEnabled == nil && data.OAuthResourcePath == nil && data.OAuthAllowLoopback == nil {
+		return nil
+	}
+
+	if conf.OAuthServer == nil {
+		conf.OAuthServer = &buildconf.OAuthServerConf{}
+	}
+
+	if data.OAuthServerEnabled != nil {
+		conf.OAuthServer.Enabled = *data.OAuthServerEnabled
+	}
+
+	if data.OAuthAllowLoopback != nil {
+		conf.OAuthServer.AllowLoopback = *data.OAuthAllowLoopback
+	}
+
+	if data.OAuthResourcePath != nil {
+		path := strings.TrimSpace(*data.OAuthResourcePath)
+
+		if path != "" {
+			parsed, err := url.Parse(path)
+
+			// The path must be a bare relative path: no scheme/host, no query or
+			// fragment, and no whitespace. Anything else would be stored verbatim
+			// and then never match the normalized well-known probe, silently
+			// breaking the connector with no error surfaced later.
+			if err != nil || parsed.IsAbs() || parsed.Host != "" ||
+				parsed.RawQuery != "" || parsed.Fragment != "" ||
+				strings.ContainsAny(path, " \t\r\n") {
+				return fmt.Errorf("MCP resource path %q must be a plain relative path such as /mcp", path)
+			}
+
+			path = utils.TrimPath(path)
+		}
+
+		conf.OAuthServer.ResourcePath = path
+	}
+
+	return nil
 }
