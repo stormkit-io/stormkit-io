@@ -266,6 +266,52 @@ func (s *OAuthSuite) Test_Refresh_ClientMismatch() {
 	s.Equal("invalid_grant", s.json(res)["error"])
 }
 
+// --- RFC 7009: token revocation ---
+
+// revokeReq builds a POST /_stormkit/oauth/revoke with the given token.
+func (s *OAuthSuite) revokeReq(host *hosting.Host, token string) *shttp.Response {
+	form := url.Values{}
+	form.Set("token", token)
+
+	h := make(http.Header)
+	h.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	return hosting.HandleOAuthRevoke(s.req(host, http.MethodPost, "/_stormkit/oauth/revoke", "", h, strings.NewReader(form.Encode())))
+}
+
+func (s *OAuthSuite) Test_Revoke_RefreshToken_KillsRenewal() {
+	verifier := "revoke-verifier-value-1234567890ab"
+	code := s.grantWithScope(s.host(true), "user-42", pkce(verifier), "offline_access", "")
+
+	refresh := s.json(s.exchange(s.host(true), code, verifier))["refresh_token"].(string)
+
+	// Revoking returns 200 with no body per RFC 7009.
+	res := s.revokeReq(s.host(true), refresh)
+	s.Equal(http.StatusOK, res.Status)
+
+	// The revoked token can no longer renew the session.
+	replay := s.refreshReq(s.host(true), refresh, "chatgpt")
+	s.Equal(http.StatusBadRequest, replay.Status)
+	s.Equal("invalid_grant", s.json(replay)["error"])
+}
+
+// Test_Revoke_UnknownToken_Returns200 guards RFC 7009 §2.2: an unknown token
+// must still return 200 so the endpoint can't be used to probe validity.
+func (s *OAuthSuite) Test_Revoke_UnknownToken_Returns200() {
+	s.Equal(http.StatusOK, s.revokeReq(s.host(true), "not-a-real-refresh-token").Status)
+	s.Equal(http.StatusOK, s.revokeReq(s.host(true), "").Status)
+}
+
+// Test_MetadataAS_AdvertisesRevocation verifies the revocation endpoint is
+// discoverable in the RFC 8414 metadata.
+func (s *OAuthSuite) Test_MetadataAS_AdvertisesRevocation() {
+	res := hosting.HandleOAuthMetadataAS(s.req(s.host(true), http.MethodGet, "/.well-known/oauth-authorization-server", "", nil, nil))
+
+	d := s.json(res)
+	s.Equal("https://app.example.com/_stormkit/oauth/revoke", d["revocation_endpoint"])
+	s.Contains(d["revocation_endpoint_auth_methods_supported"], "none")
+}
+
 // --- P1: audience binding (RFC 8707) ---
 
 func (s *OAuthSuite) Test_Token_AudienceFromResourceIndicator() {

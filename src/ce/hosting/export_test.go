@@ -57,6 +57,7 @@ func HandleOAuthRegister(req *RequestContext) *shttp.Response  { return handleOA
 func HandleOAuthAuthorize(req *RequestContext) *shttp.Response { return handleOAuthAuthorize(req) }
 func HandleOAuthGrant(req *RequestContext) *shttp.Response     { return handleOAuthGrant(req) }
 func HandleOAuthToken(req *RequestContext) *shttp.Response     { return handleOAuthToken(req) }
+func HandleOAuthRevoke(req *RequestContext) *shttp.Response    { return handleOAuthRevoke(req) }
 
 // OAuthRegisterRateMax exposes the per-host registration limit so the rate-limit
 // test can drive it up to the threshold without hard-coding the constant.
