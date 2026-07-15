@@ -80,6 +80,19 @@ func (s oauthRefreshStore) issue(ctx context.Context, payload oauthRefreshPayloa
 	return token, nil
 }
 
+// revoke deletes token from the store if present. It is idempotent — an unknown,
+// expired or already-rotated token is a no-op — which matches RFC 7009's rule
+// that revocation report success regardless, so a caller can't probe validity.
+func (s oauthRefreshStore) revoke(ctx context.Context, token string) error {
+	client := rediscache.Client()
+
+	if client == nil {
+		return errors.New("redis client is not available")
+	}
+
+	return client.Del(ctx, s.key(token)).Err()
+}
+
 // rotate atomically consumes token and returns its payload. Rotation is
 // mandatory for public clients (OAuth 2.1 / the MCP auth spec): the presented
 // token is deleted in the same round-trip, so a captured-then-rotated token is

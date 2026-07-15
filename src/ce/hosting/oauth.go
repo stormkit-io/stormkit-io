@@ -156,6 +156,7 @@ var (
 	handleOAuthAuthorize        = serveOAuth((*oauthServer).authorize)
 	handleOAuthGrant            = serveOAuth((*oauthServer).grant)
 	handleOAuthToken            = serveOAuth((*oauthServer).token)
+	handleOAuthRevoke           = serveOAuth((*oauthServer).revoke)
 )
 
 func (o *oauthServer) secret() string {
@@ -198,15 +199,17 @@ func (o *oauthServer) metadataAS() *shttp.Response {
 	iss := o.issuer()
 
 	return oauthJSON(http.StatusOK, map[string]any{
-		"issuer":                                iss,
-		"authorization_endpoint":                iss + "/_stormkit/oauth/authorize",
-		"token_endpoint":                        iss + "/_stormkit/oauth/token",
-		"registration_endpoint":                 iss + "/_stormkit/oauth/register",
-		"response_types_supported":              []string{"code"},
-		"grant_types_supported":                 []string{"authorization_code", "refresh_token"},
-		"code_challenge_methods_supported":      []string{"S256"},
-		"token_endpoint_auth_methods_supported": []string{"none"},
-		"scopes_supported":                      oauthScopesSupported(),
+		"issuer":                                     iss,
+		"authorization_endpoint":                     iss + "/_stormkit/oauth/authorize",
+		"token_endpoint":                             iss + "/_stormkit/oauth/token",
+		"registration_endpoint":                      iss + "/_stormkit/oauth/register",
+		"revocation_endpoint":                        iss + "/_stormkit/oauth/revoke",
+		"response_types_supported":                   []string{"code"},
+		"grant_types_supported":                      []string{"authorization_code", "refresh_token"},
+		"code_challenge_methods_supported":           []string{"S256"},
+		"token_endpoint_auth_methods_supported":      []string{"none"},
+		"revocation_endpoint_auth_methods_supported": []string{"none"},
+		"scopes_supported":                           oauthScopesSupported(),
 	})
 }
 
@@ -649,6 +652,27 @@ func (o *oauthServer) token() *shttp.Response {
 	default:
 		return oauthJSON(http.StatusBadRequest, oauthErr("unsupported_grant_type", ""))
 	}
+}
+
+// revoke serves POST /_stormkit/oauth/revoke (RFC 7009). It revokes a refresh
+// token by deleting it from the store, killing the connection's ability to renew
+// silently. Access tokens are stateless HS256 JWTs with a short TTL, so they are
+// not separately revocable and simply expire — this is documented in the AS
+// metadata by advertising only revocation of the refresh token. Per RFC 7009 §2.2
+// the endpoint returns 200 whether or not the token was valid, so it can't be
+// used to probe token validity; token_type_hint is advisory and ignored (we only
+// hold refresh tokens).
+func (o *oauthServer) revoke() *shttp.Response {
+	if token := o.req.PostFormValue("token"); token != "" {
+		_ = oauthRefreshTokens.revoke(o.req.Context(), token)
+	}
+
+	return withOAuthCORS(&shttp.Response{
+		Status: http.StatusOK,
+		Headers: shttp.HeadersFromMap(map[string]string{
+			"Cache-Control": "no-store",
+		}),
+	})
 }
 
 // tokenAuthorizationCode redeems a PKCE-bound authorization code. When the grant
