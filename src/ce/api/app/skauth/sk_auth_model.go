@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -12,6 +13,11 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"golang.org/x/oauth2"
 )
+
+// oauthStateTTL bounds how long an authorization-request state token stays
+// valid — long enough to complete a provider consent screen, short enough to
+// limit replay of a captured state.
+const oauthStateTTL = 15 * time.Minute
 
 const ProviderGoogle = "google"
 const ProviderX = "x"
@@ -159,14 +165,21 @@ type AuthCodeURLParams struct {
 	EnvID        types.ID
 	ProviderName string
 	Referrer     string
+	// Secret signs the state token. It is the environment's auth secret so the
+	// state is scoped to this tenant (a state minted for one environment is not
+	// accepted by another) and shares the session token's signing key. An empty
+	// value falls back to the global app secret in JWT().
+	Secret string
 }
 
-// Claims returns the JWT claims for the authorization request, including environment ID and provider name.
+// Claims returns the JWT claims for the authorization request, including
+// environment ID, provider name and a short expiry that bounds state replay.
 func (a AuthCodeURLParams) Claims() jwt.MapClaims {
 	return jwt.MapClaims{
 		"eid": a.EnvID,
 		"prv": a.ProviderName,
 		"ref": a.Referrer,
+		"exp": time.Now().Add(oauthStateTTL).Unix(),
 	}
 }
 

@@ -65,6 +65,7 @@ func (m *skAuthMiddleware) handleOAuthInitiate(providerName string) (*shttp.Resp
 		EnvID:        envID,
 		ProviderName: providerName,
 		Referrer:     redirect,
+		Secret:       env.AuthConf.Secret,
 	})
 
 	if err != nil {
@@ -92,7 +93,27 @@ func (m *skAuthMiddleware) callbackURL() string {
 func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
 	req := m.req.RequestContext
 
-	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: req.FormValue("state")})
+	// The app's own origin is always a safe redirect target. It is used for any
+	// failure that happens before the state referrer is validated, and as the
+	// fallback whenever that referrer is not (or no longer) allow-listed.
+	ownOrigin := "https://" + m.req.Host.Name
+
+	envID := m.req.Host.Config.EnvID
+
+	env, err := buildconf.NewStore().EnvironmentByID(req.Context(), envID)
+
+	if err != nil {
+		slog.Errorf("oauth callback: failed to get environment %d: %s", envID, err.Error())
+		return m.loginErrorRedirect(ownOrigin, "Sign-in is temporarily unavailable. Please try again."), nil
+	}
+
+	if !env.AuthReady() {
+		return m.loginErrorRedirect(ownOrigin, "Sign-in is not available right now."), nil
+	}
+
+	// State is signed with the environment secret, so a token minted for another
+	// tenant, or one past its short expiry, fails to parse and is rejected.
+	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: req.FormValue("state"), Secret: env.AuthConf.Secret})
 
 	provider, ok := claims["prv"].(string)
 	refer, refOK := claims["ref"].(string)
@@ -101,35 +122,17 @@ func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
 		return shttp.BadRequest(map[string]any{"errors": []string{"invalid state parameter"}}), nil
 	}
 
-	// Resolve the initiating origin up-front so any failure below can bounce the
-	// user back to the app with a friendly message instead of rendering a
-	// Stormkit error page.
-	parsed, err := url.ParseRequestURI(refer)
-
-	if err != nil {
-		return shttp.BadRequest(map[string]any{"errors": []string{"referrer URL is not a valid format"}}), nil
-	}
-
-	referOrigin := utils.GetString(parsed.Scheme, "https") + "://" + parsed.Host
+	// The session cookie is planted on, and the browser redirected to, this
+	// origin. Re-validate it against the allow-list rather than trusting the
+	// referrer carried in the state, so a crafted state cannot turn the callback
+	// into an open redirect that also delivers a valid session.
+	referOrigin := m.validateReferOrigin(env, refer, ownOrigin)
 
 	// The provider round-trips an `error` param (e.g. the user denied access)
 	// instead of an authorization code. Bounce back without attempting an
 	// exchange that would fail anyway.
 	if req.FormValue("error") != "" {
 		return m.loginErrorRedirect(referOrigin, "Sign-in was cancelled."), nil
-	}
-
-	envID := m.req.Host.Config.EnvID
-
-	env, err := buildconf.NewStore().EnvironmentByID(req.Context(), envID)
-
-	if err != nil {
-		slog.Errorf("oauth callback: failed to get environment %d: %s", envID, err.Error())
-		return m.loginErrorRedirect(referOrigin, "Sign-in is temporarily unavailable. Please try again."), nil
-	}
-
-	if !env.AuthReady() {
-		return m.loginErrorRedirect(referOrigin, "Sign-in is not available right now."), nil
 	}
 
 	prv, err := skauth.NewStore().Provider(req.Context(), env.ID, provider)
@@ -287,6 +290,27 @@ func (m *skAuthMiddleware) resolveRedirect(env *buildconf.Env) (string, *shttp.R
 	// No allow-list configured: ignore the cross-origin target and stay
 	// single-host so the session lands back on this domain.
 	return own, nil
+}
+
+// validateReferOrigin resolves the origin the session is delivered to on
+// callback. It mirrors resolveRedirect's allow-list logic so the callback
+// cannot be steered to an origin the initiate step would have rejected: the
+// referrer is honoured only when it is on the environment's allow-list,
+// otherwise the flow stays first-party on the app's own origin.
+func (m *skAuthMiddleware) validateReferOrigin(env *buildconf.Env, refer, own string) string {
+	parsed, err := url.ParseRequestURI(refer)
+
+	if err != nil {
+		return own
+	}
+
+	origin := utils.GetString(parsed.Scheme, "https") + "://" + parsed.Host
+
+	if len(env.AuthConf.AllowedOrigins) > 0 && env.AuthConf.IsAllowedOrigin(origin) {
+		return origin
+	}
+
+	return own
 }
 
 // isOAuthProviderPath reports whether path is /_stormkit/auth/<oauth-provider>

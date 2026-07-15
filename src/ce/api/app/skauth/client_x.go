@@ -155,7 +155,7 @@ func (x *XClient) AuthCodeURL(params AuthCodeURLParams) (string, error) {
 	claims := params.Claims()
 	claims["pkce"] = utils.EncryptToString(token)
 
-	state, err := user.JWT(claims)
+	state, err := user.JWT(claims, params.Secret)
 
 	if err != nil {
 		return "", err
