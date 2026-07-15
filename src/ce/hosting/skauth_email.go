@@ -3,6 +3,7 @@ package hosting
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	jwt "github.com/golang-jwt/jwt/v5"
@@ -17,6 +18,19 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"golang.org/x/crypto/bcrypt"
 )
+
+// bcryptTimingHash is a throwaway bcrypt hash compared against when no matching
+// user exists, so that login latency does not reveal whether an email is
+// registered. Its cost matches the one used to hash real passwords.
+var bcryptTimingHash, _ = bcrypt.GenerateFromPassword([]byte("stormkit-login-timing-equalizer"), bcrypt.DefaultCost)
+
+// normalizeEmail canonicalizes an email address for storage and lookup so the
+// same address entered with different casing or surrounding whitespace maps to
+// a single account. This is what keeps the per-provider email dedup and the
+// cross-provider account linking from being trivially bypassed.
+func normalizeEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
+}
 
 // emlKey derives a 32-byte AES key for encrypting the `eml` JWT claim.
 // SKAuth secrets are normally 128-char ASCII tokens; if a shorter secret
@@ -53,7 +67,7 @@ func (m *skAuthMiddleware) resolveEmailAuth() (*emailAuthCtx, *shttp.Response) {
 	}
 
 	envID := m.req.Host.Config.EnvID
-	email := body.Email
+	email := normalizeEmail(body.Email)
 	password := body.Password
 
 	if envID == 0 {
@@ -112,6 +126,9 @@ func (m *skAuthMiddleware) login() *shttp.Response {
 	}
 
 	if authUser == nil || authUser.PasswordHash == "" {
+		// Run a compare against a throwaway hash so an unregistered email takes
+		// the same time as a registered one, closing the enumeration side channel.
+		bcrypt.CompareHashAndPassword(bcryptTimingHash, []byte(ctx.password))
 		return shttp.BadRequest(map[string]any{"errors": []string{"invalid email or password"}})
 	}
 

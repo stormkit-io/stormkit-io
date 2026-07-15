@@ -174,6 +174,15 @@ func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
 		return m.loginErrorRedirect(referOrigin, "We couldn't read your account details. Please try again."), nil
 	}
 
+	email := normalizeEmail(info.Email)
+
+	// Accounts are linked across providers by email, so a provider that hands
+	// back an unverified (attacker-controllable) address must never be allowed
+	// to attach to — and sign in as — an existing user.
+	if email == "" || !info.EmailVerified {
+		return m.loginErrorRedirect(referOrigin, "Your email address must be verified with the provider to sign in."), nil
+	}
+
 	oauth := skauth.OAuth{
 		AccountID:    info.AccountID,
 		AccessToken:  token.AccessToken,
@@ -184,7 +193,7 @@ func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
 	}
 
 	usr := skauth.User{
-		Email:     info.Email,
+		Email:     email,
 		Avatar:    info.Avatar,
 		FirstName: info.FirstName,
 		LastName:  info.LastName,

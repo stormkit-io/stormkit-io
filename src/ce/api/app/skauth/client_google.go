@@ -65,11 +65,12 @@ func (g *GoogleClient) UserInfo(ctx context.Context, token *oauth2.Token) (*User
 	}
 
 	return &UserInfo{
-		AccountID: userInfo.ID,
-		Email:     userInfo.Email,
-		Avatar:    userInfo.Picture,
-		FirstName: userInfo.GivenName,
-		LastName:  userInfo.FamilyName,
+		AccountID:     userInfo.ID,
+		Email:         userInfo.Email,
+		EmailVerified: userInfo.VerifiedEmail,
+		Avatar:        userInfo.Picture,
+		FirstName:     userInfo.GivenName,
+		LastName:      userInfo.FamilyName,
 	}, nil
 }
 

@@ -86,8 +86,11 @@ func (x *XClient) UserInfo(ctx context.Context, token *oauth2.Token) (*UserInfo,
 	return &UserInfo{
 		AccountID: userInfo.Data.ID,
 		Email:     userInfo.Data.ConfirmedEmail,
-		Avatar:    userInfo.Data.ProfileImageURL,
-		FirstName: userInfo.Data.Name,
+		// X only returns confirmed_email once the user has verified it, so a
+		// non-empty address is verified by definition.
+		EmailVerified: userInfo.Data.ConfirmedEmail != "",
+		Avatar:        userInfo.Data.ProfileImageURL,
+		FirstName:     userInfo.Data.Name,
 		UserMetadata: UserMetadata{
 			Username:   userInfo.Data.Username,
 			ProfileURL: profileURL,

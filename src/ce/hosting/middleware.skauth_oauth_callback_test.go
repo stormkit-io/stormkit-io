@@ -85,11 +85,12 @@ func (s *WithSKAuthOAuthSuite) Test_Callback_Success() {
 	})).Return(token, nil).Once()
 
 	s.mockClient.On("UserInfo", mock.Anything, token).Return(&skauth.UserInfo{
-		AccountID: "test-account-id",
-		Email:     "jane@stormkit.io",
-		FirstName: "Jane",
-		LastName:  "Doe",
-		Avatar:    "link-to-avatar",
+		AccountID:     "test-account-id",
+		Email:         "jane@stormkit.io",
+		EmailVerified: true,
+		FirstName:     "Jane",
+		LastName:      "Doe",
+		Avatar:        "link-to-avatar",
 	}, nil).Once()
 
 	state := s.stateToken(skauth.ProviderGoogle, "https://app.example.com/login")
@@ -107,6 +108,39 @@ func (s *WithSKAuthOAuthSuite) Test_Callback_Success() {
 	s.Equal("https://app.example.com/dashboard", *res.Redirect)
 	s.Require().Len(res.Cookies, 1)
 	s.Equal(buildconf.SessionCookieName, res.Cookies[0].Name)
+}
+
+// Test_Callback_UnverifiedEmail_RedirectsWithError checks that a provider which
+// returns an unverified email address is refused before any account is created
+// or linked, closing the account-takeover-by-email-linking vector.
+func (s *WithSKAuthOAuthSuite) Test_Callback_UnverifiedEmail_RedirectsWithError() {
+	host := s.setupCallbackEnv(true)
+
+	token := &oauth2.Token{}
+
+	s.mockClient.On("Exchange", mock.Anything, mock.Anything).Return(token, nil).Once()
+	s.mockClient.On("UserInfo", mock.Anything, token).Return(&skauth.UserInfo{
+		AccountID:     "test-account-id",
+		Email:         "jane@stormkit.io",
+		EmailVerified: false,
+		FirstName:     "Jane",
+	}, nil).Once()
+
+	state := s.stateToken(skauth.ProviderGoogle, "https://app.example.com/login")
+
+	res, err := hosting.ServeAuth(s.oauthRequest(
+		host,
+		fmt.Sprintf("/_stormkit/auth/callback?state=%s&code=test-code", state),
+		nil,
+	))
+
+	s.Require().NoError(err)
+	s.Require().NotNil(res)
+	s.Equal(http.StatusFound, res.Status)
+	s.Require().NotNil(res.Redirect)
+	s.Contains(*res.Redirect, "https://app.example.com/dashboard?login_error=")
+	s.Contains(*res.Redirect, "verified")
+	s.Empty(res.Cookies)
 }
 
 // Test_Callback_SetsCookieWithDomain verifies the OAuth-provider callback sets a
@@ -127,10 +161,11 @@ func (s *WithSKAuthOAuthSuite) Test_Callback_SetsCookieWithDomain() {
 	})).Return(token, nil).Once()
 
 	s.mockClient.On("UserInfo", mock.Anything, token).Return(&skauth.UserInfo{
-		AccountID: "test-account-id",
-		Email:     "jane@stormkit.io",
-		FirstName: "Jane",
-		LastName:  "Doe",
+		AccountID:     "test-account-id",
+		Email:         "jane@stormkit.io",
+		EmailVerified: true,
+		FirstName:     "Jane",
+		LastName:      "Doe",
 	}, nil).Once()
 
 	state := s.stateToken(skauth.ProviderGoogle, "https://app.example.com/login")
@@ -185,9 +220,10 @@ func (s *WithSKAuthOAuthSuite) Test_Callback_LinksToExistingMagicLinkUser() {
 
 	s.mockClient.On("Exchange", mock.Anything, mock.Anything).Return(token, nil).Once()
 	s.mockClient.On("UserInfo", mock.Anything, token).Return(&skauth.UserInfo{
-		AccountID: "google-account-id",
-		Email:     "jane@stormkit.io",
-		FirstName: "Jane",
+		AccountID:     "google-account-id",
+		Email:         "jane@stormkit.io",
+		EmailVerified: true,
+		FirstName:     "Jane",
 	}, nil).Once()
 
 	state := s.stateToken(skauth.ProviderGoogle, "https://app.example.com/login")

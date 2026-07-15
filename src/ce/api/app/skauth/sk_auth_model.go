@@ -44,9 +44,14 @@ type UserInfo struct {
 	ID        string `json:"id,omitempty"`
 	AccountID string `json:"accountId,omitempty"`
 	Email     string `json:"email,omitempty"`
-	Avatar    string `json:"avatar,omitempty"`
-	FirstName string `json:"firstName,omitempty"`
-	LastName  string `json:"lastName,omitempty"`
+	// EmailVerified reports whether the provider has verified ownership of
+	// Email. Auto-linking a provider onto an existing email-keyed account is
+	// only safe when this is true; otherwise a provider that returns an
+	// attacker-controlled, unverified address could take over the account.
+	EmailVerified bool   `json:"emailVerified,omitempty"`
+	Avatar        string `json:"avatar,omitempty"`
+	FirstName     string `json:"firstName,omitempty"`
+	LastName      string `json:"lastName,omitempty"`
 	// Provider profile extras (handle, profile link). Embedded so a client can
 	// hand its whole UserMetadata to the stored User in one assignment.
 	UserMetadata
