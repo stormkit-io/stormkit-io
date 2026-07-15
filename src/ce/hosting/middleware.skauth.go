@@ -65,6 +65,41 @@ func (m *skAuthMiddleware) sessionCookieFor(token string) http.Cookie {
 	return cookie
 }
 
+// expiredSessionCookie is the deletion counterpart of sessionCookieFor: the same
+// Name/Path/Domain (which the browser matches on) with MaxAge<0, so a Set-Cookie
+// carrying it clears the session cookie.
+func (m *skAuthMiddleware) expiredSessionCookie() http.Cookie {
+	return http.Cookie{
+		Name:     buildconf.SessionCookieName,
+		Value:    "",
+		Path:     "/",
+		Domain:   m.req.Host.Config.SKAuth.CookieDomain,
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	}
+}
+
+// handleLogout clears the session cookie. In cookie mode the session lives in an
+// HttpOnly cookie the app's JS cannot clear, so sign-out must expire it server
+// side; the endpoint gives cookie- and localStorage-mode apps a single logout
+// call (localStorage clients also drop their own stored token). POST-only, so a
+// cross-site GET can't force a logout.
+func (m *skAuthMiddleware) handleLogout() (*shttp.Response, error) {
+	if m.req.Method != http.MethodPost {
+		return &shttp.Response{
+			Status: http.StatusMethodNotAllowed,
+			Data:   map[string]any{"errors": []string{"method not allowed"}},
+		}, nil
+	}
+
+	return &shttp.Response{
+		Status:  http.StatusOK,
+		Cookies: []http.Cookie{m.expiredSessionCookie()},
+	}, nil
+}
+
 // deliverSession hands the freshly minted session token to the browser and
 // sends it on to redirectURL. In cookie mode it sets the shared session cookie
 // and 302s; in localStorage mode it renders the landing page whose script

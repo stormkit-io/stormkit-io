@@ -173,3 +173,41 @@ func (s *SkAuthCookieSuite) Test_Login_LocalStorageMode_UsesScript() {
 	s.Empty(res.Cookies)
 	s.Contains(string(res.Data.([]byte)), "localStorage.setItem('skauth'")
 }
+
+// logoutRequest builds a request to the logout endpoint with the given method.
+func (s *SkAuthCookieSuite) logoutRequest(host *hosting.Host, method string) *hosting.RequestContext {
+	req := s.request(host, nil)
+	req.RequestContext.Method = method
+	req.RequestContext.Request.URL = &url.URL{Host: host.Name, Path: "/_stormkit/auth/logout", RawPath: "/_stormkit/auth/logout"}
+	req.OriginalPath = "/_stormkit/auth/logout"
+
+	return req
+}
+
+// Test_Logout_ExpiresCookie verifies POST /_stormkit/auth/logout clears the
+// session cookie — the only way to end a cookie-mode session, since the HttpOnly
+// cookie is invisible to the app's JS.
+func (s *SkAuthCookieSuite) Test_Logout_ExpiresCookie() {
+	res, err := hosting.ServeAuth(s.logoutRequest(s.host(true), http.MethodPost))
+
+	s.NoError(err)
+	s.Require().NotNil(res)
+	s.Equal(http.StatusOK, res.Status)
+
+	s.Require().Len(res.Cookies, 1)
+	c := res.Cookies[0]
+	s.Equal(buildconf.SessionCookieName, c.Name)
+	s.Empty(c.Value)
+	s.Equal(".example.com", c.Domain)
+	s.Less(c.MaxAge, 0, "a deletion cookie must have MaxAge<0")
+}
+
+// Test_Logout_RejectsGet guards against a cross-site GET forcing a logout.
+func (s *SkAuthCookieSuite) Test_Logout_RejectsGet() {
+	res, err := hosting.ServeAuth(s.logoutRequest(s.host(true), http.MethodGet))
+
+	s.NoError(err)
+	s.Require().NotNil(res)
+	s.Equal(http.StatusMethodNotAllowed, res.Status)
+	s.Empty(res.Cookies)
+}

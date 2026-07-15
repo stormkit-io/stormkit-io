@@ -70,6 +70,7 @@ func registerReservedRoutes(s *shttp.Service) {
 	add("/verify", handleAuthVerify)
 	add("/magic", handleAuthMagic)
 	add("/refresh", handleAuthRefresh)
+	add("/logout", handleAuthLogout)
 	add("/me", handleAuthMe)
 	add("/callback", handleAuthOAuthCallback)
 	add("/{provider}", handleAuthProvider)
@@ -107,6 +108,7 @@ func serveReservedAuth(fn func(*skAuthMiddleware) (*shttp.Response, error)) func
 var (
 	handleAuthVerify        = serveReservedAuth((*skAuthMiddleware).handleVerify)
 	handleAuthRefresh       = serveReservedAuth((*skAuthMiddleware).handleRefresh)
+	handleAuthLogout        = serveReservedAuth((*skAuthMiddleware).handleLogout)
 	handleAuthMe            = serveReservedAuth((*skAuthMiddleware).handleMe)
 	handleAuthMagic         = serveReservedAuth((*skAuthMiddleware).handleMagic)
 	handleAuthOAuthCallback = serveReservedAuth((*skAuthMiddleware).handleOAuthCallback)
