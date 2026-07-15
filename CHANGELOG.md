@@ -1,5 +1,22 @@
 # Changelog
 
+## v2026.07.15.2...v2026.07.15.3
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.15.2...v2026.07.15.3)
+
+### 🩹 Fixes
+
+- Cookie mode across all login routes ([#368](https://github.com/stormkit-io/stormkit-io/pull/368))
+
+### 🏡 Chore
+
+- Update changelog for v2026.07.15.1 ([#365](https://github.com/stormkit-io/stormkit-io/pull/365))
+- Update changelog for v2026.07.15.2 ([#367](https://github.com/stormkit-io/stormkit-io/pull/367))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.07.15.1...v2026.07.15.2
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.15.1...v2026.07.15.2)
