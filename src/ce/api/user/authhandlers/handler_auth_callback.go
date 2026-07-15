@@ -87,6 +87,14 @@ func handlerAuthCallback(req *shttp.RequestContext) *shttp.Response {
 
 	authUser, err := authUser(providerName, code)
 
+	if err != nil {
+		return cbResponse(http.StatusForbidden).json(jsonMsg{"auth": false, "error": err.Error()}).send()
+	}
+
+	if authUser == nil {
+		return cbResponse(http.StatusForbidden).json(jsonMsg{"auth": false, "error": "no-user"}).send()
+	}
+
 	// Remove no-reply emails
 	emails := []oauth.Email{}
 
@@ -100,14 +108,8 @@ func handlerAuthCallback(req *shttp.RequestContext) *shttp.Response {
 
 	authUser.Emails = emails
 
-	if err != nil {
-		msg := jsonMsg{"auth": false, "error": err.Error()}
-
-		if authUser != nil && len(authUser.Emails) == 0 {
-			msg = jsonMsg{"email": false}
-		}
-
-		return cbResponse(http.StatusForbidden).json(msg).send()
+	if len(authUser.Emails) == 0 {
+		return cbResponse(http.StatusForbidden).json(jsonMsg{"email": false}).send()
 	}
 
 	return Login(req.Context(), authUser)
