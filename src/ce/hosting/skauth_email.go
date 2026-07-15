@@ -141,10 +141,10 @@ func (m *skAuthMiddleware) login() *shttp.Response {
 		return shttp.Error(err, fmt.Sprintf("failed to generate session token: %s", err.Error()))
 	}
 
-	return &shttp.Response{
+	return m.finalizeSessionResponse(&shttp.Response{
 		Status: http.StatusOK,
 		Data:   map[string]any{"token": sessionToken, "email": ctx.email, "userId": authUser.UUID},
-	}
+	}, sessionToken)
 }
 
 func (m *skAuthMiddleware) register() *shttp.Response {
@@ -219,10 +219,10 @@ func (m *skAuthMiddleware) register() *shttp.Response {
 		return shttp.Error(err, fmt.Sprintf("failed to generate session token: %s", err.Error()))
 	}
 
-	return &shttp.Response{
+	return m.finalizeSessionResponse(&shttp.Response{
 		Status: http.StatusCreated,
 		Data:   map[string]any{"token": sessionToken, "email": ctx.email, "userId": usr.UUID},
-	}
+	}, sessionToken)
 }
 
 func (m *skAuthMiddleware) verifyEmail() *shttp.Response {
