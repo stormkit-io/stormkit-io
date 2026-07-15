@@ -28,13 +28,6 @@ var oauthProviders = map[string]bool{
 // resolveRedirect). On success it 302-redirects to the provider's consent
 // screen; the provider then calls back the central /v1/auth/callback endpoint.
 func (m *skAuthMiddleware) handleOAuthInitiate(providerName string) (*shttp.Response, error) {
-	if m.req.Method != http.MethodGet {
-		return &shttp.Response{
-			Status: http.StatusMethodNotAllowed,
-			Data:   map[string]any{"errors": []string{"method not allowed"}},
-		}, nil
-	}
-
 	req := m.req.RequestContext
 	envID := m.req.Host.Config.EnvID
 
@@ -97,13 +90,6 @@ func (m *skAuthMiddleware) callbackURL() string {
 // browser back to the origin that started the flow via a one-time code (the
 // session token is stored in Redis and injected into localStorage on landing).
 func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
-	if m.req.Method != http.MethodGet {
-		return &shttp.Response{
-			Status: http.StatusMethodNotAllowed,
-			Data:   map[string]any{"errors": []string{"method not allowed"}},
-		}, nil
-	}
-
 	req := m.req.RequestContext
 
 	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: req.FormValue("state")})
