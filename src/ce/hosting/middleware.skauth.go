@@ -1,11 +1,10 @@
 package hosting
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/url"
-	"time"
+	"strings"
 
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
@@ -20,21 +19,15 @@ type skAuthMiddleware struct {
 }
 
 // sessionBearer returns the SkAuth session token for the request, consulting
-// both credentials: the Authorization bearer (localStorage mode and API
-// clients) and the session cookie (cookie mode, where a top-level navigation or
-// a credentials:'include' XHR carries no Authorization header).
+// both credentials: the session cookie (browsers — a top-level navigation or a
+// credentials:'include' XHR carries no Authorization header) and the
+// Authorization bearer (native/mobile and MCP clients, which send no cookie).
 //
-// In cookie mode the cookie is preferred so a stale Authorization bearer — e.g.
-// a token left in localStorage from before the switch to cookie mode, which the
-// old SPA still attaches to every XHR — can't mask the live cookie session. API
-// and MCP clients send no cookie, so the Authorization bearer remains the
-// fallback. In localStorage mode there is no session cookie, so only the bearer
-// applies.
+// The cookie is preferred so a stale Authorization bearer — e.g. a token an old
+// SPA still attaches to every XHR — can't mask the live cookie session.
 func sessionBearer(req *RequestContext) string {
-	if req.Host.Config.SKAuth.SessionInCookie() {
-		if cookie, err := req.Cookie(buildconf.SessionCookieName); err == nil && cookie != nil && cookie.Value != "" {
-			return cookie.Value
-		}
+	if cookie, err := req.Cookie(buildconf.SessionCookieName); err == nil && cookie != nil && cookie.Value != "" {
+		return cookie.Value
 	}
 
 	return user.ParseBearer(req.Header.Get("Authorization"))
@@ -65,31 +58,21 @@ func (m *skAuthMiddleware) sessionCookieFor(token string) http.Cookie {
 	return cookie
 }
 
-// deliverSession hands the freshly minted session token to the browser and
-// sends it on to redirectURL. In cookie mode it sets the shared session cookie
-// and 302s; in localStorage mode it renders the landing page whose script
-// stashes the token before redirecting. Callers compute redirectURL as either a
-// relative path or an absolute URL on the destination origin.
+// deliverSession sets the session cookie and 302s to redirectURL. Used by the
+// browser login landings (email verify, magic link, OAuth-provider callback);
+// the cookie is first-party to this auth host, so it is also readable by the
+// OAuth /authorize navigation. redirectURL is a relative path or an absolute URL
+// on the destination origin.
 func (m *skAuthMiddleware) deliverSession(token, redirectURL string) *shttp.Response {
-	if m.req.Host.Config.SKAuth.SessionInCookie() {
-		return &shttp.Response{
-			Status:   http.StatusFound,
-			Redirect: &redirectURL,
-			Cookies:  []http.Cookie{m.sessionCookieFor(token)},
-			Headers: shttp.HeadersFromMap(map[string]string{
-				"Cache-Control":   "no-store",
-				"Referrer-Policy": "no-referrer",
-			}),
-		}
+	return &shttp.Response{
+		Status:   http.StatusFound,
+		Redirect: &redirectURL,
+		Cookies:  []http.Cookie{m.sessionCookieFor(token)},
+		Headers: shttp.HeadersFromMap(map[string]string{
+			"Cache-Control":   "no-store",
+			"Referrer-Policy": "no-referrer",
+		}),
 	}
-
-	head := fmt.Sprintf(
-		`<script>localStorage.setItem('skauth', JSON.stringify(%q));window.location.href=%q;</script>`,
-		token,
-		redirectURL,
-	)
-
-	return m.renderVerifyPage(http.StatusOK, head, "")
 }
 
 func (m *skAuthMiddleware) handleRegisterLogin(path string) (*shttp.Response, error) {
@@ -192,43 +175,15 @@ func (m *skAuthMiddleware) handleMagicLinkVerify() (*shttp.Response, error) {
 	successURL := m.req.Host.Config.SKAuth.SuccessURL
 	token, _ := data["token"].(string)
 
-	// Cross-origin: the POST came from a whitelisted frontend. In cookie mode the
-	// session rides a first-party cookie set on this auth host (see
-	// crossOriginCookieResponse); otherwise fall back to the localStorage bounce.
+	// Cross-origin: the POST came from a whitelisted frontend. The session cookie
+	// is first-party to this auth host (also the OAuth AS), so it is set here and
+	// the browser is sent straight to the destination origin — no dependency on
+	// the frontend host carrying its own auth config.
 	if redirect, _ := data["redirect"].(string); redirect != "" {
-		if res := m.crossOriginCookieResponse(redirect, token); res != nil {
-			return res, nil
-		}
-
-		landing, err := stashSessionToken(m.req.Context(), redirect, successURL, token)
-
-		if err != nil {
-			return m.renderVerifyPage(http.StatusInternalServerError, "", "magic link verification failed"), nil
-		}
-
-		head := fmt.Sprintf(`<script>window.location.href=%q;</script>`, landing)
-
-		return m.renderVerifyPage(http.StatusOK, head, ""), nil
+		return m.deliverSession(token, redirect+successURL), nil
 	}
 
 	return m.deliverSession(token, successURL+"?verified=true"), nil
-}
-
-// crossOriginCookieResponse returns the cookie-mode delivery for a login that
-// lands on a different origin (magic-link, OAuth-provider): the session cookie
-// is set first-party on this auth host — which is also the OAuth authorization
-// server — and the browser is sent straight to origin+successURL. This removes
-// the localStorage bounce and, crucially in a decoupled setup, stops the landing
-// from depending on the frontend host carrying its own cookie-mode config. It
-// returns nil when the environment is not in cookie mode, so the caller keeps
-// its existing localStorage delivery. origin is scheme+host (no trailing slash);
-// SuccessURL is validated at config time to start with "/".
-func (m *skAuthMiddleware) crossOriginCookieResponse(origin, token string) *shttp.Response {
-	if !m.req.Host.Config.SKAuth.SessionInCookie() {
-		return nil
-	}
-
-	return m.deliverSession(token, origin+m.req.Host.Config.SKAuth.SuccessURL)
 }
 
 // finalizeSessionResponse adapts a successful JSON auth response (login,
@@ -241,7 +196,7 @@ func (m *skAuthMiddleware) crossOriginCookieResponse(origin, token string) *shtt
 // In cookie mode a decoupled frontend must send the auth XHR with credentials,
 // and the app's CORS config must allow them, for the browser to store the cookie.
 func (m *skAuthMiddleware) finalizeSessionResponse(res *shttp.Response, token string) *shttp.Response {
-	if res == nil || res.Status >= http.StatusBadRequest || !m.req.Host.Config.SKAuth.SessionInCookie() {
+	if res == nil || res.Status >= http.StatusBadRequest || !m.wantsCookieDelivery() {
 		return res
 	}
 
@@ -267,6 +222,39 @@ func (m *skAuthMiddleware) finalizeSessionResponse(res *shttp.Response, token st
 	return res
 }
 
+// sessionDeliveryHeader lets a native/mobile client opt into bearer delivery on
+// a cookie-mode environment: it has no cookie jar, so it asks for the token in
+// the response body and sends it back as an Authorization bearer. Browsers omit
+// the header and get the cookie.
+const (
+	sessionDeliveryHeader = "X-Session-Delivery"
+	sessionDeliveryBearer = "bearer"
+)
+
+// wantsCookieDelivery reports whether the session should be delivered as a
+// cookie (the browser default) rather than a bearer token in the response body.
+// Bearer delivery — token in the body, no cookie, and no cookie-CSRF Origin gate
+// — applies when either:
+//
+//   - the client opts in via the X-Session-Delivery header (native/mobile at
+//     login, where there is no session credential yet to infer from); or
+//   - the request authenticated with an Authorization bearer and carries no
+//     session cookie (a native client rotating its token at /refresh) — so it
+//     "just works" without the header. A browser always presents the cookie, so
+//     the cookie wins even if a stale Authorization header rides along.
+func (m *skAuthMiddleware) wantsCookieDelivery() bool {
+	if strings.EqualFold(m.req.Header.Get(sessionDeliveryHeader), sessionDeliveryBearer) {
+		return false
+	}
+
+	if cookie, err := m.req.Cookie(buildconf.SessionCookieName); (err != nil || cookie.Value == "") &&
+		user.ParseBearer(m.req.Header.Get("Authorization")) != "" {
+		return false
+	}
+
+	return true
+}
+
 // cookieOriginAllowed reports whether the request that is about to receive a
 // session cookie originates from a trusted browser context. Same-host requests
 // and configured AllowedOrigins pass; a missing or foreign Origin is rejected.
@@ -286,35 +274,6 @@ func (m *skAuthMiddleware) cookieOriginAllowed() bool {
 	return m.req.Host.Config.SKAuth.IsAllowedOrigin(origin)
 }
 
-// sessionCode is the payload stored in Redis under the one-time login code. The
-// auth host mints the session token and computes the post-login redirect, then
-// stashes both so the landing page can inject the token and redirect — without
-// the landing host needing its own auth config.
-type sessionCode struct {
-	Token    string `json:"token"`
-	Redirect string `json:"redirect"`
-}
-
-// magicLinkCodeStore holds the one-time login codes for the magic-link landing.
-// The empty prefix keeps the bare-code keyspace the landing URL embeds; OAuth
-// codes live under their own prefix so the two never collide.
-var magicLinkCodeStore = oneTimeCode{prefix: "", ttl: 2 * time.Minute}
-
-// stashSessionToken stores the session token and its post-login redirect under a
-// fresh one-time code and returns the landing URL on the destination origin. The
-// browser is sent there; codeLanding reads the payload back and injects the token
-// into localStorage on that origin. origin is scheme+host (no trailing slash);
-// successURL is validated at config time to start with '/'.
-func stashSessionToken(ctx context.Context, origin, successURL, token string) (string, error) {
-	code, err := magicLinkCodeStore.issue(ctx, sessionCode{Token: token, Redirect: origin + successURL})
-
-	if err != nil {
-		return "", err
-	}
-
-	return origin + "/_stormkit/auth?code=" + code, nil
-}
-
 // loginErrorRedirect bounces a failed sign-in back to the app's redirect page
 // (origin + SuccessURL) with a user-friendly message in the login_error query
 // param, instead of rendering a Stormkit error page. The underlying cause should
@@ -330,54 +289,6 @@ func (m *skAuthMiddleware) loginErrorRedirect(origin, message string) *shttp.Res
 		Status:   http.StatusFound,
 		Redirect: &target,
 	}
-}
-
-// codeLanding serves the one-time-code login landing. It is host-config
-// independent: the token and redirect were stashed in Redis by the auth host, so
-// it works even on a frontend deployment that has no auth config of its own.
-// Returns nil when the code is absent or unknown, so the request falls through to
-// normal serving (the SPA) instead of rendering an error.
-func (m *skAuthMiddleware) codeLanding() *shttp.Response {
-	code := m.req.Query().Get("code")
-
-	if code == "" {
-		return nil
-	}
-
-	var sc sessionCode
-
-	if err := magicLinkCodeStore.redeem(m.req.Context(), code, &sc); err != nil {
-		return nil
-	}
-
-	// This landing runs on the destination origin, so a cookie set here (with
-	// the configured Domain) is visible to the app and its authorization
-	// server — exactly the cross-subdomain boundary the bounce exists to cross.
-	return m.deliverSession(sc.Token, sc.Redirect)
-}
-
-// handleCallback renders the terminal states of the one-time-code landing on an
-// auth-enabled host. The success path (a valid code) is handled earlier by
-// codeLanding, so by the time we get here the code is missing or unknown.
-func (m *skAuthMiddleware) handleCallback() (*shttp.Response, error) {
-	status := http.StatusOK
-	content := "invalid session"
-
-	if m.req.Query().Get("code") == "" {
-		status = http.StatusBadRequest
-		content = "code is missing"
-	}
-
-	return &shttp.Response{
-		Status: status,
-		Headers: shttp.HeadersFromMap(map[string]string{
-			"Content-Type": "text/html",
-		}),
-		Data: html.MustRender(html.RenderArgs{
-			PageTitle:   "Stormkit - Auth",
-			PageContent: content,
-		}),
-	}, nil
 }
 
 func (m *skAuthMiddleware) renderVerifyPage(status int, head, content string) *shttp.Response {
@@ -396,46 +307,18 @@ func (m *skAuthMiddleware) renderVerifyPage(status int, head, content string) *s
 	}
 }
 
-// WithSKAuth carries the cross-cutting auth concerns that must run for every app
-// request: the config-independent one-time-code login landing and the
-// verified-bearer -> identity header injection. The discrete /_stormkit/auth/*
-// endpoints (register, login, verify, magic, refresh, me, callback, provider)
-// are served by dedicated routes — see registerReservedRoutes.
+// WithSKAuth injects the verified-bearer identity headers (X-User-Id /
+// X-User-Email) for every app request. The discrete /_stormkit/auth/* endpoints
+// (register, login, verify, magic, refresh, logout, me, callback, provider) are
+// served by dedicated routes — see registerReservedRoutes.
 func WithSKAuth(req *RequestContext) (*shttp.Response, error) {
-	path := req.URL().Path
-
-	// The one-time-code login landing works on any Stormkit host: the token and
-	// its redirect live in Redis (stashed by the auth host), so the destination
-	// frontend doesn't need its own auth config. This must run before the
-	// SKAuth-nil gate below. The exact-match compare keeps normal traffic free —
-	// the query is parsed only on /_stormkit/auth, and Redis is touched only when
-	// a code is actually present. codeLanding returns nil for an absent/unknown
-	// code so we fall through to normal serving (the SPA). Skip OPTIONS so a CORS
-	// preflight can't consume the one-time code (real landings are GET
-	// navigations and are never preflighted).
-	if path == "/_stormkit/auth" && req.Method != http.MethodOptions && req.Query().Get("code") != "" {
-		if resp := (&skAuthMiddleware{req: req}).codeLanding(); resp != nil {
-			return resp, nil
-		}
-	}
-
 	if req.Host.Config.SKAuth == nil {
 		return nil, nil
 	}
 
 	injectUserHeaders(req)
 
-	// Only the bare landing remains here; its terminal states (missing/unknown
-	// code) render the auth page. Everything under /_stormkit/auth/ is routed.
-	if path != "/_stormkit/auth" {
-		return nil, nil
-	}
-
-	if req.Method == http.MethodOptions {
-		return &shttp.Response{Status: http.StatusNoContent}, nil
-	}
-
-	return (&skAuthMiddleware{req: req}).handleCallback()
+	return nil, nil
 }
 
 // injectUserHeaders strips any client-supplied identity headers and, when a

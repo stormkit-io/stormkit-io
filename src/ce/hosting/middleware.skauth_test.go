@@ -2,7 +2,6 @@ package hosting_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,7 +16,6 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/ce/hosting"
-	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
@@ -135,98 +133,6 @@ func (s *WithSKAuthSuite) Test_NonAuthPath() {
 
 	s.NoError(err)
 	s.Nil(res)
-}
-
-// Test_MissingCode checks that the middleware returns 400 when the code query
-// parameter is absent.
-// Note: the "code is missing" message is overwritten by the Redis lookup path
-// ("invalid session") because both branches share the same content variable and
-// an empty-key Redis lookup always returns an empty string.
-func (s *WithSKAuthSuite) Test_MissingCode() {
-	req := s.newRequest(s.hostWithSKAuth(), "/_stormkit/auth")
-	res, err := hosting.WithSKAuth(req)
-
-	s.NoError(err)
-	s.NotNil(res)
-	s.Equal(http.StatusBadRequest, res.Status)
-	s.Equal("text/html", res.Headers.Get("Content-Type"))
-	s.Contains(string(res.Data.([]byte)), "code is missing")
-}
-
-// Test_InvalidCode checks that the middleware returns 200 with an "invalid session"
-// message when the submitted code is not found in Redis.
-func (s *WithSKAuthSuite) Test_InvalidCode() {
-	req := s.newRequest(s.hostWithSKAuth(), "/_stormkit/auth?code=unknown-code")
-	res, err := hosting.WithSKAuth(req)
-
-	s.NoError(err)
-	s.NotNil(res)
-	s.Equal(http.StatusOK, res.Status)
-	s.Equal("text/html", res.Headers.Get("Content-Type"))
-	s.Contains(string(res.Data.([]byte)), "invalid session")
-}
-
-// Test_ValidCode checks that the middleware returns 200 and injects a script that
-// stores the session token in localStorage and redirects to the stashed target
-// when a valid code is presented.
-func (s *WithSKAuthSuite) Test_ValidCode() {
-	ctx := context.Background()
-	code := "test-valid-code-123"
-	sessionToken := "test.session.jwt"
-
-	rds := rediscache.Client()
-	rds.Set(ctx, code, `{"token":"`+sessionToken+`","redirect":"https://app.example.com/dashboard"}`, time.Minute*2)
-	defer rds.Del(ctx, code)
-
-	req := s.newRequest(s.hostWithSKAuth(), "/_stormkit/auth?code="+code)
-	res, err := hosting.WithSKAuth(req)
-
-	s.NoError(err)
-	s.NotNil(res)
-	s.Equal(http.StatusOK, res.Status)
-	s.Equal("text/html", res.Headers.Get("Content-Type"))
-
-	body := string(res.Data.([]byte))
-	s.Contains(body, `localStorage.setItem('skauth'`)
-	s.Contains(body, sessionToken)
-	s.Contains(body, "https://app.example.com/dashboard")
-}
-
-// Test_CodeLanding_FrontendWithoutSKAuth verifies the one-time-code landing works
-// on a Stormkit host with NO auth config of its own — the cross-origin case where
-// the frontend is a separate deployment. The token + redirect were stashed in
-// Redis by the auth host, so injection must still happen here, and the code is
-// consumed one-time.
-func (s *WithSKAuthSuite) Test_CodeLanding_FrontendWithoutSKAuth() {
-	ctx := context.Background()
-	code := "frontend-code-456"
-	sessionToken := "front.session.jwt"
-
-	rds := rediscache.Client()
-	rds.Set(ctx, code, `{"token":"`+sessionToken+`","redirect":"https://www.triplan.to/"}`, time.Minute*2)
-	defer rds.Del(ctx, code)
-
-	host := &hosting.Host{
-		Name:   "www.triplan.to",
-		Config: &appconf.Config{}, // no SKAuth configured on the frontend host
-	}
-
-	res, err := hosting.WithSKAuth(s.newRequest(host, "/_stormkit/auth?code="+code))
-
-	s.NoError(err)
-	s.Require().NotNil(res)
-	s.Equal(http.StatusOK, res.Status)
-
-	body := string(res.Data.([]byte))
-	s.Contains(body, `localStorage.setItem('skauth'`)
-	s.Contains(body, sessionToken)
-	s.Contains(body, "https://www.triplan.to/")
-
-	// One-time use: the code is consumed, so a replay falls through to normal
-	// serving (nil response).
-	res2, err := hosting.WithSKAuth(s.newRequest(host, "/_stormkit/auth?code="+code))
-	s.NoError(err)
-	s.Nil(res2)
 }
 
 // Test_RegisterPath_SKAuthDisabled checks that /_stormkit/auth/register is a no-op when SKAuth is not configured.

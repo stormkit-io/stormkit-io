@@ -26,7 +26,6 @@ type AuthConfigUpdateRequest struct {
 	OAuthServerEnabled *bool   `json:"oauthServerEnabled"`
 	OAuthResourcePath  *string `json:"oauthResourcePath"`
 	OAuthAllowLoopback *bool   `json:"oauthAllowLoopback"`
-	SessionStorage     *string `json:"sessionStorage"`
 	CookieDomain       *string `json:"cookieDomain"`
 	LoginURL           *string `json:"loginUrl"`
 }
@@ -105,10 +104,10 @@ func handlerAuthConfigUpdate(req *app.RequestContext) *shttp.Response {
 	env.AuthConf.Status = data.Status
 	env.AuthConf.AllowedOrigins = allowedOrigins
 
-	if err := applySessionStorageConf(env.AuthConf, data); err != nil {
+	if err := applySessionConf(env.AuthConf, data); err != nil {
 		return shttp.BadRequest(map[string]any{
 			"error": err.Error(),
-			"hint":  "Session storage must be either \"localStorage\" or \"cookie\".",
+			"hint":  "Cookie domain must be a bare host such as .example.com; login URL a relative path or absolute URL.",
 		})
 	}
 
@@ -116,17 +115,6 @@ func handlerAuthConfigUpdate(req *app.RequestContext) *shttp.Response {
 		return shttp.BadRequest(map[string]any{
 			"error": err.Error(),
 			"hint":  "Provide a relative path such as: /mcp",
-		})
-	}
-
-	// The OAuth authorization server can only identify the user on the
-	// top-level /authorize navigation from a cookie session; a localStorage
-	// session dead-ends silently at the consent screen. Refuse the combination
-	// rather than let the connect flow break with no error surfaced.
-	if env.AuthConf.OAuthServerEnabled() && !env.AuthConf.SessionInCookie() {
-		return shttp.BadRequest(map[string]any{
-			"error": "The OAuth server requires cookie session storage. Set session storage to \"cookie\" before enabling it.",
-			"hint":  "Auth settings → Session storage → Cookie.",
 		})
 	}
 
@@ -148,20 +136,10 @@ func handlerAuthConfigUpdate(req *app.RequestContext) *shttp.Response {
 	return shttp.OK()
 }
 
-// applySessionStorageConf merges the session-storage fields from data into
-// conf, leaving any omitted field untouched. It validates the storage mode and
-// the login URL the OAuth /authorize endpoint delegates to.
-func applySessionStorageConf(conf *buildconf.SKAuthConf, data AuthConfigUpdateRequest) error {
-	if data.SessionStorage != nil {
-		mode := strings.TrimSpace(*data.SessionStorage)
-
-		if mode != "" && mode != "localStorage" && mode != buildconf.SessionStorageCookie {
-			return fmt.Errorf("session storage %q must be either \"localStorage\" or \"cookie\"", mode)
-		}
-
-		conf.SessionStorage = mode
-	}
-
+// applySessionConf merges the session cookie fields from data into conf,
+// leaving any omitted field untouched. It validates the cookie domain and the
+// login URL the OAuth /authorize endpoint delegates to.
+func applySessionConf(conf *buildconf.SKAuthConf, data AuthConfigUpdateRequest) error {
 	if data.CookieDomain != nil {
 		domain := strings.TrimSpace(*data.CookieDomain)
 

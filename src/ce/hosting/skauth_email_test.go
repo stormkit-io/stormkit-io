@@ -60,7 +60,6 @@ func (s *WithSKAuthEmailSuite) hostFor(envID types.ID) *hosting.Host {
 
 func (s *WithSKAuthEmailSuite) hostForCookie(envID types.ID) *hosting.Host {
 	host := s.hostFor(envID)
-	host.Config.SKAuth.SessionStorage = buildconf.SessionStorageCookie
 	host.Config.SKAuth.CookieDomain = ".example.com"
 
 	return host
@@ -184,20 +183,30 @@ func (s *WithSKAuthEmailSuite) setupEnv(withMailer bool) (*factory.MockEnv, erro
 	return env, err
 }
 
+// register and login default to bearer delivery (X-Session-Delivery: bearer), so
+// the response carries the token in the body and skips the cookie-CSRF Origin
+// gate — the simplest shape for tests that just need a session or a user. The
+// browser cookie path is exercised by registerOrigin / loginOrigin.
 func (s *WithSKAuthEmailSuite) register(host *hosting.Host, email, password string) *shttp.Response {
-	res, err := hosting.ServeAuth(s.postRequest(host, "/_stormkit/auth/register", map[string]any{
+	req := s.postRequest(host, "/_stormkit/auth/register", map[string]any{
 		"email":    email,
 		"password": password,
-	}))
+	})
+	req.Header.Set("X-Session-Delivery", "bearer")
+
+	res, err := hosting.ServeAuth(req)
 	s.Require().NoError(err)
 	return res
 }
 
 func (s *WithSKAuthEmailSuite) login(host *hosting.Host, email, password string) *shttp.Response {
-	res, err := hosting.ServeAuth(s.postRequest(host, "/_stormkit/auth/login", map[string]any{
+	req := s.postRequest(host, "/_stormkit/auth/login", map[string]any{
 		"email":    email,
 		"password": password,
-	}))
+	})
+	req.Header.Set("X-Session-Delivery", "bearer")
+
+	res, err := hosting.ServeAuth(req)
 	s.Require().NoError(err)
 	return res
 }
@@ -206,6 +215,21 @@ func (s *WithSKAuthEmailSuite) login(host *hosting.Host, email, password string)
 // auth host — the value the cookie-mode CSRF guard accepts.
 func (s *WithSKAuthEmailSuite) sameHostOrigin(host *hosting.Host) string {
 	return "https://" + host.Name
+}
+
+// loginBearer logs in as a native/mobile client: it opts into bearer delivery
+// via the X-Session-Delivery header and sends no Origin (native clients aren't
+// subject to CORS), so it must receive the token in the body and no cookie.
+func (s *WithSKAuthEmailSuite) loginBearer(host *hosting.Host, email, password string) *shttp.Response {
+	req := s.postRequest(host, "/_stormkit/auth/login", map[string]any{
+		"email":    email,
+		"password": password,
+	})
+	req.Header.Set("X-Session-Delivery", "bearer")
+
+	res, err := hosting.ServeAuth(req)
+	s.Require().NoError(err)
+	return res
 }
 
 func (s *WithSKAuthEmailSuite) loginOrigin(host *hosting.Host, origin, email, password string) *shttp.Response {
@@ -257,11 +281,14 @@ func (s *WithSKAuthEmailSuite) Test_Register_BodyEnvIdIgnored() {
 	s.Require().NoError(err)
 
 	// Post with a different envId in the body — should still succeed using the host's env.
-	res, err := hosting.ServeAuth(s.postRequest(s.hostFor(env.ID), "/_stormkit/auth/register", map[string]any{
+	req := s.postRequest(s.hostFor(env.ID), "/_stormkit/auth/register", map[string]any{
 		"envId":    "9999999",
 		"email":    "crossenv@example.com",
 		"password": "supersecret123",
-	}))
+	})
+	req.Header.Set("X-Session-Delivery", "bearer")
+
+	res, err := hosting.ServeAuth(req)
 	s.Require().NoError(err)
 	s.Equal(http.StatusCreated, res.Status)
 }
@@ -410,6 +437,27 @@ func (s *WithSKAuthEmailSuite) Test_Login_CookieMode_SetsCookieNoToken() {
 	s.Equal(http.SameSiteLaxMode, res.Cookies[0].SameSite)
 }
 
+// Test_Login_CookieMode_BearerDelivery verifies that a native/mobile client on a
+// cookie-mode env can opt into bearer delivery: with X-Session-Delivery: bearer
+// (and no Origin, as native clients send) it gets the token in the body and no
+// cookie, and is not blocked by the cookie-CSRF Origin guard.
+func (s *WithSKAuthEmailSuite) Test_Login_CookieMode_BearerDelivery() {
+	env, err := s.setupEnv(false)
+	s.Require().NoError(err)
+
+	host := s.hostForCookie(env.ID)
+
+	s.Require().Equal(http.StatusCreated, s.registerOrigin(host, s.sameHostOrigin(host), "mobile@example.com", "supersecret123").Status)
+
+	res := s.loginBearer(host, "mobile@example.com", "supersecret123")
+
+	s.Equal(http.StatusOK, res.Status)
+
+	data := s.jsonData(res)
+	s.NotEmpty(data["token"], "bearer delivery must return the token in the body")
+	s.Empty(res.Cookies, "bearer delivery must not set a cookie")
+}
+
 // Test_Register_CookieMode_SetsCookieNoToken verifies the same single-credential
 // behavior on the auto-login register path (no mailer / verification).
 func (s *WithSKAuthEmailSuite) Test_Register_CookieMode_SetsCookieNoToken() {
@@ -460,7 +508,12 @@ func (s *WithSKAuthEmailSuite) Test_Login_CookieMode_MissingOrigin_Rejected() {
 
 	s.Require().Equal(http.StatusCreated, s.registerOrigin(host, s.sameHostOrigin(host), "victim2@example.com", "supersecret123").Status)
 
-	res := s.login(host, "victim2@example.com", "supersecret123")
+	// A browser cookie login with no Origin and no bearer opt-in: must be refused.
+	res, err := hosting.ServeAuth(s.postRequest(host, "/_stormkit/auth/login", map[string]any{
+		"email":    "victim2@example.com",
+		"password": "supersecret123",
+	}))
+	s.Require().NoError(err)
 
 	s.Equal(http.StatusForbidden, res.Status)
 	s.Empty(res.Cookies, "no session cookie may be set when Origin is absent")
@@ -590,10 +643,10 @@ func (s *WithSKAuthEmailSuite) Test_Verify_Success() {
 
 	res := hosting.HandleAuthVerify(s.getRequest(host, fmt.Sprintf("/_stormkit/auth/verify?token=%s&envId=%d", capturedToken, env.ID)))
 
-	s.Equal(http.StatusOK, res.Status)
-
-	body := string(res.Data.([]byte))
-	s.Contains(body, "localStorage.setItem('skauth'")
+	// Verification sets the session cookie and 302s to the success URL.
+	s.Equal(http.StatusFound, res.Status)
+	s.Require().Len(res.Cookies, 1)
+	s.Equal(buildconf.SessionCookieName, res.Cookies[0].Name)
 }
 
 func (s *WithSKAuthEmailSuite) Test_Verify_InvalidToken() {

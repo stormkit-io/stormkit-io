@@ -242,8 +242,9 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_Success() {
 	res, err := hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), fmt.Sprintf("/_stormkit/auth/magic?token=%s", token)))
 
 	s.NoError(err)
-	s.Equal(http.StatusOK, res.Status)
-	s.Contains(string(res.Data.([]byte)), "localStorage.setItem('skauth'")
+	s.Equal(http.StatusFound, res.Status)
+	s.Require().Len(res.Cookies, 1)
+	s.Equal(buildconf.SessionCookieName, res.Cookies[0].Name)
 }
 
 // Test_Verify_UIDClaimIsUUID confirms the session JWT carries the user's
@@ -261,21 +262,10 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_UIDClaimIsUUID() {
 
 	res, err := hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), fmt.Sprintf("/_stormkit/auth/magic?token=%s", token)))
 	s.Require().NoError(err)
-	s.Require().Equal(http.StatusOK, res.Status)
+	s.Require().Equal(http.StatusFound, res.Status)
+	s.Require().Len(res.Cookies, 1)
 
-	body := string(res.Data.([]byte))
-	const marker = `JSON.stringify("`
-	idx := strings.Index(body, marker)
-	s.Require().GreaterOrEqual(idx, 0, "session token missing from response body")
-
-	start := idx + len(marker)
-	end := start
-
-	for end < len(body) && body[end] != '"' {
-		end++
-	}
-
-	sessionToken := body[start:end]
+	sessionToken := res.Cookies[0].Value
 	claims := user.ParseJWT(&user.ParseJWTArgs{
 		Bearer:  sessionToken,
 		Secret:  env.AuthConf.Secret,
@@ -304,7 +294,7 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_TokenConsumedOnce() {
 
 	first, err := hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), path))
 	s.NoError(err)
-	s.Equal(http.StatusOK, first.Status)
+	s.Equal(http.StatusFound, first.Status)
 
 	// Reusing a consumed token bounces back to the app with a login_error.
 	second, err := hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), path))
@@ -332,7 +322,7 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_Error_CrossOrigin_RedirectsToInit
 
 	first, err := hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), path))
 	s.Require().NoError(err)
-	s.Require().Equal(http.StatusOK, first.Status)
+	s.Require().Equal(http.StatusFound, first.Status)
 
 	// Replaying the consumed token: the error redirect must target the initiating
 	// origin, not the verify host.
@@ -390,15 +380,13 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_CrossOrigin_RedirectsToInitiator(
 	res, err := hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), fmt.Sprintf("/_stormkit/auth/magic?token=%s", token)))
 
 	s.NoError(err)
-	s.Equal(http.StatusOK, res.Status)
-
-	body := string(res.Data.([]byte))
-	// Cross-origin path bounces to the initiator's one-time-code landing, which
-	// injects the token into localStorage there — no fragment, and this response
-	// must not touch localStorage on the wrong host.
-	s.Contains(body, "https://app.example.com/_stormkit/auth?code=")
-	s.NotContains(body, "#skauth=")
-	s.NotContains(body, "localStorage")
+	// Cross-origin: the session cookie is set first-party on this auth host and
+	// the browser is 302'd straight to the initiating origin's success URL.
+	s.Equal(http.StatusFound, res.Status)
+	s.Require().NotNil(res.Redirect)
+	s.Equal("https://app.example.com/dashboard", *res.Redirect)
+	s.Require().Len(res.Cookies, 1)
+	s.Equal(buildconf.SessionCookieName, res.Cookies[0].Name)
 }
 
 func (s *WithSKAuthMagicLinkSuite) Test_Verify_StaleRedirect_FallsBackToLocal() {
@@ -423,11 +411,13 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_StaleRedirect_FallsBackToLocal() 
 	res, err := hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), fmt.Sprintf("/_stormkit/auth/magic?token=%s", token)))
 
 	s.NoError(err)
-	s.Equal(http.StatusOK, res.Status)
-
-	body := string(res.Data.([]byte))
-	s.Contains(body, "localStorage.setItem('skauth'")
-	s.NotContains(body, "https://app.example.com/dashboard#skauth=")
+	// Stale redirect is dropped, so the session is delivered same-origin: cookie
+	// set here and 302 to the local success URL, never the untrusted origin.
+	s.Equal(http.StatusFound, res.Status)
+	s.Require().NotNil(res.Redirect)
+	s.Equal("/dashboard?verified=true", *res.Redirect)
+	s.Require().Len(res.Cookies, 1)
+	s.Equal(buildconf.SessionCookieName, res.Cookies[0].Name)
 }
 
 func truncateMagicLinkAuthTables() {

@@ -176,7 +176,6 @@ func (s *HandlerAuthConfigUpdateSuite) Test_Update_OAuthServerFields() {
 			"oauthServerEnabled": true,
 			"oauthResourcePath":  "mcp",
 			"oauthAllowLoopback": true,
-			"sessionStorage":     "cookie",
 		},
 		map[string]string{
 			"Authorization": usertest.Authorization(s.usr.ID),
@@ -214,48 +213,6 @@ func (s *HandlerAuthConfigUpdateSuite) Test_Update_OAuthResourcePath_RejectsQuer
 	s.Equal(http.StatusBadRequest, response.Code)
 }
 
-// Test_Update_OAuthServer_RequiresCookieMode refuses to enable the OAuth server
-// while session storage is localStorage — the combination dead-ends silently at
-// the consent screen, so it must be rejected at save time.
-func (s *HandlerAuthConfigUpdateSuite) Test_Update_OAuthServer_RequiresCookieMode() {
-	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
-		shttp.MethodPost,
-		"/skauth/config",
-		map[string]any{
-			"envId":              s.env.ID,
-			"status":             true,
-			"oauthServerEnabled": true,
-			"sessionStorage":     "localStorage",
-		},
-		map[string]string{
-			"Authorization": usertest.Authorization(s.usr.ID),
-		},
-	)
-
-	s.Equal(http.StatusBadRequest, response.Code)
-	s.Contains(response.String(), "cookie session storage")
-}
-
-// Test_Update_RejectsInvalidSessionStorage guards the session-storage enum.
-func (s *HandlerAuthConfigUpdateSuite) Test_Update_RejectsInvalidSessionStorage() {
-	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
-		shttp.MethodPost,
-		"/skauth/config",
-		map[string]any{
-			"envId":          s.env.ID,
-			"status":         true,
-			"sessionStorage": "sqlite",
-		},
-		map[string]string{
-			"Authorization": usertest.Authorization(s.usr.ID),
-		},
-	)
-
-	s.Equal(http.StatusBadRequest, response.Code)
-}
-
 // Test_Update_RejectsProtocolRelativeLoginURL rejects a scheme-relative login URL
 // (leading "//"): it points at another host, not a path on the AS origin, so it
 // must not slip past validation and become a broken same-host redirect.
@@ -265,10 +222,9 @@ func (s *HandlerAuthConfigUpdateSuite) Test_Update_RejectsProtocolRelativeLoginU
 		shttp.MethodPost,
 		"/skauth/config",
 		map[string]any{
-			"envId":          s.env.ID,
-			"status":         true,
-			"sessionStorage": "cookie",
-			"loginUrl":       "//evil.example.com",
+			"envId":    s.env.ID,
+			"status":   true,
+			"loginUrl": "//evil.example.com",
 		},
 		map[string]string{
 			"Authorization": usertest.Authorization(s.usr.ID),
