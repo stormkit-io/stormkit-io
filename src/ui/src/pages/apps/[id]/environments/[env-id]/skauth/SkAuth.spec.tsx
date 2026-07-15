@@ -350,10 +350,15 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
           oauthServerEnabled: false,
           oauthResourcePath: "",
           oauthAllowLoopback: false,
+          sessionStorage: "localStorage",
+          cookieDomain: "",
+          loginUrl: "",
         })
         .reply(200);
 
-      fireEvent.submit(wrapper.getByRole("button", { name: "Save" }).closest("form")!);
+      fireEvent.submit(
+        wrapper.getByRole("button", { name: "Save" }).closest("form")!,
+      );
 
       await waitFor(() => {
         expect(scope.isDone()).toBe(true);
@@ -375,6 +380,9 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
           oauthServerEnabled: false,
           oauthResourcePath: "",
           oauthAllowLoopback: false,
+          sessionStorage: "localStorage",
+          cookieDomain: "",
+          loginUrl: "",
         })
         .reply(200);
 
@@ -408,8 +416,15 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
           oauthServerEnabled: true,
           oauthResourcePath: "",
           oauthAllowLoopback: false,
+          sessionStorage: "cookie",
+          cookieDomain: "",
+          loginUrl: "",
         })
         .reply(200);
+
+      fireEvent.click(
+        await wrapper.findByLabelText("Store session in a cookie"),
+      );
 
       fireEvent.click(
         await wrapper.findByLabelText("Enable OAuth server (MCP connectors)"),
@@ -435,8 +450,15 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
           oauthServerEnabled: true,
           oauthResourcePath: "/mcp",
           oauthAllowLoopback: true,
+          sessionStorage: "cookie",
+          cookieDomain: "",
+          loginUrl: "",
         })
         .reply(200);
+
+      fireEvent.click(
+        await wrapper.findByLabelText("Store session in a cookie"),
+      );
 
       fireEvent.click(
         await wrapper.findByLabelText("Enable OAuth server (MCP connectors)"),
@@ -446,7 +468,9 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
         target: { value: "/mcp" },
       });
 
-      fireEvent.click(await wrapper.findByLabelText("Allow native / CLI clients"));
+      fireEvent.click(
+        await wrapper.findByLabelText("Allow native / CLI clients"),
+      );
 
       fireEvent.submit(
         wrapper.getByRole("button", { name: "Save" }).closest("form")!,
@@ -460,7 +484,9 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
     it("should display error when save fails", async () => {
       nock(apiDomain).post("/skauth/config").reply(500);
 
-      fireEvent.submit(wrapper.getByRole("button", { name: "Save" }).closest("form")!);
+      fireEvent.submit(
+        wrapper.getByRole("button", { name: "Save" }).closest("form")!,
+      );
 
       await waitFor(() => {
         expect(wrapper.getByText("Failed to save settings")).toBeTruthy();

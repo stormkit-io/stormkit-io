@@ -43,17 +43,24 @@ func (s *OAuthSuite) SetupTest() {
 }
 
 func (s *OAuthSuite) host(enabled bool) *hosting.Host {
+	conf := &buildconf.SKAuthConf{
+		Secret:         oauthSecret,
+		Status:         true,
+		TTL:            10,
+		AllowedOrigins: []string{"https://client.example.com"},
+		OAuthServer:    &buildconf.OAuthServerConf{Enabled: enabled},
+	}
+
+	// The OAuth server requires cookie session storage (enforced at config save),
+	// so an OAuth-enabled host is always in cookie mode — that is how /authorize
+	// and grant() read the session off the top-level navigation.
+	if enabled {
+		conf.SessionStorage = buildconf.SessionStorageCookie
+	}
+
 	return &hosting.Host{
-		Name: "app.example.com",
-		Config: &appconf.Config{
-			SKAuth: &buildconf.SKAuthConf{
-				Secret:         oauthSecret,
-				Status:         true,
-				TTL:            10,
-				AllowedOrigins: []string{"https://client.example.com"},
-				OAuthServer:    &buildconf.OAuthServerConf{Enabled: enabled},
-			},
-		},
+		Name:   "app.example.com",
+		Config: &appconf.Config{SKAuth: conf},
 	}
 }
 
@@ -89,6 +96,19 @@ func (s *OAuthSuite) bearer(uid string) string {
 	s.Require().NoError(err)
 
 	return "Bearer " + tok
+}
+
+// session returns request headers carrying a valid SkAuth session cookie, as a
+// cookie-mode browser navigation to /authorize would. The consent screen now
+// requires a readable session; without it /authorize delegates to login.
+func (s *OAuthSuite) session(uid string) http.Header {
+	tok, err := user.JWT(jwt.MapClaims{"uid": uid}, oauthSecret)
+	s.Require().NoError(err)
+
+	h := make(http.Header)
+	h.Set("Cookie", buildconf.SessionCookieName+"="+tok)
+
+	return h
 }
 
 func pkce(verifier string) string {
@@ -166,7 +186,7 @@ func (s *OAuthSuite) Test_MetadataResource() {
 }
 
 func (s *OAuthSuite) Test_Authorize_RendersConsent() {
-	res := hosting.HandleOAuthAuthorize(s.req(s.host(true), http.MethodGet, "/_stormkit/oauth/authorize", s.authzQuery(pkce("verifier")), nil, nil))
+	res := hosting.HandleOAuthAuthorize(s.req(s.host(true), http.MethodGet, "/_stormkit/oauth/authorize", s.authzQuery(pkce("verifier")), s.session("user-1"), nil))
 
 	s.Equal(http.StatusOK, res.Status)
 	s.Contains(res.Headers.Get("Content-Type"), "text/html")
@@ -189,7 +209,7 @@ func (s *OAuthSuite) Test_Authorize_RejectsBadRedirect() {
 // Test_Authorize_SetsAntiFramingHeaders guards the consent page against
 // clickjacking: it must forbid being framed.
 func (s *OAuthSuite) Test_Authorize_SetsAntiFramingHeaders() {
-	res := hosting.HandleOAuthAuthorize(s.req(s.host(true), http.MethodGet, "/_stormkit/oauth/authorize", s.authzQuery(pkce("verifier")), nil, nil))
+	res := hosting.HandleOAuthAuthorize(s.req(s.host(true), http.MethodGet, "/_stormkit/oauth/authorize", s.authzQuery(pkce("verifier")), s.session("user-1"), nil))
 
 	s.Equal(http.StatusOK, res.Status)
 	s.Equal("DENY", res.Headers.Get("X-Frame-Options"))
@@ -206,7 +226,7 @@ func (s *OAuthSuite) Test_Authorize_AcceptsMixedCaseRedirectHost() {
 	q.Set("code_challenge", pkce("verifier"))
 	q.Set("code_challenge_method", "S256")
 
-	res := hosting.HandleOAuthAuthorize(s.req(s.host(true), http.MethodGet, "/_stormkit/oauth/authorize", q.Encode(), nil, nil))
+	res := hosting.HandleOAuthAuthorize(s.req(s.host(true), http.MethodGet, "/_stormkit/oauth/authorize", q.Encode(), s.session("user-1"), nil))
 
 	s.Equal(http.StatusOK, res.Status)
 	s.Contains(string(res.Data.([]byte)), "Authorize access")
@@ -217,6 +237,99 @@ func (s *OAuthSuite) Test_Grant_RequiresAuth() {
 
 	s.Equal(http.StatusUnauthorized, res.Status)
 	s.Equal("access_denied", s.json(res)["error"])
+}
+
+// hostLogin returns an OAuth-enabled host with a configured delegation login URL.
+func (s *OAuthSuite) hostLogin(loginURL string) *hosting.Host {
+	host := s.host(true)
+	host.Config.SKAuth.LoginURL = loginURL
+
+	return host
+}
+
+// Test_Authorize_NoSession_DelegatesToLogin verifies that, without a readable
+// session, /authorize redirects to the app's login URL with a return_to that
+// points back at this exact request (carrying the loop-guard marker).
+func (s *OAuthSuite) Test_Authorize_NoSession_DelegatesToLogin() {
+	res := hosting.HandleOAuthAuthorize(s.req(s.hostLogin("/login"), http.MethodGet, "/_stormkit/oauth/authorize", s.authzQuery(pkce("verifier")), nil, nil))
+
+	s.Equal(http.StatusFound, res.Status)
+	s.Require().NotNil(res.Redirect)
+
+	u, err := url.Parse(*res.Redirect)
+	s.Require().NoError(err)
+	s.Equal("https://app.example.com/login", u.Scheme+"://"+u.Host+u.Path)
+
+	returnTo := u.Query().Get("return_to")
+	s.Require().NotEmpty(returnTo)
+
+	ret, err := url.Parse(returnTo)
+	s.Require().NoError(err)
+	s.Equal("/_stormkit/oauth/authorize", ret.Path)
+	s.Equal("1", ret.Query().Get("sk_auth_retried"))
+	s.Equal("chatgpt", ret.Query().Get("client_id"))
+}
+
+// Test_Authorize_NoSession_NoLoginURL_Errors surfaces an actionable error rather
+// than dead-ending when no session exists and no login URL is configured.
+func (s *OAuthSuite) Test_Authorize_NoSession_NoLoginURL_Errors() {
+	res := hosting.HandleOAuthAuthorize(s.req(s.host(true), http.MethodGet, "/_stormkit/oauth/authorize", s.authzQuery(pkce("verifier")), nil, nil))
+
+	s.Equal(http.StatusBadRequest, res.Status)
+	s.Contains(string(res.Data.([]byte)), "not signed in")
+}
+
+// Test_Authorize_NoSession_RetryStops breaks the delegation loop: a return from
+// login that still has no session must error, not bounce to login again.
+func (s *OAuthSuite) Test_Authorize_NoSession_RetryStops() {
+	q := s.authzQuery(pkce("verifier")) + "&sk_auth_retried=1"
+
+	res := hosting.HandleOAuthAuthorize(s.req(s.hostLogin("/login"), http.MethodGet, "/_stormkit/oauth/authorize", q, nil, nil))
+
+	s.Equal(http.StatusBadRequest, res.Status)
+	s.Nil(res.Redirect)
+	s.Contains(string(res.Data.([]byte)), "not signed in")
+}
+
+// Test_Grant_FromCookie mints an authorization code when the session rides a
+// cookie rather than the Authorization header (the cookie-mode consent POST).
+func (s *OAuthSuite) Test_Grant_FromCookie() {
+	res := hosting.HandleOAuthGrant(s.req(s.host(true), http.MethodPost, "/_stormkit/oauth/authorize", s.authzQuery(pkce("verifier")), s.session("user-cookie"), nil))
+
+	s.Require().Equal(http.StatusOK, res.Status)
+
+	redirect, ok := s.json(res)["redirect"].(string)
+	s.Require().True(ok)
+
+	u, err := url.Parse(redirect)
+	s.Require().NoError(err)
+	s.NotEmpty(u.Query().Get("code"))
+}
+
+// Test_Grant_RejectsCrossOriginPost guards the cookie-authenticated grant against
+// a cross-site POST: even with a valid session cookie, a mismatched Origin is
+// refused so the code mint can't be driven from another site if the cookie's
+// SameSite policy is ever loosened.
+func (s *OAuthSuite) Test_Grant_RejectsCrossOriginPost() {
+	h := s.session("user-cookie")
+	h.Set("Origin", "https://evil.example.com")
+
+	res := hosting.HandleOAuthGrant(s.req(s.host(true), http.MethodPost, "/_stormkit/oauth/authorize", s.authzQuery(pkce("verifier")), h, nil))
+
+	s.Equal(http.StatusForbidden, res.Status)
+	s.Equal("access_denied", s.json(res)["error"])
+}
+
+// Test_Grant_AcceptsSameOriginPost confirms the Origin check lets the real
+// same-origin consent POST through.
+func (s *OAuthSuite) Test_Grant_AcceptsSameOriginPost() {
+	h := s.session("user-cookie")
+	h.Set("Origin", "https://app.example.com")
+
+	res := hosting.HandleOAuthGrant(s.req(s.host(true), http.MethodPost, "/_stormkit/oauth/authorize", s.authzQuery(pkce("verifier")), h, nil))
+
+	s.Require().Equal(http.StatusOK, res.Status)
+	s.NotEmpty(s.json(res)["redirect"])
 }
 
 // codeFromGrant runs a full authorize grant and returns the issued code.
@@ -449,7 +562,7 @@ func (s *OAuthSuite) Test_Authorize_RegisteredClient_ShowsName() {
 	q.Set("code_challenge", pkce("verifier"))
 	q.Set("code_challenge_method", "S256")
 
-	res := hosting.HandleOAuthAuthorize(s.req(s.host(true), http.MethodGet, "/_stormkit/oauth/authorize", q.Encode(), nil, nil))
+	res := hosting.HandleOAuthAuthorize(s.req(s.host(true), http.MethodGet, "/_stormkit/oauth/authorize", q.Encode(), s.session("user-1"), nil))
 
 	s.Equal(http.StatusOK, res.Status)
 	s.Contains(string(res.Data.([]byte)), "Claude")
@@ -466,7 +579,7 @@ func (s *OAuthSuite) Test_Authorize_ShowsScopeLabels() {
 	q.Set("code_challenge_method", "S256")
 	q.Set("scope", "email profile")
 
-	res := hosting.HandleOAuthAuthorize(s.req(s.host(true), http.MethodGet, "/_stormkit/oauth/authorize", q.Encode(), nil, nil))
+	res := hosting.HandleOAuthAuthorize(s.req(s.host(true), http.MethodGet, "/_stormkit/oauth/authorize", q.Encode(), s.session("user-1"), nil))
 
 	s.Equal(http.StatusOK, res.Status)
 	html := string(res.Data.([]byte))

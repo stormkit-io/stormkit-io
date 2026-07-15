@@ -49,11 +49,17 @@ func handlerAuths(req *app.RequestContext) *shttp.Response {
 	oauthServerEnabled := false
 	oauthResourcePath := ""
 	oauthAllowLoopback := false
+	sessionStorage := ""
+	cookieDomain := ""
+	loginURL := ""
 
 	if env.AuthConf != nil {
 		successURL = env.AuthConf.SuccessURL
 		ttl = env.AuthConf.TTL
 		oauthServerEnabled = env.AuthConf.OAuthServerEnabled()
+		sessionStorage = env.AuthConf.SessionStorage
+		cookieDomain = env.AuthConf.CookieDomain
+		loginURL = env.AuthConf.LoginURL
 
 		if env.AuthConf.AllowedOrigins != nil {
 			allowedOrigins = env.AuthConf.AllowedOrigins
@@ -74,6 +80,9 @@ func handlerAuths(req *app.RequestContext) *shttp.Response {
 			"oauthServerEnabled": oauthServerEnabled,
 			"oauthResourcePath":  oauthResourcePath,
 			"oauthAllowLoopback": oauthAllowLoopback,
+			"sessionStorage":     sessionStorage,
+			"cookieDomain":       cookieDomain,
+			"loginUrl":           loginURL,
 			"redirectUrl":        skauth.RedirectURL(),
 			"authUrl":            skauth.AuthURL(),
 		},

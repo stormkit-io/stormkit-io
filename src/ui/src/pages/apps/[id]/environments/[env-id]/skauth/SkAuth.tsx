@@ -179,15 +179,27 @@ export default function SkAuth() {
     refreshToken,
   });
 
-  // The OAuth toggles are controlled Switches (not part of FormData), so they
-  // need their own state, synced from the config once it loads.
+  // The OAuth and session-storage toggles are controlled Switches (not part of
+  // FormData), so they need their own state, synced from the config once it
+  // loads.
   const [oauthServerEnabled, setOauthServerEnabled] = useState(false);
   const [oauthAllowLoopback, setOauthAllowLoopback] = useState(false);
+  const [sessionCookieMode, setSessionCookieMode] = useState(false);
 
   useEffect(() => {
     setOauthServerEnabled(Boolean(config?.oauthServerEnabled));
     setOauthAllowLoopback(Boolean(config?.oauthAllowLoopback));
-  }, [config?.oauthServerEnabled, config?.oauthAllowLoopback]);
+    setSessionCookieMode(config?.sessionStorage === "cookie");
+  }, [
+    config?.oauthServerEnabled,
+    config?.oauthAllowLoopback,
+    config?.sessionStorage,
+  ]);
+
+  // The OAuth server can only read the session on the top-level /authorize
+  // navigation from a cookie; a localStorage session dead-ends at consent. The
+  // backend refuses this combination, so mirror the guard in the UI.
+  const oauthNeedsCookie = oauthServerEnabled && !sessionCookieMode;
 
   const hasSchema = !result.loading && !result.error && Boolean(result.schema);
   const title = "Authentication";
@@ -248,6 +260,14 @@ export default function SkAuth() {
             return;
           }
 
+          if (oauthNeedsCookie) {
+            setSaveError(
+              "The OAuth server requires cookie session storage. Enable it below before saving.",
+            );
+            setSaving(false);
+            return;
+          }
+
           saveConfig({
             envId: env.id!,
             successUrl: (data.get("successUrl") as string) || "",
@@ -255,9 +275,13 @@ export default function SkAuth() {
             status: true,
             allowedOrigins,
             oauthServerEnabled,
-            oauthResourcePath:
-              ((data.get("oauthResourcePath") as string) || "").trim(),
+            oauthResourcePath: (
+              (data.get("oauthResourcePath") as string) || ""
+            ).trim(),
             oauthAllowLoopback,
+            sessionStorage: sessionCookieMode ? "cookie" : "localStorage",
+            cookieDomain: ((data.get("cookieDomain") as string) || "").trim(),
+            loginUrl: ((data.get("loginUrl") as string) || "").trim(),
           })
             .then(() => {
               setSuccess("Settings saved successfully");
@@ -335,11 +359,55 @@ export default function SkAuth() {
             }}
           />
           {showOriginsHint && (
-            <Alert severity="warning" sx={{ mt: 2 }} onClose={dismissOriginsHint}>
+            <Alert
+              severity="warning"
+              sx={{ mt: 2 }}
+              onClose={dismissOriginsHint}
+            >
               A provider is enabled but no allowed origins are set. If your
               frontend runs on a separate domain (or a native app), add its
               origin — otherwise sign-in returns users here instead of your app.
             </Alert>
+          )}
+        </Box>
+
+        <Box sx={{ mb: 4 }}>
+          <Switch
+            name="sessionCookieMode"
+            checked={sessionCookieMode}
+            setChecked={setSessionCookieMode}
+            label="Store session in a cookie"
+            description="Where the browser keeps the session after login. Off stores a bearer token in localStorage (attached to XHR). On issues a Secure, HttpOnly, SameSite=Lax cookie that rides both XHR and top-level navigations. Cookie mode is required by the OAuth server, and is a strict superset of localStorage — pick it if your app spans subdomains or connects MCP clients."
+          />
+          {sessionCookieMode && (
+            <>
+              <Box sx={{ mt: 3 }}>
+                <TextField
+                  label="Cookie domain"
+                  name="cookieDomain"
+                  placeholder=".example.com"
+                  fullWidth
+                  defaultValue={config?.cookieDomain || ""}
+                  variant="filled"
+                  autoComplete="off"
+                  helperText="Optional. Scope the session cookie to a parent domain so it is shared across subdomains (e.g. .example.com covers www. and api.). Leave empty for a single-host setup."
+                  slotProps={{ inputLabel: { shrink: true } }}
+                />
+              </Box>
+              <Box sx={{ mt: 3 }}>
+                <TextField
+                  label="Login URL"
+                  name="loginUrl"
+                  placeholder="/login"
+                  fullWidth
+                  defaultValue={config?.loginUrl || ""}
+                  variant="filled"
+                  autoComplete="off"
+                  helperText="The app's own login page. When an MCP client starts an OAuth flow and the user has no session, /authorize redirects here with a return_to query parameter; your login page must send the user back to that URL after signing in. A relative path or an absolute URL."
+                  slotProps={{ inputLabel: { shrink: true } }}
+                />
+              </Box>
+            </>
           )}
         </Box>
 
@@ -351,6 +419,13 @@ export default function SkAuth() {
             label="Enable OAuth server (MCP connectors)"
             description="Turns this environment into an OAuth 2.1 authorization server so AI clients like ChatGPT and Claude can connect to it as an MCP server, signing in your app's own users. The Claude and ChatGPT connector origins are trusted automatically — no manual origin setup needed."
           />
+          {oauthNeedsCookie && (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              The OAuth server needs the session in a cookie to identify the
+              user on the consent screen. Enable "Store session in a cookie"
+              above, otherwise the connect flow dead-ends at consent.
+            </Alert>
+          )}
           {oauthServerEnabled && (
             <>
               <Box sx={{ mt: 3 }}>
@@ -407,7 +482,7 @@ export default function SkAuth() {
             type="submit"
             variant="contained"
             color="secondary"
-            disabled={result.loading || loading || saving}
+            disabled={result.loading || loading || saving || oauthNeedsCookie}
           >
             Save
           </Button>

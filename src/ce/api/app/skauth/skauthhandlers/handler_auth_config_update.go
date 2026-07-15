@@ -18,13 +18,17 @@ type AuthConfigUpdateRequest struct {
 	Status         bool     `json:"status"`
 	AllowedOrigins []string `json:"allowedOrigins"`
 
-	// The OAuth-server fields are pointers so an omitted field leaves the stored
-	// setting untouched: a client that saves other fields (or an older UI that
-	// doesn't know the field) must not silently disable a live OAuth server or
-	// clear its MCP configuration.
+	// The OAuth-server and session-storage fields are pointers so an omitted
+	// field leaves the stored setting untouched: a client that saves other
+	// fields (or an older UI that doesn't know the field) must not silently
+	// disable a live OAuth server, clear its MCP configuration, or flip the
+	// session-storage mode out from under it.
 	OAuthServerEnabled *bool   `json:"oauthServerEnabled"`
 	OAuthResourcePath  *string `json:"oauthResourcePath"`
 	OAuthAllowLoopback *bool   `json:"oauthAllowLoopback"`
+	SessionStorage     *string `json:"sessionStorage"`
+	CookieDomain       *string `json:"cookieDomain"`
+	LoginURL           *string `json:"loginUrl"`
 }
 
 func handlerAuthConfigUpdate(req *app.RequestContext) *shttp.Response {
@@ -101,10 +105,28 @@ func handlerAuthConfigUpdate(req *app.RequestContext) *shttp.Response {
 	env.AuthConf.Status = data.Status
 	env.AuthConf.AllowedOrigins = allowedOrigins
 
+	if err := applySessionStorageConf(env.AuthConf, data); err != nil {
+		return shttp.BadRequest(map[string]any{
+			"error": err.Error(),
+			"hint":  "Session storage must be either \"localStorage\" or \"cookie\".",
+		})
+	}
+
 	if err := applyOAuthServerConf(env.AuthConf, data); err != nil {
 		return shttp.BadRequest(map[string]any{
 			"error": err.Error(),
 			"hint":  "Provide a relative path such as: /mcp",
+		})
+	}
+
+	// The OAuth authorization server can only identify the user on the
+	// top-level /authorize navigation from a cookie session; a localStorage
+	// session dead-ends silently at the consent screen. Refuse the combination
+	// rather than let the connect flow break with no error surfaced.
+	if env.AuthConf.OAuthServerEnabled() && !env.AuthConf.SessionInCookie() {
+		return shttp.BadRequest(map[string]any{
+			"error": "The OAuth server requires cookie session storage. Set session storage to \"cookie\" before enabling it.",
+			"hint":  "Auth settings → Session storage → Cookie.",
 		})
 	}
 
@@ -124,6 +146,64 @@ func handlerAuthConfigUpdate(req *app.RequestContext) *shttp.Response {
 	}
 
 	return shttp.OK()
+}
+
+// applySessionStorageConf merges the session-storage fields from data into
+// conf, leaving any omitted field untouched. It validates the storage mode and
+// the login URL the OAuth /authorize endpoint delegates to.
+func applySessionStorageConf(conf *buildconf.SKAuthConf, data AuthConfigUpdateRequest) error {
+	if data.SessionStorage != nil {
+		mode := strings.TrimSpace(*data.SessionStorage)
+
+		if mode != "" && mode != "localStorage" && mode != buildconf.SessionStorageCookie {
+			return fmt.Errorf("session storage %q must be either \"localStorage\" or \"cookie\"", mode)
+		}
+
+		conf.SessionStorage = mode
+	}
+
+	if data.CookieDomain != nil {
+		domain := strings.TrimSpace(*data.CookieDomain)
+
+		// A cookie Domain attribute is a bare host (optionally dot-prefixed for
+		// subdomain sharing): no scheme, port, path, or whitespace.
+		if domain != "" && (strings.ContainsAny(domain, " \t\r\n/:") || strings.Contains(domain, "..")) {
+			return fmt.Errorf("cookie domain %q must be a bare host such as .example.com", domain)
+		}
+
+		conf.CookieDomain = domain
+	}
+
+	if data.LoginURL != nil {
+		loginURL := strings.TrimSpace(*data.LoginURL)
+
+		if loginURL != "" {
+			parsed, err := url.Parse(loginURL)
+
+			// The login URL is either a relative path on the AS origin (leading
+			// "/") or an absolute http(s) URL on the app's login origin. Anything
+			// else can't be redirected to safely.
+			if err != nil {
+				return fmt.Errorf("login URL %q is not a valid URL", loginURL)
+			}
+
+			if parsed.IsAbs() {
+				if parsed.Scheme != "http" && parsed.Scheme != "https" {
+					return fmt.Errorf("login URL %q must be an http(s) URL or a relative path", loginURL)
+				}
+			} else if !strings.HasPrefix(loginURL, "/") || strings.HasPrefix(loginURL, "//") {
+				// A leading "//" is a scheme-relative reference to another host, not
+				// a path on the AS origin. Reject it here rather than let it silently
+				// become a broken same-host path when delegateToLogin prefixes the
+				// issuer.
+				return fmt.Errorf("login URL %q must be an absolute URL or a leading-slash path", loginURL)
+			}
+		}
+
+		conf.LoginURL = loginURL
+	}
+
+	return nil
 }
 
 // applyOAuthServerConf merges the OAuth-server fields from data into conf,

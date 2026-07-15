@@ -41,6 +41,28 @@ type SKAuthConf struct {
 	// that origin after clicking the email link.
 	AllowedOrigins []string
 
+	// SessionStorage selects where the browser keeps the SkAuth session token
+	// after login: "localStorage" (default) or "cookie". localStorage attaches
+	// the token to XHR as a bearer; cookie mode issues a Secure, HttpOnly,
+	// SameSite=Lax session cookie that rides both SPA XHR and the top-level
+	// navigation the OAuth /authorize endpoint depends on. The two are mutually
+	// exclusive — one credential, no drift. Cookie mode is a prerequisite for
+	// the OAuth server (a localStorage session is invisible to /authorize).
+	SessionStorage string
+
+	// CookieDomain optionally scopes the session cookie to a parent domain
+	// (e.g. ".example.com") so it is shared across subdomains — needed when the
+	// login origin and the OAuth authorization-server origin are different
+	// subdomains. Empty means a host-only cookie. Only used in cookie mode.
+	CookieDomain string
+
+	// LoginURL is the app-owned login page the OAuth /authorize endpoint
+	// redirects an unauthenticated user to. The app authenticates with its own
+	// UI, establishes the shared session cookie, and bounces the user back to
+	// the return_to URL /authorize appends. A relative path (leading "/") on
+	// the authorization-server origin, or an absolute URL on the login origin.
+	LoginURL string
+
 	// OAuthServer, when enabled, turns this environment into an OAuth 2.1
 	// authorization server for MCP connectors (see /_stormkit/oauth and the
 	// .well-known discovery documents). Note this is the opposite role from the
@@ -48,6 +70,18 @@ type SKAuthConf struct {
 	// external clients connect to. It builds on the SkAuth identity;
 	// redirect_uri targets are validated against AllowedOrigins.
 	OAuthServer *OAuthServerConf
+}
+
+// SessionCookieName is the name of the SkAuth session cookie set in cookie mode.
+const SessionCookieName = "skauth_session"
+
+// SessionStorageCookie is the SessionStorage value that enables cookie mode.
+const SessionStorageCookie = "cookie"
+
+// SessionInCookie reports whether the SkAuth session is stored in a cookie
+// rather than localStorage. The OAuth authorization server requires this.
+func (ac *SKAuthConf) SessionInCookie() bool {
+	return ac != nil && ac.SessionStorage == SessionStorageCookie
 }
 
 // OAuthServerConf configures the OAuth 2.1 authorization server layered on
