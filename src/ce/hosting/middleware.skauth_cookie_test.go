@@ -158,3 +158,26 @@ func (s *SkAuthCookieSuite) Test_Refresh_CookieMode_CookieDelivery() {
 	s.Require().Len(res.Cookies, 1)
 	s.Equal(buildconf.SessionCookieName, res.Cookies[0].Name)
 }
+
+// Test_Logout_ExpiresCookie verifies POST /_stormkit/auth/logout clears the
+// session cookie — the only way to end a session, since the HttpOnly cookie is
+// invisible to the app's JS.
+func (s *SkAuthCookieSuite) Test_Logout_ExpiresCookie() {
+	req := s.request(s.host(), nil)
+	req.RequestContext.Method = http.MethodPost
+	req.RequestContext.Request.URL = &url.URL{Host: "www.example.com", Path: "/_stormkit/auth/logout", RawPath: "/_stormkit/auth/logout"}
+	req.OriginalPath = "/_stormkit/auth/logout"
+
+	res, err := hosting.ServeAuth(req)
+
+	s.NoError(err)
+	s.Require().NotNil(res)
+	s.Equal(http.StatusOK, res.Status)
+
+	s.Require().Len(res.Cookies, 1)
+	c := res.Cookies[0]
+	s.Equal(buildconf.SessionCookieName, c.Name)
+	s.Empty(c.Value)
+	s.Equal(".example.com", c.Domain)
+	s.Less(c.MaxAge, 0, "a deletion cookie must have MaxAge<0")
+}

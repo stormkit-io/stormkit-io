@@ -89,6 +89,8 @@ func ServeAuth(req *RequestContext) (*shttp.Response, error) {
 		return handleAuthMagic(req), nil
 	case "/_stormkit/auth/refresh":
 		return handleAuthRefresh(req), nil
+	case "/_stormkit/auth/logout":
+		return handleAuthLogout(req), nil
 	case "/_stormkit/auth/me":
 		return handleAuthMe(req), nil
 	case skauth.CallbackPath:
