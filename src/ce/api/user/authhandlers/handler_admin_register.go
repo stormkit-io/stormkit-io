@@ -1,6 +1,7 @@
 package authhandlers
 
 import (
+	"fmt"
 	"net/http"
 
 	jwt "github.com/golang-jwt/jwt/v5"
@@ -9,7 +10,13 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
+	"golang.org/x/crypto/bcrypt"
 )
+
+// minAdminPasswordLength is enforced on registration only. The login
+// validator keeps the laxer shared rule so admins created before this
+// bound can still authenticate.
+const minAdminPasswordLength = 12
 
 type AdminLoginRequest struct {
 	Email    string `json:"email"`
@@ -57,6 +64,15 @@ func handlerAdminRegister(req *shttp.RequestContext) *shttp.Response {
 		return res
 	}
 
+	if len(data.Password) < minAdminPasswordLength {
+		return &shttp.Response{
+			Status: http.StatusBadRequest,
+			Data: map[string]string{
+				"error": fmt.Sprintf("Password must be at least %d characters long.", minAdminPasswordLength),
+			},
+		}
+	}
+
 	cfg, err := admin.Store().Config(req.Context())
 
 	if err != nil {
@@ -72,9 +88,15 @@ func handlerAdminRegister(req *shttp.RequestContext) *shttp.Response {
 		}
 	}
 
+	hash, err := bcrypt.GenerateFromPassword([]byte(data.Password), bcrypt.DefaultCost)
+
+	if err != nil {
+		return shttp.Error(err)
+	}
+
 	cfg.AdminUserConfig = &admin.AdminUserConfig{
 		Email:    data.Email,
-		Password: utils.EncryptToString(data.Password),
+		Password: string(hash),
 	}
 
 	if err := admin.Store().UpsertConfig(req.Context(), cfg); err != nil {

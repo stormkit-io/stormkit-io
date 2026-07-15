@@ -1,6 +1,7 @@
 package authhandlers
 
 import (
+	"crypto/subtle"
 	"net/http"
 	"strings"
 
@@ -8,8 +9,25 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
+	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
+	"golang.org/x/crypto/bcrypt"
 )
+
+// verifyAdminPassword reports whether provided matches the stored admin
+// secret. New registrations store a bcrypt hash; instances created before the
+// bcrypt migration stored an AES-encrypted plaintext. The legacy path is still
+// accepted with a constant-time compare, and legacy reports true so the caller
+// can upgrade the stored value to bcrypt.
+func verifyAdminPassword(stored, provided string) (ok bool, legacy bool) {
+	if strings.HasPrefix(stored, "$2") {
+		return bcrypt.CompareHashAndPassword([]byte(stored), []byte(provided)) == nil, false
+	}
+
+	decrypted := utils.DecryptToString(stored)
+
+	return subtle.ConstantTimeCompare([]byte(decrypted), []byte(provided)) == 1, true
+}
 
 func handlerAdminLogin(req *shttp.RequestContext) *shttp.Response {
 	if res := hasAnyProviderEnabled(); res != nil {
@@ -51,8 +69,23 @@ func handlerAdminLogin(req *shttp.RequestContext) *shttp.Response {
 		return shttp.NotAllowed()
 	}
 
-	if utils.DecryptToString(cfg.AdminUserConfig.Password) != data.Password {
+	ok, legacy := verifyAdminPassword(cfg.AdminUserConfig.Password, data.Password)
+
+	if !ok {
 		return shttp.NotAllowed()
+	}
+
+	// Transparently migrate a legacy AES-encrypted secret to a bcrypt hash on
+	// the first successful login. Best-effort: a failed write must not block
+	// sign-in, the next login simply retries.
+	if legacy {
+		if hash, err := bcrypt.GenerateFromPassword([]byte(data.Password), bcrypt.DefaultCost); err == nil {
+			cfg.AdminUserConfig.Password = string(hash)
+
+			if err := admin.Store().UpsertConfig(req.Context(), cfg); err != nil {
+				slog.Errorf("admin login: failed to upgrade password hash: %s", err.Error())
+			}
+		}
 	}
 
 	if err := user.NewStore().UpdateLastLogin(req.Context(), usr.ID); err != nil {

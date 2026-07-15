@@ -16,6 +16,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"github.com/stormkit-io/stormkit-io/src/mocks"
 	"github.com/stretchr/testify/suite"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type HandlerAdminRegisterSuite struct {
@@ -49,7 +50,7 @@ func (s *HandlerAdminRegisterSuite) Test_Admin_Register_Success() {
 		"/auth/admin/register",
 		map[string]string{
 			"email":    "test@admin.com",
-			"password": "password",
+			"password": "supersecret123",
 		},
 		nil,
 	)
@@ -61,7 +62,8 @@ func (s *HandlerAdminRegisterSuite) Test_Admin_Register_Success() {
 	s.NoError(err)
 	s.NotNil(cfg.AdminUserConfig)
 	s.Equal("test@admin.com", cfg.AdminUserConfig.Email)
-	s.Equal("password", utils.DecryptToString(cfg.AdminUserConfig.Password))
+	// The password is stored as a bcrypt hash, not reversibly encrypted.
+	s.NoError(bcrypt.CompareHashAndPassword([]byte(cfg.AdminUserConfig.Password), []byte("supersecret123")))
 
 	// Verify the response contains user and session token
 	var responseData map[string]any
@@ -110,7 +112,7 @@ func (s *HandlerAdminRegisterSuite) Test_Admin_Register_FailAdminUserAlreadyExis
 		"/auth/admin/register",
 		map[string]string{
 			"email":    "test@admin.com",
-			"password": "password",
+			"password": "supersecret123",
 		},
 		nil,
 	)
@@ -161,6 +163,24 @@ func (s *HandlerAdminRegisterSuite) Test_Admin_Register_FailInvalidPassword() {
 	)
 
 	expected := `{ "error": "Password must be at least 6 characters long." }`
+
+	s.Equal(http.StatusBadRequest, response.Code)
+	s.JSONEq(expected, response.String())
+}
+
+func (s *HandlerAdminRegisterSuite) Test_Admin_Register_FailPasswordTooShortForAdmin() {
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(authhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/auth/admin/register",
+		map[string]string{
+			"email":    "test@admin.com",
+			"password": "elevenchar1", // 11 chars: passes the shared >=6 rule, fails the >=12 admin rule
+		},
+		nil,
+	)
+
+	expected := `{ "error": "Password must be at least 12 characters long." }`
 
 	s.Equal(http.StatusBadRequest, response.Code)
 	s.JSONEq(expected, response.String())
