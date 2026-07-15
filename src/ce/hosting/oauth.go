@@ -118,8 +118,11 @@ func serveOAuth(fn func(*oauthServer) *shttp.Response) func(*RequestContext) *sh
 
 // oauthCORSHeaders makes the discovery, registration and token endpoints
 // reachable from browser-based MCP clients (e.g. MCP Inspector), which probe
-// them cross-origin. The endpoints authenticate via the Authorization header,
-// never cookies, so a wildcard origin carries no ambient-authority risk.
+// them cross-origin. Those endpoints authenticate via the Authorization header;
+// authorize()/grant() instead authenticate via the session cookie, so grant()
+// enforces a same-origin Origin check. The wildcard therefore only ever exposes
+// the unauthenticated discovery/registration/token responses cross-origin —
+// never a cookie-authenticated action.
 var oauthCORSHeaders = map[string]string{
 	"Access-Control-Allow-Origin":  "*",
 	"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -452,9 +455,10 @@ func (o *oauthServer) isLoopbackRedirect(u *url.URL) bool {
 	return isLoopbackHost(u.Hostname())
 }
 
-// authorize serves GET /_stormkit/oauth/authorize — the consent screen. Because
-// the SkAuth session lives in localStorage (no server-readable cookie), the page
-// is client-assisted: its script reads the token and POSTs back to grant().
+// authorize serves GET /_stormkit/oauth/authorize — the consent screen. The
+// SkAuth session rides this top-level navigation as a cookie; authorize() reads
+// it server-side and renders consent only when a valid session is present,
+// delegating to the app's login page otherwise.
 func (o *oauthServer) authorize() *shttp.Response {
 	p := o.parseAuthzParams()
 
@@ -480,14 +484,101 @@ func (o *oauthServer) authorize() *shttp.Response {
 		return o.redirectError(p, "invalid_request", "a PKCE code_challenge using S256 is required")
 	}
 
+	// The consent screen must know who is granting access. In cookie mode the
+	// session rides this top-level navigation; if it is absent we delegate to
+	// the app's own login page, which authenticates the user and bounces back
+	// here once the shared session cookie is set. Only then do we render consent.
+	if _, _, ok := o.sessionIdentity(); !ok {
+		return o.delegateToLogin(p)
+	}
+
 	return o.consentPage(p, client)
 }
 
+// oauthLoginRetryParam marks a return-from-login navigation. If /authorize is
+// reached with it set and there is still no session, the delegation loop is
+// broken with an actionable error instead of bouncing to login again.
+const oauthLoginRetryParam = "sk_auth_retried"
+
+// sessionIdentity resolves the SkAuth session on the current request (cookie or
+// Authorization bearer) into a user id and email. ok is false when there is no
+// valid session — the caller then delegates to login.
+func (o *oauthServer) sessionIdentity() (uid, eml string, ok bool) {
+	claims := user.ParseJWT(&user.ParseJWTArgs{
+		Bearer:  sessionBearer(o.req),
+		Secret:  o.secret(),
+		MaxMins: o.req.Host.Config.SKAuth.TTL,
+	})
+
+	if claims == nil {
+		return "", "", false
+	}
+
+	uid, _ = claims["uid"].(string)
+
+	if uid == "" {
+		return "", "", false
+	}
+
+	eml, _ = claims["eml"].(string)
+
+	return uid, eml, true
+}
+
+// delegateToLogin redirects an unauthenticated /authorize navigation to the
+// app's configured login page with a return_to pointing back at this exact
+// authorize request (with the retry marker). When no login URL is configured,
+// or we have already bounced once, it surfaces an actionable error rather than
+// dead-ending or looping.
+func (o *oauthServer) delegateToLogin(p authzParams) *shttp.Response {
+	loginURL := strings.TrimSpace(o.req.Host.Config.SKAuth.LoginURL)
+
+	if loginURL == "" || o.req.Query().Get(oauthLoginRetryParam) == "1" {
+		return o.errorPage("You are not signed in. Sign in to the application and try connecting again.")
+	}
+
+	returnTo := appendQuery(o.authorizeURL(), map[string]string{oauthLoginRetryParam: "1"})
+
+	if strings.HasPrefix(loginURL, "/") {
+		loginURL = o.issuer() + loginURL
+	}
+
+	target := appendQuery(loginURL, map[string]string{"return_to": returnTo})
+
+	return &shttp.Response{
+		Status:   http.StatusFound,
+		Redirect: &target,
+		Headers: shttp.HeadersFromMap(map[string]string{
+			"Cache-Control": "no-store",
+		}),
+	}
+}
+
+// authorizeURL reconstructs the absolute URL of the current /authorize request
+// so the app can bounce the user back to it after login.
+func (o *oauthServer) authorizeURL() string {
+	u := *o.req.URL()
+	u.Scheme = "https"
+	u.Host = o.req.Host.Name
+
+	return u.String()
+}
+
 // grant serves POST /_stormkit/oauth/authorize. The consent page calls it with
-// the user's SkAuth bearer; it validates identity + params and mints a one-time
-// authorization code bound to the PKCE challenge.
+// the session cookie (credentials:'include'); it validates identity + params and
+// mints a one-time authorization code bound to the PKCE challenge.
 func (o *oauthServer) grant() *shttp.Response {
 	p := o.parseAuthzParams()
+
+	// grant() authenticates from the session cookie, so it must never be drivable
+	// cross-site. SameSite=Lax already withholds the cookie on a cross-site POST;
+	// this Origin check enforces the same-origin invariant server-side so the
+	// guarantee survives any future loosening of the cookie's SameSite policy. The
+	// same-origin consent page sends a matching Origin; native/CLI clients use
+	// /token, not grant(), and send no Origin here.
+	if origin := o.req.Header.Get("Origin"); origin != "" && origin != o.issuer() {
+		return oauthJSON(http.StatusForbidden, oauthErr("access_denied", "cross-origin request rejected"))
+	}
 
 	if !o.redirectAllowed(p.redirectURI) {
 		return oauthJSON(http.StatusBadRequest, oauthErr("invalid_request", "invalid redirect_uri"))
@@ -509,23 +600,11 @@ func (o *oauthServer) grant() *shttp.Response {
 		return oauthJSON(http.StatusBadRequest, oauthErr("invalid_request", "redirect_uri is not registered for this client"))
 	}
 
-	claims := user.ParseJWT(&user.ParseJWTArgs{
-		Bearer:  user.ParseBearer(o.req.Header.Get("Authorization")),
-		Secret:  o.secret(),
-		MaxMins: o.req.Host.Config.SKAuth.TTL,
-	})
+	uid, eml, ok := o.sessionIdentity()
 
-	if claims == nil {
+	if !ok {
 		return oauthJSON(http.StatusUnauthorized, oauthErr("access_denied", "authentication required"))
 	}
-
-	uid, _ := claims["uid"].(string)
-
-	if uid == "" {
-		return oauthJSON(http.StatusUnauthorized, oauthErr("access_denied", "invalid session"))
-	}
-
-	eml, _ := claims["eml"].(string)
 
 	code, err := oauthCodeStore.issue(o.req.Context(), oauthAuthCode{
 		UID:           uid,
@@ -781,11 +860,12 @@ func (o *oauthServer) errorPage(msg string) *shttp.Response {
 	}
 }
 
-// consentPage renders the client-assisted consent screen. The script pulls the
-// SkAuth token from localStorage and POSTs it back to grant(); when signed out
-// it prompts the user to sign in first. html/template escapes the injected
-// values in both HTML and JS contexts. A registered client is shown by its
-// declared client_name; the requested scopes are listed with human-readable
+// consentPage renders the consent screen. authorize() has already established a
+// session, so the Authorize button simply POSTs back to grant() with the
+// session cookie riding the same-origin request (credentials:'include'); grant
+// mints the code and returns the redirect target. html/template escapes the
+// injected values in both HTML and JS contexts. A registered client is shown by
+// its declared client_name; the requested scopes are listed with human-readable
 // labels so the user sees exactly what is being granted.
 func (o *oauthServer) consentPage(p authzParams, client oauthClient) *shttp.Response {
 	name := client.ClientName
@@ -809,39 +889,31 @@ func (o *oauthServer) consentPage(p authzParams, client oauthClient) *shttp.Resp
 		{{ range .scopes }}<li>{{ . }}</li>{{ end }}
 	</ul>
 	{{ end }}
-	<div id="skoauth-signedout" class="form-group error" style="display:none">
-		You are not signed in. Please sign in to this application in another tab, then reload this page to continue.
-	</div>
-	<div id="skoauth-actions" class="form-submit" style="display:none">
+	<div id="skoauth-error" class="form-group error" style="display:none"></div>
+	<div id="skoauth-actions" class="form-submit">
 		<button id="skoauth-allow" class="submit-button">Authorize</button>
 		<a id="skoauth-deny" class="secondary" style="margin-left:1rem">Cancel</a>
 	</div>
 </div>
 <script>
 (function () {
-	var raw = localStorage.getItem('skauth');
-	var token = null;
-	try { token = raw ? JSON.parse(raw) : null; } catch (e) { token = raw; }
+	var err = document.getElementById('skoauth-error');
 
-	var actions = document.getElementById('skoauth-actions');
-	var signedOut = document.getElementById('skoauth-signedout');
-
-	if (!token) { signedOut.style.display = 'block'; return; }
-	actions.style.display = 'block';
+	function fail() { err.textContent = 'Authorization failed. Please try again.'; err.style.display = 'block'; }
 
 	document.getElementById('skoauth-deny').setAttribute('href', "{{ .deny }}");
 
 	document.getElementById('skoauth-allow').addEventListener('click', function () {
 		fetch(window.location.pathname + window.location.search, {
 			method: 'POST',
-			headers: { 'Authorization': 'Bearer ' + token }
+			credentials: 'include'
 		})
 			.then(function (r) { return r.json(); })
 			.then(function (d) {
 				if (d && d.redirect) { window.location.href = d.redirect; }
-				else { signedOut.textContent = 'Authorization failed. Please try again.'; signedOut.style.display = 'block'; }
+				else { fail(); }
 			})
-			.catch(function () { signedOut.textContent = 'Authorization failed. Please try again.'; signedOut.style.display = 'block'; });
+			.catch(fail);
 	});
 })();
 </script>`

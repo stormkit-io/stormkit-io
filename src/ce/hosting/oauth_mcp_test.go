@@ -22,10 +22,11 @@ func (s *OAuthSuite) hostWith(conf buildconf.OAuthServerConf) *hosting.Host {
 		Name: "app.example.com",
 		Config: &appconf.Config{
 			SKAuth: &buildconf.SKAuthConf{
-				Secret:      oauthSecret,
-				Status:      true,
-				TTL:         10,
-				OAuthServer: &conf,
+				Secret:         oauthSecret,
+				Status:         true,
+				TTL:            10,
+				SessionStorage: buildconf.SessionStorageCookie,
+				OAuthServer:    &conf,
 			},
 		},
 	}
@@ -103,7 +104,7 @@ func (s *OAuthSuite) loopbackQuery(redirect string) string {
 func (s *OAuthSuite) Test_Authorize_Loopback_AllowedWhenEnabled() {
 	host := s.hostWith(buildconf.OAuthServerConf{AllowLoopback: true})
 
-	res := hosting.HandleOAuthAuthorize(s.req(host, http.MethodGet, "/_stormkit/oauth/authorize", s.loopbackQuery("http://127.0.0.1:54321/callback"), nil, nil))
+	res := hosting.HandleOAuthAuthorize(s.req(host, http.MethodGet, "/_stormkit/oauth/authorize", s.loopbackQuery("http://127.0.0.1:54321/callback"), s.session("user-1"), nil))
 
 	s.Equal(http.StatusOK, res.Status)
 	s.Contains(string(res.Data.([]byte)), "Authorize access")
@@ -133,7 +134,7 @@ func (s *OAuthSuite) Test_Authorize_Loopback_RegisteredClient_IgnoresPort() {
 	q.Set("code_challenge", pkce("verifier"))
 	q.Set("code_challenge_method", "S256")
 
-	res := hosting.HandleOAuthAuthorize(s.req(host, http.MethodGet, "/_stormkit/oauth/authorize", q.Encode(), nil, nil))
+	res := hosting.HandleOAuthAuthorize(s.req(host, http.MethodGet, "/_stormkit/oauth/authorize", q.Encode(), s.session("user-1"), nil))
 
 	s.Equal(http.StatusOK, res.Status)
 	s.Contains(string(res.Data.([]byte)), "Authorize access")

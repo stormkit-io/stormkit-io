@@ -19,6 +19,79 @@ type skAuthMiddleware struct {
 	req *RequestContext
 }
 
+// sessionBearer returns the SkAuth session token for the request, consulting
+// both credentials: the Authorization bearer (localStorage mode and API
+// clients) and the session cookie (cookie mode, where a top-level navigation or
+// a credentials:'include' XHR carries no Authorization header).
+//
+// In cookie mode the cookie is preferred so a stale Authorization bearer — e.g.
+// a token left in localStorage from before the switch to cookie mode, which the
+// old SPA still attaches to every XHR — can't mask the live cookie session. API
+// and MCP clients send no cookie, so the Authorization bearer remains the
+// fallback. In localStorage mode there is no session cookie, so only the bearer
+// applies.
+func sessionBearer(req *RequestContext) string {
+	if req.Host.Config.SKAuth.SessionInCookie() {
+		if cookie, err := req.Cookie(buildconf.SessionCookieName); err == nil && cookie != nil && cookie.Value != "" {
+			return cookie.Value
+		}
+	}
+
+	return user.ParseBearer(req.Header.Get("Authorization"))
+}
+
+// sessionCookieFor builds the SkAuth session cookie carrying token. It is
+// Secure + HttpOnly (the edge reads it server-side; the SPA uses /me), and
+// SameSite=Lax so it still rides the top-level navigation into the OAuth
+// /authorize endpoint while resisting CSRF. A configured CookieDomain shares it
+// across subdomains (login origin vs. authorization-server origin).
+func (m *skAuthMiddleware) sessionCookieFor(token string) http.Cookie {
+	conf := m.req.Host.Config.SKAuth
+
+	cookie := http.Cookie{
+		Name:     buildconf.SessionCookieName,
+		Value:    token,
+		Path:     "/",
+		Domain:   conf.CookieDomain,
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	}
+
+	if conf.TTL > 0 {
+		cookie.MaxAge = conf.TTL * 60
+	}
+
+	return cookie
+}
+
+// deliverSession hands the freshly minted session token to the browser and
+// sends it on to redirectURL. In cookie mode it sets the shared session cookie
+// and 302s; in localStorage mode it renders the landing page whose script
+// stashes the token before redirecting. Callers compute redirectURL as either a
+// relative path or an absolute URL on the destination origin.
+func (m *skAuthMiddleware) deliverSession(token, redirectURL string) *shttp.Response {
+	if m.req.Host.Config.SKAuth.SessionInCookie() {
+		return &shttp.Response{
+			Status:   http.StatusFound,
+			Redirect: &redirectURL,
+			Cookies:  []http.Cookie{m.sessionCookieFor(token)},
+			Headers: shttp.HeadersFromMap(map[string]string{
+				"Cache-Control":   "no-store",
+				"Referrer-Policy": "no-referrer",
+			}),
+		}
+	}
+
+	head := fmt.Sprintf(
+		`<script>localStorage.setItem('skauth', JSON.stringify(%q));window.location.href=%q;</script>`,
+		token,
+		redirectURL,
+	)
+
+	return m.renderVerifyPage(http.StatusOK, head, "")
+}
+
 func (m *skAuthMiddleware) handleRegisterLogin(path string) (*shttp.Response, error) {
 	if m.req.Method != http.MethodPost {
 		return &shttp.Response{
@@ -62,13 +135,9 @@ func (m *skAuthMiddleware) handleVerify() (*shttp.Response, error) {
 		return m.renderVerifyPage(http.StatusInternalServerError, "", "verification failed"), nil
 	}
 
-	head := fmt.Sprintf(
-		`<script>localStorage.setItem('skauth', JSON.stringify('%s'));window.location.href="%s?verified=true";</script>`,
-		data["token"],
-		m.req.Host.Config.SKAuth.SuccessURL,
-	)
+	token, _ := data["token"].(string)
 
-	return m.renderVerifyPage(http.StatusOK, head, ""), nil
+	return m.deliverSession(token, m.req.Host.Config.SKAuth.SuccessURL+"?verified=true"), nil
 }
 
 func (m *skAuthMiddleware) handleMagicLinkRequest() (*shttp.Response, error) {
@@ -141,13 +210,7 @@ func (m *skAuthMiddleware) handleMagicLinkVerify() (*shttp.Response, error) {
 		return m.renderVerifyPage(http.StatusOK, head, ""), nil
 	}
 
-	head := fmt.Sprintf(
-		`<script>localStorage.setItem('skauth', JSON.stringify(%q));window.location.href=%q;</script>`,
-		token,
-		successURL+"?verified=true",
-	)
-
-	return m.renderVerifyPage(http.StatusOK, head, ""), nil
+	return m.deliverSession(token, successURL+"?verified=true"), nil
 }
 
 // sessionCode is the payload stored in Redis under the one-time login code. The
@@ -214,13 +277,10 @@ func (m *skAuthMiddleware) codeLanding() *shttp.Response {
 		return nil
 	}
 
-	head := fmt.Sprintf(
-		`<script>localStorage.setItem('skauth', JSON.stringify('%s'));window.location.href=%q;</script>`,
-		sc.Token,
-		sc.Redirect,
-	)
-
-	return m.renderVerifyPage(http.StatusOK, head, "")
+	// This landing runs on the destination origin, so a cookie set here (with
+	// the configured Domain) is visible to the app and its authorization
+	// server — exactly the cross-subdomain boundary the bounce exists to cross.
+	return m.deliverSession(sc.Token, sc.Redirect)
 }
 
 // handleCallback renders the terminal states of the one-time-code landing on an
@@ -313,7 +373,7 @@ func injectUserHeaders(req *RequestContext) {
 	req.Header.Del("X-User-Id")
 	req.Header.Del("X-User-Email")
 
-	bearer := user.ParseBearer(req.Header.Get("Authorization"))
+	bearer := sessionBearer(req)
 
 	if bearer == "" {
 		return
@@ -365,7 +425,7 @@ func (m *skAuthMiddleware) handleRefresh() (*shttp.Response, error) {
 		}, nil
 	}
 
-	bearer := user.ParseBearer(m.req.Header.Get("Authorization"))
+	bearer := sessionBearer(m.req)
 
 	if bearer == "" {
 		return &shttp.Response{
@@ -407,10 +467,19 @@ func (m *skAuthMiddleware) handleRefresh() (*shttp.Response, error) {
 		}, nil
 	}
 
-	return &shttp.Response{
+	res := &shttp.Response{
 		Status: http.StatusOK,
 		Data:   map[string]any{"token": token},
-	}, nil
+	}
+
+	// In cookie mode the SPA can't read the token to persist it, so the rotated
+	// session must ride back as a refreshed cookie on the credentials:'include'
+	// XHR. The token stays in the body too for localStorage clients.
+	if m.req.Host.Config.SKAuth.SessionInCookie() {
+		res.Cookies = []http.Cookie{m.sessionCookieFor(token)}
+	}
+
+	return res, nil
 }
 
 // handleMe returns the full profile for the user identified by the bearer token

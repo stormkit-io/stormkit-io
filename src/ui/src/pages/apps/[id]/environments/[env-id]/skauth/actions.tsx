@@ -226,6 +226,9 @@ interface FetchProvidersResult {
   oauthServerEnabled?: boolean;
   oauthResourcePath?: string;
   oauthAllowLoopback?: boolean;
+  sessionStorage?: string;
+  cookieDomain?: string;
+  loginUrl?: string;
   redirectUrl: string;
   authUrl: string;
   providers: {
@@ -240,6 +243,9 @@ interface AuthConfig {
   oauthServerEnabled?: boolean;
   oauthResourcePath?: string;
   oauthAllowLoopback?: boolean;
+  sessionStorage?: string;
+  cookieDomain?: string;
+  loginUrl?: string;
 }
 
 interface SaveConfigParams {
@@ -251,6 +257,9 @@ interface SaveConfigParams {
   oauthServerEnabled: boolean;
   oauthResourcePath: string;
   oauthAllowLoopback: boolean;
+  sessionStorage: string;
+  cookieDomain: string;
+  loginUrl: string;
 }
 
 export const saveConfig = ({
@@ -262,6 +271,9 @@ export const saveConfig = ({
   oauthServerEnabled,
   oauthResourcePath,
   oauthAllowLoopback,
+  sessionStorage,
+  cookieDomain,
+  loginUrl,
 }: SaveConfigParams): Promise<void> =>
   api.post("/skauth/config", {
     envId,
@@ -272,6 +284,9 @@ export const saveConfig = ({
     oauthServerEnabled,
     oauthResourcePath,
     oauthAllowLoopback,
+    sessionStorage,
+    cookieDomain,
+    loginUrl,
   });
 
 export const useFetchProviders = ({
@@ -300,6 +315,9 @@ export const useFetchProviders = ({
           oauthServerEnabled,
           oauthResourcePath,
           oauthAllowLoopback,
+          sessionStorage,
+          cookieDomain,
+          loginUrl,
         }) => {
           const result: AuthProvider[] = [];
 
@@ -331,6 +349,9 @@ export const useFetchProviders = ({
             oauthServerEnabled,
             oauthResourcePath,
             oauthAllowLoopback,
+            sessionStorage,
+            cookieDomain,
+            loginUrl,
           });
         },
       )
