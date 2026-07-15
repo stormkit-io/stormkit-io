@@ -359,6 +359,19 @@ func injectUserHeaders(req *RequestContext) {
 		return
 	}
 
+	// An OAuth-issued access token carries an `aud` claim binding it to this
+	// environment's protected resource (RFC 8707 / MCP audience binding). Reject
+	// one whose audience is not this resource so a token minted for a different
+	// resource cannot be replayed here. Session tokens (login/refresh) have no
+	// `aud` and skip this check.
+	if aud, ok := claims["aud"].(string); ok && aud != "" {
+		host := "https://" + req.Host.Name
+
+		if aud != host+req.Host.Config.SKAuth.ResourcePath() && aud != host {
+			return
+		}
+	}
+
 	if userID, ok := claims["uid"].(string); ok && userID != "" {
 		req.Header.Set("X-User-Id", userID)
 	}
