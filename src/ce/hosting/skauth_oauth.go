@@ -235,11 +235,19 @@ func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
 		return m.loginErrorRedirect(referOrigin, "We couldn't complete sign-in. Please try again."), nil
 	}
 
-	// Stash the token under a one-time code and send the browser to the landing
-	// page on the initiating origin, which injects it into localStorage there
-	// (codeLanding). This works whether or not that origin runs its own auth
-	// config, and keeps the token out of the URL.
-	target, err := stashSessionToken(req.Context(), referOrigin, m.req.Host.Config.SKAuth.SuccessURL, sessionToken)
+	successURL := m.req.Host.Config.SKAuth.SuccessURL
+
+	// Cookie mode: set a first-party cookie on this auth host (also the OAuth AS)
+	// and send the user straight to the initiating origin — no localStorage
+	// bounce, and no dependency on that origin carrying its own auth config.
+	if res := m.crossOriginCookieResponse(referOrigin, successURL, sessionToken); res != nil {
+		return res, nil
+	}
+
+	// localStorage mode: stash the token under a one-time code and send the
+	// browser to the landing page on the initiating origin, which injects it into
+	// localStorage there (codeLanding). Keeps the token out of the URL.
+	target, err := stashSessionToken(req.Context(), referOrigin, successURL, sessionToken)
 
 	if err != nil {
 		slog.Errorf("oauth callback: failed to save session code: %s", err.Error())

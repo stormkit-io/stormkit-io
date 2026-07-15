@@ -58,6 +58,14 @@ func (s *WithSKAuthEmailSuite) hostFor(envID types.ID) *hosting.Host {
 	}
 }
 
+func (s *WithSKAuthEmailSuite) hostForCookie(envID types.ID) *hosting.Host {
+	host := s.hostFor(envID)
+	host.Config.SKAuth.SessionStorage = buildconf.SessionStorageCookie
+	host.Config.SKAuth.CookieDomain = ".example.com"
+
+	return host
+}
+
 func (s *WithSKAuthEmailSuite) postRequest(host *hosting.Host, path string, body any) *hosting.RequestContext {
 	var buf bytes.Buffer
 
@@ -341,6 +349,52 @@ func (s *WithSKAuthEmailSuite) Test_Login_Success() {
 	s.NotEmpty(data["token"])
 	s.Equal("login@example.com", data["email"])
 	s.NotEmpty(data["userId"])
+}
+
+// Test_Login_CookieMode_SetsCookieNoToken verifies that in cookie mode login sets
+// the session cookie and omits the token from the body, so the browser holds a
+// single credential (no localStorage-vs-cookie drift).
+func (s *WithSKAuthEmailSuite) Test_Login_CookieMode_SetsCookieNoToken() {
+	env, err := s.setupEnv(false)
+	s.Require().NoError(err)
+
+	host := s.hostForCookie(env.ID)
+
+	s.Require().Equal(http.StatusCreated, s.register(host, "cookie@example.com", "supersecret123").Status)
+
+	res := s.login(host, "cookie@example.com", "supersecret123")
+
+	s.Equal(http.StatusOK, res.Status)
+
+	data := s.jsonData(res)
+	_, hasToken := data["token"]
+	s.False(hasToken, "cookie mode must not return the token in the body")
+	s.Equal("cookie@example.com", data["email"])
+
+	s.Require().Len(res.Cookies, 1)
+	s.Equal(buildconf.SessionCookieName, res.Cookies[0].Name)
+	s.Equal(".example.com", res.Cookies[0].Domain)
+	s.True(res.Cookies[0].HttpOnly)
+	s.True(res.Cookies[0].Secure)
+	s.Equal(http.SameSiteLaxMode, res.Cookies[0].SameSite)
+}
+
+// Test_Register_CookieMode_SetsCookieNoToken verifies the same single-credential
+// behavior on the auto-login register path (no mailer / verification).
+func (s *WithSKAuthEmailSuite) Test_Register_CookieMode_SetsCookieNoToken() {
+	env, err := s.setupEnv(false)
+	s.Require().NoError(err)
+
+	res := s.register(s.hostForCookie(env.ID), "cookiereg@example.com", "supersecret123")
+
+	s.Equal(http.StatusCreated, res.Status)
+
+	data := s.jsonData(res)
+	_, hasToken := data["token"]
+	s.False(hasToken, "cookie mode must not return the token in the body")
+
+	s.Require().Len(res.Cookies, 1)
+	s.Equal(buildconf.SessionCookieName, res.Cookies[0].Name)
 }
 
 func (s *WithSKAuthEmailSuite) Test_Login_WrongPassword() {
