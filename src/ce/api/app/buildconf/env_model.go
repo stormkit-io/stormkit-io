@@ -41,19 +41,10 @@ type SKAuthConf struct {
 	// that origin after clicking the email link.
 	AllowedOrigins []string
 
-	// SessionStorage selects where the browser keeps the SkAuth session token
-	// after login: "localStorage" (default) or "cookie". localStorage attaches
-	// the token to XHR as a bearer; cookie mode issues a Secure, HttpOnly,
-	// SameSite=Lax session cookie that rides both SPA XHR and the top-level
-	// navigation the OAuth /authorize endpoint depends on. The two are mutually
-	// exclusive — one credential, no drift. Cookie mode is a prerequisite for
-	// the OAuth server (a localStorage session is invisible to /authorize).
-	SessionStorage string
-
 	// CookieDomain optionally scopes the session cookie to a parent domain
 	// (e.g. ".example.com") so it is shared across subdomains — needed when the
 	// login origin and the OAuth authorization-server origin are different
-	// subdomains. Empty means a host-only cookie. Only used in cookie mode.
+	// subdomains. Empty means a host-only cookie.
 	CookieDomain string
 
 	// LoginURL is the app-owned login page the OAuth /authorize endpoint
@@ -72,17 +63,8 @@ type SKAuthConf struct {
 	OAuthServer *OAuthServerConf
 }
 
-// SessionCookieName is the name of the SkAuth session cookie set in cookie mode.
+// SessionCookieName is the name of the SkAuth session cookie.
 const SessionCookieName = "skauth_session"
-
-// SessionStorageCookie is the SessionStorage value that enables cookie mode.
-const SessionStorageCookie = "cookie"
-
-// SessionInCookie reports whether the SkAuth session is stored in a cookie
-// rather than localStorage. The OAuth authorization server requires this.
-func (ac *SKAuthConf) SessionInCookie() bool {
-	return ac != nil && ac.SessionStorage == SessionStorageCookie
-}
 
 // OAuthServerConf configures the OAuth 2.1 authorization server layered on
 // SkAuth. Distinct from the OAuth *provider* logins (Google, X), where the app

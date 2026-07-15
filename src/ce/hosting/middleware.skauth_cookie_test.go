@@ -1,18 +1,15 @@
 package hosting_test
 
 import (
-	"context"
 	"net/http"
 	"net/url"
 	"testing"
-	"time"
 
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/ce/hosting"
-	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stretchr/testify/suite"
 )
@@ -29,22 +26,16 @@ func TestSkAuthCookieSuite(t *testing.T) {
 	suite.Run(t, new(SkAuthCookieSuite))
 }
 
-func (s *SkAuthCookieSuite) host(cookieMode bool) *hosting.Host {
-	conf := &buildconf.SKAuthConf{
-		Secret:     cookieSecret,
-		SuccessURL: "/",
-		Status:     true,
-		TTL:        10,
-	}
-
-	if cookieMode {
-		conf.SessionStorage = buildconf.SessionStorageCookie
-		conf.CookieDomain = ".example.com"
-	}
-
+func (s *SkAuthCookieSuite) host() *hosting.Host {
 	return &hosting.Host{
-		Name:   "www.example.com",
-		Config: &appconf.Config{SKAuth: conf},
+		Name: "www.example.com",
+		Config: &appconf.Config{SKAuth: &buildconf.SKAuthConf{
+			Secret:       cookieSecret,
+			SuccessURL:   "/",
+			Status:       true,
+			TTL:          10,
+			CookieDomain: ".example.com",
+		}},
 	}
 }
 
@@ -81,7 +72,7 @@ func (s *SkAuthCookieSuite) Test_Edge_InjectsUserFromCookie() {
 	h := make(http.Header)
 	h.Set("Cookie", buildconf.SessionCookieName+"="+s.token("user-42"))
 
-	req := s.request(s.host(true), h)
+	req := s.request(s.host(), h)
 	res, err := hosting.WithSKAuth(req)
 
 	s.NoError(err)
@@ -95,7 +86,7 @@ func (s *SkAuthCookieSuite) Test_Edge_InjectsUserFromAuthorization() {
 	h := make(http.Header)
 	h.Set("Authorization", "Bearer "+s.token("user-7"))
 
-	req := s.request(s.host(false), h)
+	req := s.request(s.host(), h)
 	_, err := hosting.WithSKAuth(req)
 
 	s.NoError(err)
@@ -108,68 +99,62 @@ func (s *SkAuthCookieSuite) Test_Edge_NoCredential_NoIdentity() {
 	h := make(http.Header)
 	h.Set("X-User-Id", "spoofed")
 
-	req := s.request(s.host(true), h)
+	req := s.request(s.host(), h)
 	_, err := hosting.WithSKAuth(req)
 
 	s.NoError(err)
 	s.Empty(req.Header.Get("X-User-Id"))
 }
 
-// Test_Login_CookieMode_SetsCookie verifies the one-time-code landing issues a
-// shared, hardened session cookie and 302s — instead of a localStorage script —
-// when the environment is in cookie mode.
-func (s *SkAuthCookieSuite) Test_Login_CookieMode_SetsCookie() {
-	ctx := context.Background()
-	code := "cookie-mode-code-1"
-	token := s.token("user-99")
+// refreshRequest builds a POST /_stormkit/auth/refresh with the given headers.
+func (s *SkAuthCookieSuite) refreshRequest(host *hosting.Host, header http.Header) *hosting.RequestContext {
+	req := s.request(host, header)
+	req.RequestContext.Method = http.MethodPost
+	req.RequestContext.Request.URL = &url.URL{Host: host.Name, Path: "/_stormkit/auth/refresh", RawPath: "/_stormkit/auth/refresh"}
+	req.OriginalPath = "/_stormkit/auth/refresh"
 
-	rds := rediscache.Client()
-	rds.Set(ctx, code, `{"token":"`+token+`","redirect":"https://app.example.com/dashboard"}`, time.Minute*2)
-	defer rds.Del(ctx, code)
-
-	req := s.request(s.host(true), nil)
-	req.RequestContext.Method = http.MethodGet
-	req.RequestContext.Request.URL = &url.URL{Host: "www.example.com", Path: "/_stormkit/auth", RawQuery: "code=" + code}
-	req.OriginalPath = "/_stormkit/auth"
-
-	res, err := hosting.WithSKAuth(req)
-
-	s.NoError(err)
-	s.Require().NotNil(res)
-	s.Equal(http.StatusFound, res.Status)
-	s.Require().NotNil(res.Redirect)
-	s.Equal("https://app.example.com/dashboard", *res.Redirect)
-
-	s.Require().Len(res.Cookies, 1)
-	c := res.Cookies[0]
-	s.Equal(buildconf.SessionCookieName, c.Name)
-	s.Equal(token, c.Value)
-	s.Equal(".example.com", c.Domain)
-	s.True(c.Secure)
-	s.True(c.HttpOnly)
-	s.Equal(http.SameSiteLaxMode, c.SameSite)
+	return req
 }
 
-// Test_Login_LocalStorageMode_UsesScript keeps the default behavior: no cookie,
-// a localStorage-injecting landing page.
-func (s *SkAuthCookieSuite) Test_Login_LocalStorageMode_UsesScript() {
-	ctx := context.Background()
-	code := "ls-mode-code-1"
-	token := "ls.session.jwt"
+// Test_Refresh_CookieMode_BearerDelivery verifies a native/mobile client can
+// rotate its session on a cookie-mode env: authenticating with an Authorization
+// bearer and opting into bearer delivery yields a new token in the body and no
+// cookie.
+func (s *SkAuthCookieSuite) Test_Refresh_CookieMode_BearerDelivery() {
+	h := make(http.Header)
+	h.Set("Authorization", "Bearer "+s.token("user-mobile"))
+	h.Set("X-Session-Delivery", "bearer")
 
-	rds := rediscache.Client()
-	rds.Set(ctx, code, `{"token":"`+token+`","redirect":"https://app.example.com/dashboard"}`, time.Minute*2)
-	defer rds.Del(ctx, code)
-
-	req := s.request(s.host(false), nil)
-	req.RequestContext.Request.URL = &url.URL{Host: "www.example.com", Path: "/_stormkit/auth", RawQuery: "code=" + code}
-	req.OriginalPath = "/_stormkit/auth"
-
-	res, err := hosting.WithSKAuth(req)
+	res, err := hosting.ServeAuth(s.refreshRequest(s.host(), h))
 
 	s.NoError(err)
 	s.Require().NotNil(res)
 	s.Equal(http.StatusOK, res.Status)
-	s.Empty(res.Cookies)
-	s.Contains(string(res.Data.([]byte)), "localStorage.setItem('skauth'")
+
+	data, ok := res.Data.(map[string]any)
+	s.Require().True(ok)
+	s.NotEmpty(data["token"], "bearer delivery must return a rotated token")
+	s.Empty(res.Cookies, "bearer delivery must not set a cookie")
+}
+
+// Test_Refresh_CookieMode_CookieDelivery verifies the browser path: a
+// cookie-authenticated refresh rotates the cookie and returns no token.
+func (s *SkAuthCookieSuite) Test_Refresh_CookieMode_CookieDelivery() {
+	h := make(http.Header)
+	h.Set("Cookie", buildconf.SessionCookieName+"="+s.token("user-browser"))
+	h.Set("Origin", "https://www.example.com")
+
+	res, err := hosting.ServeAuth(s.refreshRequest(s.host(), h))
+
+	s.NoError(err)
+	s.Require().NotNil(res)
+	s.Equal(http.StatusOK, res.Status)
+
+	data, ok := res.Data.(map[string]any)
+	s.Require().True(ok)
+	_, hasToken := data["token"]
+	s.False(hasToken, "cookie delivery must not return the token in the body")
+
+	s.Require().Len(res.Cookies, 1)
+	s.Equal(buildconf.SessionCookieName, res.Cookies[0].Name)
 }

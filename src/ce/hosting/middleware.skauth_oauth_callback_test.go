@@ -68,10 +68,8 @@ func (s *WithSKAuthOAuthSuite) setupCallbackEnvWith(providerStatus bool, auth *b
 	}))
 
 	// In production the request host config is loaded from the same env, so
-	// mirror the session-storage settings onto it (hostFor otherwise stubs a
-	// bare localStorage config).
+	// mirror the cookie domain onto it (hostFor otherwise stubs a bare config).
 	host := s.hostFor(env.ID)
-	host.Config.SKAuth.SessionStorage = auth.SessionStorage
 	host.Config.SKAuth.CookieDomain = auth.CookieDomain
 
 	return host
@@ -106,19 +104,20 @@ func (s *WithSKAuthOAuthSuite) Test_Callback_Success() {
 	s.Require().NotNil(res)
 	s.Equal(http.StatusFound, res.Status)
 	s.Require().NotNil(res.Redirect)
-	s.Contains(*res.Redirect, "https://app.example.com/_stormkit/auth?code=")
+	s.Equal("https://app.example.com/dashboard", *res.Redirect)
+	s.Require().Len(res.Cookies, 1)
+	s.Equal(buildconf.SessionCookieName, res.Cookies[0].Name)
 }
 
-// Test_Callback_CookieMode_SetsCookieAndSkipsLanding verifies that in cookie mode
-// the OAuth-provider callback sets a first-party session cookie on this auth host
-// and redirects straight to the initiating origin — no localStorage bounce, and
-// no dependency on that origin carrying its own auth config (the decoupled case).
-func (s *WithSKAuthOAuthSuite) Test_Callback_CookieMode_SetsCookieAndSkipsLanding() {
+// Test_Callback_SetsCookieWithDomain verifies the OAuth-provider callback sets a
+// first-party session cookie on this auth host (also the OAuth AS), scoped to the
+// configured cookie domain, and redirects straight to the initiating origin — no
+// dependency on that origin carrying its own auth config (the decoupled case).
+func (s *WithSKAuthOAuthSuite) Test_Callback_SetsCookieWithDomain() {
 	host := s.setupCallbackEnvWith(true, &buildconf.SKAuthConf{
-		Secret:         "test-secret-padded-to-32-chars!!",
-		Status:         true,
-		SessionStorage: buildconf.SessionStorageCookie,
-		CookieDomain:   ".example.com",
+		Secret:       "test-secret-padded-to-32-chars!!",
+		Status:       true,
+		CookieDomain: ".example.com",
 	})
 
 	token := &oauth2.Token{}

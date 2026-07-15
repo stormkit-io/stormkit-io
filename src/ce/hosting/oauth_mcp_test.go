@@ -22,11 +22,10 @@ func (s *OAuthSuite) hostWith(conf buildconf.OAuthServerConf) *hosting.Host {
 		Name: "app.example.com",
 		Config: &appconf.Config{
 			SKAuth: &buildconf.SKAuthConf{
-				Secret:         oauthSecret,
-				Status:         true,
-				TTL:            10,
-				SessionStorage: buildconf.SessionStorageCookie,
-				OAuthServer:    &conf,
+				Secret:      oauthSecret,
+				Status:      true,
+				TTL:         10,
+				OAuthServer: &conf,
 			},
 		},
 	}

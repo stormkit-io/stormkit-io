@@ -116,14 +116,14 @@ var (
 	})
 
 	// handleAuthProvider serves /_stormkit/auth/{provider}. A known provider
-	// starts the OAuth flow; anything else falls to the one-time-code landing's
-	// terminal state, matching the old middleware fall-through.
+	// starts the OAuth flow; anything else is not a reserved endpoint, so it
+	// falls through to normal app serving.
 	handleAuthProvider = serveReservedAuth(func(m *skAuthMiddleware) (*shttp.Response, error) {
 		if provider, ok := isOAuthProviderPath(m.req.URL().Path); ok {
 			return m.handleOAuthInitiate(provider)
 		}
 
-		return m.handleCallback()
+		return HandlerForward(m.req), nil
 	})
 )
 

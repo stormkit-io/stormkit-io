@@ -51,13 +51,6 @@ func (s *OAuthSuite) host(enabled bool) *hosting.Host {
 		OAuthServer:    &buildconf.OAuthServerConf{Enabled: enabled},
 	}
 
-	// The OAuth server requires cookie session storage (enforced at config save),
-	// so an OAuth-enabled host is always in cookie mode — that is how /authorize
-	// and grant() read the session off the top-level navigation.
-	if enabled {
-		conf.SessionStorage = buildconf.SessionStorageCookie
-	}
-
 	return &hosting.Host{
 		Name:   "app.example.com",
 		Config: &appconf.Config{SKAuth: conf},

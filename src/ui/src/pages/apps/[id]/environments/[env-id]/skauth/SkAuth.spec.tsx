@@ -333,7 +333,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
       await waitFor(() => {
         expect(
           wrapper.getByText(
-            "Relative URL to redirect to after successful authentication. At this URL, browser code can read the skauth item from localStorage.",
+            "Relative URL to redirect to after successful authentication. The session is set as a cookie; your app can confirm it by calling /_stormkit/auth/me with credentials.",
           ),
         ).toBeTruthy();
       });
@@ -350,7 +350,6 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
           oauthServerEnabled: false,
           oauthResourcePath: "",
           oauthAllowLoopback: false,
-          sessionStorage: "localStorage",
           cookieDomain: "",
           loginUrl: "",
         })
@@ -380,7 +379,6 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
           oauthServerEnabled: false,
           oauthResourcePath: "",
           oauthAllowLoopback: false,
-          sessionStorage: "localStorage",
           cookieDomain: "",
           loginUrl: "",
         })
@@ -416,15 +414,10 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
           oauthServerEnabled: true,
           oauthResourcePath: "",
           oauthAllowLoopback: false,
-          sessionStorage: "cookie",
           cookieDomain: "",
           loginUrl: "",
         })
         .reply(200);
-
-      fireEvent.click(
-        await wrapper.findByLabelText("Store session in a cookie"),
-      );
 
       fireEvent.click(
         await wrapper.findByLabelText("Enable OAuth server (MCP connectors)"),
@@ -450,15 +443,10 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
           oauthServerEnabled: true,
           oauthResourcePath: "/mcp",
           oauthAllowLoopback: true,
-          sessionStorage: "cookie",
           cookieDomain: "",
           loginUrl: "",
         })
         .reply(200);
-
-      fireEvent.click(
-        await wrapper.findByLabelText("Store session in a cookie"),
-      );
 
       fireEvent.click(
         await wrapper.findByLabelText("Enable OAuth server (MCP connectors)"),

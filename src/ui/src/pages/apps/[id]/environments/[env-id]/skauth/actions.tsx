@@ -226,7 +226,6 @@ interface FetchProvidersResult {
   oauthServerEnabled?: boolean;
   oauthResourcePath?: string;
   oauthAllowLoopback?: boolean;
-  sessionStorage?: string;
   cookieDomain?: string;
   loginUrl?: string;
   redirectUrl: string;
@@ -243,7 +242,6 @@ interface AuthConfig {
   oauthServerEnabled?: boolean;
   oauthResourcePath?: string;
   oauthAllowLoopback?: boolean;
-  sessionStorage?: string;
   cookieDomain?: string;
   loginUrl?: string;
 }
@@ -257,7 +255,6 @@ interface SaveConfigParams {
   oauthServerEnabled: boolean;
   oauthResourcePath: string;
   oauthAllowLoopback: boolean;
-  sessionStorage: string;
   cookieDomain: string;
   loginUrl: string;
 }
@@ -271,7 +268,6 @@ export const saveConfig = ({
   oauthServerEnabled,
   oauthResourcePath,
   oauthAllowLoopback,
-  sessionStorage,
   cookieDomain,
   loginUrl,
 }: SaveConfigParams): Promise<void> =>
@@ -284,7 +280,6 @@ export const saveConfig = ({
     oauthServerEnabled,
     oauthResourcePath,
     oauthAllowLoopback,
-    sessionStorage,
     cookieDomain,
     loginUrl,
   });
@@ -315,7 +310,6 @@ export const useFetchProviders = ({
           oauthServerEnabled,
           oauthResourcePath,
           oauthAllowLoopback,
-          sessionStorage,
           cookieDomain,
           loginUrl,
         }) => {
@@ -349,7 +343,6 @@ export const useFetchProviders = ({
             oauthServerEnabled,
             oauthResourcePath,
             oauthAllowLoopback,
-            sessionStorage,
             cookieDomain,
             loginUrl,
           });
