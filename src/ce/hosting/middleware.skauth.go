@@ -192,13 +192,14 @@ func (m *skAuthMiddleware) handleMagicLinkVerify() (*shttp.Response, error) {
 	successURL := m.req.Host.Config.SKAuth.SuccessURL
 	token, _ := data["token"].(string)
 
-	// Cross-origin: the POST came from a whitelisted frontend. Stash the token
-	// under a one-time code and bounce the user back to that origin's landing
-	// page, which injects it into localStorage there (codeLanding). We do NOT
-	// touch localStorage here because this host is the wrong origin for the
-	// token. SuccessURL is validated at config time to start with '/', so origin
-	// (no trailing slash) + successURL joins cleanly.
+	// Cross-origin: the POST came from a whitelisted frontend. In cookie mode the
+	// session rides a first-party cookie set on this auth host (see
+	// crossOriginCookieResponse); otherwise fall back to the localStorage bounce.
 	if redirect, _ := data["redirect"].(string); redirect != "" {
+		if res := m.crossOriginCookieResponse(redirect, token); res != nil {
+			return res, nil
+		}
+
 		landing, err := stashSessionToken(m.req.Context(), redirect, successURL, token)
 
 		if err != nil {
@@ -211,6 +212,78 @@ func (m *skAuthMiddleware) handleMagicLinkVerify() (*shttp.Response, error) {
 	}
 
 	return m.deliverSession(token, successURL+"?verified=true"), nil
+}
+
+// crossOriginCookieResponse returns the cookie-mode delivery for a login that
+// lands on a different origin (magic-link, OAuth-provider): the session cookie
+// is set first-party on this auth host — which is also the OAuth authorization
+// server — and the browser is sent straight to origin+successURL. This removes
+// the localStorage bounce and, crucially in a decoupled setup, stops the landing
+// from depending on the frontend host carrying its own cookie-mode config. It
+// returns nil when the environment is not in cookie mode, so the caller keeps
+// its existing localStorage delivery. origin is scheme+host (no trailing slash);
+// SuccessURL is validated at config time to start with "/".
+func (m *skAuthMiddleware) crossOriginCookieResponse(origin, token string) *shttp.Response {
+	if !m.req.Host.Config.SKAuth.SessionInCookie() {
+		return nil
+	}
+
+	return m.deliverSession(token, origin+m.req.Host.Config.SKAuth.SuccessURL)
+}
+
+// finalizeSessionResponse adapts a successful JSON auth response (login,
+// register, refresh) to the environment's session-storage mode. In cookie mode
+// it sets the session cookie and removes the token from the body, so the browser
+// holds exactly one credential — the cookie — and the app can't drift by also
+// stashing the token in localStorage. In localStorage mode the response is
+// returned unchanged, with the token in the body for the app to store.
+//
+// In cookie mode a decoupled frontend must send the auth XHR with credentials,
+// and the app's CORS config must allow them, for the browser to store the cookie.
+func (m *skAuthMiddleware) finalizeSessionResponse(res *shttp.Response, token string) *shttp.Response {
+	if res == nil || res.Status >= http.StatusBadRequest || !m.req.Host.Config.SKAuth.SessionInCookie() {
+		return res
+	}
+
+	// A session cookie must never be planted on a cross-site request: an attacker
+	// who auto-submits a cross-site form login (text/plain body, no CORS
+	// preflight) would otherwise fixate the victim's browser with the attacker's
+	// session cookie. Browsers always send Origin on POST and cookie mode only
+	// benefits browsers, so a missing or non-allow-listed Origin is treated as
+	// cross-site and the login is refused before the cookie is set.
+	if !m.cookieOriginAllowed() {
+		return &shttp.Response{
+			Status: http.StatusForbidden,
+			Data:   map[string]any{"errors": []string{"cross-origin session request rejected"}},
+		}
+	}
+
+	res.Cookies = append(res.Cookies, m.sessionCookieFor(token))
+
+	if data, ok := res.Data.(map[string]any); ok {
+		delete(data, "token")
+	}
+
+	return res
+}
+
+// cookieOriginAllowed reports whether the request that is about to receive a
+// session cookie originates from a trusted browser context. Same-host requests
+// and configured AllowedOrigins pass; a missing or foreign Origin is rejected.
+// This gates the cookie-setting POST endpoints (login, register, refresh)
+// against login CSRF / session fixation.
+func (m *skAuthMiddleware) cookieOriginAllowed() bool {
+	origin := m.req.Header.Get("Origin")
+
+	if origin == "" {
+		return false
+	}
+
+	if origin == "https://"+m.req.Host.Name {
+		return true
+	}
+
+	return m.req.Host.Config.SKAuth.IsAllowedOrigin(origin)
 }
 
 // sessionCode is the payload stored in Redis under the one-time login code. The
@@ -467,19 +540,13 @@ func (m *skAuthMiddleware) handleRefresh() (*shttp.Response, error) {
 		}, nil
 	}
 
-	res := &shttp.Response{
+	// finalizeSessionResponse rotates the cookie and drops the token from the body
+	// in cookie mode; in localStorage mode it returns the token for the SPA to
+	// persist.
+	return m.finalizeSessionResponse(&shttp.Response{
 		Status: http.StatusOK,
 		Data:   map[string]any{"token": token},
-	}
-
-	// In cookie mode the SPA can't read the token to persist it, so the rotated
-	// session must ride back as a refreshed cookie on the credentials:'include'
-	// XHR. The token stays in the body too for localStorage clients.
-	if m.req.Host.Config.SKAuth.SessionInCookie() {
-		res.Cookies = []http.Cookie{m.sessionCookieFor(token)}
-	}
-
-	return res, nil
+	}, token), nil
 }
 
 // handleMe returns the full profile for the user identified by the bearer token

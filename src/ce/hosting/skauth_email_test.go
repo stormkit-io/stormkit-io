@@ -58,6 +58,14 @@ func (s *WithSKAuthEmailSuite) hostFor(envID types.ID) *hosting.Host {
 	}
 }
 
+func (s *WithSKAuthEmailSuite) hostForCookie(envID types.ID) *hosting.Host {
+	host := s.hostFor(envID)
+	host.Config.SKAuth.SessionStorage = buildconf.SessionStorageCookie
+	host.Config.SKAuth.CookieDomain = ".example.com"
+
+	return host
+}
+
 func (s *WithSKAuthEmailSuite) postRequest(host *hosting.Host, path string, body any) *hosting.RequestContext {
 	var buf bytes.Buffer
 
@@ -190,6 +198,36 @@ func (s *WithSKAuthEmailSuite) login(host *hosting.Host, email, password string)
 		"email":    email,
 		"password": password,
 	}))
+	s.Require().NoError(err)
+	return res
+}
+
+// sameHostOrigin is the Origin a first-party browser POST carries against the
+// auth host — the value the cookie-mode CSRF guard accepts.
+func (s *WithSKAuthEmailSuite) sameHostOrigin(host *hosting.Host) string {
+	return "https://" + host.Name
+}
+
+func (s *WithSKAuthEmailSuite) loginOrigin(host *hosting.Host, origin, email, password string) *shttp.Response {
+	req := s.postRequest(host, "/_stormkit/auth/login", map[string]any{
+		"email":    email,
+		"password": password,
+	})
+	req.Header.Set("Origin", origin)
+
+	res, err := hosting.ServeAuth(req)
+	s.Require().NoError(err)
+	return res
+}
+
+func (s *WithSKAuthEmailSuite) registerOrigin(host *hosting.Host, origin, email, password string) *shttp.Response {
+	req := s.postRequest(host, "/_stormkit/auth/register", map[string]any{
+		"email":    email,
+		"password": password,
+	})
+	req.Header.Set("Origin", origin)
+
+	res, err := hosting.ServeAuth(req)
 	s.Require().NoError(err)
 	return res
 }
@@ -341,6 +379,91 @@ func (s *WithSKAuthEmailSuite) Test_Login_Success() {
 	s.NotEmpty(data["token"])
 	s.Equal("login@example.com", data["email"])
 	s.NotEmpty(data["userId"])
+}
+
+// Test_Login_CookieMode_SetsCookieNoToken verifies that in cookie mode login sets
+// the session cookie and omits the token from the body, so the browser holds a
+// single credential (no localStorage-vs-cookie drift).
+func (s *WithSKAuthEmailSuite) Test_Login_CookieMode_SetsCookieNoToken() {
+	env, err := s.setupEnv(false)
+	s.Require().NoError(err)
+
+	host := s.hostForCookie(env.ID)
+	origin := s.sameHostOrigin(host)
+
+	s.Require().Equal(http.StatusCreated, s.registerOrigin(host, origin, "cookie@example.com", "supersecret123").Status)
+
+	res := s.loginOrigin(host, origin, "cookie@example.com", "supersecret123")
+
+	s.Equal(http.StatusOK, res.Status)
+
+	data := s.jsonData(res)
+	_, hasToken := data["token"]
+	s.False(hasToken, "cookie mode must not return the token in the body")
+	s.Equal("cookie@example.com", data["email"])
+
+	s.Require().Len(res.Cookies, 1)
+	s.Equal(buildconf.SessionCookieName, res.Cookies[0].Name)
+	s.Equal(".example.com", res.Cookies[0].Domain)
+	s.True(res.Cookies[0].HttpOnly)
+	s.True(res.Cookies[0].Secure)
+	s.Equal(http.SameSiteLaxMode, res.Cookies[0].SameSite)
+}
+
+// Test_Register_CookieMode_SetsCookieNoToken verifies the same single-credential
+// behavior on the auto-login register path (no mailer / verification).
+func (s *WithSKAuthEmailSuite) Test_Register_CookieMode_SetsCookieNoToken() {
+	env, err := s.setupEnv(false)
+	s.Require().NoError(err)
+
+	host := s.hostForCookie(env.ID)
+
+	res := s.registerOrigin(host, s.sameHostOrigin(host), "cookiereg@example.com", "supersecret123")
+
+	s.Equal(http.StatusCreated, res.Status)
+
+	data := s.jsonData(res)
+	_, hasToken := data["token"]
+	s.False(hasToken, "cookie mode must not return the token in the body")
+
+	s.Require().Len(res.Cookies, 1)
+	s.Equal(buildconf.SessionCookieName, res.Cookies[0].Name)
+}
+
+// Test_Login_CookieMode_ForeignOrigin_Rejected verifies the login-CSRF guard: in
+// cookie mode a login POST carrying a foreign (non-allow-listed) Origin is
+// refused with 403 and no session cookie, so an attacker can't plant their own
+// session on the victim's browser via a cross-site form post.
+func (s *WithSKAuthEmailSuite) Test_Login_CookieMode_ForeignOrigin_Rejected() {
+	env, err := s.setupEnv(false)
+	s.Require().NoError(err)
+
+	host := s.hostForCookie(env.ID)
+	origin := s.sameHostOrigin(host)
+
+	s.Require().Equal(http.StatusCreated, s.registerOrigin(host, origin, "victim@example.com", "supersecret123").Status)
+
+	res := s.loginOrigin(host, "https://evil.example.org", "victim@example.com", "supersecret123")
+
+	s.Equal(http.StatusForbidden, res.Status)
+	s.Empty(res.Cookies, "no session cookie may be set for a cross-origin login")
+}
+
+// Test_Login_CookieMode_MissingOrigin_Rejected verifies that a cookie-mode login
+// with no Origin header (browsers always send one on POST) is treated as
+// cross-site and refused, closing the CSRF vector for form posts.
+func (s *WithSKAuthEmailSuite) Test_Login_CookieMode_MissingOrigin_Rejected() {
+	env, err := s.setupEnv(false)
+	s.Require().NoError(err)
+
+	host := s.hostForCookie(env.ID)
+
+	s.Require().Equal(http.StatusCreated, s.registerOrigin(host, s.sameHostOrigin(host), "victim2@example.com", "supersecret123").Status)
+
+	res := s.login(host, "victim2@example.com", "supersecret123")
+
+	s.Equal(http.StatusForbidden, res.Status)
+	s.Empty(res.Cookies, "no session cookie may be set when Origin is absent")
 }
 
 func (s *WithSKAuthEmailSuite) Test_Login_WrongPassword() {
