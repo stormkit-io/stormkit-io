@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.07.13.1...v2026.07.14.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.13.1...v2026.07.14.1)
+
+### 🚀 Enhancements
+
+- Edge OAuth WWW-Authenticate challenge ([#361](https://github.com/stormkit-io/stormkit-io/pull/361))
+
+### 🏡 Chore
+
+- Update changelog for v2026.07.13.1 ([#360](https://github.com/stormkit-io/stormkit-io/pull/360))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.07.10.3...v2026.07.13.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.10.3...v2026.07.13.1)
