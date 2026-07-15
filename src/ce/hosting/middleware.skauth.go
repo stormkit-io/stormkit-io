@@ -76,13 +76,6 @@ func (m *skAuthMiddleware) deliverSession(token, redirectURL string) *shttp.Resp
 }
 
 func (m *skAuthMiddleware) handleRegisterLogin(path string) (*shttp.Response, error) {
-	if m.req.Method != http.MethodPost {
-		return &shttp.Response{
-			Status: http.StatusMethodNotAllowed,
-			Data:   map[string]any{"errors": []string{"method not allowed"}},
-		}, nil
-	}
-
 	if path == "/_stormkit/auth/login" {
 		return m.login(), nil
 	}
@@ -91,13 +84,6 @@ func (m *skAuthMiddleware) handleRegisterLogin(path string) (*shttp.Response, er
 }
 
 func (m *skAuthMiddleware) handleVerify() (*shttp.Response, error) {
-	if m.req.Method != http.MethodGet {
-		return &shttp.Response{
-			Status: http.StatusMethodNotAllowed,
-			Data:   map[string]any{"errors": []string{"method not allowed"}},
-		}, nil
-	}
-
 	resp := m.verifyEmail()
 
 	if resp.Status != 0 && resp.Status != http.StatusOK {
@@ -374,13 +360,6 @@ func (m *skAuthMiddleware) handleMagic() (*shttp.Response, error) {
 // app open and on a periodic timer) so the token never reaches its TTL while
 // the user is active.
 func (m *skAuthMiddleware) handleRefresh() (*shttp.Response, error) {
-	if m.req.Method != http.MethodPost {
-		return &shttp.Response{
-			Status: http.StatusMethodNotAllowed,
-			Data:   map[string]any{"errors": []string{"method not allowed"}},
-		}, nil
-	}
-
 	bearer := sessionBearer(m.req)
 
 	if bearer == "" {
@@ -437,13 +416,6 @@ func (m *skAuthMiddleware) handleRefresh() (*shttp.Response, error) {
 // X-User-Id / X-User-Email; richer, sync-once fields (name, avatar, provider
 // username and profile link) are served here instead of bloating every request.
 func (m *skAuthMiddleware) handleMe() (*shttp.Response, error) {
-	if m.req.Method != http.MethodGet {
-		return &shttp.Response{
-			Status: http.StatusMethodNotAllowed,
-			Data:   map[string]any{"errors": []string{"method not allowed"}},
-		}, nil
-	}
-
 	// X-User-Id is injected by WithSKAuth from the verified bearer before
 	// dispatch, so a value here is already authenticated. Empty means no valid
 	// token accompanied the request. Identity comes solely from the token — the
