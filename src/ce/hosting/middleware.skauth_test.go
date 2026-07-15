@@ -152,16 +152,6 @@ func (s *WithSKAuthSuite) Test_RegisterPath_SKAuthDisabled() {
 	s.Nil(res)
 }
 
-// Test_RegisterPath_MethodNotAllowed checks that /_stormkit/auth/register rejects non-POST requests.
-func (s *WithSKAuthSuite) Test_RegisterPath_MethodNotAllowed() {
-	req := s.newRequest(s.hostWithSKAuth(), "/_stormkit/auth/register")
-	res, err := hosting.ServeAuth(req)
-
-	s.NoError(err)
-	s.NotNil(res)
-	s.Equal(http.StatusMethodNotAllowed, res.Status)
-}
-
 // Test_RegisterPath_MissingEnv checks that /_stormkit/auth/register returns 404 when the
 // host has no EnvID configured — the env lookup finds nothing and auth is unavailable.
 func (s *WithSKAuthSuite) Test_RegisterPath_MissingEnv() {
@@ -193,16 +183,6 @@ func (s *WithSKAuthSuite) Test_LoginPath_SKAuthDisabled() {
 	s.Nil(res)
 }
 
-// Test_LoginPath_MethodNotAllowed checks that /_stormkit/auth/login rejects non-POST requests.
-func (s *WithSKAuthSuite) Test_LoginPath_MethodNotAllowed() {
-	req := s.newRequest(s.hostWithSKAuth(), "/_stormkit/auth/login")
-	res, err := hosting.ServeAuth(req)
-
-	s.NoError(err)
-	s.NotNil(res)
-	s.Equal(http.StatusMethodNotAllowed, res.Status)
-}
-
 // Test_LoginPath_MissingEnv checks that /_stormkit/auth/login returns 404 when the
 // host has no EnvID configured — the env lookup finds nothing and auth is unavailable.
 func (s *WithSKAuthSuite) Test_LoginPath_MissingEnv() {
@@ -215,15 +195,6 @@ func (s *WithSKAuthSuite) Test_LoginPath_MissingEnv() {
 	s.NoError(err)
 	s.NotNil(res)
 	s.Equal(http.StatusNotFound, res.Status)
-}
-
-// Test_VerifyPath_MethodNotAllowed checks that /_stormkit/auth/verify rejects non-GET requests.
-func (s *WithSKAuthSuite) Test_VerifyPath_MethodNotAllowed() {
-	req := s.newPostRequest(s.hostWithSKAuth(), "/_stormkit/auth/verify", nil)
-	res := hosting.HandleAuthVerify(req)
-
-	s.NotNil(res)
-	s.Equal(http.StatusMethodNotAllowed, res.Status)
 }
 
 // Test_VerifyPath_MissingToken checks that /_stormkit/auth/verify returns 400 when no token is provided.
@@ -502,19 +473,6 @@ func (s *WithSKAuthSuite) Test_Refresh_MissingBearer() {
 	s.Equal(http.StatusUnauthorized, res.Status)
 }
 
-// Test_Refresh_WrongMethod checks that non-POST verbs on /refresh return 405.
-func (s *WithSKAuthSuite) Test_Refresh_WrongMethod() {
-	host := s.hostWithSKAuth()
-	req := s.newGetRequest(host, "/_stormkit/auth/refresh")
-	req.Header.Set("Authorization", s.generateBearer(types.ID(1), "test-secret-padded-to-32-chars!!"))
-
-	res, err := hosting.ServeAuth(req)
-
-	s.NoError(err)
-	s.Require().NotNil(res)
-	s.Equal(http.StatusMethodNotAllowed, res.Status)
-}
-
 // Test_Me_MissingBearer checks that GET /_stormkit/auth/me without a bearer is
 // rejected: no X-User-Id gets injected, so the handler returns 401.
 func (s *WithSKAuthSuite) Test_Me_MissingBearer() {
@@ -525,18 +483,6 @@ func (s *WithSKAuthSuite) Test_Me_MissingBearer() {
 	s.NoError(err)
 	s.Require().NotNil(res)
 	s.Equal(http.StatusUnauthorized, res.Status)
-}
-
-// Test_Me_WrongMethod checks that a non-GET request to /me returns 405.
-func (s *WithSKAuthSuite) Test_Me_WrongMethod() {
-	req := s.newPostRequest(s.hostWithSKAuth(), "/_stormkit/auth/me", nil)
-	req.Header.Set("Authorization", s.generateBearer(types.ID(42), "test-secret-padded-to-32-chars!!"))
-
-	res, err := hosting.ServeAuth(req)
-
-	s.NoError(err)
-	s.Require().NotNil(res)
-	s.Equal(http.StatusMethodNotAllowed, res.Status)
 }
 
 // Test_Me_MissingEnv checks that a valid bearer whose env can't be resolved

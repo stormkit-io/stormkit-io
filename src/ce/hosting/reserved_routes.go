@@ -54,25 +54,27 @@ func registerReservedRoutes(s *shttp.Service) {
 
 	auth := s.NewEndpoint("/_stormkit/auth")
 
-	// Every path is registered for GET, POST and OPTIONS regardless of the
-	// method it ultimately accepts: the handlers do their own method validation
-	// (returning a JSON 405), and serveReservedAuth answers OPTIONS preflights.
-	// This keeps behaviour identical to the old prefix-matching middleware, which
-	// never filtered by method at the routing layer.
-	add := func(path string, h func(*RequestContext) *shttp.Response) {
-		for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodOptions} {
+	// Each endpoint is registered for the methods it actually accepts; the router
+	// returns 405 for anything else, so the handlers no longer self-check. The XHR
+	// endpoints (register, login, refresh, me, and magic's POST) also register
+	// OPTIONS so a cross-origin (decoupled frontend) credentialed preflight is
+	// answered — serveReservedAuth returns 204 for it.
+	reg := func(path string, h func(*RequestContext) *shttp.Response, methods ...string) {
+		for _, method := range methods {
 			auth.Handler(method, path, WithHost(h))
 		}
 	}
 
-	add("/register", handleAuthRegisterLogin)
-	add("/login", handleAuthRegisterLogin)
-	add("/verify", handleAuthVerify)
-	add("/magic", handleAuthMagic)
-	add("/refresh", handleAuthRefresh)
-	add("/me", handleAuthMe)
-	add("/callback", handleAuthOAuthCallback)
-	add("/{provider}", handleAuthProvider)
+	reg("/register", handleAuthRegisterLogin, http.MethodPost, http.MethodOptions)
+	reg("/login", handleAuthRegisterLogin, http.MethodPost, http.MethodOptions)
+	reg("/refresh", handleAuthRefresh, http.MethodPost, http.MethodOptions)
+	reg("/me", handleAuthMe, http.MethodGet, http.MethodOptions)
+	// Magic link: GET follows the emailed verification link, POST requests one.
+	reg("/magic", handleAuthMagic, http.MethodGet, http.MethodPost, http.MethodOptions)
+	// Navigation endpoints reached by a top-level GET redirect.
+	reg("/verify", handleAuthVerify, http.MethodGet)
+	reg("/callback", handleAuthOAuthCallback, http.MethodGet)
+	reg("/{provider}", handleAuthProvider, http.MethodGet)
 }
 
 // serveReservedAuth wraps a skAuthMiddleware handler with the concerns the
