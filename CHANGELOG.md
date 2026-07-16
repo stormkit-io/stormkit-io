@@ -1,5 +1,35 @@
 # Changelog
 
+## v2026.07.15.3...v2026.07.16.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.15.3...v2026.07.16.1)
+
+### 🚀 Enhancements
+
+- ⚠️  Cookie-only sessions, bearer for native ([#371](https://github.com/stormkit-io/stormkit-io/pull/371))
+- Add session logout endpoint ([#374](https://github.com/stormkit-io/stormkit-io/pull/374))
+- Add oauth token revocation endpoint ([#375](https://github.com/stormkit-io/stormkit-io/pull/375))
+
+### 🩹 Fixes
+
+- Auth security hardening ([#376](https://github.com/stormkit-io/stormkit-io/pull/376))
+
+### 💅 Refactors
+
+- Register auth routes per-method ([#373](https://github.com/stormkit-io/stormkit-io/pull/373))
+
+### 🏡 Chore
+
+- Update changelog for v2026.07.15.3 ([#369](https://github.com/stormkit-io/stormkit-io/pull/369))
+
+#### ⚠️ Breaking Changes
+
+- ⚠️  Cookie-only sessions, bearer for native ([#371](https://github.com/stormkit-io/stormkit-io/pull/371))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.07.15.2...v2026.07.15.3
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.15.2...v2026.07.15.3)
