@@ -182,6 +182,18 @@ func mcpDispatch(req *RequestContextMCP, id any, params *toolCallParams) *shttp.
 		resp = mcpListTeams(req)
 	case "create_team":
 		resp = mcpCreateTeam(req, id, params.Arguments)
+	case "get_auth_config":
+		if !authConfigEnabled() {
+			return jsonRPCError(id, rpcErrMethodUnknown, "unknown tool: "+params.Name)
+		}
+
+		resp = mcpGetAuthConfig(req, params.Arguments)
+	case "configure_auth":
+		if !authConfigEnabled() {
+			return jsonRPCError(id, rpcErrMethodUnknown, "unknown tool: "+params.Name)
+		}
+
+		resp = mcpConfigureAuth(req, id, params.Arguments)
 	case "enable_database_integration":
 		if !databaseIntegrationEnabled() {
 			return jsonRPCError(id, rpcErrMethodUnknown, "unknown tool: "+params.Name)

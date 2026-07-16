@@ -310,6 +310,8 @@ func (s *HandlerMCPSuite) Test_ToolsList_ReturnsExpectedTools() {
 		"get_trigger_logs",
 		"list_teams",
 		"create_team",
+		"get_auth_config",
+		"configure_auth",
 		"enable_database_integration",
 		"configure_database_integration",
 	}, names)
@@ -336,6 +338,9 @@ func (s *HandlerMCPSuite) Test_ToolsList_HidesDatabaseToolsOnCloud() {
 
 	s.NotContains(names, "enable_database_integration")
 	s.NotContains(names, "configure_database_integration")
+	// The auth-config tools are gated the same way (self-hosted only).
+	s.NotContains(names, "get_auth_config")
+	s.NotContains(names, "configure_auth")
 }
 
 func (s *HandlerMCPSuite) Test_EnableDatabaseIntegration_RejectedOnCloud() {
@@ -1170,6 +1175,144 @@ func (s *HandlerMCPSuite) Test_CreateTeam_Forbidden_NotEnterprise() {
 	env := s.rpcOK(resp)
 	result := env["result"].(map[string]any)
 	s.True(result["isError"].(bool))
+}
+
+func (s *HandlerMCPSuite) Test_ConfigureAuth_Success() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl)
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "configure_auth", map[string]any{
+		"envId":              mockEnv.ID.String(),
+		"status":             true,
+		"successUrl":         "/auth/success",
+		"tokenTtl":           120,
+		"oauthServerEnabled": true,
+		"oauthResourcePath":  "mcp",
+	}))
+
+	env := s.rpcOK(resp)
+	data := s.toolContent(env)
+
+	s.Equal(true, data["status"])
+	s.Equal("/auth/success", data["successUrl"])
+	s.Equal("/mcp", data["oauthResourcePath"])
+	s.Equal(true, data["oauthServerEnabled"])
+
+	stored, err := buildconf.NewStore().EnvironmentByID(context.Background(), mockEnv.ID)
+	s.Require().NoError(err)
+	s.Require().NotNil(stored.AuthConf)
+	s.True(stored.AuthConf.Status)
+	s.Len(stored.AuthConf.Secret, 128)
+}
+
+// Test_ConfigureAuth_IsPatch verifies that omitted fields keep their stored value.
+func (s *HandlerMCPSuite) Test_ConfigureAuth_IsPatch() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl)
+	key := s.userKey(usr)
+
+	s.NoError(buildconf.NewStore().SaveAuthConf(context.Background(), mockEnv.ID, &buildconf.SKAuthConf{
+		Secret:     "seed-secret",
+		Status:     true,
+		SuccessURL: "/dashboard",
+		TTL:        60,
+	}))
+
+	resp := s.post(key.Value, mcpToolCall(1, "configure_auth", map[string]any{
+		"envId":              mockEnv.ID.String(),
+		"oauthServerEnabled": true,
+	}))
+
+	s.rpcOK(resp)
+
+	stored, err := buildconf.NewStore().EnvironmentByID(context.Background(), mockEnv.ID)
+	s.Require().NoError(err)
+	s.True(stored.AuthConf.Status, "status must survive a patch that omits it")
+	s.Equal("/dashboard", stored.AuthConf.SuccessURL, "successUrl must survive a patch that omits it")
+	s.Equal(60, stored.AuthConf.TTL)
+	s.Equal("seed-secret", stored.AuthConf.Secret)
+	s.Require().NotNil(stored.AuthConf.OAuthServer)
+	s.True(stored.AuthConf.OAuthServer.Enabled)
+}
+
+func (s *HandlerMCPSuite) Test_GetAuthConfig_Success() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl)
+	key := s.userKey(usr)
+
+	s.NoError(buildconf.NewStore().SaveAuthConf(context.Background(), mockEnv.ID, &buildconf.SKAuthConf{
+		Secret:     "seed-secret",
+		Status:     true,
+		SuccessURL: "/welcome",
+		TTL:        30,
+	}))
+
+	resp := s.post(key.Value, mcpToolCall(1, "get_auth_config", map[string]any{
+		"envId": mockEnv.ID.String(),
+	}))
+
+	env := s.rpcOK(resp)
+	data := s.toolContent(env)
+
+	s.Equal(true, data["status"])
+	s.Equal("/welcome", data["successUrl"])
+	// The signing secret is never exposed.
+	raw, _ := json.Marshal(data)
+	s.NotContains(string(raw), "seed-secret")
+}
+
+func (s *HandlerMCPSuite) Test_ConfigureAuth_MissingEnvId() {
+	usr := s.MockUser()
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "configure_auth", map[string]any{
+		"status": true,
+	}))
+
+	env := s.rpcOK(resp)
+	result := env["result"].(map[string]any)
+	s.True(result["isError"].(bool))
+	content := result["content"].([]any)[0].(map[string]any)
+	s.Contains(content["text"].(string), "envId")
+}
+
+func (s *HandlerMCPSuite) Test_ConfigureAuth_Forbidden_NotMember() {
+	usr1 := s.MockUser()
+	usr2 := s.MockUser()
+	appl := s.MockApp(usr1)
+	mockEnv := s.MockEnv(appl)
+	key := s.userKey(usr2)
+
+	resp := s.post(key.Value, mcpToolCall(1, "configure_auth", map[string]any{
+		"envId":  mockEnv.ID.String(),
+		"status": true,
+	}))
+
+	env := s.rpcOK(resp)
+	result := env["result"].(map[string]any)
+	s.True(result["isError"].(bool))
+}
+
+func (s *HandlerMCPSuite) Test_AuthTools_RejectedOnCloud() {
+	config.SetIsStormkitCloud(true)
+	defer config.SetIsStormkitCloud(false)
+
+	usr := s.MockUser()
+	key := s.userKey(usr)
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl)
+
+	resp := s.post(key.Value, mcpToolCall(1, "configure_auth", map[string]any{
+		"envId":  mockEnv.ID.String(),
+		"status": true,
+	}))
+
+	errObj := s.rpcError(resp)
+	s.EqualValues(-32601, errObj["code"])
 }
 
 func TestHandlerMCP(t *testing.T) {

@@ -1,6 +1,7 @@
 package skauthhandlers
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -12,17 +13,18 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
+// AuthConfigUpdateRequest is a patch of the Stormkit Auth configuration. Every
+// field is optional: a nil pointer (or nil slice for AllowedOrigins) leaves the
+// corresponding stored setting untouched, so a client that saves only some
+// fields — an older UI, an API caller, or an MCP tool — must not silently
+// disable a live OAuth server, clear its MCP configuration, or reset the
+// success URL out from under it.
 type AuthConfigUpdateRequest struct {
-	SuccessURL     string   `json:"successUrl"`
-	TTL            int      `json:"tokenTtl"`
-	Status         bool     `json:"status"`
+	SuccessURL     *string  `json:"successUrl"`
+	TTL            *int     `json:"tokenTtl"`
+	Status         *bool    `json:"status"`
 	AllowedOrigins []string `json:"allowedOrigins"`
 
-	// The OAuth-server and session-storage fields are pointers so an omitted
-	// field leaves the stored setting untouched: a client that saves other
-	// fields (or an older UI that doesn't know the field) must not silently
-	// disable a live OAuth server, clear its MCP configuration, or flip the
-	// session-storage mode out from under it.
 	OAuthServerEnabled *bool   `json:"oauthServerEnabled"`
 	OAuthResourcePath  *string `json:"oauthResourcePath"`
 	OAuthAllowLoopback *bool   `json:"oauthAllowLoopback"`
@@ -30,35 +32,110 @@ type AuthConfigUpdateRequest struct {
 	LoginURL           *string `json:"loginUrl"`
 }
 
+const (
+	successURLHint = "Provide a relative URL such as: /success"
+	originHint     = "Provide values like https://app.example.com"
+	sessionHint    = "Cookie domain must be a bare host such as .example.com; login URL a relative path or absolute URL."
+	oauthPathHint  = "Provide a relative path such as: /mcp"
+)
+
+// ConfigValidationError is a user-facing validation failure carrying an
+// actionable hint. Handlers surface Message and Hint in the 400 response body.
+type ConfigValidationError struct {
+	Message string
+	Hint    string
+}
+
+func (e *ConfigValidationError) Error() string { return e.Message }
+
+// ApplyConfigUpdate validates data and merges its provided fields into conf in
+// place. It performs no I/O so it can be shared by the dashboard handler, the
+// public API handler, and the MCP tool. On validation failure it returns a
+// *ConfigValidationError.
+func ApplyConfigUpdate(conf *buildconf.SKAuthConf, data AuthConfigUpdateRequest) error {
+	if data.SuccessURL != nil {
+		successURL := *data.SuccessURL
+
+		if successURL != "" {
+			parsed, err := url.Parse(successURL)
+
+			if err != nil {
+				return &ConfigValidationError{
+					Message: "Success URL format is not valid. Make sure to provide a relative URL.",
+					Hint:    successURLHint,
+				}
+			}
+
+			if parsed.IsAbs() {
+				return &ConfigValidationError{
+					Message: "Success URL is not a relative URL.",
+					Hint:    successURLHint,
+				}
+			}
+
+			// Normalize to a leading-slash path so it joins cleanly with
+			// an origin in the cross-origin redirect path.
+			if !strings.HasPrefix(successURL, "/") {
+				successURL = "/" + successURL
+			}
+		}
+
+		conf.SuccessURL = successURL
+	}
+
+	if data.TTL != nil {
+		conf.TTL = *data.TTL
+	}
+
+	if data.Status != nil {
+		conf.Status = *data.Status
+	}
+
+	if data.AllowedOrigins != nil {
+		allowedOrigins := make([]string, 0, len(data.AllowedOrigins))
+
+		for _, raw := range data.AllowedOrigins {
+			origin := strings.TrimSpace(strings.TrimRight(raw, "/"))
+
+			if origin == "" {
+				continue
+			}
+
+			parsed, perr := url.Parse(origin)
+
+			// An allowed origin must be exactly scheme + host (no path, query,
+			// fragment, or userinfo). Anything else can never match a browser
+			// Origin header and would silently misconfigure the allow-list.
+			if perr != nil || !parsed.IsAbs() || parsed.Host == "" ||
+				parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.User != nil {
+				return &ConfigValidationError{
+					Message: fmt.Sprintf("Allowed origin %q must be a scheme + host only (no path, query, fragment, or userinfo).", raw),
+					Hint:    originHint,
+				}
+			}
+
+			allowedOrigins = append(allowedOrigins, origin)
+		}
+
+		conf.AllowedOrigins = allowedOrigins
+	}
+
+	if err := applySessionConf(conf, data); err != nil {
+		return &ConfigValidationError{Message: err.Error(), Hint: sessionHint}
+	}
+
+	if err := applyOAuthServerConf(conf, data); err != nil {
+		return &ConfigValidationError{Message: err.Error(), Hint: oauthPathHint}
+	}
+
+	return nil
+}
+
 func handlerAuthConfigUpdate(req *app.RequestContext) *shttp.Response {
 	data := AuthConfigUpdateRequest{}
 
 	if err := req.Post(&data); err != nil {
 		return shttp.Error(err, fmt.Sprintf("error while unmarshaling auth config request: %s", err.Error()))
-	}
-
-	if data.SuccessURL != "" {
-		parsed, err := url.Parse(data.SuccessURL)
-
-		if err != nil {
-			return shttp.BadRequest(map[string]any{
-				"error": "Success URL format is not valid. Make sure to provide a relative URL.",
-				"hint":  "Provide a relative URL such as: /success",
-			})
-		}
-
-		if parsed.IsAbs() {
-			return shttp.BadRequest(map[string]any{
-				"error": "Success URL is not a relative URL.",
-				"hint":  "Provide a relative URL such as: /success",
-			})
-		}
-
-		// Normalize to a leading-slash path so it joins cleanly with
-		// an origin in the cross-origin redirect path.
-		if !strings.HasPrefix(data.SuccessURL, "/") {
-			data.SuccessURL = "/" + data.SuccessURL
-		}
 	}
 
 	store := buildconf.NewStore()
@@ -74,48 +151,14 @@ func handlerAuthConfigUpdate(req *app.RequestContext) *shttp.Response {
 		}
 	}
 
-	allowedOrigins := make([]string, 0, len(data.AllowedOrigins))
+	if err := ApplyConfigUpdate(env.AuthConf, data); err != nil {
+		var verr *ConfigValidationError
 
-	for _, raw := range data.AllowedOrigins {
-		origin := strings.TrimSpace(strings.TrimRight(raw, "/"))
-
-		if origin == "" {
-			continue
+		if errors.As(err, &verr) {
+			return shttp.BadRequest(map[string]any{"error": verr.Message, "hint": verr.Hint})
 		}
 
-		parsed, perr := url.Parse(origin)
-
-		// An allowed origin must be exactly scheme + host (no path, query,
-		// fragment, or userinfo). Anything else can never match a browser
-		// Origin header and would silently misconfigure the allow-list.
-		if perr != nil || !parsed.IsAbs() || parsed.Host == "" ||
-			parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.User != nil {
-			return shttp.BadRequest(map[string]any{
-				"error": fmt.Sprintf("Allowed origin %q must be a scheme + host only (no path, query, fragment, or userinfo).", raw),
-				"hint":  "Provide values like https://app.example.com",
-			})
-		}
-
-		allowedOrigins = append(allowedOrigins, origin)
-	}
-
-	env.AuthConf.SuccessURL = data.SuccessURL
-	env.AuthConf.TTL = data.TTL
-	env.AuthConf.Status = data.Status
-	env.AuthConf.AllowedOrigins = allowedOrigins
-
-	if err := applySessionConf(env.AuthConf, data); err != nil {
-		return shttp.BadRequest(map[string]any{
-			"error": err.Error(),
-			"hint":  "Cookie domain must be a bare host such as .example.com; login URL a relative path or absolute URL.",
-		})
-	}
-
-	if err := applyOAuthServerConf(env.AuthConf, data); err != nil {
-		return shttp.BadRequest(map[string]any{
-			"error": err.Error(),
-			"hint":  "Provide a relative path such as: /mcp",
-		})
+		return shttp.Error(err)
 	}
 
 	err = store.SaveAuthConf(req.Context(), req.EnvID, env.AuthConf)
