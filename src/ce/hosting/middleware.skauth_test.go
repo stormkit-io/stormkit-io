@@ -312,6 +312,61 @@ func (s *WithSKAuthSuite) Test_UserIDNotInjectedOnWrongSecret() {
 	s.Empty(req.Header.Get("X-User-Id"))
 }
 
+// hostWithOAuthResource is an SKAuth host with the OAuth server enabled and an
+// MCP resource path configured, so its protected-resource id is
+// "https://www.stormkit.io/mcp".
+func (s *WithSKAuthSuite) hostWithOAuthResource() *hosting.Host {
+	return &hosting.Host{
+		Name: "www.stormkit.io",
+		Config: &appconf.Config{
+			SKAuth: &buildconf.SKAuthConf{
+				Secret:     "test-secret-padded-to-32-chars!!",
+				SuccessURL: "/",
+				TTL:        10,
+				Status:     true,
+				OAuthServer: &buildconf.OAuthServerConf{
+					Enabled:      true,
+					ResourcePath: "/mcp",
+				},
+			},
+		},
+	}
+}
+
+func (s *WithSKAuthSuite) generateBearerWithAud(userID types.ID, secret, aud string) string {
+	token, err := user.JWT(jwt.MapClaims{"uid": userID, "aud": aud}, secret)
+	s.Require().NoError(err)
+	return fmt.Sprintf("Bearer %s", token)
+}
+
+// Test_UserIDInjected_MatchingAudience checks that an OAuth access token whose
+// aud matches this environment's protected-resource id is accepted.
+func (s *WithSKAuthSuite) Test_UserIDInjected_MatchingAudience() {
+	userID := types.ID(42)
+	req := s.newRequest(s.hostWithOAuthResource(), "/mcp")
+	req.Header.Set("Authorization", s.generateBearerWithAud(userID, "test-secret-padded-to-32-chars!!", "https://www.stormkit.io/mcp"))
+
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.Nil(res)
+	s.Equal(userID.String(), req.Header.Get("X-User-Id"))
+}
+
+// Test_UserIDNotInjected_ForeignAudience checks that a validly-signed token
+// bound to a different resource is refused: its identity is not injected, so a
+// token minted for another audience cannot be replayed here.
+func (s *WithSKAuthSuite) Test_UserIDNotInjected_ForeignAudience() {
+	req := s.newRequest(s.hostWithOAuthResource(), "/mcp")
+	req.Header.Set("Authorization", s.generateBearerWithAud(types.ID(1), "test-secret-padded-to-32-chars!!", "https://evil.example.com/mcp"))
+
+	res, err := hosting.WithSKAuth(req)
+
+	s.NoError(err)
+	s.Nil(res)
+	s.Empty(req.Header.Get("X-User-Id"))
+}
+
 // Test_UserIDNotInjectedWhenNoAuthHeader checks that requests without an Authorization
 // header do not get X-User-Id injected.
 func (s *WithSKAuthSuite) Test_UserIDNotInjectedWhenNoAuthHeader() {

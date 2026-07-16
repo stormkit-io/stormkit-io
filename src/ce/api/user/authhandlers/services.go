@@ -44,8 +44,14 @@ func Services(r *shttp.Router) *shttp.Service {
 
 	if !config.IsStormkitCloud() {
 		authEp.
-			Handler(shttp.MethodPost, "/admin/register", handlerAdminRegister).
-			Handler(shttp.MethodPost, "/admin/login", handlerAdminLogin)
+			Handler(shttp.MethodPost, "/admin/register", shttp.WithRateLimit(
+				handlerAdminRegister,
+				&limiter.Options{Limit: 10, Burst: 2, Duration: time.Minute},
+			)).
+			Handler(shttp.MethodPost, "/admin/login", shttp.WithRateLimit(
+				handlerAdminLogin,
+				&limiter.Options{Limit: 10, Burst: 2, Duration: time.Minute},
+			))
 	}
 
 	authEp.

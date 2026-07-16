@@ -167,7 +167,7 @@ var schemaStmt = struct {
 	`,
 
 	selectUserIDByEmail: `
-		SELECT user_id, uuid FROM stormkit_auth_users WHERE email = $1;
+		SELECT user_id, uuid FROM stormkit_auth_users WHERE LOWER(email) = LOWER($1);
 	`,
 
 	insertAuthUser: `
@@ -220,7 +220,11 @@ var sqlTemplates = struct {
 			{{- end}}
 		{{- if .WhereField}}
 		WHERE
+			{{- if eq .WhereField "email"}}
+			LOWER(u.email) = LOWER($1)
+			{{- else}}
 			u.{{.WhereField}} = $1
+			{{- end}}
 		{{- else}}
 		ORDER BY u.user_id ASC
 		LIMIT $1 OFFSET $2

@@ -65,11 +65,12 @@ func (g *GoogleClient) UserInfo(ctx context.Context, token *oauth2.Token) (*User
 	}
 
 	return &UserInfo{
-		AccountID: userInfo.ID,
-		Email:     userInfo.Email,
-		Avatar:    userInfo.Picture,
-		FirstName: userInfo.GivenName,
-		LastName:  userInfo.FamilyName,
+		AccountID:     userInfo.ID,
+		Email:         userInfo.Email,
+		EmailVerified: userInfo.VerifiedEmail,
+		Avatar:        userInfo.Picture,
+		FirstName:     userInfo.GivenName,
+		LastName:      userInfo.FamilyName,
 	}, nil
 }
 
@@ -79,7 +80,7 @@ func (g *GoogleClient) Exchange(ctx context.Context, req *shttp.RequestContext) 
 
 func (g *GoogleClient) AuthCodeURL(params AuthCodeURLParams) (string, error) {
 	claims := params.Claims()
-	state, err := user.JWT(claims)
+	state, err := user.JWT(claims, params.Secret)
 
 	if err != nil {
 		return "", err

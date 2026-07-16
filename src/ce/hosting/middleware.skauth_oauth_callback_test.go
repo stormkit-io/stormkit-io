@@ -19,10 +19,12 @@ import (
 // The hosting callback only reads "prv" and "ref" — the environment is resolved
 // from the request Host, not from the state — so those are the only claims set.
 func (s *WithSKAuthOAuthSuite) stateToken(provider, ref string) string {
+	// Signed with the environment secret because the callback now verifies the
+	// state against it (a token minted for another tenant is rejected).
 	token, err := user.JWT(jwt.MapClaims{
 		"prv": provider,
 		"ref": ref,
-	})
+	}, "test-secret-padded-to-32-chars!!")
 
 	s.Require().NoError(err)
 
@@ -34,8 +36,9 @@ func (s *WithSKAuthOAuthSuite) stateToken(provider, ref string) string {
 // created, and an enabled Google provider.
 func (s *WithSKAuthOAuthSuite) setupCallbackEnv(providerStatus bool) *hosting.Host {
 	return s.setupCallbackEnvWith(providerStatus, &buildconf.SKAuthConf{
-		Secret: "test-secret-padded-to-32-chars!!",
-		Status: true,
+		Secret:         "test-secret-padded-to-32-chars!!",
+		Status:         true,
+		AllowedOrigins: []string{"https://app.example.com"},
 	})
 }
 
@@ -85,11 +88,12 @@ func (s *WithSKAuthOAuthSuite) Test_Callback_Success() {
 	})).Return(token, nil).Once()
 
 	s.mockClient.On("UserInfo", mock.Anything, token).Return(&skauth.UserInfo{
-		AccountID: "test-account-id",
-		Email:     "jane@stormkit.io",
-		FirstName: "Jane",
-		LastName:  "Doe",
-		Avatar:    "link-to-avatar",
+		AccountID:     "test-account-id",
+		Email:         "jane@stormkit.io",
+		EmailVerified: true,
+		FirstName:     "Jane",
+		LastName:      "Doe",
+		Avatar:        "link-to-avatar",
 	}, nil).Once()
 
 	state := s.stateToken(skauth.ProviderGoogle, "https://app.example.com/login")
@@ -109,15 +113,49 @@ func (s *WithSKAuthOAuthSuite) Test_Callback_Success() {
 	s.Equal(buildconf.SessionCookieName, res.Cookies[0].Name)
 }
 
+// Test_Callback_UnverifiedEmail_RedirectsWithError checks that a provider which
+// returns an unverified email address is refused before any account is created
+// or linked, closing the account-takeover-by-email-linking vector.
+func (s *WithSKAuthOAuthSuite) Test_Callback_UnverifiedEmail_RedirectsWithError() {
+	host := s.setupCallbackEnv(true)
+
+	token := &oauth2.Token{}
+
+	s.mockClient.On("Exchange", mock.Anything, mock.Anything).Return(token, nil).Once()
+	s.mockClient.On("UserInfo", mock.Anything, token).Return(&skauth.UserInfo{
+		AccountID:     "test-account-id",
+		Email:         "jane@stormkit.io",
+		EmailVerified: false,
+		FirstName:     "Jane",
+	}, nil).Once()
+
+	state := s.stateToken(skauth.ProviderGoogle, "https://app.example.com/login")
+
+	res, err := hosting.ServeAuth(s.oauthRequest(
+		host,
+		fmt.Sprintf("/_stormkit/auth/callback?state=%s&code=test-code", state),
+		nil,
+	))
+
+	s.Require().NoError(err)
+	s.Require().NotNil(res)
+	s.Equal(http.StatusFound, res.Status)
+	s.Require().NotNil(res.Redirect)
+	s.Contains(*res.Redirect, "https://app.example.com/dashboard?login_error=")
+	s.Contains(*res.Redirect, "verified")
+	s.Empty(res.Cookies)
+}
+
 // Test_Callback_SetsCookieWithDomain verifies the OAuth-provider callback sets a
 // first-party session cookie on this auth host (also the OAuth AS), scoped to the
 // configured cookie domain, and redirects straight to the initiating origin — no
 // dependency on that origin carrying its own auth config (the decoupled case).
 func (s *WithSKAuthOAuthSuite) Test_Callback_SetsCookieWithDomain() {
 	host := s.setupCallbackEnvWith(true, &buildconf.SKAuthConf{
-		Secret:       "test-secret-padded-to-32-chars!!",
-		Status:       true,
-		CookieDomain: ".example.com",
+		Secret:         "test-secret-padded-to-32-chars!!",
+		Status:         true,
+		CookieDomain:   ".example.com",
+		AllowedOrigins: []string{"https://app.example.com"},
 	})
 
 	token := &oauth2.Token{}
@@ -127,10 +165,11 @@ func (s *WithSKAuthOAuthSuite) Test_Callback_SetsCookieWithDomain() {
 	})).Return(token, nil).Once()
 
 	s.mockClient.On("UserInfo", mock.Anything, token).Return(&skauth.UserInfo{
-		AccountID: "test-account-id",
-		Email:     "jane@stormkit.io",
-		FirstName: "Jane",
-		LastName:  "Doe",
+		AccountID:     "test-account-id",
+		Email:         "jane@stormkit.io",
+		EmailVerified: true,
+		FirstName:     "Jane",
+		LastName:      "Doe",
 	}, nil).Once()
 
 	state := s.stateToken(skauth.ProviderGoogle, "https://app.example.com/login")
@@ -185,9 +224,10 @@ func (s *WithSKAuthOAuthSuite) Test_Callback_LinksToExistingMagicLinkUser() {
 
 	s.mockClient.On("Exchange", mock.Anything, mock.Anything).Return(token, nil).Once()
 	s.mockClient.On("UserInfo", mock.Anything, token).Return(&skauth.UserInfo{
-		AccountID: "google-account-id",
-		Email:     "jane@stormkit.io",
-		FirstName: "Jane",
+		AccountID:     "google-account-id",
+		Email:         "jane@stormkit.io",
+		EmailVerified: true,
+		FirstName:     "Jane",
 	}, nil).Once()
 
 	state := s.stateToken(skauth.ProviderGoogle, "https://app.example.com/login")
@@ -228,6 +268,61 @@ func (s *WithSKAuthOAuthSuite) Test_Callback_InvalidState() {
 
 	s.Require().NoError(err)
 	s.Equal(http.StatusBadRequest, res.Status)
+}
+
+// Test_Callback_ForeignSecretState_Rejected proves a state token signed with a
+// different secret (a different tenant, or a forgery attempt) does not verify
+// and is rejected before any token exchange.
+func (s *WithSKAuthOAuthSuite) Test_Callback_ForeignSecretState_Rejected() {
+	host := s.setupCallbackEnv(true)
+
+	foreign, err := user.JWT(jwt.MapClaims{
+		"prv": skauth.ProviderGoogle,
+		"ref": "https://app.example.com/login",
+	}, "a-completely-different-tenant-secret!!")
+	s.Require().NoError(err)
+
+	res, err := hosting.ServeAuth(s.oauthRequest(
+		host,
+		fmt.Sprintf("/_stormkit/auth/callback?state=%s&code=test-code", foreign),
+		nil,
+	))
+
+	s.Require().NoError(err)
+	s.Equal(http.StatusBadRequest, res.Status)
+}
+
+// Test_Callback_UnlistedReferrer_FallsBackToOwnOrigin proves the callback never
+// delivers the session to an origin outside the allow-list even if the (validly
+// signed) state carries one — it stays first-party on the app's own origin.
+func (s *WithSKAuthOAuthSuite) Test_Callback_UnlistedReferrer_FallsBackToOwnOrigin() {
+	host := s.setupCallbackEnv(true)
+
+	token := &oauth2.Token{}
+
+	s.mockClient.On("Exchange", mock.Anything, mock.Anything).Return(token, nil).Once()
+	s.mockClient.On("UserInfo", mock.Anything, token).Return(&skauth.UserInfo{
+		AccountID:     "test-account-id",
+		Email:         "jane@stormkit.io",
+		EmailVerified: true,
+		FirstName:     "Jane",
+	}, nil).Once()
+
+	state := s.stateToken(skauth.ProviderGoogle, "https://evil.example.com/login")
+
+	res, err := hosting.ServeAuth(s.oauthRequest(
+		host,
+		fmt.Sprintf("/_stormkit/auth/callback?state=%s&code=test-code", state),
+		nil,
+	))
+
+	s.Require().NoError(err)
+	s.Require().NotNil(res)
+	s.Equal(http.StatusFound, res.Status)
+	s.Require().NotNil(res.Redirect)
+	// Falls back to the app's own origin (the request host), never evil.example.com.
+	s.Equal("https://api.example.com/dashboard", *res.Redirect)
+	s.NotContains(*res.Redirect, "evil.example.com")
 }
 
 // Test_Callback_ProviderDisabled_RedirectsWithError checks that a disabled

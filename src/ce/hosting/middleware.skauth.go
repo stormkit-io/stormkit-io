@@ -359,6 +359,19 @@ func injectUserHeaders(req *RequestContext) {
 		return
 	}
 
+	// An OAuth-issued access token carries an `aud` claim binding it to this
+	// environment's protected resource (RFC 8707 / MCP audience binding). Reject
+	// one whose audience is not this resource so a token minted for a different
+	// resource cannot be replayed here. Session tokens (login/refresh) have no
+	// `aud` and skip this check.
+	if aud, ok := claims["aud"].(string); ok && aud != "" {
+		host := "https://" + req.Host.Name
+
+		if aud != host+req.Host.Config.SKAuth.ResourcePath() && aud != host {
+			return
+		}
+	}
+
 	if userID, ok := claims["uid"].(string); ok && userID != "" {
 		req.Header.Set("X-User-Id", userID)
 	}
@@ -414,6 +427,16 @@ func (m *skAuthMiddleware) handleRefresh() (*shttp.Response, error) {
 		return &shttp.Response{
 			Status: http.StatusUnauthorized,
 			Data:   map[string]any{"errors": []string{"invalid token claims"}},
+		}, nil
+	}
+
+	// Only session tokens are refreshable. An OAuth-issued access token carries
+	// an `aud` (and often `scope`); refreshing it here would strip that binding
+	// and hand back an unrestricted session token, so reject it outright.
+	if aud, ok := claims["aud"].(string); ok && aud != "" {
+		return &shttp.Response{
+			Status: http.StatusUnauthorized,
+			Data:   map[string]any{"errors": []string{"token is not refreshable"}},
 		}, nil
 	}
 

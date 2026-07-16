@@ -25,7 +25,7 @@ func (m *skAuthMiddleware) magicLinkRequest() *shttp.Response {
 	_ = req.Post(body)
 
 	envID := m.req.Host.Config.EnvID
-	email := utils.GetString(body.Email, req.Query().Get("email"))
+	email := normalizeEmail(utils.GetString(body.Email, req.Query().Get("email")))
 
 	if envID == 0 {
 		return shttp.NotFound()

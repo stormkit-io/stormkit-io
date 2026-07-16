@@ -121,6 +121,7 @@ func (s *WithSKAuthOAuthSuite) Test_Initiate_AllowedRedirect_Redirects() {
 		EnvID:        env.ID,
 		ProviderName: skauth.ProviderGoogle,
 		Referrer:     "https://app.example.com",
+		Secret:       "test-secret-padded-to-32-chars!!",
 	}).Return("https://accounts.google.com/o/oauth2/auth", nil)
 
 	res, err := hosting.ServeAuth(s.oauthRequest(
@@ -158,6 +159,7 @@ func (s *WithSKAuthOAuthSuite) Test_Initiate_NoAllowList_FallsBackToOwnOrigin() 
 		EnvID:        env.ID,
 		ProviderName: skauth.ProviderGoogle,
 		Referrer:     "https://api.example.com",
+		Secret:       "test-secret-padded-to-32-chars!!",
 	}).Return("https://accounts.google.com/o/oauth2/auth", nil)
 
 	res, err := hosting.ServeAuth(s.oauthRequest(
@@ -178,6 +180,7 @@ func (s *WithSKAuthOAuthSuite) Test_Initiate_FallsBackToRefererHeader() {
 		EnvID:        env.ID,
 		ProviderName: skauth.ProviderGoogle,
 		Referrer:     "https://app.example.com",
+		Secret:       "test-secret-padded-to-32-chars!!",
 	}).Return("https://accounts.google.com/o/oauth2/auth", nil)
 
 	res, err := hosting.ServeAuth(s.oauthRequest(

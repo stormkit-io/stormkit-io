@@ -16,6 +16,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp/shttptest"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"github.com/stretchr/testify/suite"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type HandlerAdminLoginSuite struct {
@@ -35,7 +36,10 @@ func (s *HandlerAdminLoginSuite) AfterTest(_, _ string) {
 	s.conn.CloseTx()
 }
 
-func (s *HandlerAdminLoginSuite) Test_Admin_Login_Success() {
+// Test_Admin_Login_Success_LegacyPassword covers an instance whose admin
+// secret predates the bcrypt migration (AES-encrypted). Login must succeed and
+// transparently upgrade the stored value to a bcrypt hash.
+func (s *HandlerAdminLoginSuite) Test_Admin_Login_Success_LegacyPassword() {
 	usr := s.MockUser(map[string]any{
 		"Emails": []oauth.Email{
 			{Address: "hello@stormkit.io", IsVerified: false, IsPrimary: false},
@@ -72,6 +76,52 @@ func (s *HandlerAdminLoginSuite) Test_Admin_Login_Success() {
 	s.Equal(http.StatusOK, response.Code)
 	s.NoError(json.Unmarshal(response.Byte(), &expected))
 	s.NotEmpty(expected.SessionToken)
+
+	// The legacy secret was upgraded to a bcrypt hash.
+	cfg, err := admin.Store().Config(context.Background())
+	s.NoError(err)
+	s.NoError(bcrypt.CompareHashAndPassword([]byte(cfg.AdminUserConfig.Password), []byte("password")))
+}
+
+// Test_Admin_Login_Success_BcryptPassword covers the current storage format: a
+// bcrypt hash needs no upgrade write, so no cache broadcast is expected.
+func (s *HandlerAdminLoginSuite) Test_Admin_Login_Success_BcryptPassword() {
+	usr := s.MockUser(map[string]any{
+		"Emails": []oauth.Email{
+			{Address: "test@admin.com", IsVerified: true, IsPrimary: true},
+		},
+	})
+
+	s.NotNil(usr)
+
+	hash, err := bcrypt.GenerateFromPassword([]byte("supersecret123"), bcrypt.DefaultCost)
+	s.NoError(err)
+
+	s.NoError(admin.Store().UpsertConfig(context.Background(), admin.InstanceConfig{
+		AuthConfig: &admin.AuthConfig{},
+		AdminUserConfig: &admin.AdminUserConfig{
+			Email:    "test@admin.com",
+			Password: string(hash),
+		},
+	}))
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(authhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/auth/admin/login",
+		map[string]string{
+			"email":    "test@admin.com",
+			"password": "supersecret123",
+		},
+		nil,
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+
+	// A bcrypt secret needs no upgrade write, so it stays byte-for-byte identical.
+	cfg, err := admin.Store().Config(context.Background())
+	s.NoError(err)
+	s.Equal(string(hash), cfg.AdminUserConfig.Password)
 }
 
 func (s *HandlerAdminLoginSuite) Test_Admin_Login_InvalidPassword() {

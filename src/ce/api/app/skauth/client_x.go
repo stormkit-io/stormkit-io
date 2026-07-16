@@ -86,8 +86,11 @@ func (x *XClient) UserInfo(ctx context.Context, token *oauth2.Token) (*UserInfo,
 	return &UserInfo{
 		AccountID: userInfo.Data.ID,
 		Email:     userInfo.Data.ConfirmedEmail,
-		Avatar:    userInfo.Data.ProfileImageURL,
-		FirstName: userInfo.Data.Name,
+		// X only returns confirmed_email once the user has verified it, so a
+		// non-empty address is verified by definition.
+		EmailVerified: userInfo.Data.ConfirmedEmail != "",
+		Avatar:        userInfo.Data.ProfileImageURL,
+		FirstName:     userInfo.Data.Name,
 		UserMetadata: UserMetadata{
 			Username:   userInfo.Data.Username,
 			ProfileURL: profileURL,
@@ -152,7 +155,7 @@ func (x *XClient) AuthCodeURL(params AuthCodeURLParams) (string, error) {
 	claims := params.Claims()
 	claims["pkce"] = utils.EncryptToString(token)
 
-	state, err := user.JWT(claims)
+	state, err := user.JWT(claims, params.Secret)
 
 	if err != nil {
 		return "", err

@@ -187,13 +187,6 @@ func (o *oauthServer) resourceID() string {
 	return o.issuer() + o.req.Host.Config.SKAuth.ResourcePath()
 }
 
-// resourceMetadataURL is the RFC 9728 §3.1 location of the protected-resource
-// metadata for resourceID: the /.well-known/oauth-protected-resource segment is
-// inserted between the host and the resource path.
-func (o *oauthServer) resourceMetadataURL() string {
-	return o.issuer() + "/.well-known/oauth-protected-resource" + o.req.Host.Config.SKAuth.ResourcePath()
-}
-
 // metadataAS serves the RFC 8414 authorization-server metadata document.
 func (o *oauthServer) metadataAS() *shttp.Response {
 	iss := o.issuer()

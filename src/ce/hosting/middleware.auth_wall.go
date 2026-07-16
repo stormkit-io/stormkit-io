@@ -58,7 +58,10 @@ func WithAuthWall(req *RequestContext) (*shttp.Response, error) {
 				Cookies: []http.Cookie{{
 					Name:     SESSION_COOKIE_NAME,
 					Value:    token,
+					Path:     "/",
 					Expires:  utils.NewUnix().Add(time.Hour * 24),
+					HttpOnly: true,
+					Secure:   true,
 					SameSite: http.SameSiteStrictMode,
 				}},
 				Redirect: &redirectURL,
