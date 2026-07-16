@@ -61,7 +61,10 @@ func (m *skAuthMiddleware) handleOAuthInitiate(providerName string) (*shttp.Resp
 		return resp, nil
 	}
 
-	authURL, err := prv.Client(m.callbackURL()).AuthCodeURL(skauth.AuthCodeURLParams{
+	authURL, err := prv.Client(skauth.ClientParams{
+		RedirectURL: m.callbackURL(),
+		Secret:      env.AuthConf.Secret,
+	}).AuthCodeURL(skauth.AuthCodeURLParams{
 		EnvID:        envID,
 		ProviderName: providerName,
 		Referrer:     redirect,
@@ -146,7 +149,10 @@ func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
 		return m.loginErrorRedirect(referOrigin, "This sign-in method is not available."), nil
 	}
 
-	client := prv.Client(m.callbackURL())
+	client := prv.Client(skauth.ClientParams{
+		RedirectURL: m.callbackURL(),
+		Secret:      env.AuthConf.Secret,
+	})
 
 	if client == nil {
 		return m.loginErrorRedirect(referOrigin, "This sign-in method is not available."), nil

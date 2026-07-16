@@ -138,20 +138,29 @@ func (p *Provider) Supported() bool {
 	}
 }
 
+// ClientParams configures the provider client returned by Provider.Client.
+type ClientParams struct {
+	// RedirectURL is the absolute OAuth2 callback the provider redirects back
+	// to; it must match between the authorization request and the token
+	// exchange, and is ignored by non-OAuth providers.
+	RedirectURL string
+	// Secret is the environment's auth secret used to sign and verify the OAuth
+	// state JWT. X needs it on the token exchange to recover the encrypted PKCE
+	// verifier carried in the state; other providers ignore it.
+	Secret string
+}
+
 // Client returns the provider client (OAuth or non-OAuth) for the provider.
-// redirectURL is the absolute OAuth2 callback the provider redirects back to;
-// it must match between the authorization request and the token exchange, and
-// is ignored by non-OAuth providers.
-func (p *Provider) Client(redirectURL string) Client {
+func (p *Provider) Client(params ClientParams) Client {
 	if DefaultClient != nil {
 		return DefaultClient
 	}
 
 	switch p.Name {
 	case ProviderGoogle:
-		return NewGoogleClient(p.Data.ClientID, p.Data.ClientSecret, redirectURL)
+		return NewGoogleClient(p.Data.ClientID, p.Data.ClientSecret, params.RedirectURL)
 	case ProviderX:
-		return NewXClient(p.Data.ClientID, p.Data.ClientSecret, redirectURL)
+		return NewXClient(p.Data.ClientID, p.Data.ClientSecret, params.RedirectURL, params.Secret)
 	case ProviderEmail:
 		return NewEmailClient()
 	case ProviderMagicLink:

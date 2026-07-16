@@ -2,6 +2,7 @@ package skauth_test
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -33,7 +34,7 @@ func (s *ClientXSuite) BeforeTest(suiteName, _ string) {
 	s.originalTwitterAPIBase = skauth.TwitterAPIBase
 	s.conn = databasetest.InitTx(suiteName)
 	s.server = nil
-	s.client = skauth.NewXClient("test-client-id", "test-client-secret", "https://app.example.com/_stormkit/auth/callback")
+	s.client = skauth.NewXClient("test-client-id", "test-client-secret", "https://app.example.com/_stormkit/auth/callback", "")
 	admin.MustConfig().SetURL("localhost")
 }
 
@@ -80,7 +81,7 @@ func (s *ClientXSuite) Test_UserInfo_Success() {
 	}
 
 	// Use new client to ensure we're testing with a mock server
-	client := skauth.NewXClient("test-client-id", "test-client-secret", "https://app.example.com/_stormkit/auth/callback")
+	client := skauth.NewXClient("test-client-id", "test-client-secret", "https://app.example.com/_stormkit/auth/callback", "")
 	userInfo, err := client.UserInfo(context.Background(), token)
 
 	s.NoError(err)
@@ -109,7 +110,7 @@ func (s *ClientXSuite) Test_UserInfo_NoUsername_NoProfileURL() {
 
 	token := &oauth2.Token{AccessToken: "test-access-token", TokenType: "Bearer"}
 
-	client := skauth.NewXClient("test-client-id", "test-client-secret", "https://app.example.com/_stormkit/auth/callback")
+	client := skauth.NewXClient("test-client-id", "test-client-secret", "https://app.example.com/_stormkit/auth/callback", "")
 	userInfo, err := client.UserInfo(context.Background(), token)
 
 	s.NoError(err)
@@ -131,7 +132,7 @@ func (s *ClientXSuite) Test_UserInfo_InvalidJSON() {
 	}
 
 	// Use new client to ensure we're testing with a mock server
-	client := skauth.NewXClient("test-client-id", "test-client-secret", "https://app.example.com/_stormkit/auth/callback")
+	client := skauth.NewXClient("test-client-id", "test-client-secret", "https://app.example.com/_stormkit/auth/callback", "")
 	userInfo, err := client.UserInfo(context.Background(), token)
 
 	s.Error(err)
@@ -246,6 +247,90 @@ func (s *ClientXSuite) Test_Exchange_InvalidState() {
 	// This should fail because state JWT is invalid
 	_, err = s.client.Exchange(ctx, req)
 	s.Error(err)
+}
+
+// Test_Exchange_SendsCodeVerifier_WhenStateSecretMatches guards the regression
+// that broke X login: AuthCodeURL signs the state with the environment auth
+// secret, so Exchange must verify it with the same secret to recover the
+// encrypted PKCE verifier. When it matches, the token request carries
+// code_verifier and X accepts the exchange.
+func (s *ClientXSuite) Test_Exchange_SendsCodeVerifier_WhenStateSecretMatches() {
+	const secret = "env-auth-secret"
+
+	var captured url.Values
+
+	s.mockServer(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		captured, _ = url.ParseQuery(string(body))
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"access_token":"tok","token_type":"bearer"}`))
+	})
+
+	// Construct after the token URL is overridden so the exchange hits the mock.
+	client := skauth.NewXClient("id", "secret", "https://app.example.com/cb", secret)
+
+	verifier, err := utils.SecureRandomToken(64)
+	s.NoError(err)
+
+	state, err := user.JWT(jwt.MapClaims{
+		"pkce": utils.EncryptToString(verifier),
+		"eid":  1,
+		"prv":  "x",
+	}, secret)
+	s.NoError(err)
+
+	req := s.exchangeRequest("auth-code", state)
+	token, err := client.Exchange(context.Background(), req)
+
+	s.NoError(err)
+	s.Equal("tok", token.AccessToken)
+	s.Equal(verifier, captured.Get("code_verifier"), "PKCE verifier must be sent when the state secret matches")
+}
+
+// Test_Exchange_DropsVerifier_WhenStateSecretMismatches documents the failure
+// mode: if the state was signed with a different secret than the client
+// verifies with, the claims (and thus the PKCE verifier) are dropped and the
+// exchange falls back to a non-PKCE request — which X rejects with
+// "Missing required parameter [code_verifier]".
+func (s *ClientXSuite) Test_Exchange_DropsVerifier_WhenStateSecretMismatches() {
+	var captured url.Values
+
+	s.mockServer(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		captured, _ = url.ParseQuery(string(body))
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"access_token":"tok","token_type":"bearer"}`))
+	})
+
+	client := skauth.NewXClient("id", "secret", "https://app.example.com/cb", "the-right-secret")
+
+	state, err := user.JWT(jwt.MapClaims{
+		"pkce": utils.EncryptToString("some-verifier"),
+		"eid":  1,
+		"prv":  "x",
+	}, "a-different-secret")
+	s.NoError(err)
+
+	req := s.exchangeRequest("auth-code", state)
+	_, err = client.Exchange(context.Background(), req)
+
+	s.NoError(err)
+	s.Empty(captured.Get("code_verifier"), "verifier is dropped when the state secret does not match")
+}
+
+func (s *ClientXSuite) exchangeRequest(code, state string) *shttp.RequestContext {
+	form := url.Values{}
+	form.Set("code", code)
+	form.Set("state", state)
+
+	httpReq, err := http.NewRequest("POST", "http://example.com/callback", strings.NewReader(form.Encode()))
+	s.NoError(err)
+	httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	httpReq.Form = form
+
+	return shttp.NewRequestContext(httpReq)
 }
 
 func TestClientXSuite(t *testing.T) {

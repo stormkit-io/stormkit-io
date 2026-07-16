@@ -22,9 +22,14 @@ var TwitterAuthBase = "https://x.com/i/oauth2/authorize"
 // Step 6: Obtain client ID and client secret
 type XClient struct {
 	oauth2Config *oauth2.Config
+	// stateSecret verifies the state JWT on the token exchange. It must match
+	// the secret AuthCodeURL signed the state with (the environment's auth
+	// secret); an empty value falls back to the global app secret in ParseJWT.
+	// A mismatch drops the encrypted PKCE verifier, breaking the X exchange.
+	stateSecret string
 }
 
-func NewXClient(clientID, secretKey, redirectURL string) Client {
+func NewXClient(clientID, secretKey, redirectURL, stateSecret string) Client {
 	config := &oauth2.Config{
 		ClientID:     clientID,
 		ClientSecret: secretKey,
@@ -43,6 +48,7 @@ func NewXClient(clientID, secretKey, redirectURL string) Client {
 
 	return &XClient{
 		oauth2Config: config,
+		stateSecret:  stateSecret,
 	}
 }
 
@@ -112,9 +118,13 @@ func (x *XClient) UserInfo(ctx context.Context, token *oauth2.Token) (*UserInfo,
 func (x *XClient) Exchange(ctx context.Context, req *shttp.RequestContext) (*oauth2.Token, error) {
 	code := req.FormValue("code")
 
-	// Parse JWT claims from state parameter to extract encrypted PKCE verifier
+	// Parse JWT claims from state parameter to extract encrypted PKCE verifier.
+	// The state is signed with the environment's auth secret in AuthCodeURL, so
+	// it must be verified with the same secret here — otherwise the claims are
+	// dropped and the PKCE verifier is lost.
 	claims := user.ParseJWT(&user.ParseJWTArgs{
 		Bearer: req.FormValue("state"),
+		Secret: x.stateSecret,
 	})
 
 	// Extract and decrypt the PKCE verifier if present
