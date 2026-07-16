@@ -92,6 +92,12 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodPost, "", WithAPIKey(handlerMCP, &Opts{MinimumScope: apikey.SCOPE_USER})).
 		Handler(shttp.MethodGet, "", WithAPIKey(handlerMCPStream, &Opts{MinimumScope: apikey.SCOPE_USER}))
 
+	if authConfigEnabled() {
+		s.NewEndpoint("/v1/auth/config").
+			Handler(shttp.MethodGet, "", WithAPIKey(handlerAuthConfigGet, &Opts{MinimumScope: apikey.SCOPE_ENV})).
+			Handler(shttp.MethodPost, "", WithAPIKey(handlerAuthConfigSet, &Opts{MinimumScope: apikey.SCOPE_ENV}))
+	}
+
 	if config.IsDevelopment() || config.IsSelfHosted() {
 		s.NewEndpoint("/v1/schema").
 			Handler(shttp.MethodGet, "", app.WithAPIKey(handlerSchemaGet, &app.Opts{Env: true})).

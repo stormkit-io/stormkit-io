@@ -6,6 +6,7 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/redirects"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth/skauthhandlers"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
@@ -461,6 +462,44 @@ func mcpAllTools() []mcpToolDef {
 		},
 	}
 
+	if authConfigEnabled() {
+		tools = append(tools,
+			mcpToolDef{
+				Name:        "get_auth_config",
+				Description: "Return the Stormkit Auth configuration for an environment (session, allowed origins, and OAuth-server settings). Self-hosted only. Secrets are never included.",
+				InputSchema: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"envId": map[string]any{"type": "string", "description": "Environment ID to read the auth configuration for."},
+					},
+					"required":             []string{"envId"},
+					"additionalProperties": false,
+				},
+			},
+			mcpToolDef{
+				Name:        "configure_auth",
+				Description: "Update the Stormkit Auth configuration for an environment. Self-hosted only. Only the fields you provide are changed; omitted fields keep their current value. Does not manage individual providers or users. Returns the updated configuration.",
+				InputSchema: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"envId":              map[string]any{"type": "string", "description": "Environment ID."},
+						"status":             map[string]any{"type": "boolean", "description": "Enable or disable Stormkit Auth for the environment."},
+						"successUrl":         map[string]any{"type": "string", "description": "Relative URL the browser is redirected to after a successful sign-in (e.g. /auth/success)."},
+						"tokenTtl":           map[string]any{"type": "integer", "description": "Session token lifetime in minutes."},
+						"allowedOrigins":     map[string]any{"type": "array", "description": "Origins (scheme + host, no path) allowed to initiate cross-origin sign-in. Replaces the existing list.", "items": map[string]any{"type": "string"}},
+						"cookieDomain":       map[string]any{"type": "string", "description": "Parent domain to scope the session cookie to (e.g. .example.com) for sharing across subdomains. Empty for a host-only cookie."},
+						"loginUrl":           map[string]any{"type": "string", "description": "App-owned login page the OAuth server redirects unauthenticated users to. Relative path or absolute URL."},
+						"oauthServerEnabled": map[string]any{"type": "boolean", "description": "Turn the OAuth 2.1 authorization server (for MCP connectors) on or off. Requires Stormkit Auth enabled."},
+						"oauthResourcePath":  map[string]any{"type": "string", "description": "Path the environment serves its MCP endpoint on (e.g. /mcp). Must equal the path in the connector URL."},
+						"oauthAllowLoopback": map[string]any{"type": "boolean", "description": "Allow RFC 8252 loopback (localhost) redirects for native/CLI OAuth clients."},
+					},
+					"required":             []string{"envId"},
+					"additionalProperties": false,
+				},
+			},
+		)
+	}
+
 	if databaseIntegrationEnabled() {
 		tools = append(tools,
 			mcpToolDef{
@@ -518,6 +557,57 @@ func intArg(args map[string]any, key string) int {
 		return v
 	}
 	return 0
+}
+
+// stringPtrArg returns a pointer to the string value at key, or nil when the
+// key is absent. Used by patch-style tools that must distinguish "leave
+// unchanged" (absent) from "set to empty" (present, "").
+func stringPtrArg(args map[string]any, key string) *string {
+	if v, ok := args[key].(string); ok {
+		return &v
+	}
+
+	return nil
+}
+
+func boolPtrArg(args map[string]any, key string) *bool {
+	if v, ok := args[key].(bool); ok {
+		return &v
+	}
+
+	return nil
+}
+
+func intPtrArg(args map[string]any, key string) *int {
+	switch v := args[key].(type) {
+	case float64:
+		n := int(v)
+		return &n
+	case int:
+		return &v
+	}
+
+	return nil
+}
+
+// stringSliceArg converts a JSON array argument to []string, or returns nil
+// when the key is absent so a patch tool leaves the stored list untouched.
+func stringSliceArg(args map[string]any, key string) []string {
+	raw, ok := args[key].([]any)
+
+	if !ok {
+		return nil
+	}
+
+	out := make([]string, 0, len(raw))
+
+	for _, v := range raw {
+		if s, ok := v.(string); ok {
+			out = append(out, s)
+		}
+	}
+
+	return out
 }
 
 func stringMapArg(args map[string]any, key string) map[string]string {
@@ -1113,4 +1203,38 @@ func mcpConfigureDatabaseIntegration(req *RequestContextMCP, id any, args map[st
 	}
 
 	return handlerSchemaConfigure(req.asAppContext())
+}
+
+func mcpGetAuthConfig(req *RequestContextMCP, args map[string]any) *shttp.Response {
+	if resp := req.withEnv(args); resp != nil {
+		return resp
+	}
+
+	return handlerAuthConfigGet(req.RequestContext)
+}
+
+func mcpConfigureAuth(req *RequestContextMCP, id any, args map[string]any) *shttp.Response {
+	if resp := req.withEnv(args); resp != nil {
+		return resp
+	}
+
+	// Build a patch from only the keys the caller supplied so unspecified
+	// settings keep their stored value (see AuthConfigUpdateRequest).
+	body := skauthhandlers.AuthConfigUpdateRequest{
+		SuccessURL:         stringPtrArg(args, "successUrl"),
+		TTL:                intPtrArg(args, "tokenTtl"),
+		Status:             boolPtrArg(args, "status"),
+		AllowedOrigins:     stringSliceArg(args, "allowedOrigins"),
+		CookieDomain:       stringPtrArg(args, "cookieDomain"),
+		LoginURL:           stringPtrArg(args, "loginUrl"),
+		OAuthServerEnabled: boolPtrArg(args, "oauthServerEnabled"),
+		OAuthResourcePath:  stringPtrArg(args, "oauthResourcePath"),
+		OAuthAllowLoopback: boolPtrArg(args, "oauthAllowLoopback"),
+	}
+
+	if resp := req.setBody(id, body); resp != nil {
+		return resp
+	}
+
+	return handlerAuthConfigSet(req.RequestContext)
 }
