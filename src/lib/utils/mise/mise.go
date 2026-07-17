@@ -90,7 +90,7 @@ func (m *Mise) InstallMise(ctx context.Context) error {
 			`curl https://mise.run | sh && grep -qF 'mise activate bash' ~/.bashrc || echo 'eval "$(~/.local/bin/mise activate bash)"' >> ~/.bashrc`,
 		},
 		Env: []string{
-			"MISE_VERSION=" + utils.GetString(os.Getenv("MISE_VERSION"), "v2026.4.15"),
+			"MISE_VERSION=" + utils.GetString(os.Getenv("MISE_VERSION"), "v2026.7.7"),
 			"PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=true",
 			"PATH=" + os.Getenv("PATH"),
 			"HOME=" + os.Getenv("HOME"),
