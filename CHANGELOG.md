@@ -1,5 +1,25 @@
 # Changelog
 
+## v2026.07.16.1...v2026.07.16.2
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.16.1...v2026.07.16.2)
+
+### 🚀 Enhancements
+
+- Public api + mcp tools to configure auth ([#378](https://github.com/stormkit-io/stormkit-io/pull/378))
+
+### 🩹 Fixes
+
+- Verify x oauth state with env secret ([#379](https://github.com/stormkit-io/stormkit-io/pull/379))
+
+### 🏡 Chore
+
+- Update changelog for v2026.07.16.1 ([#377](https://github.com/stormkit-io/stormkit-io/pull/377))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.07.15.3...v2026.07.16.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.15.3...v2026.07.16.1)
