@@ -7,6 +7,34 @@ command_exists() {
   command -v "$@" >/dev/null 2>&1
 }
 
+# Agent mode installs Stormkit non-interactively and provisions an owner
+# admin + API key so an agent can manage the instance over MCP right away.
+#
+#   curl -sSL https://www.stormkit.io/install.sh | sh -s -- --agent
+#
+# Optional: --domain <domain> to skip the auto-generated domain, and
+# --email <email> to override the default agent@<domain> admin email.
+#
+# On an instance that already has users, bootstrap is a no-op and no key is
+# provisioned. Do NOT pass --email matching an existing user of an instance
+# first set up via OAuth/magic-link: on a single-user instance that collision
+# lets bootstrap graft the owner key + a password login onto that account.
+AGENT_MODE="0"
+CUSTOM_DOMAIN_ARG=""
+ADMIN_EMAIL_ARG=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --agent) AGENT_MODE="1" ;;
+    --domain) CUSTOM_DOMAIN_ARG="$2"; shift ;;
+    --domain=*) CUSTOM_DOMAIN_ARG="${1#*=}" ;;
+    --email) ADMIN_EMAIL_ARG="$2"; shift ;;
+    --email=*) ADMIN_EMAIL_ARG="${1#*=}" ;;
+    *) echo "Unknown option: $1" >&2; exit 1 ;;
+  esac
+  shift
+done
+
 IS_MAC="0"
 
 if [ "$(uname -s | cut -c1-6)" = "Darwin" ]; then
@@ -192,18 +220,45 @@ single_select() {
   done
 }
 
+# Generates a random alphanumeric string. $1 = openssl byte length to draw
+# from, $2 = number of characters to keep.
+rand_alnum() {
+  openssl rand -base64 "$1" | tr -dc 'a-zA-Z0-9' | head -c "$2"
+}
+
+# Returns 0 when $1 is a syntactically valid hostname (<= 253 chars).
+is_valid_domain() {
+  echo "$1" | grep -qE '^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$' &&
+    [ ${#1} -le 253 ]
+}
+
 setup_base_env_variables() {
   # Download the example .env file
-  curl -o ".env" "https://raw.githubusercontent.com/stormkit-io/bin/main/.env.example" --silent
+  curl -o ".env" "https://raw.githubusercontent.com/stormkit-io/stormkit-io/main/deploy/.env.example" --silent
 
-  update_env_var_in_env_file POSTGRES_PASSWORD $(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9' | head -c24)
-  update_env_var_in_env_file STORMKIT_APP_SECRET $(openssl rand -base64 48 | tr -dc 'a-zA-Z0-9' | head -c32)
+  update_env_var_in_env_file POSTGRES_PASSWORD $(rand_alnum 12 24)
+  update_env_var_in_env_file STORMKIT_APP_SECRET $(rand_alnum 48 32)
 }
 
 DOMAIN=""
 
 # Setup the environment variable for the Hosting Service.
 setup_domain() {
+  # In agent mode there is no TTY to prompt on: honour --domain if given,
+  # otherwise fall through to the auto-generated sslip.io domain below.
+  if [ "$AGENT_MODE" = "1" ]; then
+    if [ -n "$CUSTOM_DOMAIN_ARG" ]; then
+      if ! is_valid_domain "$CUSTOM_DOMAIN_ARG"; then
+        printf "${GRAY}Invalid --domain value: %s${NC}\n" "$CUSTOM_DOMAIN_ARG" >&2
+        exit 1
+      fi
+
+      DOMAIN="$CUSTOM_DOMAIN_ARG"
+      printf "${GREEN}Using custom domain: $DOMAIN${NC}\n"
+      update_env_var_in_env_file STORMKIT_DOMAIN "$DOMAIN"
+      return
+    fi
+  else
   while true; do
     # Ask the user if they have a custom domain
     printf "${PURPLE}Do you have a custom domain you'd like to use?${NC}\n"
@@ -232,6 +287,7 @@ setup_domain() {
       echo
     fi
   done
+  fi
 
   # Fallback to IP-based domain
   printf "${GRAY}Generating auto-generated domain...${NC}\n"
@@ -249,44 +305,139 @@ setup_domain() {
   update_env_var_in_env_file STORMKIT_DOMAIN "$DOMAIN"
 }
 
+AGENT_API_KEY=""
+ADMIN_EMAIL=""
+
+# Provisions the credentials the server reads on first boot to create an
+# owner admin and mint a matching API key. The key is generated here so the
+# raw value never has to be read back out of the container; the server only
+# ever stores its hash.
+setup_agent_env() {
+  ADMIN_EMAIL="$ADMIN_EMAIL_ARG"
+
+  if [ -z "$ADMIN_EMAIL" ]; then
+    ADMIN_EMAIL="agent@$DOMAIN"
+  fi
+
+  ADMIN_PASSWORD=$(rand_alnum 24 24)
+  AGENT_API_KEY="SK_$(openssl rand -hex 31)"
+
+  update_env_var_in_env_file STORMKIT_ADMIN_EMAIL "$ADMIN_EMAIL"
+  update_env_var_in_env_file STORMKIT_ADMIN_PASSWORD "$ADMIN_PASSWORD"
+  update_env_var_in_env_file STORMKIT_AGENT_API_KEY "$AGENT_API_KEY"
+}
+
 # For now keep this file here - we need to improve the docker swarm setup
 # Download the docker-compose.yaml file
-curl -o "docker-compose.yaml" "https://raw.githubusercontent.com/stormkit-io/bin/main/docker-compose.yaml" --silent
+curl -o "docker-compose.yaml" "https://raw.githubusercontent.com/stormkit-io/stormkit-io/main/deploy/docker-compose.yaml" --silent
 
 setup_base_env_variables
 setup_domain
+
+if [ "$AGENT_MODE" = "1" ]; then
+  setup_agent_env
+fi
 
 docker compose up -d
 
 echo ""
 printf "${GREEN}Congratulations, Stormkit is installed on your computer!\n${NC}"
 
-# Function to wait for the URL to return HTTP 200
+# Function to wait for the URL to return HTTP 200. $2 caps the number of
+# attempts (5s apart) so a stuck cert/DNS never hangs the script forever;
+# it returns non-zero on timeout instead of looping indefinitely.
 wait_for_url() {
   url=$1
+  max_attempts=${2:-60}
+  attempt=0
   echo "Waiting for $url to return HTTP 200..."
 
-  while true; do
+  while [ "$attempt" -lt "$max_attempts" ]; do
     status_code=$(curl -s -o /dev/null -w "%{http_code}" "$url")
     if [ "$status_code" -eq 200 ]; then
       echo "URL ${GREEN}$url${NC} is now accessible (HTTP 200)."
-      break
-    else
-      echo "URL $url is not accessible yet (HTTP $status_code). Retrying in 5 seconds..."
-      sleep 5
+      return 0
     fi
+
+    echo "URL $url is not accessible yet (HTTP $status_code). Retrying in 5 seconds..."
+    attempt=$((attempt + 1))
+    sleep 5
   done
+
+  echo "URL $url did not become accessible after $((max_attempts * 5)) seconds."
+  return 1
 }
 
 # Make a request to the api to generate the certificate
 curl -s -o /dev/null "https://api.${DOMAIN}"
 
 # Wait for the Stormkit dashboard URL to return HTTP 200
-wait_for_url "https://stormkit.${DOMAIN}"
+wait_for_url "https://stormkit.${DOMAIN}" ||
+  printf "${GRAY}The dashboard is not reachable yet; continuing anyway.${NC}\n"
 
 echo ""
 
 if [ "$DOCKER_MODE" = "Compose" ]; then
   printf "Run ${BLUE}docker compose logs -f${NC} to check your logs"
   echo ""
+fi;
+
+print_mcp_config() {
+  printf "${GRAY}Admin owner: ${NC}%s\n" "$ADMIN_EMAIL"
+  echo ""
+  printf "Add this to your MCP client configuration:\n"
+  echo ""
+  printf "${BLUE}"
+  cat <<EOF
+{
+  "mcpServers": {
+    "stormkit": {
+      "type": "http",
+      "url": "https://api.$DOMAIN/v1/mcp",
+      "headers": {
+        "Authorization": "Bearer $AGENT_API_KEY"
+      }
+    }
+  }
+}
+EOF
+  printf "${NC}"
+  echo ""
+  printf "${GRAY}This key has full owner access. It is stored hashed on the server —${NC}\n"
+  printf "${GRAY}save it now; it is not recoverable. To rotate it, delete the 'agent'${NC}\n"
+  printf "${GRAY}key under User Settings → API Keys and create a new one.${NC}\n"
+  echo ""
+}
+
+if [ "$AGENT_MODE" = "1" ]; then
+  # The server only provisions the admin + key on a *fresh* instance;
+  # bootstrap is a no-op when an admin already exists (a re-run, or an
+  # instance first set up via OAuth/dashboard). In that case the key we
+  # generated was never stored, so confirm it actually authenticates before
+  # presenting it as working.
+  #
+  # A 401/403 is a definitive "not provisioned". Any 2xx means the key
+  # authenticated. Anything else (000 from an unreachable host or an api.
+  # cert that is not issued yet, a 5xx during boot, ...) is inconclusive:
+  # the key is almost certainly valid on a fresh install, but we could not
+  # confirm it here, so we say so instead of claiming success.
+  auth_status=$(curl -s -o /dev/null -w "%{http_code}" \
+    -X POST "https://api.${DOMAIN}/v1/mcp" \
+    -H "Authorization: Bearer $AGENT_API_KEY")
+
+  echo ""
+
+  if [ "$auth_status" = "401" ] || [ "$auth_status" = "403" ]; then
+    printf "${GRAY}This instance already has an admin, so no new agent key was provisioned.${NC}\n"
+    printf "${GRAY}Manage API keys from the dashboard under User Settings → API Keys.${NC}\n"
+    echo ""
+  elif [ "$auth_status" -ge 200 ] 2>/dev/null && [ "$auth_status" -lt 300 ]; then
+    printf "${GREEN}Your instance is agent-ready.${NC}\n"
+    print_mcp_config
+  else
+    printf "${GRAY}Your agent key was generated but could not be verified yet${NC}"
+    printf "${GRAY} (api.$DOMAIN returned '$auth_status').${NC}\n"
+    printf "${GRAY}This is expected while the certificate is still being issued.${NC}\n"
+    print_mcp_config
+  fi
 fi;

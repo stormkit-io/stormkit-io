@@ -32,3 +32,12 @@ type User struct {
 	ProviderName string
 	IsAdmin      bool
 }
+
+// NewAdminUser builds the User passed to MustUser when provisioning the
+// initial admin, whose single email is treated as primary and verified.
+func NewAdminUser(email string) *User {
+	return &User{
+		Emails:  []Email{{Address: email, IsPrimary: true, IsVerified: true}},
+		IsAdmin: true,
+	}
+}

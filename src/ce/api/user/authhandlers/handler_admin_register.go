@@ -10,13 +10,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
-	"golang.org/x/crypto/bcrypt"
 )
-
-// minAdminPasswordLength is enforced on registration only. The login
-// validator keeps the laxer shared rule so admins created before this
-// bound can still authenticate.
-const minAdminPasswordLength = 12
 
 type AdminLoginRequest struct {
 	Email    string `json:"email"`
@@ -64,11 +58,11 @@ func handlerAdminRegister(req *shttp.RequestContext) *shttp.Response {
 		return res
 	}
 
-	if len(data.Password) < minAdminPasswordLength {
+	if len(data.Password) < admin.MinAdminPasswordLength {
 		return &shttp.Response{
 			Status: http.StatusBadRequest,
 			Data: map[string]string{
-				"error": fmt.Sprintf("Password must be at least %d characters long.", minAdminPasswordLength),
+				"error": fmt.Sprintf("Password must be at least %d characters long.", admin.MinAdminPasswordLength),
 			},
 		}
 	}
@@ -88,27 +82,19 @@ func handlerAdminRegister(req *shttp.RequestContext) *shttp.Response {
 		}
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(data.Password), bcrypt.DefaultCost)
+	adminCfg, err := admin.NewAdminUserConfig(data.Email, data.Password)
 
 	if err != nil {
 		return shttp.Error(err)
 	}
 
-	cfg.AdminUserConfig = &admin.AdminUserConfig{
-		Email:    data.Email,
-		Password: string(hash),
-	}
+	cfg.AdminUserConfig = adminCfg
 
 	if err := admin.Store().UpsertConfig(req.Context(), cfg); err != nil {
 		return shttp.Error(err)
 	}
 
-	adminUser := &oauth.User{
-		Emails:  []oauth.Email{{Address: data.Email, IsPrimary: true, IsVerified: true}},
-		IsAdmin: true,
-	}
-
-	usr, err := user.NewStore().MustUser(adminUser)
+	usr, err := user.NewStore().MustUser(oauth.NewAdminUser(data.Email))
 
 	if err != nil {
 		return shttp.Error(err)

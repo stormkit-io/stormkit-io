@@ -12,6 +12,7 @@ import (
 
 	proxyproto "github.com/pires/go-proxyproto"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/bootstrap"
 	"github.com/stormkit-io/stormkit-io/src/ce/hosting"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/database"
@@ -96,6 +97,7 @@ func main() {
 	if conn := database.Connection(); conn != nil {
 		migrations.Up(conn, database.Config)
 		admin.InstallDependencies(context.Background())
+		bootstrap.FromEnv(context.Background())
 	}
 
 	// Register redis listeners
