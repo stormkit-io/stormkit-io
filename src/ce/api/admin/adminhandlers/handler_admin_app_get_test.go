@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
@@ -95,6 +96,72 @@ func (s *HandlerAdminAppGetSuite) Test_Get_ByDomainName() {
 	s.Equal(app.DisplayName, data["app"]["displayName"])
 	s.Equal(app.Repo, data["app"]["repo"])
 	s.Equal(app.ID.String(), data["app"]["id"])
+}
+
+func (s *HandlerAdminAppGetSuite) Test_Get_ByDefangedURL() {
+	usr := s.MockUser(map[string]any{"IsAdmin": true})
+	app := s.MockApp(usr)
+
+	// Reports defang URLs as e.g. hxxps://<display>[.]stormkit[.]dev.
+	defanged := fmt.Sprintf("hxxp://%s[.]stormkit:8888", app.DisplayName)
+
+	resp := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(adminhandlers.Services).Router().Handler(),
+		shttp.MethodGet,
+		"/admin/cloud/app?url="+url.QueryEscape(defanged),
+		nil,
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+
+	data := map[string]map[string]any{}
+
+	s.Equal(http.StatusOK, resp.Code)
+	s.NoError(json.Unmarshal(resp.Byte(), &data))
+	s.Equal(app.ID.String(), data["app"]["id"])
+}
+
+func (s *HandlerAdminAppGetSuite) Test_Get_ByVolumeFileURL() {
+	usr := s.MockUser(map[string]any{"IsAdmin": true})
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+
+	// Mirrors volumes.File.PublicLink: the token encrypts "<fileID>:<envID>".
+	token := utils.EncryptToString(fmt.Sprintf("42:%s", env.ID))
+
+	resp := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(adminhandlers.Services).Router().Handler(),
+		shttp.MethodGet,
+		"/admin/cloud/app?url="+url.QueryEscape("https://api.stormkit.io/volumes/file/"+token),
+		nil,
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+
+	data := map[string]map[string]any{}
+
+	s.Equal(http.StatusOK, resp.Code)
+	s.NoError(json.Unmarshal(resp.Byte(), &data))
+	s.Equal(app.ID.String(), data["app"]["id"])
+	s.Equal(usr.ID.String(), data["user"]["id"])
+}
+
+func (s *HandlerAdminAppGetSuite) Test_Get_ByVolumeFileURL_InvalidToken() {
+	usr := s.MockUser(map[string]any{"IsAdmin": true})
+
+	resp := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(adminhandlers.Services).Router().Handler(),
+		shttp.MethodGet,
+		"/admin/cloud/app?url="+url.QueryEscape("https://api.stormkit.io/volumes/file/not-a-valid-token"),
+		nil,
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusNoContent, resp.Code)
 }
 
 func (s *HandlerAdminAppGetSuite) Test_Get_Unauthorized_NonAdmin() {
