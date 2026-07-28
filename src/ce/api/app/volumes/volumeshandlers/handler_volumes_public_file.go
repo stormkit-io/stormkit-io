@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/volumes"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
@@ -42,6 +43,16 @@ func HandlerVolumesPublicFile(req *shttp.RequestContext) *shttp.Response {
 	}
 
 	if fileInfo == nil || fileInfo.EnvID != envID || !fileInfo.IsPublic {
+		return shttp.NotFound()
+	}
+
+	ownerApp, err := app.NewStore().AppByEnvID(req.Context(), envID)
+
+	if err != nil {
+		return shttp.Error(err)
+	}
+
+	if ownerApp == nil {
 		return shttp.NotFound()
 	}
 
