@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/volumes"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/volumes/volumeshandlers"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
@@ -108,6 +109,27 @@ func (s *HandlerVolumesFileSuite) Test_Fail_NotPublic() {
 	app := s.MockApp(usr)
 	env := s.MockEnv(app)
 	parsed, err := url.Parse(s.prepareFile(false, env.ID))
+	s.NoError(err)
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(volumeshandlers.Services).Router().Handler(),
+		shttp.MethodGet,
+		parsed.Path,
+		nil,
+		nil,
+	)
+
+	s.Equal(http.StatusNotFound, response.Code)
+}
+
+func (s *HandlerVolumesFileSuite) Test_Fail_AppDeleted() {
+	usr := s.MockUser()
+	mockApp := s.MockApp(usr)
+	env := s.MockEnv(mockApp)
+	parsed, err := url.Parse(s.prepareFile(true, env.ID))
+	s.NoError(err)
+
+	_, err = app.NewStore().MarkAsDeleted(context.Background(), mockApp.ID)
 	s.NoError(err)
 
 	response := shttptest.RequestWithHeaders(
