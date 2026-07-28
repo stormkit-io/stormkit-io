@@ -1,5 +1,18 @@
 # Changelog
 
+## v2026.07.16.2...v2026.07.18.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.16.2...v2026.07.18.1)
+
+### 🏡 Chore
+
+- Update mise version to v2026.7.7 ([#381](https://github.com/stormkit-io/stormkit-io/pull/381))
+- Update changelog for v2026.07.16.2 ([#380](https://github.com/stormkit-io/stormkit-io/pull/380))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.07.16.1...v2026.07.16.2
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.16.1...v2026.07.16.2)
