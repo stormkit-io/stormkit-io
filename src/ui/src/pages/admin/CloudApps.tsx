@@ -84,7 +84,7 @@ export default function CloudApps() {
         <TextField
           variant="filled"
           label="Search"
-          placeholder="Search an app by it's display or domain name and press Enter"
+          placeholder="Search an app by its display name, domain, or a volume file URL and press Enter"
           onKeyUp={e => {
             if (e.key !== "Enter") {
               return;

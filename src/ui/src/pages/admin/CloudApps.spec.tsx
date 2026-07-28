@@ -29,7 +29,7 @@ describe("~/pages/admin/CloudApps.tsx", () => {
     expect(wrapper.getByLabelText("Search")).toBeTruthy();
     expect(
       wrapper.getByPlaceholderText(
-        "Search an app by it's display or domain name and press Enter"
+        "Search an app by its display name, domain, or a volume file URL and press Enter"
       )
     ).toBeTruthy();
     expect(wrapper.getByText("Apps")).toBeTruthy();
