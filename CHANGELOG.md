@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.07.18.1...v2026.07.28.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.18.1...v2026.07.28.1)
+
+### 🚀 Enhancements
+
+- Resolve volume and defanged urls in admin search ([#384](https://github.com/stormkit-io/stormkit-io/pull/384))
+
+### 🏡 Chore
+
+- Update changelog for v2026.07.18.1 ([#382](https://github.com/stormkit-io/stormkit-io/pull/382))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.07.16.2...v2026.07.18.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.16.2...v2026.07.18.1)
