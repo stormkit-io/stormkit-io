@@ -24,6 +24,7 @@ type statement struct {
 	syncAnalyticsEvents             string
 	selectUserIDsWithoutAPIKeys     string
 	selectStaleSchemas              string
+	selectStaleVolumeEnvs           string
 	clearSchemaConf                 string
 	selectAccessLogPartitions       string
 	selectAuthEnabledEnvs           string
@@ -266,6 +267,18 @@ var stmt = &statement{
 			schema_conf IS NOT NULL
 		ORDER BY
 			deleted_at ASC, env_id ASC
+		LIMIT 50;
+	`,
+
+	selectStaleVolumeEnvs: `
+		SELECT DISTINCT
+			v.env_id
+		FROM
+			volumes v
+		JOIN
+			apps_build_conf e ON e.env_id = v.env_id
+		WHERE
+			e.deleted_at IS NOT NULL
 		LIMIT 50;
 	`,
 
