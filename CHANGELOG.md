@@ -1,5 +1,22 @@
 # Changelog
 
+## v2026.07.28.1...v2026.07.28.2
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.28.1...v2026.07.28.2)
+
+### 🩹 Fixes
+
+- Stop serving public volume files for deleted apps ([#386](https://github.com/stormkit-io/stormkit-io/pull/386))
+- Purge volume files of deleted environments ([#387](https://github.com/stormkit-io/stormkit-io/pull/387))
+
+### 🏡 Chore
+
+- Update changelog for v2026.07.28.1 ([#385](https://github.com/stormkit-io/stormkit-io/pull/385))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.07.18.1...v2026.07.28.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.18.1...v2026.07.28.1)
