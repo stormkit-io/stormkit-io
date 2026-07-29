@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/aws/smithy-go/middleware"
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
@@ -43,9 +45,31 @@ type WorkerserverConfig struct {
 	DomainPingConcurrency int `json:"domainPingConcurrency"` // The number of workers we want to spawn in parallel
 }
 
+// MinAdminPasswordLength is the minimum length enforced when an admin
+// user is provisioned (dashboard registration and the agent bootstrap).
+// The login validator keeps a laxer rule so admins created before this
+// bound can still authenticate.
+const MinAdminPasswordLength = 12
+
 type AdminUserConfig struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+}
+
+// NewAdminUserConfig bcrypt-hashes the given plaintext password and returns
+// the admin user config to persist. It does not write anything; callers own
+// the ordering of the surrounding config write.
+func NewAdminUserConfig(email, plaintextPassword string) (*AdminUserConfig, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(plaintextPassword), bcrypt.DefaultCost)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &AdminUserConfig{
+		Email:    email,
+		Password: string(hash),
+	}, nil
 }
 
 type SystemConfig struct {

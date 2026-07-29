@@ -1,0 +1,235 @@
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "50m"
+    max-file: "5"
+
+volumes:
+  stormkit:
+  redis:
+  psql:
+  workerserver:
+  hosting:
+  workerserver_nix:
+  hosting_nix:
+
+networks:
+  stormkit:
+
+services:
+  db:
+    image: postgres:14
+    restart: always
+    logging: *default-logging
+    networks:
+      - stormkit
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
+      start_period: 1m
+    volumes:
+      - psql:/var/lib/postgresql/data
+
+  redis:
+    container_name: redis
+    image: redis
+    restart: always
+    logging: *default-logging
+    networks:
+      - stormkit
+    volumes:
+      - redis:/data
+
+  workerserver:
+    image: ghcr.io/stormkit-io/workerserver:latest
+    restart: always
+    container_name: workerserver
+    logging: *default-logging
+    networks:
+      - stormkit
+    volumes:
+      # Share deployments folder between workerserver and hosting.
+      # Deployments will be executed in the workerserver, and the artifacts
+      # are shared with the hosting service through this shared folder.
+      # This can be removed when using another service for deployments,
+      # such as GitHub actions or other CI/CD platforms.
+      - stormkit:/shared
+      # We persist the home folder as runtime dependencies are installed here.
+      - workerserver:/home/stormkit
+      # Persist the Nix store so packages don't need to be re-downloaded on restart.
+      - workerserver_nix:/nix
+    environment:
+      - NODE_VERSION=24
+
+      # This is the domain that will be used to create the endpoints.
+      # For instance, for example.org, Stormkit creates these endpoints:
+      #
+      # health.example.org    => an endpoint to verify the service is up and running
+      # api.example.org       => the api service that Stormkit uses
+      # stormkit.example.org  => the user interface to access your applications
+      # *.example.org         => development endpoints
+      #
+      # NOTE: This is not the domain that you'd like to host. You configure those from
+      # the Stormkit UI.
+      - STORMKIT_DOMAIN=${STORMKIT_DOMAIN}
+
+      # The application secret that is used to encrypt/decrypt sensitive data.
+      # Do not expose this.
+      - STORMKIT_APP_SECRET=${STORMKIT_APP_SECRET}
+
+      # If you'd like to bring your own, external runner for deployments, configure
+      # this variable. Defaults to `local`. Possible values are: `github` (more services can be added on demand.)
+      - STORMKIT_DEPLOYER_SERVICE=${STORMKIT_DEPLOYER_SERVICE:-local}
+
+      # The maximum number of deployments that can run in parallel.
+      # If you are running on a single server, we suggest keeping this number low.
+      - STORMKIT_RUNNER_CONCURRENCY=1
+
+      # When `STORMKIT_DEPLOYER_SERVICE` is `github`, this variable is needed to
+      # trigger the GitHub Action.
+      - GITHUB_APP_TOKEN=${GITHUB_APP_TOKEN:-}
+
+      # Variables to access the PostgreSQL database
+      - POSTGRES_HOST=${POSTGRES_HOST}
+      - POSTGRES_PORT=${POSTGRES_PORT}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+
+      # Variable(s) to access Redis
+      - REDIS_ADDR=${REDIS_ADDR}
+
+      # Enable debug logging
+      # Possible values to turn it on: 1, 2, 3, TRUE
+      # Level 1 is the least verbose, level 3 is the most verbose.
+      - DEBUG=${DEBUG:-off}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  hosting:
+    image: ghcr.io/stormkit-io/hosting:latest
+    restart: always
+    container_name: hosting
+    logging: *default-logging
+    networks:
+      - stormkit
+    # Needed only when using a FileSys Deployment
+    volumes:
+      # Same as workerserver. Read above for more information.
+      - stormkit:/shared
+      # We persist the home folder as runtime dependencies are installed here.
+      - hosting:/home/stormkit
+      # Persist the Nix store so packages don't need to be re-downloaded on restart.
+      - hosting_nix:/nix
+    environment:
+      # Specifying this variable will tell the container to install Node.js
+      # which is needed only if you're using serverless functions or server
+      # commands in a VM. If you're hosting Stormkit in a cloud
+      # provider such as AWS or Alibaba Cloud, and you're using only serverless
+      # functionas, then you may not need installing Node.js as you can use their
+      # cloud-native serverless services (such as Lambda or Function Compute).
+      - NODE_VERSION=24
+
+      # The HTTP and HTTPS ports that the service will listen on.
+      - STORMKIT_HTTP_PORT=${STORMKIT_HTTP_PORT:-80}
+      - STORMKIT_HTTPS_PORT=${STORMKIT_HTTPS_PORT:-443}
+
+      # See Workerserver configuration for these environment variables' documentation.
+      - STORMKIT_DOMAIN=${STORMKIT_DOMAIN}
+      - STORMKIT_APP_SECRET=${STORMKIT_APP_SECRET}
+      - STORMKIT_DEPLOYER_SERVICE=${STORMKIT_DEPLOYER_SERVICE:-local}
+      - POSTGRES_HOST=${POSTGRES_HOST}
+      - POSTGRES_PORT=${POSTGRES_PORT}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - REDIS_ADDR=${REDIS_ADDR}
+      - DEBUG=${DEBUG:-off}
+
+      ####################################################################################
+      #                                                                                  #
+      # Agent bootstrap (set by `install.sh --agent`).                                   #
+      #                                                                                  #
+      # On first boot, when these are set, Stormkit creates the initial admin owner and  #
+      # mints an owner-scoped API key equal to STORMKIT_AGENT_API_KEY. This lets an      #
+      # agent manage the instance over MCP with no dashboard steps. Idempotent: ignored  #
+      # once an admin exists. Leave empty for a normal, interactive setup.               #
+      ####################################################################################
+      - STORMKIT_ADMIN_EMAIL=${STORMKIT_ADMIN_EMAIL:-}
+      - STORMKIT_ADMIN_PASSWORD=${STORMKIT_ADMIN_PASSWORD:-}
+      - STORMKIT_AGENT_API_KEY=${STORMKIT_AGENT_API_KEY:-}
+
+      ####################################################################################
+      #                                                                                  #
+      # Configure these variables when `STORMKIT_DEPLOYER_SERVICE` is other than `local` #
+      #                                                                                  #
+      ####################################################################################
+
+      # When `STORMKIT_DEPLOYER_SERVICE` is `github`, this variable is needed to stop the GitHub Action.
+      - GITHUB_APP_TOKEN=${GITHUB_APP_TOKEN:-}
+
+      # The access and secret key used by the external runner.
+      - STORMKIT_RUNNER_SECRET_KEY=${STORMKIT_RUNNER_SECRET_KEY:-}
+      - STORMKIT_RUNNER_ACCESS_KEY=${STORMKIT_RUNNER_ACCESS_KEY:-}
+
+      ##################################################################
+      #                                                                #
+      # Configure these variables when Authentication method is GitHub #
+      #                                                                #
+      ##################################################################
+
+      # The github app name
+      - GITHUB_APP_NAME=${GITHUB_APP_NAME:-}
+
+      # This is your GitHub App ID. This can be found under the General tab of your GitHub App page.
+      - GITHUB_APP_ID=${GITHUB_APP_ID:-}
+
+      # The client secret generated after creating the GitHub App.
+      - GITHUB_SECRET=${GITHUB_SECRET:-}
+
+      # The GitHub App client ID. This can be found under the General tab of your GitHub App page.
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-}
+
+      # The Base64 encoded private key generated previously after creating the GitHub App.
+      # You can use `openssl` to encode your string:
+      #
+      # cat my-key.pem | openssl base64 -A
+      #
+      # Make sure to enclose your variable with quotes.
+      - GITHUB_PRIV_KEY=${GITHUB_PRIV_KEY:-}
+
+      #########################################################################################
+      #                                                                                       #
+      # Configure these variables when Authentication method is BitBucket                     #
+      # See: https://support.atlassian.com/bitbucket-cloud/docs/use-oauth-on-bitbucket-cloud/ #
+      #                                                                                       #
+      #########################################################################################
+
+      - BITBUCKET_SECRET=${BITBUCKET_SECRET:-}
+      - BITBUCKET_CLIENT_ID=${BITBUCKET_CLIENT_ID:-}
+
+      ###################################################################
+      #                                                                 #
+      # Configure these variables when Authentication method is GitLab  #
+      # See: https://docs.gitlab.com/ee/integration/oauth_provider.html #
+      #                                                                 #
+      ###################################################################
+
+      - GITLAB_SECRET=${GITLAB_SECRET:-}
+      - GITLAB_CLIENT_ID=${GITLAB_CLIENT_ID:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - mode: ingress
+        target: ${STORMKIT_HTTP_PORT:-80}
+        published: ${STORMKIT_HTTP_PORT:-80}
+        protocol: tcp
+      - mode: ingress
+        target: ${STORMKIT_HTTPS_PORT:-443}
+        published: ${STORMKIT_HTTPS_PORT:-443}
+        protocol: tcp
