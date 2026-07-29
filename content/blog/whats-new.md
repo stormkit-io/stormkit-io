@@ -5,6 +5,10 @@ description: Discover the latest changes and improvements to Stormkit. Stay up-t
 
 Follow the latest developments on Stormkit.
 
+## July 29th, 2026
+
+**Periodic Triggers** now support environment variable interpolation. Reference a variable with `$NAME` or `${NAME}` in a trigger's URL, header values, or payload — for example `Authorization: Bearer $CRON_SECRET` — and it is resolved at run time from the environment's own configuration. Secrets live in your env config instead of the trigger, so rotating them is a one-line change. [Learn more](/docs/features/periodic-triggers).
+
 ## May 25th, 2026
 
 Custom headers now apply to **all** responses — not just static files. Rules defined in your `_headers` file or the Environment Config headers editor are matched against the request URL path and applied to static files, SSR, serverless functions, and proxied responses alike. User-configured headers take precedence over Stormkit's defaults. [Learn more](/docs/features/custom-headers).

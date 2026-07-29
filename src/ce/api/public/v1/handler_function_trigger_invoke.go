@@ -33,12 +33,20 @@ func handlerFunctionTriggerInvoke(req *RequestContext) *shttp.Response {
 		return shttp.NotFound()
 	}
 
+	// Resolve $VAR references against the environment's own variables so
+	// secrets live in the env config, not in the stored trigger.
+	opts := trigger.Options
+
+	if req.Env.Data != nil {
+		opts = opts.Interpolate(req.Env.Data.Vars)
+	}
+
 	log, _ := functiontrigger.Run(functiontrigger.RunParams{
 		TriggerID: trigger.ID,
-		Method:    trigger.Options.Method,
-		URL:       trigger.Options.URL,
-		Headers:   trigger.Options.Headers,
-		Payload:   trigger.Options.Payload,
+		Method:    opts.Method,
+		URL:       opts.URL,
+		Headers:   opts.Headers,
+		Payload:   opts.Payload,
 	})
 
 	if err := store.InsertLogs(req.Context(), []functiontrigger.TriggerLog{log}); err != nil {

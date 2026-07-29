@@ -7,6 +7,7 @@ import (
 
 	"github.com/adhocore/gronx"
 	"github.com/hibiken/asynq"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/functiontrigger"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
@@ -36,7 +37,32 @@ func InvokeDueFunctionTriggers(ctx context.Context) error {
 
 	messages := []FunctionTriggerMessage{}
 
+	// Cache each environment's variables so a batch that shares an environment
+	// resolves references with a single lookup. A nil entry is cached too, so a
+	// missing/failed environment is not retried for every trigger.
+	varsByEnv := map[types.ID]map[string]string{}
+
 	for _, tf := range tfs {
+		vars, ok := varsByEnv[tf.EnvID]
+
+		if !ok {
+			env, err := buildconf.NewStore().EnvironmentByID(ctx, tf.EnvID)
+
+			if err != nil {
+				slog.Errorf("error while fetching environment %s for trigger interpolation: %v", tf.EnvID, err)
+			}
+
+			if env != nil && env.Data != nil {
+				vars = env.Data.Vars
+			}
+
+			varsByEnv[tf.EnvID] = vars
+		}
+
+		// Resolve $VAR references against the environment's own variables so
+		// secrets live in the env config, not in the stored trigger.
+		opts := tf.Options.Interpolate(vars)
+
 		nextRunAt, err := gronx.NextTickAfter(tf.Cron, time.Now().UTC(), false)
 
 		if err != nil {
@@ -44,10 +70,10 @@ func InvokeDueFunctionTriggers(ctx context.Context) error {
 		}
 
 		messages = append(messages, FunctionTriggerMessage{
-			URL:       tf.Options.URL,
-			Payload:   tf.Options.Payload,
-			Headers:   tf.Options.Headers,
-			Method:    tf.Options.Method,
+			URL:       opts.URL,
+			Payload:   opts.Payload,
+			Headers:   opts.Headers,
+			Method:    opts.Method,
 			ID:        tf.ID,
 			NextRunAt: utils.UnixFrom(nextRunAt),
 		})
