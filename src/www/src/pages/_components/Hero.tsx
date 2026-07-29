@@ -4,14 +4,32 @@ import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
 import { grey } from '@mui/material/colors'
 import IconButton from '@mui/material/IconButton'
+import ToggleButton from '@mui/material/ToggleButton'
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import ContentCopy from '@mui/icons-material/ContentCopy'
 import CheckIcon from '@mui/icons-material/Check'
 
 const MAX_WIDTH_MD = 800
 
+type InstallMode = 'human' | 'agent'
+
+const INSTALL_COMMANDS: Record<InstallMode, string> = {
+  human: 'curl -sSL https://www.stormkit.io/install.sh | sh',
+  agent: 'curl -sSL https://www.stormkit.io/install.sh | sh -s -- --agent',
+}
+
+const MODE_CAPTIONS: Record<InstallMode, string> = {
+  human: 'Interactive install. You pick the domain and settings as you go.',
+  agent:
+    'Hands-off install. Hand your agent an SSH key and it provisions an owner admin plus an MCP-ready API key, no server access needed.',
+}
+
 export default function Hero() {
   const [copied, setCopied] = useState(false)
+  const [mode, setMode] = useState<InstallMode>('human')
+
+  const command = INSTALL_COMMANDS[mode]
 
   return (
     <>
@@ -41,9 +59,36 @@ export default function Hero() {
         47% lower infrastructure costs, all on your own terms. From
         side-projects, to Enterprise scale.
       </Typography>
+      <ToggleButtonGroup
+        exclusive
+        value={mode}
+        size="small"
+        onChange={(_, next: InstallMode | null) => {
+          if (next) {
+            setMode(next)
+            setCopied(false)
+          }
+        }}
+        sx={{ mt: 4 }}
+      >
+        <ToggleButton
+          value="human"
+          data-umami-event="Install mode: humans"
+          sx={{ textTransform: 'none', px: 3 }}
+        >
+          For Humans
+        </ToggleButton>
+        <ToggleButton
+          value="agent"
+          data-umami-event="Install mode: agents"
+          sx={{ textTransform: 'none', px: 3 }}
+        >
+          For Agents
+        </ToggleButton>
+      </ToggleButtonGroup>
       <Box
         sx={{
-          mt: 4,
+          mt: 2,
           fontFamily: 'monospace',
           fontSize: { xs: 10, md: 12 },
           background: 'rgba(255, 255, 255, 0.01)',
@@ -54,16 +99,14 @@ export default function Hero() {
           alignItems: 'center',
         }}
       >
-        curl -sSL https://www.stormkit.io/install.sh | sh
+        {command}
         <IconButton
           sx={{ ml: 1 }}
           data-umami-event="Self-hosted install script"
           onClick={(e) => {
             e.preventDefault()
 
-            navigator.clipboard.writeText(
-              'curl -sSL https://www.stormkit.io/install.sh | sh'
-            )
+            navigator.clipboard.writeText(command)
 
             setCopied(true)
           }}
@@ -75,6 +118,18 @@ export default function Hero() {
           )}
         </IconButton>
       </Box>
+      <Typography
+        sx={{
+          mt: 1.5,
+          fontSize: { xs: 12, md: 13 },
+          maxWidth: 560,
+          textAlign: 'center',
+          color: grey[500],
+          minHeight: 40,
+        }}
+      >
+        {MODE_CAPTIONS[mode]}
+      </Typography>
       <Box
         sx={{
           maxWidth: MAX_WIDTH_MD,
