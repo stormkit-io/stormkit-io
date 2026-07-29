@@ -1,5 +1,22 @@
 # Changelog
 
+## v2026.07.28.2...v2026.07.29.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.28.2...v2026.07.29.1)
+
+### 🚀 Enhancements
+
+- Agent install flag with owner bootstrap ([#383](https://github.com/stormkit-io/stormkit-io/pull/383))
+- Interpolate env vars in periodic triggers ([#389](https://github.com/stormkit-io/stormkit-io/pull/389))
+
+### 🏡 Chore
+
+- Update changelog for v2026.07.28.2 ([#388](https://github.com/stormkit-io/stormkit-io/pull/388))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.07.28.1...v2026.07.28.2
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.28.1...v2026.07.28.2)
