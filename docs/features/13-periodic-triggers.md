@@ -26,6 +26,34 @@ This will call the specified endpoint with the configured cron periodicity. The 
 
 </section>
 
+## Environment variables
+
+<section>
+
+The trigger's **URL**, **header values** and **payload** support environment
+variable interpolation. Reference a variable with `$NAME` or `${NAME}` and it is
+replaced at run time with the value of the matching variable from the
+**environment's configuration** (**Environment** > **Config** > **Environment
+variables**).
+
+For example, define a `CRON_SECRET` variable on your environment and reference
+it in the trigger's `Authorization` header:
+
+```
+Authorization: Bearer $CRON_SECRET
+```
+
+At run time `$CRON_SECRET` is replaced with the variable's value, so the secret
+lives in your environment config instead of the trigger itself — and rotating it
+is just an env-var change, no trigger edit needed.
+
+A reference with no matching variable is left untouched (it is sent literally),
+and variables are resolved **only when the trigger runs** — the stored trigger
+always keeps the raw `$NAME` reference. Only the environment's own variables are
+available; host/system variables are never exposed to a trigger.
+
+</section>
+
 ## Debugging
 
 Stormkit saves the request and response for each periodic task. You can view the last 25 logs for each trigger by expanding the dot menu `(...)` and clicking on the `Past triggers` menu item.
