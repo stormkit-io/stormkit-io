@@ -15,7 +15,6 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/redirects/redirectshandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth/skauthhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/volumes/volumeshandlers"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/applog/apploghandlers"
 	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/status"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/authhandlers"
@@ -48,7 +47,6 @@ func Get() *shttp.Router {
 	r.RegisterService(userhandlers.Services)
 	r.RegisterService(status.Services)
 	r.RegisterService(publicapiv1.Services)
-	r.RegisterService(apploghandlers.Services)
 	r.RegisterService(apikeyhandlers.Services)
 	r.RegisterService(authhandlers.Services)
 	r.RegisterService(domainhandlers.Services)

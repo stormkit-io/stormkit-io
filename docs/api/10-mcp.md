@@ -80,6 +80,7 @@ All tools return JSON. Errors are reported as MCP `isError` content while the tr
 | ----------------------- | --------------------------------------------------------------------------- |
 | `deploy`                | Trigger a new deployment for an environment. Returns the deployment object. |
 | `get_deployment`        | Return metadata and status for a deployment. Poll until success/failed.     |
+| `get_runtime_logs`      | Return runtime logs (SSR and API function output) produced by a deployment. |
 | `list_deployments`      | Paginated list of deployments for an environment.                           |
 | `publish_deployment`    | Publish a successfully built deployment, making it live.                    |
 | `restart_deployment`    | Restart a failed deployment.                                                |

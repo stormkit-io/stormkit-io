@@ -60,6 +60,22 @@ func mcpAllTools() []mcpToolDef {
 			},
 		},
 		{
+			Name:        "get_runtime_logs",
+			Description: "Return runtime logs (server side rendering and API function output) produced by a deployment. Paginate with afterId/beforeId using the id of the last log entry returned.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"deploymentId": map[string]any{"type": "string", "description": "Deployment to read runtime logs for."},
+					"envId":        map[string]any{"type": "string", "description": "Environment the deployment belongs to."},
+					"sort":         map[string]any{"type": "string", "enum": []string{"asc", "desc"}, "description": "Sort order by log id. Defaults to 'asc' (oldest first)."},
+					"afterId":      map[string]any{"type": "string", "description": "Return logs older than this log id. Use with sort 'desc'."},
+					"beforeId":     map[string]any{"type": "string", "description": "Return logs newer than this log id. Use with sort 'asc'."},
+				},
+				"required":             []string{"deploymentId", "envId"},
+				"additionalProperties": false,
+			},
+		},
+		{
 			Name:        "publish_deployment",
 			Description: "Publish a successfully built deployment, making it live.",
 			InputSchema: map[string]any{
@@ -663,6 +679,24 @@ func mcpGetDeployment(req *RequestContextMCP, args map[string]any) *shttp.Respon
 	}
 
 	return handlerDeploymentGet(req.RequestContext)
+}
+
+func mcpGetRuntimeLogs(req *RequestContextMCP, args map[string]any) *shttp.Response {
+	if resp := req.withEnv(args); resp != nil {
+		return resp
+	}
+
+	if resp := req.withDeploymentID(args); resp != nil {
+		return resp
+	}
+
+	req.setQuery(map[string]string{
+		"sort":     stringArg(args, "sort"),
+		"afterId":  stringArg(args, "afterId"),
+		"beforeId": stringArg(args, "beforeId"),
+	})
+
+	return handlerDeploymentRuntimeLogsGet(req.RequestContext)
 }
 
 func mcpPublishDeployment(req *RequestContextMCP, args map[string]any) *shttp.Response {

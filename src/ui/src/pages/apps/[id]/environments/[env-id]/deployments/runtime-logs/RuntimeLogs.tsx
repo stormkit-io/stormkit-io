@@ -1,5 +1,5 @@
 import type { Log } from "./actions";
-import React, { useContext, useState } from "react";
+import React, { useState } from "react";
 import { useParams, useLocation } from "react-router";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
@@ -13,7 +13,6 @@ import EmptyPage from "~/components/EmptyPage";
 import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
 import CardFooter from "~/components/CardFooter";
-import { AppContext } from "~/pages/apps/[id]/App.context";
 import { useFetchDeploymentRuntimeLogs } from "./actions";
 
 const renderLog = (log: Log, i: number) => {
@@ -77,13 +76,12 @@ const RuntimeLogs: React.FC = () => {
   const location = useLocation();
   const [whitespace, setWhiteSpace] = useState(true);
   const [sort, setSort] = useState<"asc" | "desc">("desc");
-  const { deploymentId } = useParams();
-  const { app } = useContext(AppContext);
+  const { deploymentId, envId } = useParams();
   const [resetLogs, setResetLogs] = useState(true);
   const [keySetId, setKeySeyId] = useState<string>();
 
   const { logs, error, loading, hasNextPage } = useFetchDeploymentRuntimeLogs({
-    appId: app.id,
+    envId: envId!,
     deploymentId: deploymentId!,
     keySetId,
     sort,

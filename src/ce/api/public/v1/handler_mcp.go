@@ -178,6 +178,8 @@ func mcpDispatch(req *RequestContextMCP, id any, params *toolCallParams) *shttp.
 		resp = mcpInvokeTrigger(req, id, params.Arguments)
 	case "get_trigger_logs":
 		resp = mcpGetTriggerLogs(req, params.Arguments)
+	case "get_runtime_logs":
+		resp = mcpGetRuntimeLogs(req, params.Arguments)
 	case "list_teams":
 		resp = mcpListTeams(req)
 	case "create_team":
