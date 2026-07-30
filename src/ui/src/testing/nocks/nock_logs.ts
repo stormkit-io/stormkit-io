@@ -4,7 +4,7 @@ import nock from "nock";
 const endpoint = process.env.API_DOMAIN || "";
 
 interface FetchDeploymentLogsProps {
-  appId: string;
+  envId: string;
   deploymentId: string;
   status?: number;
   keySetId?: string;
@@ -16,7 +16,7 @@ interface FetchDeploymentLogsProps {
 }
 
 export const mockFetchDeploymentLogs = ({
-  appId,
+  envId,
   deploymentId,
   status = 200,
   keySetId,
@@ -27,8 +27,8 @@ export const mockFetchDeploymentLogs = ({
   },
 }: FetchDeploymentLogsProps) => {
   const params = new URLSearchParams({
+    envId,
     sort,
-    deploymentId,
   });
 
   if (sort === "asc" && keySetId) {
@@ -38,6 +38,6 @@ export const mockFetchDeploymentLogs = ({
   }
 
   return nock(endpoint)
-    .get(`/app/${appId}/logs?${params.toString()}`)
+    .get(`/v1/deployments/${deploymentId}/runtime-logs?${params.toString()}`)
     .reply(status, response);
 };

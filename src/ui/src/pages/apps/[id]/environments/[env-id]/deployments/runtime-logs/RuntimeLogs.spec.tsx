@@ -41,14 +41,13 @@ describe("~/pages/apps/[id]/environments/[env-id]/deployments/runtime-logs/Runti
       });
 
     scope = mockFetchDeploymentLogs({
-      appId: currentApp.id,
+      envId: currentEnv.id!,
       deploymentId: currentDeploy.id,
       response: {
         logs: [
           {
             id: "123",
             appId: "592128846360",
-            envId: "483571891194",
             deploymentId: "70884402118696",
             data: "START RequestId: 7c64e362-004c-40f8-a325-ef9af252cd8d Version: 1\n2022-10-19T16:54:01.246Z\t7c64e362-004c-40f8-a325-ef9af252cd8d\tINFO\tsample log from sample-project 1\nEND RequestId: 7c64e362-004c-40f8-a325-ef9af252cd8d\nREPORT RequestId: 7c64e362-004c-40f8-a325-ef9af252cd8d\tDuration: 283.86 ms\tBilled Duration: 284 ms\tMemory Size: 512 MB\tMax Memory Used: 66 MB\tInit Duration: 150.46 ms\t\n",
             timestamp: "1666198441",
@@ -56,7 +55,6 @@ describe("~/pages/apps/[id]/environments/[env-id]/deployments/runtime-logs/Runti
           {
             id: "234",
             appId: "592128846360",
-            envId: "483571891194",
             deploymentId: "70884402118696",
             data: "START RequestId: bd9c372e-3469-46e8-ae51-abe40174ef05 Version: 1\n2022-10-19T13:53:24.661Z\tbd9c372e-3469-46e8-ae51-abe40174ef05\tINFO\tsample log from sample-project 2\nEND RequestId: bd9c372e-3469-46e8-ae51-abe40174ef05\nREPORT RequestId: bd9c372e-3469-46e8-ae51-abe40174ef05\tDuration: 14.53 ms\tBilled Duration: 15 ms\tMemory Size: 512 MB\tMax Memory Used: 69 MB\t\n",
             timestamp: "1666187604",
@@ -64,7 +62,6 @@ describe("~/pages/apps/[id]/environments/[env-id]/deployments/runtime-logs/Runti
           {
             id: "456",
             appId: "592128846360",
-            envId: "483571891194",
             deploymentId: "70884402118696",
             data: "START RequestId: 3c316656-f979-4eaf-a373-6fb7f4de4634 Version: 1\n2022-10-19T13:49:30.129Z\t3c316656-f979-4eaf-a373-6fb7f4de4634\tINFO\tsample log from sample-project 3\nEND RequestId: 3c316656-f979-4eaf-a373-6fb7f4de4634\nREPORT RequestId: 3c316656-f979-4eaf-a373-6fb7f4de4634\tDuration: 65.49 ms\tBilled Duration: 66 ms\tMemory Size: 512 MB\tMax Memory Used: 69 MB\t\n",
             timestamp: "1666187370",
@@ -130,7 +127,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/deployments/runtime-logs/Runti
       });
 
       const paginationScope = mockFetchDeploymentLogs({
-        appId: currentApp.id,
+        envId: currentEnv.id!,
         deploymentId: currentDeploy.id,
         keySetId: "456",
         response: {
@@ -139,7 +136,6 @@ describe("~/pages/apps/[id]/environments/[env-id]/deployments/runtime-logs/Runti
             {
               id: "123",
               appId: currentApp.id,
-              envId: currentEnv.id!,
               deploymentId: currentDeploy.id,
               data: "Hello from a second page log",
               timestamp: "1666198441",
@@ -165,7 +161,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/deployments/runtime-logs/Runti
       });
 
       const paginationScope = mockFetchDeploymentLogs({
-        appId: currentApp.id,
+        envId: currentEnv.id!,
         deploymentId: currentDeploy.id,
         sort: "asc",
         response: {
@@ -174,7 +170,6 @@ describe("~/pages/apps/[id]/environments/[env-id]/deployments/runtime-logs/Runti
             {
               id: "123",
               appId: currentApp.id,
-              envId: currentEnv.id!,
               deploymentId: currentDeploy.id,
               data: "Hello from sorted logs",
               timestamp: "1666198441",

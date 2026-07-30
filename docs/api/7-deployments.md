@@ -399,6 +399,80 @@ done
 
 ---
 
+## GET /v1/deployments/{id}/runtime-logs
+
+Returns the runtime logs produced by a deployment — the output of server side rendered pages and API functions. These are distinct from build logs, which are returned by `GET /v1/deployments/{id}`.
+
+**Base URL:** `https://api.stormkit.io`
+
+**Authentication:** At least an environment-level API key passed as the `Authorization` header.
+
+### Path parameters
+
+| Parameter | Type   | Description        |
+| --------- | ------ | ------------------ |
+| `id`      | string | The deployment ID. |
+
+### Query parameters
+
+| Parameter  | Type   | Required    | Description                                                                                                                                                        |
+| ---------- | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `envId`    | string | Conditional | Required when using an app, team, or user-level API key. Identifies the environment that owns the deployment. Environment-level keys do not require this parameter. |
+| `sort`     | string | No          | `asc` (oldest first, default) or `desc`.                                                                                                                           |
+| `beforeId` | string | No          | Return log entries newer than this log ID. Use with `sort=asc`.                                                                                                    |
+| `afterId`  | string | No          | Return log entries older than this log ID. Use with `sort=desc`.                                                                                                   |
+
+### Response — 200 OK
+
+| Field         | Type    | Description                                                     |
+| ------------- | ------- | --------------------------------------------------------------- |
+| `logs`        | array   | Up to 100 log entries.                                          |
+| `hasNextPage` | boolean | Whether more entries are available for the requested direction. |
+
+Each log entry contains:
+
+| Field          | Type   | Description                             |
+| -------------- | ------ | --------------------------------------- |
+| `id`           | string | Log entry ID. Use it to paginate.       |
+| `appId`        | string | App the log belongs to.                 |
+| `deploymentId` | string | Deployment that produced the log.       |
+| `data`         | string | The log output.                         |
+| `timestamp`    | string | Unix timestamp of the entry as a string. |
+
+### Error responses
+
+| Status | Condition                                                                               |
+| ------ | --------------------------------------------------------------------------------------- |
+| `400`  | `sort` is neither `asc` nor `desc`.                                                     |
+| `403`  | Missing/invalid API key, or token does not have access to the deployment's environment. |
+| `404`  | Deployment not found, or it does not belong to the environment of the API key.          |
+| `500`  | Internal server error.                                                                  |
+
+### Example
+
+```bash
+curl -H 'Authorization: <api_key>' \
+  'https://api.stormkit.io/v1/deployments/8241/runtime-logs?sort=desc'
+```
+
+```json
+// Example response
+{
+  "logs": [
+    {
+      "id": "5512",
+      "appId": "1000000",
+      "deploymentId": "8241",
+      "data": "Listening on port 3000",
+      "timestamp": "1696919445"
+    }
+  ],
+  "hasNextPage": false
+}
+```
+
+---
+
 ## POST /v1/deployments/{id}/publish
 
 Makes a deployment live for the environment associated with the API key.

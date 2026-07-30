@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import api from "~/utils/api/Api";
 
 interface FetchDeploymentRuntimeLogsProps {
-  appId: string;
+  envId: string;
   keySetId?: string;
   deploymentId: string;
   sort?: "asc" | "desc";
@@ -12,14 +12,13 @@ interface FetchDeploymentRuntimeLogsProps {
 export interface Log {
   id: string;
   appId: string;
-  envId: string;
   deploymentId: string;
   timestamp: string;
   data: string;
 }
 
 export const useFetchDeploymentRuntimeLogs = ({
-  appId,
+  envId,
   deploymentId,
   keySetId,
   sort = "asc",
@@ -35,8 +34,8 @@ export const useFetchDeploymentRuntimeLogs = ({
     setError(undefined);
 
     const params = new URLSearchParams({
+      envId,
       sort,
-      deploymentId,
     });
 
     if (sort === "asc" && keySetId) {
@@ -47,7 +46,7 @@ export const useFetchDeploymentRuntimeLogs = ({
 
     api
       .fetch<{ logs: Log[]; hasNextPage: boolean }>(
-        `/app/${appId}/logs?${params.toString()}`
+        `/v1/deployments/${deploymentId}/runtime-logs?${params.toString()}`
       )
       .then(data => {
         if (reset) {
@@ -64,7 +63,7 @@ export const useFetchDeploymentRuntimeLogs = ({
       .finally(() => {
         setLoading(false);
       });
-  }, [appId, deploymentId, keySetId, sort]);
+  }, [envId, deploymentId, keySetId, sort]);
 
   return { logs, error, loading, hasNextPage };
 };
