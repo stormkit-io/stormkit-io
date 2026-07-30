@@ -1,5 +1,22 @@
 # Changelog
 
+## v2026.07.29.1...v2026.07.30.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.29.1...v2026.07.30.1)
+
+### 🚀 Enhancements
+
+- Add humans/agents install toggle to hero ([#391](https://github.com/stormkit-io/stormkit-io/pull/391))
+- Expose runtime logs over public api and mcp ([#392](https://github.com/stormkit-io/stormkit-io/pull/392))
+
+### 🏡 Chore
+
+- Update changelog for v2026.07.29.1 ([#390](https://github.com/stormkit-io/stormkit-io/pull/390))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.07.28.2...v2026.07.29.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.28.2...v2026.07.29.1)
