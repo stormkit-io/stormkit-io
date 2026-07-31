@@ -24,6 +24,10 @@ const (
 // of the input byte length.
 //
 // Example: SecureRandomToken(32) generates a 32-byte random value encoded as ~43 character string.
+//
+// The encoding is unpadded, which is where that 43 comes from — the padded
+// EncodeToString in crypt.go would yield 44 and change the shape of every
+// token this issues.
 func SecureRandomToken(byteLength int) (string, error) {
 	b := make([]byte, byteLength)
 

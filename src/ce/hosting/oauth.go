@@ -838,6 +838,10 @@ func (o *oauthServer) issueTokens(g oauthTokenGrant) *shttp.Response {
 }
 
 // verifyPKCE checks the S256 proof: base64url(sha256(verifier)) == challenge.
+//
+// The encoding must stay unpadded (RawURLEncoding) — RFC 7636 defines the S256
+// challenge without padding, so switching to a padded encoder would reject
+// every conforming client.
 func verifyPKCE(verifier, challenge string) bool {
 	sum := sha256.Sum256([]byte(verifier))
 	computed := base64.RawURLEncoding.EncodeToString(sum[:])

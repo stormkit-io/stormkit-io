@@ -148,7 +148,10 @@ func (c *FilesysClient) Invoke(args InvokeArgs) (*InvokeResult, error) {
 		ErrorStack:   response.ErrorStack,
 	}
 
-	// See if this is a base64 encoded string
+	// See if this is a base64 encoded string. Must stay StdEncoding: the
+	// runtime emits standard base64, so the URL-safe helpers in lib/utils would
+	// fail to decode any body containing '+' or '/' — and silently, since a
+	// decode error here just leaves the body as-is.
 	if decoded, err := base64.StdEncoding.DecodeString(body); err == nil {
 		invokeResult.Body = decoded
 	}

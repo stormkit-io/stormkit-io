@@ -46,6 +46,9 @@ type oauthRefreshStore struct {
 var oauthRefreshTokens = oauthRefreshStore{prefix: "oauth:refresh:"}
 
 // key is the Redis key for token: prefix + base64url(sha256(token)).
+//
+// The encoding is part of the key format: changing it (padded vs unpadded,
+// URL-safe vs standard) orphans every refresh token already in Redis.
 func (s oauthRefreshStore) key(token string) string {
 	sum := sha256.Sum256([]byte(token))
 
