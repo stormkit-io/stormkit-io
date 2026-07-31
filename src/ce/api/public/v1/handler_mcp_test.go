@@ -290,6 +290,7 @@ func (s *HandlerMCPSuite) Test_ToolsList_ReturnsExpectedTools() {
 		"deploy",
 		"get_deployment",
 		"get_runtime_logs",
+		"get_access_logs",
 		"publish_deployment",
 		"delete_deployment",
 		"restart_deployment",
