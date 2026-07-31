@@ -40,11 +40,12 @@ The high-level flow is:
 1. The user starts a sign-in flow (submits a form, clicks a magic link, or is
    redirected to an OAuth provider).
 2. On success, Stormkit issues a **session token** (a JWT) and delivers it as a
-   **cookie** to browsers, or in the **response body** to native apps (see
+   **cookie** to browsers, or directly to native apps (see
    [Sessions](#sessions) below).
 3. The browser is redirected to your **Success callback URL**. The
    email-verification and same-origin magic-link flows append `?verified=true`;
-   the OAuth and cross-origin flows redirect to the plain Success URL.
+   the OAuth and cross-origin flows redirect to the plain Success URL. A native
+   app is instead redirected to its deep link carrying the token.
 4. For every authenticated request, Stormkit validates the session and forwards
    `X-User-Id` and `X-User-Email` headers to your backend / API. These headers
    are always stripped from incoming requests first, so they cannot be spoofed.
@@ -59,20 +60,73 @@ kind of client:
   is `HttpOnly`, your JavaScript cannot read it — and does not need to. The
   browser attaches it automatically to same-origin requests, and you send it on
   cross-origin requests with `credentials: "include"`.
-- **Native / mobile apps get a bearer token.** A client with no cookie jar opts
-  into token delivery by sending the header `X-Session-Delivery: bearer` on the
-  login / register / verify / magic-link request. The token is then returned in
-  the response body, and the app stores it and sends it back as an
-  `Authorization: Bearer <token>` header. At `/_stormkit/auth/refresh` this is
-  auto-detected — a client that authenticated with a bearer token and sent no
-  cookie receives a new bearer token without needing the header.
+- **Native / mobile apps get a bearer token.** A client with no cookie jar
+  receives the session token directly. Which mechanism applies depends on how the
+  user signs in — see [Native apps](#native-apps) below. Either way the app ends
+  up with a token it stores and sends back as an `Authorization: Bearer <token>`
+  header.
 
 > **Migrating from an older setup?** Earlier versions stashed the token in
 > `localStorage` under a `skauth` key. That mode has been removed: browsers now
 > always use the `HttpOnly` cookie. Update your frontend to call the API with
 > `credentials: "include"` and read the user from `/_stormkit/auth/me` instead of
-> reading a token from `localStorage`. Native apps must send the
-> `X-Session-Delivery: bearer` header.
+> reading a token from `localStorage`.
+
+### Native apps
+
+A native app has no usable cookie jar — the system sign-in browser
+(`ASWebAuthenticationSession` on iOS, Custom Tabs on Android) discards
+`Set-Cookie` when it closes. Stormkit therefore hands the token over in one of
+two ways:
+
+**1. JSON endpoints — the `X-Session-Delivery` header.** On
+`/_stormkit/auth/login`, `/_stormkit/auth/register` and `/_stormkit/auth/refresh`,
+send the header `X-Session-Delivery: bearer` and the token is returned in the
+response body instead of a cookie:
+
+```json
+{ "token": "…", "email": "user@example.com", "userId": "…" }
+```
+
+At `/_stormkit/auth/refresh` this is auto-detected — a client that authenticated
+with a bearer token and sent no cookie gets a new bearer token without the
+header.
+
+**2. Browser sign-in flows — a custom-scheme redirect.** Google / X OAuth and
+Magic Link finish inside a browser, so there is no response body to read. Instead,
+register your app's deep link as an **allowed origin** (scheme + host, no path —
+e.g. `myapp://auth`) and pass it as the `redirect` target. When the resolved
+target is a custom (non-`http(s)`) scheme, Stormkit appends the session token to
+the redirect and sets **no** cookie:
+
+```
+302 Location: myapp://auth?token=<session-jwt>
+```
+
+For OAuth, open the authorization URL with the redirect:
+
+```
+https://app.example.com/_stormkit/auth/google?redirect=myapp://auth
+```
+
+For Magic Link, pass the same value when requesting the link — it is remembered
+and applied when the user taps it:
+
+```
+GET /_stormkit/auth/magic?email=user@example.com&redirect=myapp://auth
+```
+
+Sign-in failures come back to the same deep link with a `login_error` parameter
+(`myapp://auth?login_error=…`) rather than a `login_error` on your success page.
+
+The token is only ever appended for an origin that is **on the allow-list**. An
+unregistered scheme is rejected (Magic Link responds `403`; OAuth falls back to a
+first-party cookie on your own domain), so a token can never leak to a scheme you
+did not register. `http(s)` targets are unaffected and keep using the cookie.
+
+> `X-Session-Delivery: bearer` applies **only** to `login`, `register` and
+> `refresh`. The `verify`, `magic` and OAuth `callback` landings are browser
+> redirects and ignore the header — use the custom-scheme redirect for those.
 
 ### Cross-origin session protection
 
@@ -93,7 +147,7 @@ of **providers**.
 | --- | --- |
 | **Success callback URL** | A relative URL (e.g. `/auth/success`) the browser is redirected to after a successful sign-in. |
 | **Session TTL** | How long a session token stays valid. Accepts durations like `30min`, `12h`, `7d`, `1w`, `1mo`, `1y`. |
-| **Allowed origins** | Optional. One origin per line (scheme + host, no path). Required when your frontend runs on a **different domain** than the auth host (a decoupled frontend or a native app): those origins are permitted to initiate sign-in and set the session cookie. Leave it empty for single-host setups. |
+| **Allowed origins** | Optional. One origin per line (scheme + host, no path). Required when your frontend runs on a **different domain** than the auth host (a decoupled frontend or a native app): those origins are permitted to initiate sign-in and set the session cookie. A native app's deep link goes here too — `myapp://auth` is valid, `myapp://` and `myapp://auth/callback` are not. Leave it empty for single-host setups. |
 | **Cookie domain** | Optional. A parent domain (e.g. `.example.com`) to scope the session cookie to, so it is shared across subdomains — needed when your frontend and the auth host are different subdomains. Empty means a host-only cookie. |
 | **Login URL** | Optional. Your app's own login page. Used by the [OAuth 2.1 server](/docs/features/oauth-server) to redirect unauthenticated users when an MCP connector asks them to authorize. |
 
@@ -126,6 +180,11 @@ Passwordless sign-in via a one-time link sent by email.
   endpoint returns `201` with no content and emails the user a link.
 - The emailed link points to `/_stormkit/auth/magic?token=<token>`, which
   exchanges the token for a session and redirects to your Success callback URL.
+- Optionally pass `redirect=<origin>` (query param or JSON body) on the request
+  to control where the user lands after tapping the link. It must be on the
+  **Allowed origins** list, and it is remembered with the link — so the redirect
+  survives the round trip through the user's inbox. Native apps pass their deep
+  link here; see [Native apps](#native-apps).
 
 > Magic Link requires the [Mailer](/docs/features/mailer) to be configured to
 > deliver links. If the Mailer is **not** configured, the email is still
@@ -154,7 +213,9 @@ in from.
 Start the OAuth flow by redirecting the user to the **Authorization URL** on your
 own domain, e.g. `https://app.example.com/_stormkit/auth/google`. Optionally
 append `?redirect=<origin>` to control where the user returns afterwards;
-otherwise the request's `Origin` / `Referer` is used.
+otherwise the request's `Origin` / `Referer` is used. A cross-origin value must be
+on the **Allowed origins** list. Native apps pass their deep link here — see
+[Native apps](#native-apps).
 
 > Sign-ins from providers that return an **unverified** email address are
 > rejected before any account is created or linked, so a provider cannot be used
@@ -185,8 +246,10 @@ every request. For the richer profile, use the user-info endpoint below.
 
 ### In a native app
 
-Store the bearer token you received in the response body (after sending
-`X-Session-Delivery: bearer` at sign-in) and attach it to each request:
+Store the bearer token you received at sign-in — from the response body on
+`login` / `register`, or from the `token` parameter on your deep link after an
+OAuth or Magic Link sign-in (see [Native apps](#native-apps)) — and attach it to
+each request:
 
 ```
 Authorization: Bearer <token>
@@ -249,8 +312,10 @@ separately deployed SPA, or a native/mobile app):
 - For a browser SPA, set a shared **Cookie domain** (e.g. `.example.com`) so the
   `skauth_session` cookie is readable across your subdomains, and send every auth
   call with `credentials: "include"`.
-- For a native app, send `X-Session-Delivery: bearer` at sign-in and use the
-  returned bearer token.
+- For a native app, add your deep link (e.g. `myapp://auth`) to **Allowed
+  origins**, then send `X-Session-Delivery: bearer` on `login` / `register` /
+  `refresh`, and pass `redirect=myapp://auth` for OAuth and Magic Link. See
+  [Native apps](#native-apps).
 
 > If a provider is enabled but **no allowed origins** are set and your frontend
 > runs on a separate domain, sign-in will be rejected as cross-origin. The
