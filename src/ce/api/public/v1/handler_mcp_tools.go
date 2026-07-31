@@ -93,6 +93,8 @@ func mcpAllTools() []mcpToolDef {
 					"status":   map[string]any{"type": "string", "description": "Only return requests answered with this HTTP status code."},
 					"isBot":    map[string]any{"type": "boolean", "description": "Filter bot traffic in or out. Omit to return both."},
 					"cursor":   map[string]any{"type": "string", "description": "Opaque pagination cursor. Pass pagination.cursor from the previous response back verbatim to fetch the next page."},
+
+					"minDurationMs": map[string]any{"type": "number", "description": "Only return requests that took at least this many milliseconds to serve. Use to inspect the latency tail, e.g. 500. Requests logged before durations were recorded are excluded."},
 				},
 				"required":             []string{"envId"},
 				"additionalProperties": false,
@@ -594,6 +596,10 @@ func intArg(args map[string]any, key string) int {
 		return int(v)
 	case int:
 		return v
+	case string:
+		// A model that quotes a numeric argument still means the number.
+		n, _ := strconv.Atoi(v)
+		return n
 	}
 	return 0
 }
@@ -741,6 +747,10 @@ func mcpGetAccessLogs(req *RequestContextMCP, args map[string]any) *shttp.Respon
 
 	if isBot := boolPtrArg(args, "isBot"); isBot != nil {
 		query["isBot"] = strconv.FormatBool(*isBot)
+	}
+
+	if ms := intArg(args, "minDurationMs"); ms > 0 {
+		query["minDurationMs"] = strconv.Itoa(ms)
 	}
 
 	req.setQuery(query)

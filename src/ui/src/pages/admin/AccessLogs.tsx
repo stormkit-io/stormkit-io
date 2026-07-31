@@ -29,15 +29,20 @@ interface AccessLogEntry {
   referrer: string;
   isBot: boolean;
   bytesSent: number;
+  durationMs: number | null;
 }
 
 interface Filters {
+  appId?: string;
   hostName?: string;
   clientIp?: string;
   path?: string;
   method?: string;
   status?: string;
   isBot?: string;
+  minDurationMs?: string;
+  from?: string;
+  to?: string;
 }
 
 interface UseFetchAccessLogsProps {
@@ -45,6 +50,15 @@ interface UseFetchAccessLogsProps {
   cursor?: string;
   refreshToken: number;
 }
+
+// The API takes both time bounds as unix seconds, while the inputs produce
+// local `datetime-local` strings. Anything unparseable is dropped rather than
+// sent as NaN, which the API would read as "no bound".
+const toUnixSeconds = (value: string): string => {
+  const ms = new Date(value).getTime();
+
+  return isNaN(ms) ? "" : String(Math.floor(ms / 1000));
+};
 
 const useFetchAccessLogs = ({
   filters,
@@ -66,8 +80,15 @@ const useFetchAccessLogs = ({
     const params = new URLSearchParams();
 
     Object.entries(filters).forEach(([key, value]) => {
-      if (value) {
-        params.set(key, value);
+      if (!value) {
+        return;
+      }
+
+      const encoded =
+        key === "from" || key === "to" ? toUnixSeconds(value) : value;
+
+      if (encoded) {
+        params.set(key, encoded);
       }
     });
 
@@ -156,6 +177,13 @@ export default function AccessLogs() {
       >
         <TextField
           variant="filled"
+          label="App ID"
+          size="small"
+          helperText="Recommended — narrows the scan"
+          onChange={e => set("appId")(e.target.value)}
+        />
+        <TextField
+          variant="filled"
           label="Host"
           size="small"
           onChange={e => set("hostName")(e.target.value)}
@@ -197,6 +225,30 @@ export default function AccessLogs() {
           <MenuItem value="false">Exclude bots</MenuItem>
           <MenuItem value="true">Only bots</MenuItem>
         </TextField>
+        <TextField
+          variant="filled"
+          label="Min duration (ms)"
+          size="small"
+          type="number"
+          helperText="e.g. 500 for the latency tail"
+          onChange={e => set("minDurationMs")(e.target.value)}
+        />
+        <TextField
+          variant="filled"
+          label="From"
+          size="small"
+          type="datetime-local"
+          InputLabelProps={{ shrink: true }}
+          onChange={e => set("from")(e.target.value)}
+        />
+        <TextField
+          variant="filled"
+          label="To"
+          size="small"
+          type="datetime-local"
+          InputLabelProps={{ shrink: true }}
+          onChange={e => set("to")(e.target.value)}
+        />
         <Button type="submit" variant="contained" disabled={loading}>
           {loading ? <CircularProgress size={16} /> : "Search"}
         </Button>
@@ -208,6 +260,7 @@ export default function AccessLogs() {
               <Td>Time</Td>
               <Td>Method</Td>
               <Td>Status</Td>
+              <Td>Duration</Td>
               <Td>Host</Td>
               <Td>Path</Td>
               <Td>Client IP</Td>
@@ -220,13 +273,18 @@ export default function AccessLogs() {
                 <Td>{formatTs(log.requestTimestamp)}</Td>
                 <Td>{log.method}</Td>
                 <Td>{log.statusCode}</Td>
+                <Td sx={{ whiteSpace: "nowrap" }}>
+                  {log.durationMs === null ? "—" : `${log.durationMs} ms`}
+                </Td>
                 <Td>{log.hostName}</Td>
                 <Td sx={{ maxWidth: 280, wordBreak: "break-all" }}>
                   {log.path}
                 </Td>
                 <Td>{log.clientIp}</Td>
                 <Td>
-                  {log.isBot && <Chip label="bot" size="small" color="warning" />}
+                  {log.isBot && (
+                    <Chip label="bot" size="small" color="warning" />
+                  )}
                 </Td>
               </Tr>
             ))}

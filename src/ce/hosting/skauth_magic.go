@@ -18,8 +18,10 @@ func (m *skAuthMiddleware) magicLinkRequest() *shttp.Response {
 	req := m.req.RequestContext
 
 	body := &struct {
-		Email    string `json:"email"`
-		Redirect string `json:"redirect"`
+		Email               string `json:"email"`
+		Redirect            string `json:"redirect"`
+		CodeChallenge       string `json:"code_challenge"`
+		CodeChallengeMethod string `json:"code_challenge_method"`
 	}{}
 
 	_ = req.Post(body)
@@ -66,6 +68,19 @@ func (m *skAuthMiddleware) magicLinkRequest() *shttp.Response {
 		redirect = ""
 	}
 
+	// A custom-scheme redirect delivers the session through a PKCE-bound code, so
+	// the challenge has to be captured now and travel with the link — the user's
+	// inbox sits between this request and the redemption.
+	challenge := utils.GetString(body.CodeChallenge, req.Query().Get("code_challenge"))
+
+	if resp := validateNativeChallenge(
+		redirect,
+		challenge,
+		utils.GetString(body.CodeChallengeMethod, req.Query().Get("code_challenge_method")),
+	); resp != nil {
+		return resp
+	}
+
 	prv, err := skauth.NewStore().Provider(req.Context(), envID, skauth.ProviderMagicLink)
 
 	if err != nil {
@@ -76,7 +91,11 @@ func (m *skAuthMiddleware) magicLinkRequest() *shttp.Response {
 		return shttp.NotFound()
 	}
 
-	token, err := generateMagicLinkToken(env, redirect)
+	token, err := generateMagicLinkToken(generateMagicLinkTokenParams{
+		Env:            env,
+		RedirectOrigin: redirect,
+		CodeChallenge:  challenge,
+	})
 
 	if err != nil {
 		return shttp.Error(err, fmt.Sprintf("failed to generate magic link token: %s", err.Error()))
@@ -137,7 +156,14 @@ func (m *skAuthMiddleware) magicLinkVerify() *shttp.Response {
 	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: token, Secret: env.AuthConf.Secret})
 
 	if claims == nil {
-		return shttp.BadRequest(map[string]any{"errors": []string{"invalid or expired magic link token"}})
+		// Expiry is the ordinary way a magic link fails, and the user is often in a
+		// native app's system browser with nowhere else to land. The origin is
+		// recovered from the unvalidated claims purely to aim the error redirect —
+		// see unverifiedRedirectOrigin for why that is safe.
+		return shttp.BadRequest(map[string]any{
+			"errors":   []string{"invalid or expired magic link token"},
+			"redirect": unverifiedRedirectOrigin(token, env.AuthConf),
+		})
 	}
 
 	redirectOrigin, _ := claims["rdr"].(string)
@@ -198,12 +224,51 @@ func (m *skAuthMiddleware) magicLinkVerify() *shttp.Response {
 
 	if redirectOrigin != "" {
 		data["redirect"] = redirectOrigin
+
+		if challenge, _ := claims["cha"].(string); challenge != "" {
+			data["codeChallenge"] = challenge
+		}
 	}
 
 	return &shttp.Response{Data: data}
 }
 
-func generateMagicLinkToken(env *buildconf.Env, redirectOrigin string) (string, error) {
+// unverifiedRedirectOrigin recovers the `rdr` claim from a magic-link token that
+// failed validation, so an expired or malformed link can still bounce the user
+// back to the app that started the sign-in instead of stranding them on this
+// host — which, in a native app's system browser, means a sheet that never
+// closes.
+//
+// Reading unvalidated claims is safe here because the signature is not what
+// authorizes the target: the recovered origin is re-checked against the
+// environment's allow-list, so a forged claim can only ever name an origin the
+// operator already registered. It is used solely to aim an error redirect; no
+// session is delivered on this path.
+func unverifiedRedirectOrigin(token string, conf *buildconf.SKAuthConf) string {
+	claims := jwt.MapClaims{}
+
+	if _, _, err := jwt.NewParser().ParseUnverified(token, claims); err != nil {
+		return ""
+	}
+
+	origin, _ := claims["rdr"].(string)
+
+	if origin == "" || !conf.IsAllowedOrigin(origin) {
+		return ""
+	}
+
+	return origin
+}
+
+type generateMagicLinkTokenParams struct {
+	Env            *buildconf.Env
+	RedirectOrigin string
+	// CodeChallenge is the PKCE S256 challenge for a custom-scheme redirect. It
+	// rides the link so the delivery step can bind the session code to it.
+	CodeChallenge string
+}
+
+func generateMagicLinkToken(p generateMagicLinkTokenParams) (string, error) {
 	jti, err := utils.SecureRandomToken(16)
 
 	if err != nil {
@@ -216,11 +281,15 @@ func generateMagicLinkToken(env *buildconf.Env, redirectOrigin string) (string, 
 		"jti": jti,
 	}
 
-	if redirectOrigin != "" {
-		claims["rdr"] = redirectOrigin
+	if p.RedirectOrigin != "" {
+		claims["rdr"] = p.RedirectOrigin
 	}
 
-	return user.JWT(claims, env.AuthConf.Secret)
+	if p.CodeChallenge != "" {
+		claims["cha"] = p.CodeChallenge
+	}
+
+	return user.JWT(claims, p.Env.AuthConf.Secret)
 }
 
 func sendMagicLinkEmail(req *shttp.RequestContext, env *buildconf.Env, prv *skauth.Provider, email, token string) error {

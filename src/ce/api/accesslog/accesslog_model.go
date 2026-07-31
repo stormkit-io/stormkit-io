@@ -29,6 +29,11 @@ type AccessLog struct {
 	IsBot        bool        `json:"isBot"`
 	BytesSent    int64       `json:"bytesSent"`
 	RequestID    null.String `json:"requestId"`
+
+	// DurationMS is how long the request took to serve, in milliseconds. It is
+	// null for entries written before the column existed, and for requests whose
+	// start time was never stamped — a zero would misread as an instant response.
+	DurationMS null.Int `json:"durationMs"`
 }
 
 // Cursor encodes the entry's position for keyset pagination.
@@ -68,5 +73,8 @@ func (l AccessLog) ToMap() map[string]any {
 		"isBot":            l.IsBot,
 		"bytesSent":        l.BytesSent,
 		"requestId":        l.RequestID.ValueOrZero(),
+		// Ptr, not ValueOrZero: an unmeasured request must serialize as null, so
+		// consumers do not read it as a 0ms response.
+		"durationMs": l.DurationMS.Ptr(),
 	}
 }

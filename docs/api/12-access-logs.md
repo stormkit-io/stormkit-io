@@ -6,8 +6,9 @@ description: Documentation on reading raw HTTP access logs through the Stormkit 
 # Access Logs API
 
 Access logs contain one entry per HTTP request served by Stormkit for your
-environment — the path, status code, client IP, user agent and how many bytes
-were sent. They are operational request logs, not visitor analytics: bot traffic
+environment — the path, status code, client IP, user agent, how many bytes were
+sent and how long the request took to serve. They are operational request logs,
+not visitor analytics: bot traffic
 is included and the client IP and user agent are not masked.
 
 These are distinct from **runtime logs**, which contain the output of your
@@ -43,6 +44,7 @@ All filters are optional and are combined with AND.
 | `path`     | string  | No          | Only return requests whose path starts with this value.                                                                                           |
 | `status`   | number  | No          | Only return requests answered with this HTTP status code.                                                                                         |
 | `isBot`    | boolean | No          | `true` returns only bot traffic, `false` only non-bot traffic. Omit to return both.                                                               |
+| `minDurationMs` | number | No       | Only return requests that took at least this many milliseconds to serve — e.g. `500` to inspect the latency tail. Requests logged before durations were recorded are excluded. |
 | `cursor`   | string  | No          | Pagination cursor. Pass `pagination.cursor` from the previous response back verbatim to fetch the next page. Treat it as opaque — its encoding may change. |
 
 > Queries are always bounded in time so that they only scan the relevant
@@ -75,6 +77,7 @@ Each entry contains:
 | `isBot`            | boolean | Whether the request was classified as bot traffic.     |
 | `bytesSent`        | number  | Size of the response body in bytes.                    |
 | `requestId`        | string  | Correlation ID assigned to the request.                |
+| `durationMs`       | number  | How long Stormkit took to serve the request, in milliseconds. `null` for requests logged before durations were recorded. Measured up to response assembly, so it excludes transfer time to the client. |
 
 ### Error responses
 
@@ -110,7 +113,8 @@ curl -H 'Authorization: <api_key>' \
       "referrer": "",
       "isBot": false,
       "bytesSent": 512,
-      "requestId": "x5818c-47818-ca2de192e"
+      "requestId": "x5818c-47818-ca2de192e",
+      "durationMs": 34
     }
   ],
   "pagination": {

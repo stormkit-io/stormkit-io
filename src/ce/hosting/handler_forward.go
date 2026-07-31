@@ -47,6 +47,11 @@ func HandlerForward(req *RequestContext) (res *shttp.Response) {
 		// same transforms apply uniformly regardless of which path produced it.
 		res = rs.finalize(res)
 
+		// The duration is read here, on the request goroutine, and not inside the
+		// push below: the push is detached, so measuring there would add however
+		// long the scheduler took to pick it up to every recorded request.
+		duration := requestDuration(req)
+
 		// Send artifacts to redis queue with the finalized response visible. The
 		// wait group lets tests (and graceful shutdown) drain in-flight pushes
 		// instead of racing the global Batcher.
@@ -54,7 +59,7 @@ func HandlerForward(req *RequestContext) (res *shttp.Response) {
 
 		go func() {
 			defer artifactsWG.Done()
-			rs.artifacts(res)
+			rs.artifacts(artifactsParams{Response: res, Duration: duration})
 		}()
 	}()
 
@@ -156,8 +161,18 @@ func NewRequestServer(req *RequestContext) *RequestServer {
 	return r
 }
 
-func (r *RequestServer) artifacts(res *shttp.Response) {
+// artifactsParams carries the finalized response and the already-measured
+// request duration. Duration is passed in rather than measured here because
+// artifacts runs on a detached goroutine — see HandlerForward.
+type artifactsParams struct {
+	Response *shttp.Response
+	Duration null.Int
+}
+
+func (r *RequestServer) artifacts(p artifactsParams) {
 	var data []byte
+
+	res := p.Response
 
 	if res == nil || r.req == nil || r.req.Host == nil || r.req.Host.Config == nil {
 		return
@@ -178,8 +193,13 @@ func (r *RequestServer) artifacts(res *shttp.Response) {
 		FunctionInvoked: r.fnInvoked,
 		Logs:            r.logs,
 		Analytics:       r.record,
-		AccessLog:       accessLogRecord(r.req, res, bandwidth),
-		TotalBandwidth:  bandwidth,
+		AccessLog: accessLogRecord(accessLogRecordParams{
+			Req:       r.req,
+			Res:       res,
+			BytesSent: bandwidth,
+			Duration:  p.Duration,
+		}),
+		TotalBandwidth: bandwidth,
 	})
 }
 
@@ -187,7 +207,16 @@ func (r *RequestServer) artifacts(res *shttp.Response) {
 // XHR, static assets and non-HTML responses. Unlike analyticsRecord it applies
 // no filtering and keeps the unmasked client IP and full user-agent; IsBot is
 // recorded as a flag so bot traffic can be included or excluded at query time.
-func accessLogRecord(req *RequestContext, res *shttp.Response, bytesSent int64) *accesslog.AccessLog {
+type accessLogRecordParams struct {
+	Req       *RequestContext
+	Res       *shttp.Response
+	BytesSent int64
+	Duration  null.Int
+}
+
+func accessLogRecord(p accessLogRecordParams) *accesslog.AccessLog {
+	req := p.Req
+
 	if req == nil || req.Host == nil || req.Host.Config == nil {
 		return nil
 	}
@@ -203,14 +232,36 @@ func accessLogRecord(req *RequestContext, res *shttp.Response, bytesSent int64) 
 		RequestTS:    utils.NewUnix(),
 		Method:       req.Method,
 		RequestPath:  req.OriginalPath,
-		StatusCode:   res.Status,
+		StatusCode:   p.Res.Status,
 		ClientIP:     req.RemoteIP(),
 		UserAgent:    userAgent,
 		Referrer:     req.Referer(),
 		IsBot:        analytics.IsBot(userAgent),
-		BytesSent:    bytesSent,
+		BytesSent:    p.BytesSent,
 		RequestID:    null.NewString(req.RequestID, req.RequestID != ""),
+		DurationMS:   p.Duration,
 	}
+}
+
+// requestDuration measures how long the request took, from the moment shttp
+// received it to the point the response was assembled.
+//
+// It must be called on the request goroutine, before the artifacts push is
+// detached: measuring inside that goroutine would fold the scheduler's pickup
+// delay into every recorded request.
+//
+// This deliberately excludes writing the body to the client, so a slow or
+// distant client does not inflate the number — it measures the time Stormkit
+// spent, which is what a latency tail investigation needs.
+//
+// Returns null rather than 0 when StartTime was never stamped, so an unmeasured
+// request is not indistinguishable from an instant one.
+func requestDuration(req *RequestContext) null.Int {
+	if req == nil || req.RequestContext == nil || req.StartTime.IsZero() {
+		return null.Int{}
+	}
+
+	return null.IntFrom(time.Since(req.StartTime).Milliseconds())
 }
 
 func (r *RequestServer) FileMeta() *FileMeta {

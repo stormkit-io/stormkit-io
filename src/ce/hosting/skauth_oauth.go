@@ -61,14 +61,24 @@ func (m *skAuthMiddleware) handleOAuthInitiate(providerName string) (*shttp.Resp
 		return resp, nil
 	}
 
+	// A custom-scheme target delivers the session through a PKCE-bound code, so
+	// the challenge is captured here and carried in the state across the provider
+	// round trip.
+	challenge := req.Query().Get("code_challenge")
+
+	if resp := validateNativeChallenge(redirect, challenge, req.Query().Get("code_challenge_method")); resp != nil {
+		return resp, nil
+	}
+
 	authURL, err := prv.Client(skauth.ClientParams{
 		RedirectURL: m.callbackURL(),
 		Secret:      env.AuthConf.Secret,
 	}).AuthCodeURL(skauth.AuthCodeURLParams{
-		EnvID:        envID,
-		ProviderName: providerName,
-		Referrer:     redirect,
-		Secret:       env.AuthConf.Secret,
+		EnvID:         envID,
+		ProviderName:  providerName,
+		Referrer:      redirect,
+		Secret:        env.AuthConf.Secret,
+		CodeChallenge: challenge,
 	})
 
 	if err != nil {
@@ -241,14 +251,20 @@ func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
 
 	successURL := m.req.Host.Config.SKAuth.SuccessURL
 
+	// The challenge is only honoured together with the referrer it was minted
+	// alongside; validateReferOrigin may have fallen back to this host, in which
+	// case delivery is a plain first-party cookie and the challenge is moot.
+	challenge, _ := claims["cha"].(string)
+
 	// Set a first-party cookie on this auth host (also the OAuth AS) and send the
 	// user straight to the initiating origin — no dependency on that origin
 	// carrying its own auth config. A native app initiating with a custom-scheme
-	// origin gets the token on the redirect instead; see deliverSession.
+	// origin gets a PKCE-bound code on the redirect instead; see deliverSession.
 	return m.deliverSession(deliverSessionParams{
-		Token:  sessionToken,
-		Origin: referOrigin,
-		Path:   successURL,
+		Token:     sessionToken,
+		Origin:    referOrigin,
+		Path:      successURL,
+		Challenge: challenge,
 	}), nil
 }
 

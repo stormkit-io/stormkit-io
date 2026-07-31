@@ -2,13 +2,18 @@ package hosting_test
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/base64"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
+	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
@@ -137,6 +142,27 @@ func (s *WithSKAuthMagicLinkSuite) magicRequestWith(host *hosting.Host, path, me
 	rq.OriginalPath = rawPath
 
 	return rq
+}
+
+// exchangeNativeCode posts a deep-link code and verifier to the redemption
+// endpoint, the way a native app does once the OS hands it the deep link.
+func (s *WithSKAuthMagicLinkSuite) exchangeNativeCode(envID types.ID, code, verifier string) *shttp.Response {
+	form := url.Values{"code": {code}, "code_verifier": {verifier}}
+
+	req := &http.Request{
+		Method: http.MethodPost,
+		Header: http.Header{"Content-Type": {"application/x-www-form-urlencoded"}},
+		Body:   io.NopCloser(strings.NewReader(form.Encode())),
+		URL:    &url.URL{Scheme: "https", Host: s.hostFor(envID).Name, Path: "/_stormkit/auth/token"},
+	}
+
+	rq := &hosting.RequestContext{Host: s.hostFor(envID), RequestContext: shttp.NewRequestContext(req)}
+	rq.OriginalPath = req.URL.Path
+
+	res, err := hosting.ServeAuth(rq)
+	s.Require().NoError(err)
+
+	return res
 }
 
 func (s *WithSKAuthMagicLinkSuite) captureToken(envID types.ID) string {
@@ -420,17 +446,37 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_StaleRedirect_FallsBackToLocal() 
 	s.Equal(buildconf.SessionCookieName, res.Cookies[0].Name)
 }
 
-// Test_Verify_NativeScheme_TokenInRedirect covers the native/mobile path: a
+// nativeVerifier and nativeChallenge are a fixed PKCE S256 pair: the challenge
+// is base64url(sha256(verifier)) unpadded, exactly as a native client computes
+// it before starting sign-in.
+const nativeVerifier = "stormkit-native-test-code-verifier-0123456789"
+
+var nativeChallenge = func() string {
+	sum := sha256.Sum256([]byte(nativeVerifier))
+	return base64.RawURLEncoding.EncodeToString(sum[:])
+}()
+
+// nativeMagicPath builds the magic-link request a native client sends: a
+// custom-scheme redirect plus the PKCE challenge that binds the eventual code.
+func nativeMagicPath(email string) string {
+	return fmt.Sprintf(
+		"/_stormkit/auth/magic?email=%s&redirect=triplan://auth&code_challenge=%s&code_challenge_method=S256",
+		email, nativeChallenge,
+	)
+}
+
+// Test_Verify_NativeScheme_CodeInRedirect covers the native/mobile path: a
 // custom-scheme redirect target has no usable cookie jar (the OS auth session
-// discards Set-Cookie), so the session token rides the redirect URL instead and
-// no cookie is set.
-func (s *WithSKAuthMagicLinkSuite) Test_Verify_NativeScheme_TokenInRedirect() {
+// discards Set-Cookie) and, because a private-use scheme is not exclusively
+// claimable, must be assumed interceptable. So the redirect carries only a
+// single-use PKCE-bound code, never the session token, and sets no cookie.
+func (s *WithSKAuthMagicLinkSuite) Test_Verify_NativeScheme_CodeInRedirect() {
 	env, err := s.setupEnvWithOrigins([]string{"triplan://auth"})
 	s.Require().NoError(err)
 
 	post := s.magicRequestWith(
 		s.hostFor(env.ID),
-		"/_stormkit/auth/magic?email=native@example.com&redirect=triplan://auth",
+		nativeMagicPath("native@example.com"),
 		http.MethodPost,
 		"",
 	)
@@ -453,18 +499,86 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_NativeScheme_TokenInRedirect() {
 	s.Equal("auth", target.Host)
 	s.Empty(target.Path, "the success URL must not be appended to a deep link")
 
-	// The token in the URL is the same session JWT the cookie would have carried.
+	code := target.Query().Get("code")
+	s.Require().NotEmpty(code, "the deep link must carry an exchange code")
+	s.Empty(target.Query().Get("token"), "the session token must never ride the deep link")
+
+	// The code buys the session JWT only when accompanied by the verifier.
+	exchanged := s.exchangeNativeCode(env.ID, code, nativeVerifier)
+
+	s.Require().Equal(http.StatusOK, exchanged.Status)
+
+	data, ok := exchanged.Data.(map[string]any)
+	s.Require().True(ok)
+
 	claims := user.ParseJWT(&user.ParseJWTArgs{
-		Bearer: target.Query().Get("token"),
+		Bearer: data["token"].(string),
 		Secret: env.AuthConf.Secret,
 	})
 
-	s.Require().NotNil(claims, "the redirected token must be a valid session JWT")
+	s.Require().NotNil(claims, "the exchanged token must be a valid session JWT")
 
 	uid, ok := claims["uid"].(string)
 	s.Require().True(ok)
 	_, err = uuid.Parse(uid)
 	s.NoError(err, "uid claim should be a valid UUID, got %q", uid)
+
+	// Single use: the same code must not buy a second session.
+	s.Equal(http.StatusBadRequest, s.exchangeNativeCode(env.ID, code, nativeVerifier).Status)
+}
+
+// Test_Exchange_WrongVerifier_Rejected is the whole point of the PKCE binding:
+// an app that intercepted the deep link holds the code but not the verifier, so
+// the exchange must refuse it.
+func (s *WithSKAuthMagicLinkSuite) Test_Exchange_WrongVerifier_Rejected() {
+	env, err := s.setupEnvWithOrigins([]string{"triplan://auth"})
+	s.Require().NoError(err)
+
+	post := s.magicRequestWith(
+		s.hostFor(env.ID),
+		nativeMagicPath("interceptee@example.com"),
+		http.MethodPost,
+		"",
+	)
+	_, err = hosting.ServeAuth(post)
+	s.Require().NoError(err)
+
+	res, err := hosting.ServeAuth(s.magicRequest(
+		s.hostFor(env.ID),
+		fmt.Sprintf("/_stormkit/auth/magic?token=%s", s.captureToken(env.ID)),
+	))
+	s.Require().NoError(err)
+	s.Require().NotNil(res.Redirect)
+
+	target, err := url.Parse(*res.Redirect)
+	s.Require().NoError(err)
+
+	code := target.Query().Get("code")
+	s.Require().NotEmpty(code)
+
+	s.Equal(http.StatusBadRequest, s.exchangeNativeCode(env.ID, code, "not-the-verifier").Status)
+
+	// The failed attempt still consumed the code, so the interceptor cannot retry
+	// and the legitimate app's exchange is dead too — a signal, not a silent loss.
+	s.Equal(http.StatusBadRequest, s.exchangeNativeCode(env.ID, code, nativeVerifier).Status)
+}
+
+// Test_Request_NativeScheme_WithoutChallenge_Returns400 pins the fail-closed
+// rule: custom-scheme sign-in is refused outright without PKCE rather than
+// degrading to putting the session token in an interceptable URL.
+func (s *WithSKAuthMagicLinkSuite) Test_Request_NativeScheme_WithoutChallenge_Returns400() {
+	env, err := s.setupEnvWithOrigins([]string{"triplan://auth"})
+	s.Require().NoError(err)
+
+	res, err := hosting.ServeAuth(s.magicRequestWith(
+		s.hostFor(env.ID),
+		"/_stormkit/auth/magic?email=nopkce@example.com&redirect=triplan://auth",
+		http.MethodPost,
+		"",
+	))
+
+	s.NoError(err)
+	s.Equal(http.StatusBadRequest, res.Status)
 }
 
 // Test_Verify_NativeScheme_ErrorRedirect verifies a failed sign-in bounces back
@@ -475,7 +589,7 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_NativeScheme_ErrorRedirect() {
 
 	post := s.magicRequestWith(
 		s.hostFor(env.ID),
-		"/_stormkit/auth/magic?email=nativeerr@example.com&redirect=triplan://auth",
+		nativeMagicPath("nativeerr@example.com"),
 		http.MethodPost,
 		"",
 	)
@@ -497,6 +611,56 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_NativeScheme_ErrorRedirect() {
 	s.Require().NotNil(second.Redirect)
 	s.Contains(*second.Redirect, "triplan://auth?login_error=")
 	s.NotContains(*second.Redirect, "/dashboard")
+}
+
+// Test_Verify_NativeScheme_ExpiredToken_ErrorOnDeepLink covers the most common
+// magic-link failure. The signature check rejects an expired token, so the
+// redirect target has to be recovered from the unvalidated claims — otherwise a
+// native user lands on this host and the system sign-in sheet never closes.
+func (s *WithSKAuthMagicLinkSuite) Test_Verify_NativeScheme_ExpiredToken_ErrorOnDeepLink() {
+	env, err := s.setupEnvWithOrigins([]string{"triplan://auth"})
+	s.Require().NoError(err)
+
+	expired, err := user.JWT(jwt.MapClaims{
+		"exp": time.Now().Add(-time.Hour).Unix(),
+		"prv": skauth.ProviderMagicLink,
+		"rdr": "triplan://auth",
+	}, env.AuthConf.Secret)
+	s.Require().NoError(err)
+
+	res, err := hosting.ServeAuth(s.magicRequest(
+		s.hostFor(env.ID),
+		fmt.Sprintf("/_stormkit/auth/magic?token=%s", expired),
+	))
+
+	s.NoError(err)
+	s.Equal(http.StatusFound, res.Status)
+	s.Require().NotNil(res.Redirect)
+	s.Contains(*res.Redirect, "triplan://auth?login_error=")
+}
+
+// A recovered redirect is still only honoured when it is allow-listed, so a
+// forged claim cannot aim the error redirect at an origin the operator never
+// registered.
+func (s *WithSKAuthMagicLinkSuite) Test_Verify_ExpiredToken_ForgedRedirect_StaysLocal() {
+	env, err := s.setupEnvWithOrigins([]string{"triplan://auth"})
+	s.Require().NoError(err)
+
+	forged, err := user.JWT(jwt.MapClaims{
+		"exp": time.Now().Add(-time.Hour).Unix(),
+		"prv": skauth.ProviderMagicLink,
+		"rdr": "evil://auth",
+	}, env.AuthConf.Secret)
+	s.Require().NoError(err)
+
+	res, err := hosting.ServeAuth(s.magicRequest(
+		s.hostFor(env.ID),
+		fmt.Sprintf("/_stormkit/auth/magic?token=%s", forged),
+	))
+
+	s.NoError(err)
+	s.Require().NotNil(res.Redirect)
+	s.NotContains(*res.Redirect, "evil://auth")
 }
 
 // Test_Request_NativeScheme_NotAllowListed_Returns403 guards the token-leak

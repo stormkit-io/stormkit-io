@@ -179,17 +179,27 @@ type AuthCodeURLParams struct {
 	// accepted by another) and shares the session token's signing key. An empty
 	// value falls back to the global app secret in JWT().
 	Secret string
+	// CodeChallenge is the PKCE S256 challenge a native client supplied when the
+	// Referrer is a custom-scheme deep link. It rides the state so the callback
+	// can bind the session code it hands back to that challenge.
+	CodeChallenge string
 }
 
 // Claims returns the JWT claims for the authorization request, including
 // environment ID, provider name and a short expiry that bounds state replay.
 func (a AuthCodeURLParams) Claims() jwt.MapClaims {
-	return jwt.MapClaims{
+	claims := jwt.MapClaims{
 		"eid": a.EnvID,
 		"prv": a.ProviderName,
 		"ref": a.Referrer,
 		"exp": time.Now().Add(oauthStateTTL).Unix(),
 	}
+
+	if a.CodeChallenge != "" {
+		claims["cha"] = a.CodeChallenge
+	}
+
+	return claims
 }
 
 type Client interface {
