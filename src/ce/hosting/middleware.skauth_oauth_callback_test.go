@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
@@ -391,4 +392,88 @@ func (s *WithSKAuthOAuthSuite) Test_Callback_ExchangeFails_RedirectsWithError() 
 	s.Require().NotNil(res.Redirect)
 	s.Contains(*res.Redirect, "https://app.example.com/dashboard?login_error=")
 	s.Contains(*res.Redirect, "complete+sign-in")
+}
+
+// Test_Callback_NativeScheme_TokenInRedirect covers the native/mobile OAuth
+// path: the sign-in runs inside a system auth session whose cookie jar discards
+// Set-Cookie, so an allow-listed custom-scheme target receives the session token
+// in the redirect URL and no cookie at all.
+func (s *WithSKAuthOAuthSuite) Test_Callback_NativeScheme_TokenInRedirect() {
+	host := s.setupCallbackEnvWith(true, &buildconf.SKAuthConf{
+		Secret:         "test-secret-padded-to-32-chars!!",
+		Status:         true,
+		AllowedOrigins: []string{"triplan://auth"},
+	})
+
+	token := &oauth2.Token{}
+
+	s.mockClient.On("Exchange", mock.Anything, mock.Anything).Return(token, nil).Once()
+	s.mockClient.On("UserInfo", mock.Anything, token).Return(&skauth.UserInfo{
+		AccountID:     "native-account-id",
+		Email:         "native@stormkit.io",
+		EmailVerified: true,
+		FirstName:     "Nat",
+	}, nil).Once()
+
+	state := s.stateToken(skauth.ProviderGoogle, "triplan://auth")
+
+	res, err := hosting.ServeAuth(s.oauthRequest(
+		host,
+		fmt.Sprintf("/_stormkit/auth/callback?state=%s&code=test-code", state),
+		nil,
+	))
+
+	s.Require().NoError(err)
+	s.Require().NotNil(res)
+	s.Equal(http.StatusFound, res.Status)
+	s.Require().NotNil(res.Redirect)
+	s.Empty(res.Cookies, "a native custom-scheme delivery must not set a cookie")
+
+	target, err := url.Parse(*res.Redirect)
+	s.Require().NoError(err)
+	s.Equal("triplan", target.Scheme)
+	s.Equal("auth", target.Host)
+	s.Empty(target.Path, "the success URL must not be appended to a deep link")
+
+	claims := user.ParseJWT(&user.ParseJWTArgs{
+		Bearer: target.Query().Get("token"),
+		Secret: "test-secret-padded-to-32-chars!!",
+	})
+
+	s.Require().NotNil(claims, "the redirected token must be a valid session JWT")
+	s.NotEmpty(claims["uid"])
+}
+
+// Test_Callback_NativeScheme_NotAllowListed_StaysFirstParty guards the token
+// leak: a custom scheme that is not on the allow-list must not receive a token,
+// and the flow falls back to a first-party cookie on this host.
+func (s *WithSKAuthOAuthSuite) Test_Callback_NativeScheme_NotAllowListed_StaysFirstParty() {
+	host := s.setupCallbackEnv(true)
+
+	token := &oauth2.Token{}
+
+	s.mockClient.On("Exchange", mock.Anything, mock.Anything).Return(token, nil).Once()
+	s.mockClient.On("UserInfo", mock.Anything, token).Return(&skauth.UserInfo{
+		AccountID:     "evil-account-id",
+		Email:         "evil@stormkit.io",
+		EmailVerified: true,
+		FirstName:     "Eve",
+	}, nil).Once()
+
+	state := s.stateToken(skauth.ProviderGoogle, "evil://auth")
+
+	res, err := hosting.ServeAuth(s.oauthRequest(
+		host,
+		fmt.Sprintf("/_stormkit/auth/callback?state=%s&code=test-code", state),
+		nil,
+	))
+
+	s.Require().NoError(err)
+	s.Require().NotNil(res)
+	s.Equal(http.StatusFound, res.Status)
+	s.Require().NotNil(res.Redirect)
+	s.Equal("https://api.example.com/dashboard", *res.Redirect)
+	s.NotContains(*res.Redirect, "token=")
+	s.Require().Len(res.Cookies, 1, "the fallback must stay on the first-party cookie")
+	s.Equal(buildconf.SessionCookieName, res.Cookies[0].Name)
 }

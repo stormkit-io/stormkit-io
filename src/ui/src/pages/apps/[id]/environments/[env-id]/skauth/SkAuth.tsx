@@ -323,14 +323,14 @@ export default function SkAuth() {
           <TextField
             label="Allowed origins"
             name="allowedOrigins"
-            placeholder={"https://app.example.com\nhttps://dev.example.com"}
+            placeholder={"https://app.example.com\nhttps://dev.example.com\nmyapp://auth"}
             fullWidth
             multiline
             minRows={3}
             defaultValue={(config?.allowedOrigins || []).join("\n")}
             variant="filled"
             autoComplete="off"
-            helperText="Optional. One origin per line (scheme + host, no path). Origins allowed for cross-origin sign-in. Leave empty for single-host setups."
+            helperText="Optional. One origin per line (scheme + host, no path). Origins allowed for cross-origin sign-in. A native app's deep link (e.g. myapp://auth) goes here too — sign-in then returns the session token on that link instead of a cookie. Leave empty for single-host setups."
             slotProps={{
               inputLabel: {
                 shrink: true,

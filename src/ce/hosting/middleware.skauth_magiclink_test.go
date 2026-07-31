@@ -420,6 +420,103 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_StaleRedirect_FallsBackToLocal() 
 	s.Equal(buildconf.SessionCookieName, res.Cookies[0].Name)
 }
 
+// Test_Verify_NativeScheme_TokenInRedirect covers the native/mobile path: a
+// custom-scheme redirect target has no usable cookie jar (the OS auth session
+// discards Set-Cookie), so the session token rides the redirect URL instead and
+// no cookie is set.
+func (s *WithSKAuthMagicLinkSuite) Test_Verify_NativeScheme_TokenInRedirect() {
+	env, err := s.setupEnvWithOrigins([]string{"triplan://auth"})
+	s.Require().NoError(err)
+
+	post := s.magicRequestWith(
+		s.hostFor(env.ID),
+		"/_stormkit/auth/magic?email=native@example.com&redirect=triplan://auth",
+		http.MethodPost,
+		"",
+	)
+	_, err = hosting.ServeAuth(post)
+	s.Require().NoError(err)
+
+	token := s.captureToken(env.ID)
+	s.Require().NotEmpty(token)
+
+	res, err := hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), fmt.Sprintf("/_stormkit/auth/magic?token=%s", token)))
+
+	s.NoError(err)
+	s.Equal(http.StatusFound, res.Status)
+	s.Require().NotNil(res.Redirect)
+	s.Empty(res.Cookies, "a native custom-scheme delivery must not set a cookie")
+
+	target, err := url.Parse(*res.Redirect)
+	s.Require().NoError(err)
+	s.Equal("triplan", target.Scheme)
+	s.Equal("auth", target.Host)
+	s.Empty(target.Path, "the success URL must not be appended to a deep link")
+
+	// The token in the URL is the same session JWT the cookie would have carried.
+	claims := user.ParseJWT(&user.ParseJWTArgs{
+		Bearer: target.Query().Get("token"),
+		Secret: env.AuthConf.Secret,
+	})
+
+	s.Require().NotNil(claims, "the redirected token must be a valid session JWT")
+
+	uid, ok := claims["uid"].(string)
+	s.Require().True(ok)
+	_, err = uuid.Parse(uid)
+	s.NoError(err, "uid claim should be a valid UUID, got %q", uid)
+}
+
+// Test_Verify_NativeScheme_ErrorRedirect verifies a failed sign-in bounces back
+// to the deep link itself — there is no success page to land on in a native app.
+func (s *WithSKAuthMagicLinkSuite) Test_Verify_NativeScheme_ErrorRedirect() {
+	env, err := s.setupEnvWithOrigins([]string{"triplan://auth"})
+	s.Require().NoError(err)
+
+	post := s.magicRequestWith(
+		s.hostFor(env.ID),
+		"/_stormkit/auth/magic?email=nativeerr@example.com&redirect=triplan://auth",
+		http.MethodPost,
+		"",
+	)
+	_, err = hosting.ServeAuth(post)
+	s.Require().NoError(err)
+
+	token := s.captureToken(env.ID)
+	path := fmt.Sprintf("/_stormkit/auth/magic?token=%s", token)
+
+	first, err := hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), path))
+	s.Require().NoError(err)
+	s.Require().Equal(http.StatusFound, first.Status)
+
+	// Replaying the consumed token must land the error on the deep link.
+	second, err := hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), path))
+
+	s.NoError(err)
+	s.Equal(http.StatusFound, second.Status)
+	s.Require().NotNil(second.Redirect)
+	s.Contains(*second.Redirect, "triplan://auth?login_error=")
+	s.NotContains(*second.Redirect, "/dashboard")
+}
+
+// Test_Request_NativeScheme_NotAllowListed_Returns403 guards the token-leak
+// vector: an unregistered custom scheme must never become a delivery target.
+func (s *WithSKAuthMagicLinkSuite) Test_Request_NativeScheme_NotAllowListed_Returns403() {
+	env, err := s.setupEnvWithOrigins([]string{"https://app.example.com"})
+	s.Require().NoError(err)
+
+	rq := s.magicRequestWith(
+		s.hostFor(env.ID),
+		"/_stormkit/auth/magic?email=evil@example.com&redirect=evil://auth",
+		http.MethodPost,
+		"",
+	)
+	res, err := hosting.ServeAuth(rq)
+
+	s.NoError(err)
+	s.Equal(http.StatusForbidden, res.Status)
+}
+
 func truncateMagicLinkAuthTables() {
 	db, err := sql.Open("postgres", database.ConnectionString(database.Config))
 

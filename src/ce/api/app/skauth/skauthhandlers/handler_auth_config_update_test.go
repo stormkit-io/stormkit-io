@@ -234,6 +234,75 @@ func (s *HandlerAuthConfigUpdateSuite) Test_Update_RejectsProtocolRelativeLoginU
 	s.Equal(http.StatusBadRequest, response.Code)
 }
 
+// Test_Update_AllowedOrigins_AcceptsNativeScheme pins the native sign-in
+// contract: a mobile app's deep link is a valid allowed origin, which is what
+// lets the browser sign-in flows return the session token on that scheme instead
+// of a cookie.
+func (s *HandlerAuthConfigUpdateSuite) Test_Update_AllowedOrigins_AcceptsNativeScheme() {
+	s.mockCacheService.On("Reset", types.ID(s.env.ID)).Return(nil).Once()
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/skauth/config",
+		map[string]any{
+			"envId":          s.env.ID,
+			"status":         true,
+			"allowedOrigins": []string{"https://app.example.com", "myapp://auth"},
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(s.usr.ID),
+		},
+	)
+
+	s.Require().Equal(http.StatusOK, response.Code)
+
+	env, err := buildconf.NewStore().EnvironmentByID(context.Background(), types.ID(s.env.ID))
+	s.Require().NoError(err)
+	s.Equal([]string{"https://app.example.com", "myapp://auth"}, env.AuthConf.AllowedOrigins)
+}
+
+// Test_Update_AllowedOrigins_RejectsPathBearingScheme guards the token-delivery
+// target: an origin carrying a path can never match a resolved origin, so
+// allowing it would silently misconfigure the allow-list.
+func (s *HandlerAuthConfigUpdateSuite) Test_Update_AllowedOrigins_RejectsPathBearingScheme() {
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/skauth/config",
+		map[string]any{
+			"envId":          s.env.ID,
+			"status":         true,
+			"allowedOrigins": []string{"myapp://auth/callback"},
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(s.usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusBadRequest, response.Code)
+}
+
+// Test_Update_AllowedOrigins_RejectsHostlessScheme rejects a bare scheme: with no
+// host there is nothing to match, so it would never authorize a redirect.
+func (s *HandlerAuthConfigUpdateSuite) Test_Update_AllowedOrigins_RejectsHostlessScheme() {
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/skauth/config",
+		map[string]any{
+			"envId":          s.env.ID,
+			"status":         true,
+			"allowedOrigins": []string{"myapp://"},
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(s.usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusBadRequest, response.Code)
+}
+
 func TestHandlerAuthConfigUpdate(t *testing.T) {
 	suite.Run(t, &HandlerAuthConfigUpdateSuite{})
 }

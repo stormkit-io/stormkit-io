@@ -243,8 +243,13 @@ func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
 
 	// Set a first-party cookie on this auth host (also the OAuth AS) and send the
 	// user straight to the initiating origin — no dependency on that origin
-	// carrying its own auth config.
-	return m.deliverSession(sessionToken, referOrigin+successURL), nil
+	// carrying its own auth config. A native app initiating with a custom-scheme
+	// origin gets the token on the redirect instead; see deliverSession.
+	return m.deliverSession(deliverSessionParams{
+		Token:  sessionToken,
+		Origin: referOrigin,
+		Path:   successURL,
+	}), nil
 }
 
 // resolveRedirect determines and validates the post-login redirect origin.

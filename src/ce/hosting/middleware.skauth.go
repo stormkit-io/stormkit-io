@@ -84,21 +84,68 @@ func (m *skAuthMiddleware) handleLogout() (*shttp.Response, error) {
 	}, nil
 }
 
-// deliverSession sets the session cookie and 302s to redirectURL. Used by the
-// browser login landings (email verify, magic link, OAuth-provider callback);
-// the cookie is first-party to this auth host, so it is also readable by the
-// OAuth /authorize navigation. redirectURL is a relative path or an absolute URL
-// on the destination origin.
-func (m *skAuthMiddleware) deliverSession(token, redirectURL string) *shttp.Response {
+// deliverSessionParams describes where a freshly minted session token is headed.
+// Origin is the already allow-list-validated destination origin (scheme + host,
+// no path) and is empty for a same-host landing. Path is the relative landing
+// path — the configured SuccessURL, sometimes carrying a query — appended to
+// Origin for browser targets.
+type deliverSessionParams struct {
+	Token  string
+	Origin string
+	Path   string
+}
+
+// deliverSession hands the session token to the client and 302s onward. Used by
+// the login landings (email verify, magic link, OAuth-provider callback).
+//
+// Browsers receive it as the HttpOnly session cookie — first-party to this auth
+// host, so it is also readable by the OAuth /authorize navigation — and land on
+// Origin+Path. A native app, identified by a custom-scheme Origin such as
+// triplan://auth, has no usable cookie jar: the system auth session
+// (ASWebAuthenticationSession / Custom Tabs) discards Set-Cookie. For those the
+// token rides the redirect URL instead and no cookie is set. The scheme is
+// claimed by the owning app, so the OS hands the URL only to it, and Origin has
+// already been matched against the configured allow-list by the caller.
+func (m *skAuthMiddleware) deliverSession(p deliverSessionParams) *shttp.Response {
+	headers := shttp.HeadersFromMap(map[string]string{
+		"Cache-Control":   "no-store",
+		"Referrer-Policy": "no-referrer",
+	})
+
+	if isNativeSchemeOrigin(p.Origin) {
+		target := p.Origin + "?token=" + url.QueryEscape(p.Token)
+
+		return &shttp.Response{
+			Status:   http.StatusFound,
+			Redirect: &target,
+			Headers:  headers,
+		}
+	}
+
+	target := p.Origin + p.Path
+
 	return &shttp.Response{
 		Status:   http.StatusFound,
-		Redirect: &redirectURL,
-		Cookies:  []http.Cookie{m.sessionCookieFor(token)},
-		Headers: shttp.HeadersFromMap(map[string]string{
-			"Cache-Control":   "no-store",
-			"Referrer-Policy": "no-referrer",
-		}),
+		Redirect: &target,
+		Cookies:  []http.Cookie{m.sessionCookieFor(p.Token)},
+		Headers:  headers,
 	}
+}
+
+// isNativeSchemeOrigin reports whether origin uses a custom (non-http(s)) scheme
+// such as triplan://auth — the redirect target a native app registers in the
+// environment's allowed origins. It only classifies the scheme; the caller is
+// responsible for having validated origin against the allow-list first.
+func isNativeSchemeOrigin(origin string) bool {
+	scheme, _, ok := strings.Cut(origin, "://")
+
+	if !ok || scheme == "" {
+		return false
+	}
+
+	scheme = strings.ToLower(scheme)
+
+	return scheme != "http" && scheme != "https"
 }
 
 func (m *skAuthMiddleware) handleRegisterLogin(path string) (*shttp.Response, error) {
@@ -132,7 +179,10 @@ func (m *skAuthMiddleware) handleVerify() (*shttp.Response, error) {
 
 	token, _ := data["token"].(string)
 
-	return m.deliverSession(token, m.req.Host.Config.SKAuth.SuccessURL+"?verified=true"), nil
+	return m.deliverSession(deliverSessionParams{
+		Token: token,
+		Path:  m.req.Host.Config.SKAuth.SuccessURL + "?verified=true",
+	}), nil
 }
 
 func (m *skAuthMiddleware) handleMagicLinkRequest() (*shttp.Response, error) {
@@ -187,15 +237,24 @@ func (m *skAuthMiddleware) handleMagicLinkVerify() (*shttp.Response, error) {
 	successURL := m.req.Host.Config.SKAuth.SuccessURL
 	token, _ := data["token"].(string)
 
-	// Cross-origin: the POST came from a whitelisted frontend. The session cookie
-	// is first-party to this auth host (also the OAuth AS), so it is set here and
-	// the browser is sent straight to the destination origin — no dependency on
-	// the frontend host carrying its own auth config.
+	// Cross-origin: the request came from a whitelisted frontend, whose origin the
+	// magic-link token carried in its `rdr` claim and magicLinkVerify re-validated
+	// against the allow-list. The session cookie is first-party to this auth host
+	// (also the OAuth AS), so it is set here and the browser is sent straight to
+	// the destination origin — no dependency on the frontend host carrying its own
+	// auth config. A native custom-scheme origin gets the token in the URL instead.
 	if redirect, _ := data["redirect"].(string); redirect != "" {
-		return m.deliverSession(token, redirect+successURL), nil
+		return m.deliverSession(deliverSessionParams{
+			Token:  token,
+			Origin: redirect,
+			Path:   successURL,
+		}), nil
 	}
 
-	return m.deliverSession(token, successURL+"?verified=true"), nil
+	return m.deliverSession(deliverSessionParams{
+		Token: token,
+		Path:  successURL + "?verified=true",
+	}), nil
 }
 
 // finalizeSessionResponse adapts a successful JSON auth response (login,
@@ -290,10 +349,20 @@ func (m *skAuthMiddleware) cookieOriginAllowed() bool {
 // (origin + SuccessURL) with a user-friendly message in the login_error query
 // param, instead of rendering a Stormkit error page. The underlying cause should
 // be logged by the caller. Used by both the OAuth and magic-link flows.
+//
+// A native custom-scheme origin has no SuccessURL page to land on — it is the
+// deep link itself — so the message is hung off the bare origin, mirroring how
+// deliverSession returns the token there.
 func (m *skAuthMiddleware) loginErrorRedirect(origin, message string) *shttp.Response {
+	path := m.req.Host.Config.SKAuth.SuccessURL
+
+	if isNativeSchemeOrigin(origin) {
+		path = ""
+	}
+
 	target := fmt.Sprintf("%s%s?login_error=%s",
 		origin,
-		m.req.Host.Config.SKAuth.SuccessURL,
+		path,
 		url.QueryEscape(message),
 	)
 
