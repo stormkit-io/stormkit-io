@@ -78,7 +78,7 @@ func mcpAllTools() []mcpToolDef {
 		},
 		{
 			Name:        "get_access_logs",
-			Description: "Return raw HTTP access logs (one entry per request served) for an environment, newest first. Defaults to the last 24 hours when 'from' is omitted. Paginate with beforeId using pagination.beforeId from the previous response.",
+			Description: "Return raw HTTP access logs (one entry per request served) for an environment, newest first. Defaults to the last 24 hours when 'from' is omitted. Paginate by passing pagination.cursor from the previous response.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -92,7 +92,7 @@ func mcpAllTools() []mcpToolDef {
 					"path":     map[string]any{"type": "string", "description": "Only return requests whose path starts with this value."},
 					"status":   map[string]any{"type": "string", "description": "Only return requests answered with this HTTP status code."},
 					"isBot":    map[string]any{"type": "boolean", "description": "Filter bot traffic in or out. Omit to return both."},
-					"beforeId": map[string]any{"type": "string", "description": "Return entries older than this access log id."},
+					"cursor":   map[string]any{"type": "string", "description": "Opaque pagination cursor. Pass pagination.cursor from the previous response back verbatim to fetch the next page."},
 				},
 				"required":             []string{"envId"},
 				"additionalProperties": false,
@@ -736,7 +736,7 @@ func mcpGetAccessLogs(req *RequestContextMCP, args map[string]any) *shttp.Respon
 		"method":   stringArg(args, "method"),
 		"path":     stringArg(args, "path"),
 		"status":   stringArg(args, "status"),
-		"beforeId": stringArg(args, "beforeId"),
+		"cursor":   stringArg(args, "cursor"),
 	}
 
 	if isBot := boolPtrArg(args, "isBot"); isBot != nil {

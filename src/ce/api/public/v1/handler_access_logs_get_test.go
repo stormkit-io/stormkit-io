@@ -182,8 +182,16 @@ func (s *HandlerAccessLogsGetSuite) Test_Success_HasNextPage() {
 	s.Len(paths, 1)
 	s.Equal(true, pagination["hasNextPage"])
 
-	// The cursor is the last returned entry; paging with it returns the rest.
-	res = s.request(fmt.Sprintf("&beforeId=%s", pagination["beforeId"]), usertest.Authorization(s.user.ID))
+	// A single opaque cursor carries both halves of the sort key, so the next
+	// page is a keyset seek on (request_timestamp, log_id) rather than a scan.
+	s.NotEmpty(pagination["cursor"])
+
+	// The cursor marks the last returned entry; paging with it returns the rest.
+	res = s.request(
+		fmt.Sprintf("&cursor=%s", pagination["cursor"]),
+		usertest.Authorization(s.user.ID),
+	)
+
 	next, _ := s.paths(res)
 
 	s.Len(next, 1)

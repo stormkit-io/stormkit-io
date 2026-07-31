@@ -115,6 +115,81 @@ func (s *StoreSuite) Test_InsertAndSelect() {
 	s.Equal("/robots.txt", robots[0].RequestPath)
 }
 
+// Paging walks the same (request_timestamp, log_id) tuple the query orders by,
+// so entries sharing a timestamp are returned exactly once rather than being
+// skipped or repeated across page boundaries.
+func (s *StoreSuite) Test_SelectLogs_KeysetPagination() {
+	app := s.MockApp(nil)
+	env := s.MockEnv(app)
+	ctx := context.Background()
+
+	shared := utils.UnixFrom(time.Now().Add(-10 * time.Minute))
+	older := utils.UnixFrom(time.Now().Add(-20 * time.Minute))
+
+	logs := []accesslog.AccessLog{}
+
+	for _, tc := range []struct {
+		path string
+		ts   utils.Unix
+	}{
+		{"/a", shared},
+		{"/b", shared},
+		{"/c", shared},
+		{"/d", older},
+		{"/e", older},
+	} {
+		logs = append(logs, accesslog.AccessLog{
+			AppID:       app.ID,
+			EnvID:       env.ID,
+			HostName:    "example.com",
+			RequestTS:   tc.ts,
+			Method:      http.MethodGet,
+			RequestPath: tc.path,
+			StatusCode:  http.StatusOK,
+		})
+	}
+
+	s.Require().NoError(accesslog.NewStore().InsertLogs(ctx, logs))
+
+	params := accesslog.SelectLogsParams{
+		AppID: app.ID,
+		From:  utils.UnixFrom(time.Now().Add(-time.Hour)),
+		To:    utils.UnixFrom(time.Now()),
+		Limit: 2,
+	}
+
+	seen := []string{}
+
+	for range logs {
+		page, err := accesslog.NewStore().SelectLogs(ctx, params)
+		s.Require().NoError(err)
+
+		if len(page) == 0 {
+			break
+		}
+
+		if len(page) > params.Limit {
+			page = page[:params.Limit]
+		}
+
+		for _, l := range page {
+			seen = append(seen, l.RequestPath)
+		}
+
+		last := page[len(page)-1]
+		params.BeforeID = last.ID
+		params.BeforeTS = last.RequestTS
+	}
+
+	s.Len(seen, len(logs))
+	s.ElementsMatch([]string{"/a", "/b", "/c", "/d", "/e"}, seen)
+
+	// Newest first: the entries sharing the later timestamp all precede the
+	// older pair, regardless of how the pages happened to split.
+	s.ElementsMatch([]string{"/a", "/b", "/c"}, seen[:3])
+	s.ElementsMatch([]string{"/d", "/e"}, seen[3:])
+}
+
 func TestStore(t *testing.T) {
 	suite.Run(t, &StoreSuite{})
 }
