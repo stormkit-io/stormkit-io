@@ -102,6 +102,7 @@ func (s *Store) InsertLogs(ctx context.Context, logs []AccessLog) error {
 // instead of scanning the full retention window.
 type SelectLogsParams struct {
 	AppID    types.ID
+	EnvID    types.ID
 	DomainID types.ID
 	HostName string
 	ClientIP string
@@ -136,6 +137,10 @@ func (s *Store) SelectLogs(ctx context.Context, p SelectLogsParams) ([]AccessLog
 
 	if p.AppID > 0 {
 		add("app_id = $%d", p.AppID)
+	}
+
+	if p.EnvID > 0 {
+		add("env_id = $%d", p.EnvID)
 	}
 
 	if p.DomainID > 0 {

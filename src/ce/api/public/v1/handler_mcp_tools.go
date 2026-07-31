@@ -3,6 +3,7 @@ package publicapiv1
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/redirects"
@@ -72,6 +73,28 @@ func mcpAllTools() []mcpToolDef {
 					"beforeId":     map[string]any{"type": "string", "description": "Return logs newer than this log id. Use with sort 'asc'."},
 				},
 				"required":             []string{"deploymentId", "envId"},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "get_access_logs",
+			Description: "Return raw HTTP access logs (one entry per request served) for an environment, newest first. Defaults to the last 24 hours when 'from' is omitted. Paginate with beforeId using pagination.beforeId from the previous response.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"envId":    map[string]any{"type": "string", "description": "Environment to read access logs for."},
+					"from":     map[string]any{"type": "string", "description": "Only return requests at or after this unix timestamp, in seconds. Defaults to 24 hours ago."},
+					"to":       map[string]any{"type": "string", "description": "Only return requests at or before this unix timestamp, in seconds."},
+					"domainId": map[string]any{"type": "string", "description": "Only return requests served for this domain."},
+					"hostName": map[string]any{"type": "string", "description": "Only return requests for this host name."},
+					"clientIp": map[string]any{"type": "string", "description": "Only return requests from this client IP."},
+					"method":   map[string]any{"type": "string", "description": "Only return requests with this HTTP method, e.g. GET."},
+					"path":     map[string]any{"type": "string", "description": "Only return requests whose path starts with this value."},
+					"status":   map[string]any{"type": "string", "description": "Only return requests answered with this HTTP status code."},
+					"isBot":    map[string]any{"type": "boolean", "description": "Filter bot traffic in or out. Omit to return both."},
+					"beforeId": map[string]any{"type": "string", "description": "Return entries older than this access log id."},
+				},
+				"required":             []string{"envId"},
 				"additionalProperties": false,
 			},
 		},
@@ -697,6 +720,32 @@ func mcpGetRuntimeLogs(req *RequestContextMCP, args map[string]any) *shttp.Respo
 	})
 
 	return handlerDeploymentRuntimeLogsGet(req.RequestContext)
+}
+
+func mcpGetAccessLogs(req *RequestContextMCP, args map[string]any) *shttp.Response {
+	if resp := req.withEnv(args); resp != nil {
+		return resp
+	}
+
+	query := map[string]string{
+		"from":     stringArg(args, "from"),
+		"to":       stringArg(args, "to"),
+		"domainId": stringArg(args, "domainId"),
+		"hostName": stringArg(args, "hostName"),
+		"clientIp": stringArg(args, "clientIp"),
+		"method":   stringArg(args, "method"),
+		"path":     stringArg(args, "path"),
+		"status":   stringArg(args, "status"),
+		"beforeId": stringArg(args, "beforeId"),
+	}
+
+	if isBot := boolPtrArg(args, "isBot"); isBot != nil {
+		query["isBot"] = strconv.FormatBool(*isBot)
+	}
+
+	req.setQuery(query)
+
+	return handlerAccessLogsGet(req.RequestContext)
 }
 
 func mcpPublishDeployment(req *RequestContextMCP, args map[string]any) *shttp.Response {

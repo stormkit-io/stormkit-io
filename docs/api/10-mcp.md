@@ -88,6 +88,12 @@ All tools return JSON. Errors are reported as MCP `isError` content while the tr
 | `prioritize_deployment` | Move a queued deployment to the front of the build queue.                   |
 | `delete_deployment`     | Delete a deployment and its artifacts.                                      |
 
+### Access logs
+
+| Tool              | Description                                                                    |
+| ----------------- | ------------------------------------------------------------------------------ |
+| `get_access_logs` | Return raw HTTP access logs for an environment, newest first (last 24h by default). |
+
 ### Apps & environments
 
 | Tool                 | Description                                                       |

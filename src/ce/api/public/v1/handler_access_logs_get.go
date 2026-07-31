@@ -1,15 +1,23 @@
-package adminhandlers
+package publicapiv1
 
 import (
 	"net/http"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/accesslog"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 )
 
-func handlerAccessLogs(req *user.RequestContext) *shttp.Response {
+// AccessLogsLimit is the maximum number of access log entries returned per page.
+var AccessLogsLimit = accesslog.DefaultLimit
+
+func handlerAccessLogsGet(req *RequestContext) *shttp.Response {
 	params := accesslog.SelectLogsParamsFromQuery(req.Query())
+
+	// The API key authorizes a single environment, so the app and environment
+	// filters are taken from the token rather than from the query string.
+	params.AppID = req.App.ID
+	params.EnvID = req.Env.ID
+	params.Limit = AccessLogsLimit
 
 	logs, err := accesslog.NewStore().SelectLogs(req.Context(), params)
 
@@ -18,12 +26,12 @@ func handlerAccessLogs(req *user.RequestContext) *shttp.Response {
 	}
 
 	pagination := map[string]any{"hasNextPage": false}
-	logsLen := len(logs)
+	hasNextPage := len(logs) > AccessLogsLimit
 
-	if logsLen > accesslog.DefaultLimit {
+	if hasNextPage {
+		logs = logs[:AccessLogsLimit]
 		pagination["hasNextPage"] = true
-		pagination["beforeId"] = logs[logsLen-2].ID.String()
-		logs = logs[:logsLen-1]
+		pagination["beforeId"] = logs[len(logs)-1].ID.String()
 	}
 
 	items := make([]map[string]any, 0, len(logs))
