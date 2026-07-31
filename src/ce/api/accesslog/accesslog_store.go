@@ -113,6 +113,7 @@ type SelectLogsParams struct {
 	From     utils.Unix
 	To       utils.Unix
 	BeforeID types.ID
+	BeforeTS utils.Unix
 	Limit    int
 }
 
@@ -171,8 +172,14 @@ func (s *Store) SelectLogs(ctx context.Context, p SelectLogsParams) ([]AccessLog
 		add("is_bot = $%d", *p.IsBot)
 	}
 
-	if p.BeforeID > 0 {
-		add("log_id < $%d", p.BeforeID)
+	// The cursor compares on the same tuple the query orders by, otherwise
+	// Postgres cannot seek to the page and re-walks the window from the newest
+	// row every time. Both halves are required — see AccessLog.Cursor.
+	if p.BeforeID > 0 && p.BeforeTS.Valid {
+		params = append(params, p.BeforeTS.UTC(), p.BeforeID)
+		where = append(where, fmt.Sprintf(
+			"(request_timestamp, log_id) < ($%d, $%d)", len(params)-1, len(params),
+		))
 	}
 
 	if len(where) == 0 {

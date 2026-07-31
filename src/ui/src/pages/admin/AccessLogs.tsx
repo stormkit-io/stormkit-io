@@ -42,17 +42,17 @@ interface Filters {
 
 interface UseFetchAccessLogsProps {
   filters: Filters;
-  beforeId?: string;
+  cursor?: string;
   refreshToken: number;
 }
 
 const useFetchAccessLogs = ({
   filters,
-  beforeId,
+  cursor,
   refreshToken,
 }: UseFetchAccessLogsProps) => {
   const [logs, setLogs] = useState<AccessLogEntry[]>([]);
-  const [nextBeforeId, setNextBeforeId] = useState<string>();
+  const [nextCursor, setNextCursor] = useState<string>();
   const [hasNextPage, setHasNextPage] = useState(false);
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(true);
@@ -71,14 +71,14 @@ const useFetchAccessLogs = ({
       }
     });
 
-    if (beforeId) {
-      params.set("beforeId", beforeId);
+    if (cursor) {
+      params.set("cursor", cursor);
     }
 
     api
       .fetch<{
         accessLogs: AccessLogEntry[];
-        pagination: { hasNextPage: boolean; beforeId?: string };
+        pagination: { hasNextPage: boolean; cursor?: string };
       }>("/admin/access-logs?" + params.toString())
       .then(res => {
         if (unmounted) {
@@ -86,8 +86,8 @@ const useFetchAccessLogs = ({
         }
 
         setHasNextPage(res.pagination.hasNextPage);
-        setNextBeforeId(res.pagination.beforeId);
-        setLogs(beforeId ? prev => [...prev, ...res.accessLogs] : res.accessLogs);
+        setNextCursor(res.pagination.cursor);
+        setLogs(cursor ? prev => [...prev, ...res.accessLogs] : res.accessLogs);
       })
       .catch(() => {
         if (!unmounted) {
@@ -103,9 +103,9 @@ const useFetchAccessLogs = ({
     return () => {
       unmounted = true;
     };
-  }, [refreshToken, beforeId]);
+  }, [refreshToken, cursor]);
 
-  return { logs, error, loading, hasNextPage, nextBeforeId };
+  return { logs, error, loading, hasNextPage, nextCursor };
 };
 
 const formatTs = (ts: string) =>
@@ -115,13 +115,15 @@ export default function AccessLogs() {
   const [draft, setDraft] = useState<Filters>({});
   const [filters, setFilters] = useState<Filters>({});
   const [refreshToken, setRefreshToken] = useState(0);
-  const [beforeId, setBeforeId] = useState<string>();
-  const { logs, error, loading, hasNextPage, nextBeforeId } = useFetchAccessLogs(
-    { filters, beforeId, refreshToken }
-  );
+  const [cursor, setCursor] = useState<string>();
+  const { logs, error, loading, hasNextPage, nextCursor } = useFetchAccessLogs({
+    filters,
+    cursor,
+    refreshToken,
+  });
 
   const search = () => {
-    setBeforeId(undefined);
+    setCursor(undefined);
     setFilters(draft);
     setRefreshToken(t => t + 1);
   };
@@ -235,7 +237,7 @@ export default function AccessLogs() {
             <Button
               variant="text"
               disabled={loading}
-              onClick={() => setBeforeId(nextBeforeId)}
+              onClick={() => setCursor(nextCursor)}
             >
               Load more
             </Button>

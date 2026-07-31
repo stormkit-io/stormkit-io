@@ -1,6 +1,8 @@
 package accesslog
 
 import (
+	"strconv"
+
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"gopkg.in/guregu/null.v3"
@@ -27,6 +29,25 @@ type AccessLog struct {
 	IsBot        bool        `json:"isBot"`
 	BytesSent    int64       `json:"bytesSent"`
 	RequestID    null.String `json:"requestId"`
+}
+
+// Cursor encodes the entry's position for keyset pagination.
+//
+// It carries both halves of the sort key in one opaque value: request_timestamp
+// is not unique — concurrent requests land on the same microsecond — and log_id
+// alone does not follow timestamp order, so neither identifies a position on its
+// own. Encoding them together means a caller cannot pass one without the other.
+//
+// The timestamp is in microseconds to match request_timestamp's resolution; a
+// cursor truncated to whole seconds would skip every entry sharing its second.
+func (l AccessLog) Cursor() string {
+	if !l.RequestTS.Valid {
+		return ""
+	}
+
+	micros := strconv.FormatInt(l.RequestTS.Time.UnixMicro(), 10)
+
+	return utils.EncodeToString([]byte(micros + "." + l.ID.String()))
 }
 
 func (l AccessLog) ToMap() map[string]any {

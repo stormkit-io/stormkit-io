@@ -32,6 +32,9 @@ func Hash(text []byte) string {
 }
 
 // SHA256Hash hashes the given array of bytes using SHA256 and returns a string out of it.
+//
+// Unpadded, unlike EncodeToString below: callers persist and compare these
+// digests, so changing the encoding would invalidate every stored value.
 func SHA256Hash(b []byte) string {
 	h := sha256.New()
 	h.Write(b)
@@ -159,11 +162,17 @@ func DecryptID(encryptedString string) (types.ID, error) {
 }
 
 // EncodeToString casts an array of bytes to a string.
+//
+// Padded URL-safe base64. Not a drop-in for the other base64 users in this
+// repo: the OAuth and token paths need unpadded output, and the integration
+// clients decode standard-alphabet payloads from AWS and Alibaba. Only reach
+// for this pair when the format is ours to define.
 func EncodeToString(text []byte) string {
 	return base64.URLEncoding.EncodeToString(text)
 }
 
-// DecodeString decodes the given string to an array of bytes.
+// DecodeString decodes the given string to an array of bytes. See
+// EncodeToString for why this is not interchangeable with the other variants.
 func DecodeString(s string) ([]byte, error) {
 	return base64.URLEncoding.DecodeString(s)
 }

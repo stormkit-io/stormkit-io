@@ -43,7 +43,7 @@ All filters are optional and are combined with AND.
 | `path`     | string  | No          | Only return requests whose path starts with this value.                                                                                           |
 | `status`   | number  | No          | Only return requests answered with this HTTP status code.                                                                                         |
 | `isBot`    | boolean | No          | `true` returns only bot traffic, `false` only non-bot traffic. Omit to return both.                                                               |
-| `beforeId` | string  | No          | Return entries older than this access log ID. Pass `pagination.beforeId` from the previous response to fetch the next page.                        |
+| `cursor`   | string  | No          | Pagination cursor. Pass `pagination.cursor` from the previous response back verbatim to fetch the next page. Treat it as opaque — its encoding may change. |
 
 > Queries are always bounded in time so that they only scan the relevant
 > partitions. If you omit `from`, the last 24 hours are returned.
@@ -53,7 +53,7 @@ All filters are optional and are combined with AND.
 | Field        | Type   | Description                                     |
 | ------------ | ------ | ----------------------------------------------- |
 | `accessLogs` | array  | Up to 100 entries, newest first.                |
-| `pagination` | object | `hasNextPage`, and `beforeId` when there is one. |
+| `pagination` | object | `hasNextPage`, and `cursor` when there is a next page. |
 
 Each entry contains:
 

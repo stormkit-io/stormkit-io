@@ -30,8 +30,10 @@ func handlerAccessLogsGet(req *RequestContext) *shttp.Response {
 
 	if hasNextPage {
 		logs = logs[:AccessLogsLimit]
+		last := logs[len(logs)-1]
+
 		pagination["hasNextPage"] = true
-		pagination["beforeId"] = logs[len(logs)-1].ID.String()
+		pagination["cursor"] = last.Cursor()
 	}
 
 	items := make([]map[string]any, 0, len(logs))
