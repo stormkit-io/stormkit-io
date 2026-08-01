@@ -168,14 +168,7 @@ func (s *HandlerAccessLogsGetSuite) Test_Success_DefaultWindow() {
 }
 
 func (s *HandlerAccessLogsGetSuite) Test_Success_HasNextPage() {
-	original := publicapiv1.AccessLogsLimit
-	publicapiv1.AccessLogsLimit = 1
-
-	defer func() {
-		publicapiv1.AccessLogsLimit = original
-	}()
-
-	res := s.request("", usertest.Authorization(s.user.ID))
+	res := s.request("&limit=1", usertest.Authorization(s.user.ID))
 	paths, pagination := s.paths(res)
 
 	s.Equal(http.StatusOK, res.Code)
@@ -188,7 +181,7 @@ func (s *HandlerAccessLogsGetSuite) Test_Success_HasNextPage() {
 
 	// The cursor marks the last returned entry; paging with it returns the rest.
 	res = s.request(
-		fmt.Sprintf("&cursor=%s", pagination["cursor"]),
+		fmt.Sprintf("&limit=1&cursor=%s", pagination["cursor"]),
 		usertest.Authorization(s.user.ID),
 	)
 

@@ -92,7 +92,7 @@ All tools return JSON. Errors are reported as MCP `isError` content while the tr
 
 | Tool              | Description                                                                    |
 | ----------------- | ------------------------------------------------------------------------------ |
-| `get_access_logs` | Return raw HTTP access logs for an environment, newest first (last 24h by default). |
+| `get_access_logs` | Return raw HTTP access logs for an environment, newest first (last 24h by default, 100 entries per page — pass `limit` for up to 1000). |
 
 ### Apps & environments
 

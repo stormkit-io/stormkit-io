@@ -7,9 +7,6 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 )
 
-// AccessLogsLimit is the maximum number of access log entries returned per page.
-var AccessLogsLimit = accesslog.DefaultLimit
-
 func handlerAccessLogsGet(req *RequestContext) *shttp.Response {
 	params := accesslog.SelectLogsParamsFromQuery(req.Query())
 
@@ -17,7 +14,6 @@ func handlerAccessLogsGet(req *RequestContext) *shttp.Response {
 	// filters are taken from the token rather than from the query string.
 	params.AppID = req.App.ID
 	params.EnvID = req.Env.ID
-	params.Limit = AccessLogsLimit
 
 	logs, err := accesslog.NewStore().SelectLogs(req.Context(), params)
 
@@ -26,10 +22,9 @@ func handlerAccessLogsGet(req *RequestContext) *shttp.Response {
 	}
 
 	pagination := map[string]any{"hasNextPage": false}
-	hasNextPage := len(logs) > AccessLogsLimit
 
-	if hasNextPage {
-		logs = logs[:AccessLogsLimit]
+	if len(logs) > params.Limit {
+		logs = logs[:params.Limit]
 		last := logs[len(logs)-1]
 
 		pagination["hasNextPage"] = true

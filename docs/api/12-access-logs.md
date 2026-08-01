@@ -46,6 +46,7 @@ All filters are optional and are combined with AND.
 | `isBot`    | boolean | No          | `true` returns only bot traffic, `false` only non-bot traffic. Omit to return both.                                                               |
 | `minDurationMs` | number | No       | Only return requests that took at least this many milliseconds to serve — e.g. `500` to inspect the latency tail. Requests logged before durations were recorded are excluded. |
 | `cursor`   | string  | No          | Pagination cursor. Pass `pagination.cursor` from the previous response back verbatim to fetch the next page. Treat it as opaque — its encoding may change. |
+| `limit`    | number  | No          | How many entries to return per page. Defaults to `100`, maximum `1000`. Values above the maximum are clamped rather than rejected.                 |
 
 > Queries are always bounded in time so that they only scan the relevant
 > partitions. If you omit `from`, the last 24 hours are returned.
@@ -54,7 +55,7 @@ All filters are optional and are combined with AND.
 
 | Field        | Type   | Description                                     |
 | ------------ | ------ | ----------------------------------------------- |
-| `accessLogs` | array  | Up to 100 entries, newest first.                |
+| `accessLogs` | array  | Up to `limit` entries (100 by default), newest first. |
 | `pagination` | object | `hasNextPage`, and `cursor` when there is a next page. |
 
 Each entry contains:

@@ -93,6 +93,7 @@ func mcpAllTools() []mcpToolDef {
 					"status":   map[string]any{"type": "string", "description": "Only return requests answered with this HTTP status code."},
 					"isBot":    map[string]any{"type": "boolean", "description": "Filter bot traffic in or out. Omit to return both."},
 					"cursor":   map[string]any{"type": "string", "description": "Opaque pagination cursor. Pass pagination.cursor from the previous response back verbatim to fetch the next page."},
+					"limit":    map[string]any{"type": "number", "description": "How many entries to return per page. Defaults to 100, maximum 1000."},
 
 					"minDurationMs": map[string]any{"type": "number", "description": "Only return requests that took at least this many milliseconds to serve. Use to inspect the latency tail, e.g. 500. Requests logged before durations were recorded are excluded."},
 				},
@@ -751,6 +752,10 @@ func mcpGetAccessLogs(req *RequestContextMCP, args map[string]any) *shttp.Respon
 
 	if ms := intArg(args, "minDurationMs"); ms > 0 {
 		query["minDurationMs"] = strconv.Itoa(ms)
+	}
+
+	if limit := intArg(args, "limit"); limit > 0 {
+		query["limit"] = strconv.Itoa(limit)
 	}
 
 	req.setQuery(query)
