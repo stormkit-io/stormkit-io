@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
 import Paper from "@mui/material/Paper";
 import Popper from "@mui/material/Popper";
 import MenuList from "@mui/material/MenuList";
@@ -13,7 +12,7 @@ import CircularProgress from "@mui/material/CircularProgress";
 import ClickAwayListener from "@mui/material/ClickAwayListener";
 import SearchIcon from "@mui/icons-material/Search";
 import type { FilterDef, FilterValues } from "./types";
-import { nowPreset, relativePresets } from "./datetime";
+import { nowPreset, relativePresets, toInputValue } from "./datetime";
 import Token from "./Token";
 
 interface Suggestion {
@@ -25,7 +24,12 @@ interface Suggestion {
 interface Props {
   defs: FilterDef[];
   values: FilterValues;
-  onChange: (values: FilterValues) => void;
+  /**
+   * `replace` marks a change that undoes rather than narrows the search, so a
+   * consumer persisting to history does not make Back resurrect filters the
+   * user just cleared.
+   */
+  onChange: (values: FilterValues, options: { replace: boolean }) => void;
   placeholder?: string;
 }
 
@@ -44,6 +48,8 @@ export default function FilteredSearch({
   const [text, setText] = useState("");
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  /** Whether the highlight was moved on purpose, rather than defaulted to 0. */
+  const [arrowed, setArrowed] = useState(false);
   const [remote, setRemote] = useState<Suggestion[]>([]);
   const [remoteLoading, setRemoteLoading] = useState(false);
 
@@ -61,8 +67,7 @@ export default function FilteredSearch({
     setRemoteLoading(true);
 
     const timer = setTimeout(() => {
-      pendingDef
-        .search!(text)
+      pendingDef.search!(text)
         .then(options => {
           if (!unmounted) {
             setRemote(
@@ -119,14 +124,15 @@ export default function FilteredSearch({
       pendingDef.normalize ? pendingDef.normalize(raw) : raw
     ).trim();
 
-    if (!value) {
+    if (!value || (pendingDef.validate && !pendingDef.validate(value))) {
       return;
     }
 
-    onChange({ ...values, [pendingDef.key]: value });
+    onChange({ ...values, [pendingDef.key]: value }, { replace: false });
     setPendingKey(undefined);
     setText("");
     setActiveIndex(0);
+    setArrowed(false);
   };
 
   const select = (index: number) => {
@@ -140,6 +146,7 @@ export default function FilteredSearch({
       setPendingKey(suggestion.resolve());
       setText("");
       setActiveIndex(0);
+      setArrowed(false);
       return;
     }
 
@@ -149,13 +156,14 @@ export default function FilteredSearch({
   const remove = (key: string) => {
     const next = { ...values };
     delete next[key];
-    onChange(next);
+    onChange(next, { replace: true });
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setActiveIndex(i => (i + 1) % Math.max(suggestions.length, 1));
+      setArrowed(true);
       setOpen(true);
       return;
     }
@@ -165,15 +173,17 @@ export default function FilteredSearch({
       setActiveIndex(
         i => (i - 1 + suggestions.length) % Math.max(suggestions.length, 1),
       );
+      setArrowed(true);
       return;
     }
 
     if (e.key === "Enter") {
       e.preventDefault();
 
-      // A typed value always wins over the highlighted suggestion, otherwise a
+      // A typed value wins over the merely-defaulted highlight, otherwise a
       // free-text filter could never be committed while suggestions are shown.
-      if (pendingDef && text.trim()) {
+      // Moving the highlight on purpose opts back into picking it.
+      if (pendingDef && text.trim() && !(arrowed && suggestions[activeIndex])) {
         commit(text);
         return;
       }
@@ -255,28 +265,44 @@ export default function FilteredSearch({
               "aria-label": placeholder,
               type: pendingDef?.kind === "number" ? "number" : "text",
             }}
-            placeholder={pendingDef ? `Value for ${pendingDef.label}` : placeholder}
+            placeholder={
+              pendingDef ? `Value for ${pendingDef.label}` : placeholder
+            }
             onFocus={() => setOpen(true)}
             onKeyDown={onKeyDown}
             onChange={e => {
               setText(e.target.value);
               setActiveIndex(0);
+              setArrowed(false);
               setOpen(true);
             }}
           />
           {tokens.length > 0 && (
-            <Chip
-              size="small"
-              variant="outlined"
-              label="Clear all"
+            <Typography
+              component="button"
+              type="button"
+              variant="caption"
               data-testid="clear-all"
+              sx={{
+                flexShrink: 0,
+                border: 0,
+                p: 0,
+                bgcolor: "transparent",
+                color: "text.primary",
+                cursor: "pointer",
+                opacity: 0.7,
+                textDecoration: "underline",
+                ":hover": { opacity: 1 },
+              }}
               onClick={e => {
                 e.stopPropagation();
                 setPendingKey(undefined);
                 setText("");
-                onChange({});
+                onChange({}, { replace: true });
               }}
-            />
+            >
+              Clear all
+            </Typography>
           )}
         </Box>
         <Popper
@@ -326,6 +352,9 @@ export default function FilteredSearch({
                   type="datetime-local"
                   label="Custom"
                   data-testid="custom-datetime"
+                  defaultValue={toInputValue(
+                    pendingDef ? values[pendingDef.key] || "" : "",
+                  )}
                   InputLabelProps={{ shrink: true }}
                   onChange={e => commit(e.target.value)}
                 />

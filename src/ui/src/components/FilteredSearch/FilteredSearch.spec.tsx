@@ -1,7 +1,13 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, waitFor, type RenderResult } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  waitFor,
+  type RenderResult,
+} from "@testing-library/react";
 import FilteredSearch from "./FilteredSearch";
 import type { FilterDef, FilterValues } from "./types";
+import { isValidDateTime } from "./datetime";
 
 describe("~/components/FilteredSearch/FilteredSearch.tsx", () => {
   let wrapper: RenderResult;
@@ -37,7 +43,12 @@ describe("~/components/FilteredSearch/FilteredSearch.tsx", () => {
       ],
       format: v => (v === "true" ? "only" : "excluded"),
     },
-    { key: "from", label: "From", kind: "datetime" },
+    {
+      key: "from",
+      label: "From",
+      kind: "datetime",
+      validate: isValidDateTime,
+    },
   ];
 
   const createWrapper = (values: FilterValues = {}) => {
@@ -50,9 +61,9 @@ describe("~/components/FilteredSearch/FilteredSearch.tsx", () => {
 
   beforeEach(() => {
     onChange = vi.fn();
-    search = vi.fn().mockResolvedValue([
-      { value: "app-1", text: "My App (app-1)" },
-    ]);
+    search = vi
+      .fn()
+      .mockResolvedValue([{ value: "app-1", text: "My App (app-1)" }]);
   });
 
   it("suggests filter keys on focus and narrows them as you type", () => {
@@ -79,7 +90,10 @@ describe("~/components/FilteredSearch/FilteredSearch.tsx", () => {
 
     fireEvent.click(wrapper.getByText("POST"));
 
-    expect(onChange).toHaveBeenCalledWith({ method: "POST" });
+    expect(onChange).toHaveBeenCalledWith(
+      { method: "POST" },
+      { replace: false },
+    );
   });
 
   it("normalizes and commits free text on Enter over the highlighted option", () => {
@@ -89,7 +103,35 @@ describe("~/components/FilteredSearch/FilteredSearch.tsx", () => {
     fireEvent.change(input(), { target: { value: "put" } });
     fireEvent.keyDown(input(), { key: "Enter" });
 
-    expect(onChange).toHaveBeenCalledWith({ method: "PUT" });
+    expect(onChange).toHaveBeenCalledWith(
+      { method: "PUT" },
+      expect.any(Object),
+    );
+  });
+
+  it("takes the highlighted option when the user arrowed to it", () => {
+    createWrapper();
+    fireEvent.focus(input());
+    fireEvent.click(wrapper.getByText("Method"));
+    fireEvent.change(input(), { target: { value: "p" } });
+    fireEvent.keyDown(input(), { key: "ArrowDown" });
+    fireEvent.keyDown(input(), { key: "Enter" });
+
+    expect(onChange).toHaveBeenCalledWith(
+      { method: "POST" },
+      { replace: false },
+    );
+  });
+
+  it("rejects a value the filter cannot express", () => {
+    createWrapper();
+    fireEvent.focus(input());
+    fireEvent.click(wrapper.getByText("From"));
+    fireEvent.change(input(), { target: { value: "yesterday" } });
+    fireEvent.keyDown(input(), { key: "Enter" });
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(wrapper.getByTestId("token-pending")).toBeTruthy();
   });
 
   it("keeps existing filters when adding another one", () => {
@@ -98,7 +140,10 @@ describe("~/components/FilteredSearch/FilteredSearch.tsx", () => {
     fireEvent.click(wrapper.getByText("Method"));
     fireEvent.click(wrapper.getByText("GET"));
 
-    expect(onChange).toHaveBeenCalledWith({ path: "/api", method: "GET" });
+    expect(onChange).toHaveBeenCalledWith(
+      { path: "/api", method: "GET" },
+      expect.any(Object),
+    );
   });
 
   it("hides filter keys that are already applied", () => {
@@ -121,14 +166,14 @@ describe("~/components/FilteredSearch/FilteredSearch.tsx", () => {
     createWrapper({ path: "/api", method: "GET" });
     fireEvent.click(wrapper.getByLabelText("Remove Path filter"));
 
-    expect(onChange).toHaveBeenCalledWith({ method: "GET" });
+    expect(onChange).toHaveBeenCalledWith({ method: "GET" }, { replace: true });
   });
 
   it("removes the last token on backspace with an empty input", () => {
     createWrapper({ path: "/api", method: "GET" });
     fireEvent.keyDown(input(), { key: "Backspace" });
 
-    expect(onChange).toHaveBeenCalledWith({ path: "/api" });
+    expect(onChange).toHaveBeenCalledWith({ path: "/api" }, { replace: true });
   });
 
   it("clears the pending key on backspace before removing tokens", () => {
@@ -145,7 +190,7 @@ describe("~/components/FilteredSearch/FilteredSearch.tsx", () => {
     createWrapper({ path: "/api", method: "GET" });
     fireEvent.click(wrapper.getByTestId("clear-all"));
 
-    expect(onChange).toHaveBeenCalledWith({});
+    expect(onChange).toHaveBeenCalledWith({}, { replace: true });
   });
 
   it("fetches remote suggestions for async filters", async () => {
@@ -161,7 +206,10 @@ describe("~/components/FilteredSearch/FilteredSearch.tsx", () => {
 
     fireEvent.click(wrapper.getByText("My App (app-1)"));
 
-    expect(onChange).toHaveBeenCalledWith({ appId: "app-1" });
+    expect(onChange).toHaveBeenCalledWith(
+      { appId: "app-1" },
+      expect.any(Object),
+    );
   });
 
   it("still accepts a typed value when suggestions do not include it", async () => {
@@ -171,7 +219,10 @@ describe("~/components/FilteredSearch/FilteredSearch.tsx", () => {
     fireEvent.change(input(), { target: { value: "unlisted-app" } });
     fireEvent.keyDown(input(), { key: "Enter" });
 
-    expect(onChange).toHaveBeenCalledWith({ appId: "unlisted-app" });
+    expect(onChange).toHaveBeenCalledWith(
+      { appId: "unlisted-app" },
+      expect.any(Object),
+    );
   });
 
   it("offers relative presets and a custom picker for datetime filters", () => {
@@ -186,8 +237,8 @@ describe("~/components/FilteredSearch/FilteredSearch.tsx", () => {
 
     const value = onChange.mock.calls[0][0].from;
 
-    // Local `datetime-local` shape, roughly 24h in the past.
-    expect(value).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
+    // Local wall clock pinned to the author's offset, roughly 24h in the past.
+    expect(value).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}[+-]\d{2}:\d{2}$/);
     expect(Date.now() - new Date(value).getTime()).toBeGreaterThan(
       23 * 60 * 60 * 1000,
     );
@@ -202,7 +253,10 @@ describe("~/components/FilteredSearch/FilteredSearch.tsx", () => {
       { target: { value: "2026-07-01T10:30" } },
     );
 
-    expect(onChange).toHaveBeenCalledWith({ from: "2026-07-01T10:30" });
+    expect(onChange).toHaveBeenCalledWith(
+      { from: "2026-07-01T10:30" },
+      expect.any(Object),
+    );
   });
 
   it("navigates suggestions with the arrow keys", () => {
@@ -212,6 +266,9 @@ describe("~/components/FilteredSearch/FilteredSearch.tsx", () => {
     fireEvent.keyDown(input(), { key: "ArrowDown" });
     fireEvent.keyDown(input(), { key: "Enter" });
 
-    expect(onChange).toHaveBeenCalledWith({ method: "POST" });
+    expect(onChange).toHaveBeenCalledWith(
+      { method: "POST" },
+      expect.any(Object),
+    );
   });
 });

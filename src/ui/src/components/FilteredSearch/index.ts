@@ -1,3 +1,8 @@
 export { default } from "./FilteredSearch";
 export * from "./types";
-export { toUnixSeconds, formatDateTime } from "./datetime";
+export {
+  toUnixSeconds,
+  formatDateTime,
+  isValidDateTime,
+  normalizeDateTime,
+} from "./datetime";

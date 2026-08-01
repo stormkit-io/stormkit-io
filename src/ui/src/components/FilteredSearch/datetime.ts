@@ -1,17 +1,47 @@
 /**
- * Helpers for the `datetime` filter kind. Values are kept as the string a
- * native `datetime-local` input produces (`YYYY-MM-DDTHH:mm`, local time) so a
- * value read back from the URL can be rendered straight into the input.
+ * Helpers for the `datetime` filter kind. Values are stored as an ISO string
+ * that carries the author's UTC offset (`YYYY-MM-DDTHH:mm+HH:MM`). A bare
+ * `datetime-local` string would be read as the *reader's* local time, so a
+ * shared link would silently denote a different absolute window for a
+ * colleague in another timezone.
  */
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
+/** The wall-clock half, in the shape a native `datetime-local` input takes. */
 export const toLocalInputValue = (date: Date): string =>
   `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
   `T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 
+const utcOffset = (date: Date): string => {
+  const minutes = -date.getTimezoneOffset();
+  const abs = Math.abs(minutes);
+
+  return `${minutes < 0 ? "-" : "+"}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
+};
+
+export const toStoredValue = (date: Date): string =>
+  toLocalInputValue(date) + utcOffset(date);
+
+/** Renders a stored value back into a `datetime-local` input. */
+export const toInputValue = (value: string): string => {
+  const date = new Date(value);
+
+  return isNaN(date.getTime()) ? "" : toLocalInputValue(date);
+};
+
+/**
+ * Pins a value the user typed or picked to the offset it was written in.
+ * Unparseable input passes through untouched so `isValidDateTime` rejects it.
+ */
+export const normalizeDateTime = (value: string): string => {
+  const date = new Date(value);
+
+  return isNaN(date.getTime()) ? value : toStoredValue(date);
+};
+
 export const minutesAgo = (minutes: number): string =>
-  toLocalInputValue(new Date(Date.now() - minutes * 60 * 1000));
+  toStoredValue(new Date(Date.now() - minutes * 60 * 1000));
 
 export interface DateTimePreset {
   text: string;
@@ -29,8 +59,11 @@ export const relativePresets: DateTimePreset[] = [
 
 export const nowPreset: DateTimePreset = {
   text: "Now",
-  value: () => toLocalInputValue(new Date()),
+  value: () => toStoredValue(new Date()),
 };
+
+export const isValidDateTime = (value: string): boolean =>
+  !isNaN(new Date(value).getTime());
 
 export const formatDateTime = (value: string): string => {
   const ms = new Date(value).getTime();

@@ -20,6 +20,12 @@ export interface FilterDef {
   format?: (value: string) => string;
   /** Applied before a typed value is committed. */
   normalize?: (value: string) => string;
+  /**
+   * Rejects values the filter cannot express. Without it a value that the
+   * consumer later fails to encode would render a token for a filter that is
+   * never actually sent.
+   */
+  validate?: (value: string) => boolean;
 }
 
 /** Committed filters, keyed by `FilterDef.key`. One value per filter. */

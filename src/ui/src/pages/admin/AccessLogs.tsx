@@ -14,6 +14,8 @@ import CardHeader from "~/components/CardHeader";
 import CardFooter from "~/components/CardFooter";
 import FilteredSearch, {
   formatDateTime,
+  isValidDateTime,
+  normalizeDateTime,
   toUnixSeconds,
   type FilterDef,
   type FilterValues,
@@ -58,20 +60,8 @@ const STATUS_CODES = [
   "504",
 ];
 
-const FILTER_KEYS = [
-  "appId",
-  "envId",
-  "domainId",
-  "hostName",
-  "clientIp",
-  "path",
-  "method",
-  "status",
-  "isBot",
-  "minDurationMs",
-  "from",
-  "to",
-];
+/** Mirrors `accesslog.DefaultWindow`, applied by the API when `from` is absent. */
+const DEFAULT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 interface UseFetchAccessLogsProps {
   query: string;
@@ -205,8 +195,22 @@ export default function AccessLogs() {
         format: v => (v === "true" ? "only" : "excluded"),
       },
       { key: "minDurationMs", label: "Min duration (ms)", kind: "number" },
-      { key: "from", label: "From", kind: "datetime", format: formatDateTime },
-      { key: "to", label: "To", kind: "datetime", format: formatDateTime },
+      {
+        key: "from",
+        label: "From",
+        kind: "datetime",
+        format: formatDateTime,
+        normalize: normalizeDateTime,
+        validate: isValidDateTime,
+      },
+      {
+        key: "to",
+        label: "To",
+        kind: "datetime",
+        format: formatDateTime,
+        normalize: normalizeDateTime,
+        validate: isValidDateTime,
+      },
     ],
     [teamId],
   );
@@ -214,19 +218,19 @@ export default function AccessLogs() {
   const values = useMemo<FilterValues>(() => {
     const next: FilterValues = {};
 
-    FILTER_KEYS.forEach(key => {
-      const value = searchParams.get(key);
+    defs.forEach(def => {
+      const value = searchParams.get(def.key);
 
-      if (value) {
-        next[key] = value;
+      if (value && (!def.validate || def.validate(value))) {
+        next[def.key] = value;
       }
     });
 
     return next;
-  }, [searchParams]);
+  }, [searchParams, defs]);
 
-  // `from`/`to` are kept in the URL as `datetime-local` strings so they render
-  // back into the picker, but the API takes unix seconds.
+  // `from`/`to` are kept in the URL as offset-bearing ISO strings so a shared
+  // link means the same instant everywhere, but the API takes unix seconds.
   const query = useMemo(() => {
     const params = new URLSearchParams();
 
@@ -244,6 +248,17 @@ export default function AccessLogs() {
 
   const cursor = cursorState?.query === query ? cursorState.value : undefined;
 
+  // An absent `from` is not "unbounded" — the API falls back to the last 24
+  // hours, so a `to` older than that silently matches nothing.
+  const invertedRange = useMemo(() => {
+    const to = values.to ? new Date(values.to).getTime() : Date.now();
+    const from = values.from
+      ? new Date(values.from).getTime()
+      : Date.now() - DEFAULT_WINDOW_MS;
+
+    return !isNaN(from) && !isNaN(to) && from >= to;
+  }, [values.from, values.to]);
+
   const { logs, error, loading, hasNextPage, nextCursor } = useFetchAccessLogs({
     query,
     cursor,
@@ -255,9 +270,13 @@ export default function AccessLogs() {
       error={error}
       sx={{ backgroundColor: "container.transparent" }}
       info={
-        !loading && logs.length === 0
-          ? "No access logs match your filters."
-          : undefined
+        invertedRange
+          ? values.from
+            ? "The From bound is after the To bound, so nothing can match."
+            : "To is set without From, so the range falls back to the last 24 hours and nothing can match. Set a From bound."
+          : !loading && logs.length === 0
+            ? "No access logs match your filters."
+            : undefined
       }
       contentPadding={false}
     >
@@ -270,15 +289,21 @@ export default function AccessLogs() {
           defs={defs}
           values={values}
           placeholder="Filter by app, host, path, status…"
-          onChange={next => setSearchParams(new URLSearchParams(next))}
+          onChange={(next, { replace }) =>
+            setSearchParams(new URLSearchParams(next), { replace })
+          }
         />
         <Button
           variant="contained"
+          color="secondary"
           disabled={loading}
           sx={{ flexShrink: 0 }}
-          onClick={() => setRefreshToken(t => t + 1)}
+          onClick={() => {
+            setCursorState(undefined);
+            setRefreshToken(t => t + 1);
+          }}
         >
-          {loading ? <CircularProgress size={16} /> : "Refresh"}
+          {loading ? <CircularProgress size={16} /> : "Search"}
         </Button>
       </Box>
       <Box sx={{ px: 4 }}>

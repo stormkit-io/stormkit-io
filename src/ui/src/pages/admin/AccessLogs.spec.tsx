@@ -117,7 +117,9 @@ describe("~/pages/admin/AccessLogs.tsx", () => {
 
     const scope = mockLogs("?method=GET");
 
-    fireEvent.focus(wrapper.getByLabelText("Filter by app, host, path, status…"));
+    fireEvent.focus(
+      wrapper.getByLabelText("Filter by app, host, path, status…"),
+    );
     fireEvent.click(wrapper.getByRole("menuitem", { name: "Method" }));
     fireEvent.click(wrapper.getByRole("menuitem", { name: "GET" }));
 
@@ -162,12 +164,66 @@ describe("~/pages/admin/AccessLogs.tsx", () => {
     // Adding a filter must restart from the first page, not reuse the cursor.
     const scope = mockLogs("?method=GET");
 
-    fireEvent.focus(wrapper.getByLabelText("Filter by app, host, path, status…"));
+    fireEvent.focus(
+      wrapper.getByLabelText("Filter by app, host, path, status…"),
+    );
     fireEvent.click(wrapper.getByRole("menuitem", { name: "Method" }));
     fireEvent.click(wrapper.getByRole("menuitem", { name: "GET" }));
 
     await waitFor(() => {
       expect(scope.isDone()).toBe(true);
+    });
+  });
+
+  it("drops the cursor when the search button refreshes", async () => {
+    mockLogs("?", true, "cursor-1");
+    createWrapper();
+
+    await waitFor(() => {
+      expect(wrapper.getByText("Load more")).toBeTruthy();
+    });
+
+    nock(process.env.API_DOMAIN || "")
+      .get("/admin/access-logs?cursor=cursor-1")
+      .reply(200, {
+        accessLogs: [{ ...logs[0], id: "2", path: "/api/teams" }],
+        pagination: { hasNextPage: false },
+      });
+
+    fireEvent.click(wrapper.getByText("Load more"));
+
+    await waitFor(() => {
+      expect(wrapper.getByText("/api/teams")).toBeTruthy();
+    });
+
+    // Refreshing must restart from the first page rather than re-append the
+    // page the cursor points at.
+    const scope = mockLogs("?");
+
+    fireEvent.click(wrapper.getByText("Search"));
+
+    await waitFor(() => {
+      expect(scope.isDone()).toBe(true);
+      expect(wrapper.queryByText("/api/teams")).toBe(null);
+    });
+  });
+
+  it("warns when To is set without From", async () => {
+    mockLogs("?to=1751362200");
+    createWrapper("/admin/access-logs?to=2026-07-01T10%3A30");
+
+    await waitFor(() => {
+      expect(wrapper.getByText(/falls back to the last 24 hours/)).toBeTruthy();
+    });
+  });
+
+  it("ignores a datetime bound the API cannot be given", async () => {
+    const scope = mockLogs("?path=%2Fapi");
+    createWrapper("/admin/access-logs?path=/api&from=yesterday");
+
+    await waitFor(() => {
+      expect(scope.isDone()).toBe(true);
+      expect(wrapper.queryByTestId("token-from")).toBe(null);
     });
   });
 
