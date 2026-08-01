@@ -1,9 +1,8 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import CircularProgress from "@mui/material/CircularProgress";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import TextField from "@mui/material/TextField";
-import MenuItem from "@mui/material/MenuItem";
 import Table from "@mui/material/Table";
 import Head from "@mui/material/TableHead";
 import Body from "@mui/material/TableBody";
@@ -13,6 +12,16 @@ import Chip from "@mui/material/Chip";
 import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
 import CardFooter from "~/components/CardFooter";
+import FilteredSearch, {
+  formatDateTime,
+  isValidDateTime,
+  normalizeDateTime,
+  toUnixSeconds,
+  type FilterDef,
+  type FilterValues,
+} from "~/components/FilteredSearch";
+import { AuthContext } from "~/pages/auth/Auth.context";
+import { useSelectedTeam } from "~/layouts/TopMenu/Teams/actions";
 import api from "~/utils/api/Api";
 
 interface AccessLogEntry {
@@ -32,36 +41,36 @@ interface AccessLogEntry {
   durationMs: number | null;
 }
 
-interface Filters {
-  appId?: string;
-  hostName?: string;
-  clientIp?: string;
-  path?: string;
-  method?: string;
-  status?: string;
-  isBot?: string;
-  minDurationMs?: string;
-  from?: string;
-  to?: string;
-}
+const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
+
+const STATUS_CODES = [
+  "200",
+  "204",
+  "301",
+  "302",
+  "304",
+  "400",
+  "401",
+  "403",
+  "404",
+  "429",
+  "500",
+  "502",
+  "503",
+  "504",
+];
+
+/** Mirrors `accesslog.DefaultWindow`, applied by the API when `from` is absent. */
+const DEFAULT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 interface UseFetchAccessLogsProps {
-  filters: Filters;
+  query: string;
   cursor?: string;
   refreshToken: number;
 }
 
-// The API takes both time bounds as unix seconds, while the inputs produce
-// local `datetime-local` strings. Anything unparseable is dropped rather than
-// sent as NaN, which the API would read as "no bound".
-const toUnixSeconds = (value: string): string => {
-  const ms = new Date(value).getTime();
-
-  return isNaN(ms) ? "" : String(Math.floor(ms / 1000));
-};
-
 const useFetchAccessLogs = ({
-  filters,
+  query,
   cursor,
   refreshToken,
 }: UseFetchAccessLogsProps) => {
@@ -77,20 +86,7 @@ const useFetchAccessLogs = ({
     setLoading(true);
     setError(undefined);
 
-    const params = new URLSearchParams();
-
-    Object.entries(filters).forEach(([key, value]) => {
-      if (!value) {
-        return;
-      }
-
-      const encoded =
-        key === "from" || key === "to" ? toUnixSeconds(value) : value;
-
-      if (encoded) {
-        params.set(key, encoded);
-      }
-    });
+    const params = new URLSearchParams(query);
 
     if (cursor) {
       params.set("cursor", cursor);
@@ -124,7 +120,7 @@ const useFetchAccessLogs = ({
     return () => {
       unmounted = true;
     };
-  }, [refreshToken, cursor]);
+  }, [query, cursor, refreshToken]);
 
   return { logs, error, loading, hasNextPage, nextCursor };
 };
@@ -133,33 +129,154 @@ const formatTs = (ts: string) =>
   ts ? new Date(Number(ts) * 1000).toLocaleString() : "";
 
 export default function AccessLogs() {
-  const [draft, setDraft] = useState<Filters>({});
-  const [filters, setFilters] = useState<Filters>({});
+  const { teams } = useContext(AuthContext);
+  const selectedTeam = useSelectedTeam({ teams });
+  const teamId = selectedTeam?.id;
+  const [searchParams, setSearchParams] = useSearchParams();
   const [refreshToken, setRefreshToken] = useState(0);
-  const [cursor, setCursor] = useState<string>();
+
+  // The cursor is scoped to the query it was issued for, so changing filters
+  // (including via the back button) drops it without an extra render.
+  const [cursorState, setCursorState] = useState<{
+    query: string;
+    value?: string;
+  }>();
+
+  const defs = useMemo<FilterDef[]>(
+    () => [
+      {
+        key: "appId",
+        label: "App ID",
+        kind: "text",
+        searchHint: teamId
+          ? "Apps in your team — any app ID can still be typed"
+          : undefined,
+        search: teamId
+          ? term =>
+              api
+                .fetch<{ apps: App[] }>(
+                  "/v1/apps?" +
+                    new URLSearchParams({ teamId, filter: term }).toString(),
+                )
+                .then(res =>
+                  res.apps.map(app => ({
+                    value: app.id,
+                    text: `${app.displayName} (${app.id})`,
+                  })),
+                )
+          : undefined,
+      },
+      { key: "envId", label: "Environment ID", kind: "text" },
+      { key: "domainId", label: "Domain ID", kind: "text" },
+      { key: "hostName", label: "Host", kind: "text" },
+      { key: "clientIp", label: "Client IP", kind: "text" },
+      { key: "path", label: "Path", kind: "text" },
+      {
+        key: "method",
+        label: "Method",
+        kind: "enum",
+        options: METHODS.map(m => ({ value: m, text: m })),
+        normalize: v => v.toUpperCase(),
+      },
+      {
+        key: "status",
+        label: "Status",
+        kind: "enum",
+        options: STATUS_CODES.map(s => ({ value: s, text: s })),
+      },
+      {
+        key: "isBot",
+        label: "Bots",
+        kind: "enum",
+        options: [
+          { value: "false", text: "Exclude bots" },
+          { value: "true", text: "Only bots" },
+        ],
+        format: v => (v === "true" ? "only" : "excluded"),
+      },
+      { key: "minDurationMs", label: "Min duration (ms)", kind: "number" },
+      {
+        key: "from",
+        label: "From",
+        kind: "datetime",
+        format: formatDateTime,
+        normalize: normalizeDateTime,
+        validate: isValidDateTime,
+      },
+      {
+        key: "to",
+        label: "To",
+        kind: "datetime",
+        format: formatDateTime,
+        normalize: normalizeDateTime,
+        validate: isValidDateTime,
+      },
+    ],
+    [teamId],
+  );
+
+  const values = useMemo<FilterValues>(() => {
+    const next: FilterValues = {};
+
+    defs.forEach(def => {
+      const value = searchParams.get(def.key);
+
+      if (value && (!def.validate || def.validate(value))) {
+        next[def.key] = value;
+      }
+    });
+
+    return next;
+  }, [searchParams, defs]);
+
+  // `from`/`to` are kept in the URL as offset-bearing ISO strings so a shared
+  // link means the same instant everywhere, but the API takes unix seconds.
+  const query = useMemo(() => {
+    const params = new URLSearchParams();
+
+    Object.entries(values).forEach(([key, value]) => {
+      const encoded =
+        key === "from" || key === "to" ? toUnixSeconds(value) : value;
+
+      if (encoded) {
+        params.set(key, encoded);
+      }
+    });
+
+    return params.toString();
+  }, [values]);
+
+  const cursor = cursorState?.query === query ? cursorState.value : undefined;
+
+  // An absent `from` is not "unbounded" — the API falls back to the last 24
+  // hours, so a `to` older than that silently matches nothing.
+  const invertedRange = useMemo(() => {
+    const to = values.to ? new Date(values.to).getTime() : Date.now();
+    const from = values.from
+      ? new Date(values.from).getTime()
+      : Date.now() - DEFAULT_WINDOW_MS;
+
+    return !isNaN(from) && !isNaN(to) && from >= to;
+  }, [values.from, values.to]);
+
   const { logs, error, loading, hasNextPage, nextCursor } = useFetchAccessLogs({
-    filters,
+    query,
     cursor,
     refreshToken,
   });
-
-  const search = () => {
-    setCursor(undefined);
-    setFilters(draft);
-    setRefreshToken(t => t + 1);
-  };
-
-  const set = (key: keyof Filters) => (value: string) =>
-    setDraft(prev => ({ ...prev, [key]: value }));
 
   return (
     <Card
       error={error}
       sx={{ backgroundColor: "container.transparent" }}
       info={
-        !loading && logs.length === 0
-          ? "No access logs match your filters."
-          : undefined
+        invertedRange
+          ? values.from
+            ? "The From bound is after the To bound, so nothing can match."
+            : "To is set without From, so the range falls back to the last 24 hours and nothing can match. Set a From bound."
+          : !loading && logs.length === 0
+            ? "No access logs match your filters."
+            : undefined
       }
       contentPadding={false}
     >
@@ -167,89 +284,25 @@ export default function AccessLogs() {
         title="Access Logs"
         subtitle="Search raw request logs across all hosted applications. Defaults to the last 24 hours when no time range is set."
       />
-      <Box
-        sx={{ px: 4, mb: 4, display: "flex", gap: 2, flexWrap: "wrap" }}
-        component="form"
-        onSubmit={e => {
-          e.preventDefault();
-          search();
-        }}
-      >
-        <TextField
-          variant="filled"
-          label="App ID"
-          size="small"
-          helperText="Recommended — narrows the scan"
-          onChange={e => set("appId")(e.target.value)}
+      <Box sx={{ px: 4, mb: 4, display: "flex", gap: 2, alignItems: "center" }}>
+        <FilteredSearch
+          defs={defs}
+          values={values}
+          placeholder="Filter by app, host, path, status…"
+          onChange={(next, { replace }) =>
+            setSearchParams(new URLSearchParams(next), { replace })
+          }
         />
-        <TextField
-          variant="filled"
-          label="Host"
-          size="small"
-          onChange={e => set("hostName")(e.target.value)}
-        />
-        <TextField
-          variant="filled"
-          label="Client IP"
-          size="small"
-          onChange={e => set("clientIp")(e.target.value)}
-        />
-        <TextField
-          variant="filled"
-          label="Path"
-          size="small"
-          onChange={e => set("path")(e.target.value)}
-        />
-        <TextField
-          variant="filled"
-          label="Method"
-          size="small"
-          onChange={e => set("method")(e.target.value.toUpperCase())}
-        />
-        <TextField
-          variant="filled"
-          label="Status"
-          size="small"
-          onChange={e => set("status")(e.target.value)}
-        />
-        <TextField
-          variant="filled"
-          label="Bots"
-          size="small"
-          select
-          defaultValue=""
-          sx={{ minWidth: 120 }}
-          onChange={e => set("isBot")(e.target.value)}
+        <Button
+          variant="contained"
+          color="secondary"
+          disabled={loading}
+          sx={{ flexShrink: 0 }}
+          onClick={() => {
+            setCursorState(undefined);
+            setRefreshToken(t => t + 1);
+          }}
         >
-          <MenuItem value="">All</MenuItem>
-          <MenuItem value="false">Exclude bots</MenuItem>
-          <MenuItem value="true">Only bots</MenuItem>
-        </TextField>
-        <TextField
-          variant="filled"
-          label="Min duration (ms)"
-          size="small"
-          type="number"
-          helperText="e.g. 500 for the latency tail"
-          onChange={e => set("minDurationMs")(e.target.value)}
-        />
-        <TextField
-          variant="filled"
-          label="From"
-          size="small"
-          type="datetime-local"
-          InputLabelProps={{ shrink: true }}
-          onChange={e => set("from")(e.target.value)}
-        />
-        <TextField
-          variant="filled"
-          label="To"
-          size="small"
-          type="datetime-local"
-          InputLabelProps={{ shrink: true }}
-          onChange={e => set("to")(e.target.value)}
-        />
-        <Button type="submit" variant="contained" disabled={loading}>
           {loading ? <CircularProgress size={16} /> : "Search"}
         </Button>
       </Box>
@@ -295,7 +348,7 @@ export default function AccessLogs() {
             <Button
               variant="text"
               disabled={loading}
-              onClick={() => setCursor(nextCursor)}
+              onClick={() => setCursorState({ query, value: nextCursor })}
             >
               Load more
             </Button>
