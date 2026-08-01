@@ -330,7 +330,7 @@ export default function SkAuth() {
             defaultValue={(config?.allowedOrigins || []).join("\n")}
             variant="filled"
             autoComplete="off"
-            helperText="Optional. One origin per line (scheme + host, no path). Origins allowed for cross-origin sign-in. A native app's deep link (e.g. myapp://auth) goes here too — sign-in then returns the session token on that link instead of a cookie. Leave empty for single-host setups."
+            helperText="Optional. One origin per line (scheme + host, no path). Origins allowed for cross-origin sign-in. A native app's deep link (e.g. myapp://auth) goes here too — sign-in then returns a one-time PKCE code on that link, which the app exchanges for the session token. Leave empty for single-host setups."
             slotProps={{
               inputLabel: {
                 shrink: true,

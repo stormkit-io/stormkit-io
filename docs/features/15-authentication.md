@@ -92,41 +92,73 @@ At `/_stormkit/auth/refresh` this is auto-detected — a client that authenticat
 with a bearer token and sent no cookie gets a new bearer token without the
 header.
 
-**2. Browser sign-in flows — a custom-scheme redirect.** Google / X OAuth and
-Magic Link finish inside a browser, so there is no response body to read. Instead,
-register your app's deep link as an **allowed origin** (scheme + host, no path —
-e.g. `myapp://auth`) and pass it as the `redirect` target. When the resolved
-target is a custom (non-`http(s)`) scheme, Stormkit appends the session token to
-the redirect and sets **no** cookie:
+**2. Browser sign-in flows — a custom-scheme redirect plus PKCE.** Google / X
+OAuth and Magic Link finish inside a browser, so there is no response body to
+read. Instead, register your app's deep link as an **allowed origin** (scheme +
+host, no path — e.g. `myapp://auth`) and pass it as the `redirect` target.
+
+A private-use URI scheme is not exclusively yours — another app on the device can
+register the same scheme — so the redirect must be assumed interceptable and
+never carries the session token. It carries a **single-use code**, valid for one
+minute, bound to a PKCE challenge only your app can answer:
 
 ```
-302 Location: myapp://auth?token=<session-jwt>
+302 Location: myapp://auth?code=<one-time-code>
 ```
 
-For OAuth, open the authorization URL with the redirect:
+Generate a random `code_verifier`, send `code_challenge = base64url(sha256(verifier))`
+(unpadded, `code_challenge_method=S256`) when you start sign-in, and exchange the
+code for the session token over TLS:
 
 ```
-https://app.example.com/_stormkit/auth/google?redirect=myapp://auth
+POST /_stormkit/auth/token
+Content-Type: application/json
+
+{ "code": "<one-time-code>", "code_verifier": "<verifier>" }
 ```
 
-For Magic Link, pass the same value when requesting the link — it is remembered
-and applied when the user taps it:
+```json
+{ "token": "…" }
+```
+
+The code is consumed on the first exchange attempt, so an interceptor without the
+verifier gains nothing and cannot retry.
+
+For OAuth, open the authorization URL with the redirect and the challenge:
 
 ```
-GET /_stormkit/auth/magic?email=user@example.com&redirect=myapp://auth
+https://app.example.com/_stormkit/auth/google?redirect=myapp://auth&code_challenge=<challenge>&code_challenge_method=S256
 ```
+
+For Magic Link, pass the same values when requesting the link — they are
+remembered and applied when the user taps it, so the binding survives the round
+trip through the user's inbox:
+
+```
+GET /_stormkit/auth/magic?email=user@example.com&redirect=myapp://auth&code_challenge=<challenge>&code_challenge_method=S256
+```
+
+A custom-scheme redirect **without** a valid S256 challenge is rejected with
+`400` — Stormkit will not fall back to putting the token in the URL.
 
 Sign-in failures come back to the same deep link with a `login_error` parameter
 (`myapp://auth?login_error=…`) rather than a `login_error` on your success page.
+Expired links are included — the target is recovered from the link itself and
+re-checked against the allow-list. A server-side fault (5xx) is the exception: it
+renders an error page in the system browser, so keep a user-visible cancel path
+in your sign-in sheet.
 
-The token is only ever appended for an origin that is **on the allow-list**. An
+The code is only ever issued for an origin that is **on the allow-list**. An
 unregistered scheme is rejected (Magic Link responds `403`; OAuth falls back to a
-first-party cookie on your own domain), so a token can never leak to a scheme you
-did not register. `http(s)` targets are unaffected and keep using the cookie.
+first-party cookie on your own domain), so nothing can leak to a scheme you did
+not register. `http(s)` targets are unaffected and keep using the cookie.
 
 > `X-Session-Delivery: bearer` applies **only** to `login`, `register` and
-> `refresh`. The `verify`, `magic` and OAuth `callback` landings are browser
-> redirects and ignore the header — use the custom-scheme redirect for those.
+> `refresh`. The `magic` and OAuth `callback` landings are browser redirects and
+> ignore the header — use the custom-scheme redirect for those. The `verify`
+> (email-confirmation) landing has no native path at all: it always sets a
+> first-party cookie, so a native app should call `login` with
+> `X-Session-Delivery: bearer` once the address is confirmed.
 
 ### Cross-origin session protection
 
@@ -184,7 +216,8 @@ Passwordless sign-in via a one-time link sent by email.
   to control where the user lands after tapping the link. It must be on the
   **Allowed origins** list, and it is remembered with the link — so the redirect
   survives the round trip through the user's inbox. Native apps pass their deep
-  link here; see [Native apps](#native-apps).
+  link here, together with a PKCE `code_challenge`; see
+  [Native apps](#native-apps).
 
 > Magic Link requires the [Mailer](/docs/features/mailer) to be configured to
 > deliver links. If the Mailer is **not** configured, the email is still
@@ -247,9 +280,9 @@ every request. For the richer profile, use the user-info endpoint below.
 ### In a native app
 
 Store the bearer token you received at sign-in — from the response body on
-`login` / `register`, or from the `token` parameter on your deep link after an
-OAuth or Magic Link sign-in (see [Native apps](#native-apps)) — and attach it to
-each request:
+`login` / `register`, or from exchanging the `code` your deep link received after
+an OAuth or Magic Link sign-in (see [Native apps](#native-apps)) — and attach it
+to each request:
 
 ```
 Authorization: Bearer <token>
@@ -314,8 +347,8 @@ separately deployed SPA, or a native/mobile app):
   call with `credentials: "include"`.
 - For a native app, add your deep link (e.g. `myapp://auth`) to **Allowed
   origins**, then send `X-Session-Delivery: bearer` on `login` / `register` /
-  `refresh`, and pass `redirect=myapp://auth` for OAuth and Magic Link. See
-  [Native apps](#native-apps).
+  `refresh`, and pass `redirect=myapp://auth` plus a PKCE `code_challenge` for
+  OAuth and Magic Link. See [Native apps](#native-apps).
 
 > If a provider is enabled but **no allowed origins** are set and your frontend
 > runs on a separate domain, sign-in will be rejected as cross-origin. The

@@ -2,6 +2,7 @@ package accesslog_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -188,6 +189,148 @@ func (s *StoreSuite) Test_SelectLogs_KeysetPagination() {
 	// older pair, regardless of how the pages happened to split.
 	s.ElementsMatch([]string{"/a", "/b", "/c"}, seen[:3])
 	s.ElementsMatch([]string{"/d", "/e"}, seen[3:])
+}
+
+// MinDurationMS is the latency-tail filter: it keeps slow requests and drops
+// fast ones. Entries whose duration was never recorded are dropped too — a null
+// means "not measured", and treating it as 0 would silently hide slow requests
+// logged before the column existed.
+func (s *StoreSuite) Test_SelectLogs_MinDuration() {
+	app := s.MockApp(nil)
+	env := s.MockEnv(app)
+	ctx := context.Background()
+
+	base := accesslog.AccessLog{
+		AppID:      app.ID,
+		EnvID:      env.ID,
+		HostName:   "example.com",
+		RequestTS:  utils.NewUnix(),
+		Method:     http.MethodGet,
+		StatusCode: http.StatusOK,
+	}
+
+	fast := base
+	fast.RequestPath = "/fast"
+	fast.DurationMS = null.IntFrom(12)
+
+	slow := base
+	slow.RequestPath = "/slow"
+	slow.DurationMS = null.IntFrom(870)
+
+	exactly := base
+	exactly.RequestPath = "/exactly"
+	exactly.DurationMS = null.IntFrom(500)
+
+	unmeasured := base
+	unmeasured.RequestPath = "/unmeasured"
+
+	s.Require().NoError(accesslog.NewStore().InsertLogs(ctx, []accesslog.AccessLog{
+		fast, slow, exactly, unmeasured,
+	}))
+
+	logs, err := accesslog.NewStore().SelectLogs(ctx, accesslog.SelectLogsParams{
+		AppID:         app.ID,
+		MinDurationMS: 500,
+		From:          utils.UnixFrom(time.Now().Add(-time.Hour)),
+		To:            utils.UnixFrom(time.Now().Add(time.Hour)),
+	})
+
+	s.Require().NoError(err)
+
+	paths := []string{}
+
+	for _, l := range logs {
+		paths = append(paths, l.RequestPath)
+	}
+
+	s.ElementsMatch([]string{"/slow", "/exactly"}, paths)
+}
+
+// The duration has to survive the write/read round trip, and an unmeasured
+// request has to come back null rather than 0.
+func (s *StoreSuite) Test_Duration_RoundTrip() {
+	app := s.MockApp(nil)
+	env := s.MockEnv(app)
+	ctx := context.Background()
+
+	measured := accesslog.AccessLog{
+		AppID:       app.ID,
+		EnvID:       env.ID,
+		HostName:    "example.com",
+		RequestTS:   utils.NewUnix(),
+		Method:      http.MethodGet,
+		RequestPath: "/measured",
+		StatusCode:  http.StatusOK,
+		DurationMS:  null.IntFrom(431),
+	}
+
+	unmeasured := measured
+	unmeasured.RequestPath = "/unmeasured"
+	unmeasured.DurationMS = null.Int{}
+
+	s.Require().NoError(accesslog.NewStore().InsertLogs(ctx, []accesslog.AccessLog{
+		measured, unmeasured,
+	}))
+
+	logs, err := accesslog.NewStore().SelectLogs(ctx, accesslog.SelectLogsParams{
+		AppID: app.ID,
+		From:  utils.UnixFrom(time.Now().Add(-time.Hour)),
+		To:    utils.UnixFrom(time.Now().Add(time.Hour)),
+	})
+
+	s.Require().NoError(err)
+
+	byPath := map[string]accesslog.AccessLog{}
+
+	for _, l := range logs {
+		byPath[l.RequestPath] = l
+	}
+
+	s.Require().True(byPath["/measured"].DurationMS.Valid)
+	s.Equal(int64(431), byPath["/measured"].DurationMS.Int64)
+	s.False(byPath["/unmeasured"].DurationMS.Valid)
+
+	// ToMap must carry the null through as null, not as a zero duration.
+	s.Nil(byPath["/unmeasured"].ToMap()["durationMs"])
+	s.Equal(int64(431), *byPath["/measured"].ToMap()["durationMs"].(*int64))
+}
+
+// A tick of ingest can hand over far more rows than one statement's 65535 bind
+// parameters allow. Before chunking, such a batch failed as a whole and every
+// access log in it was dropped — silently, since the caller only logs the error.
+func (s *StoreSuite) Test_InsertLogs_BeyondBindParamLimit() {
+	app := s.MockApp(nil)
+	env := s.MockEnv(app)
+	ctx := context.Background()
+
+	const rows = accesslog.MaxInsertRows + 10
+
+	logs := make([]accesslog.AccessLog, 0, rows)
+
+	for i := range rows {
+		logs = append(logs, accesslog.AccessLog{
+			AppID:       app.ID,
+			EnvID:       env.ID,
+			HostName:    "example.com",
+			RequestTS:   utils.NewUnix(),
+			Method:      http.MethodGet,
+			RequestPath: fmt.Sprintf("/bulk/%d", i),
+			StatusCode:  http.StatusOK,
+		})
+	}
+
+	s.Require().NoError(accesslog.NewStore().InsertLogs(ctx, logs))
+
+	found, err := accesslog.NewStore().SelectLogs(ctx, accesslog.SelectLogsParams{
+		AppID: app.ID,
+		Path:  "/bulk/",
+		From:  utils.UnixFrom(time.Now().Add(-time.Hour)),
+		To:    utils.UnixFrom(time.Now().Add(time.Hour)),
+		Limit: rows,
+	})
+
+	s.Require().NoError(err)
+	s.Len(found, rows, "every row in an oversized batch must be written")
 }
 
 func TestStore(t *testing.T) {

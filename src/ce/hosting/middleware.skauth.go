@@ -1,7 +1,6 @@
 package hosting
 
 import (
-	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -11,6 +10,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/html"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
+	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
@@ -88,11 +88,14 @@ func (m *skAuthMiddleware) handleLogout() (*shttp.Response, error) {
 // Origin is the already allow-list-validated destination origin (scheme + host,
 // no path) and is empty for a same-host landing. Path is the relative landing
 // path — the configured SuccessURL, sometimes carrying a query — appended to
-// Origin for browser targets.
+// Origin for browser targets. Challenge is the PKCE S256 code_challenge the
+// client supplied at sign-in; it is required for, and only used by, a
+// custom-scheme Origin.
 type deliverSessionParams struct {
-	Token  string
-	Origin string
-	Path   string
+	Token     string
+	Origin    string
+	Path      string
+	Challenge string
 }
 
 // deliverSession hands the session token to the client and 302s onward. Used by
@@ -100,12 +103,17 @@ type deliverSessionParams struct {
 //
 // Browsers receive it as the HttpOnly session cookie — first-party to this auth
 // host, so it is also readable by the OAuth /authorize navigation — and land on
-// Origin+Path. A native app, identified by a custom-scheme Origin such as
-// triplan://auth, has no usable cookie jar: the system auth session
-// (ASWebAuthenticationSession / Custom Tabs) discards Set-Cookie. For those the
-// token rides the redirect URL instead and no cookie is set. The scheme is
-// claimed by the owning app, so the OS hands the URL only to it, and Origin has
-// already been matched against the configured allow-list by the caller.
+// Origin+Path.
+//
+// A native app, identified by a custom-scheme Origin such as triplan://auth, has
+// no usable cookie jar: the system auth session (ASWebAuthenticationSession /
+// Custom Tabs) discards Set-Cookie. Those get a single-use, PKCE-bound code on
+// the redirect, which the app exchanges for the token at
+// POST /_stormkit/auth/token. The session token itself never travels through the
+// OS: a private-use scheme is not exclusively claimable, so the redirect must be
+// assumed interceptable and is only ever given something an interceptor cannot
+// redeem (RFC 8252 §8.1). Origin has already been matched against the configured
+// allow-list by the caller.
 func (m *skAuthMiddleware) deliverSession(p deliverSessionParams) *shttp.Response {
 	headers := shttp.HeadersFromMap(map[string]string{
 		"Cache-Control":   "no-store",
@@ -113,7 +121,24 @@ func (m *skAuthMiddleware) deliverSession(p deliverSessionParams) *shttp.Respons
 	})
 
 	if isNativeSchemeOrigin(p.Origin) {
-		target := p.Origin + "?token=" + url.QueryEscape(p.Token)
+		// Fail closed. The initiate step refuses a custom-scheme sign-in without a
+		// challenge, so an empty one here means a link minted before that gate — it
+		// must not degrade into putting the token in the URL.
+		if p.Challenge == "" {
+			return m.loginErrorRedirect(p.Origin, "This sign-in link is no longer supported. Please sign in again.")
+		}
+
+		code, err := nativeCodeStore.issue(m.req.Context(), nativeSessionCode{
+			Token:         p.Token,
+			CodeChallenge: p.Challenge,
+		})
+
+		if err != nil {
+			slog.Errorf("deliverSession: failed to issue native code: %s", err.Error())
+			return m.loginErrorRedirect(p.Origin, "Sign-in is temporarily unavailable. Please try again.")
+		}
+
+		target := appendQuery(p.Origin, map[string]string{"code": code})
 
 		return &shttp.Response{
 			Status:   http.StatusFound,
@@ -122,7 +147,7 @@ func (m *skAuthMiddleware) deliverSession(p deliverSessionParams) *shttp.Respons
 		}
 	}
 
-	target := p.Origin + p.Path
+	target := landingURL(p.Origin, p.Path)
 
 	return &shttp.Response{
 		Status:   http.StatusFound,
@@ -136,16 +161,31 @@ func (m *skAuthMiddleware) deliverSession(p deliverSessionParams) *shttp.Respons
 // such as triplan://auth — the redirect target a native app registers in the
 // environment's allowed origins. It only classifies the scheme; the caller is
 // responsible for having validated origin against the allow-list first.
+//
+// It parses with url.Parse for the same reason the allow-list validator does:
+// two different notions of what an origin is would eventually disagree about
+// one, and this decides whether a session goes out as a cookie or a code.
+// url.Parse already lowercases the scheme.
 func isNativeSchemeOrigin(origin string) bool {
-	scheme, _, ok := strings.Cut(origin, "://")
+	parsed, err := url.Parse(origin)
 
-	if !ok || scheme == "" {
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return false
 	}
 
-	scheme = strings.ToLower(scheme)
+	return parsed.Scheme != "http" && parsed.Scheme != "https"
+}
 
-	return scheme != "http" && scheme != "https"
+// landingURL is where the client is sent after a sign-in attempt. A browser
+// lands on the app's configured page inside the destination origin; a native
+// deep link is the landing itself and takes no path — appending the SuccessURL
+// would produce a URL its scheme handler does not recognise.
+func landingURL(origin, path string) string {
+	if isNativeSchemeOrigin(origin) {
+		return origin
+	}
+
+	return origin + path
 }
 
 func (m *skAuthMiddleware) handleRegisterLogin(path string) (*shttp.Response, error) {
@@ -244,10 +284,13 @@ func (m *skAuthMiddleware) handleMagicLinkVerify() (*shttp.Response, error) {
 	// the destination origin — no dependency on the frontend host carrying its own
 	// auth config. A native custom-scheme origin gets the token in the URL instead.
 	if redirect, _ := data["redirect"].(string); redirect != "" {
+		challenge, _ := data["codeChallenge"].(string)
+
 		return m.deliverSession(deliverSessionParams{
-			Token:  token,
-			Origin: redirect,
-			Path:   successURL,
+			Token:     token,
+			Origin:    redirect,
+			Path:      successURL,
+			Challenge: challenge,
 		}), nil
 	}
 
@@ -354,16 +397,9 @@ func (m *skAuthMiddleware) cookieOriginAllowed() bool {
 // deep link itself — so the message is hung off the bare origin, mirroring how
 // deliverSession returns the token there.
 func (m *skAuthMiddleware) loginErrorRedirect(origin, message string) *shttp.Response {
-	path := m.req.Host.Config.SKAuth.SuccessURL
-
-	if isNativeSchemeOrigin(origin) {
-		path = ""
-	}
-
-	target := fmt.Sprintf("%s%s?login_error=%s",
-		origin,
-		path,
-		url.QueryEscape(message),
+	target := appendQuery(
+		landingURL(origin, m.req.Host.Config.SKAuth.SuccessURL),
+		map[string]string{"login_error": message},
 	)
 
 	return &shttp.Response{

@@ -63,6 +63,22 @@ func (s *QuerySuite) Test_TimeBounds_Default() {
 	s.WithinDuration(time.Now(), params.To.Time, time.Minute)
 }
 
+func (s *QuerySuite) Test_MinDurationMS() {
+	params := accesslog.SelectLogsParamsFromQuery(url.Values{"minDurationMs": {"500"}})
+
+	s.Equal(500, params.MinDurationMS)
+}
+
+// An absent, zero or unparseable value has to read as "no duration filter" —
+// the store only applies the clause above zero, so a NaN must not become one.
+func (s *QuerySuite) Test_MinDurationMS_Absent() {
+	for _, v := range []string{"", "0", "-1", "abc"} {
+		params := accesslog.SelectLogsParamsFromQuery(url.Values{"minDurationMs": {v}})
+
+		s.LessOrEqual(params.MinDurationMS, 0, v)
+	}
+}
+
 func TestQuery(t *testing.T) {
 	suite.Run(t, &QuerySuite{})
 }

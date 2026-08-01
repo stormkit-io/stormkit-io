@@ -1,0 +1,12 @@
+-- Records how long each request took to serve, so the access log can answer
+-- "which paths make up the latency tail" rather than only "what was served".
+--
+-- Milliseconds, not microseconds: the value is surfaced in the admin viewer and
+-- compared against response-time dashboards that are already in ms, and integer
+-- ms spans up to ~24 days of range — far beyond any request worth recording.
+--
+-- Nullable with no default, so this is a metadata-only ALTER on the partitioned
+-- parent: it propagates to every existing and future partition without
+-- rewriting ~500M rows. Rows written before this migration keep NULL, which
+-- reads as "not measured" rather than "took 0ms".
+ALTER TABLE request_logs ADD COLUMN IF NOT EXISTS duration_ms integer;

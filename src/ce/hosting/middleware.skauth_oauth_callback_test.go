@@ -20,12 +20,25 @@ import (
 // The hosting callback only reads "prv" and "ref" — the environment is resolved
 // from the request Host, not from the state — so those are the only claims set.
 func (s *WithSKAuthOAuthSuite) stateToken(provider, ref string) string {
+	return s.stateTokenWithChallenge(provider, ref, "")
+}
+
+// stateTokenWithChallenge mints the state the initiate step would have signed,
+// optionally carrying the PKCE challenge a native client supplied — the callback
+// binds the deep-link code it hands back to that claim.
+func (s *WithSKAuthOAuthSuite) stateTokenWithChallenge(provider, ref, challenge string) string {
 	// Signed with the environment secret because the callback now verifies the
 	// state against it (a token minted for another tenant is rejected).
-	token, err := user.JWT(jwt.MapClaims{
+	claims := jwt.MapClaims{
 		"prv": provider,
 		"ref": ref,
-	}, "test-secret-padded-to-32-chars!!")
+	}
+
+	if challenge != "" {
+		claims["cha"] = challenge
+	}
+
+	token, err := user.JWT(claims, "test-secret-padded-to-32-chars!!")
 
 	s.Require().NoError(err)
 
@@ -394,11 +407,11 @@ func (s *WithSKAuthOAuthSuite) Test_Callback_ExchangeFails_RedirectsWithError() 
 	s.Contains(*res.Redirect, "complete+sign-in")
 }
 
-// Test_Callback_NativeScheme_TokenInRedirect covers the native/mobile OAuth
+// Test_Callback_NativeScheme_CodeInRedirect covers the native/mobile OAuth
 // path: the sign-in runs inside a system auth session whose cookie jar discards
-// Set-Cookie, so an allow-listed custom-scheme target receives the session token
-// in the redirect URL and no cookie at all.
-func (s *WithSKAuthOAuthSuite) Test_Callback_NativeScheme_TokenInRedirect() {
+// Set-Cookie, so an allow-listed custom-scheme target receives a single-use
+// PKCE-bound code — never the session token — and no cookie at all.
+func (s *WithSKAuthOAuthSuite) Test_Callback_NativeScheme_CodeInRedirect() {
 	host := s.setupCallbackEnvWith(true, &buildconf.SKAuthConf{
 		Secret:         "test-secret-padded-to-32-chars!!",
 		Status:         true,
@@ -415,7 +428,7 @@ func (s *WithSKAuthOAuthSuite) Test_Callback_NativeScheme_TokenInRedirect() {
 		FirstName:     "Nat",
 	}, nil).Once()
 
-	state := s.stateToken(skauth.ProviderGoogle, "triplan://auth")
+	state := s.stateTokenWithChallenge(skauth.ProviderGoogle, "triplan://auth", nativeChallenge)
 
 	res, err := hosting.ServeAuth(s.oauthRequest(
 		host,
@@ -435,13 +448,43 @@ func (s *WithSKAuthOAuthSuite) Test_Callback_NativeScheme_TokenInRedirect() {
 	s.Equal("auth", target.Host)
 	s.Empty(target.Path, "the success URL must not be appended to a deep link")
 
-	claims := user.ParseJWT(&user.ParseJWTArgs{
-		Bearer: target.Query().Get("token"),
-		Secret: "test-secret-padded-to-32-chars!!",
+	s.NotEmpty(target.Query().Get("code"), "the deep link must carry an exchange code")
+	s.Empty(target.Query().Get("token"), "the session token must never ride the deep link")
+}
+
+// Test_Callback_NativeScheme_NoChallenge_FailsClosed pins the fail-closed rule
+// at the delivery end: a state minted before PKCE was required must not degrade
+// into putting the session token on an interceptable deep link.
+func (s *WithSKAuthOAuthSuite) Test_Callback_NativeScheme_NoChallenge_FailsClosed() {
+	host := s.setupCallbackEnvWith(true, &buildconf.SKAuthConf{
+		Secret:         "test-secret-padded-to-32-chars!!",
+		Status:         true,
+		AllowedOrigins: []string{"triplan://auth"},
 	})
 
-	s.Require().NotNil(claims, "the redirected token must be a valid session JWT")
-	s.NotEmpty(claims["uid"])
+	token := &oauth2.Token{}
+
+	s.mockClient.On("Exchange", mock.Anything, mock.Anything).Return(token, nil).Once()
+	s.mockClient.On("UserInfo", mock.Anything, token).Return(&skauth.UserInfo{
+		AccountID:     "legacy-account-id",
+		Email:         "legacy@stormkit.io",
+		EmailVerified: true,
+	}, nil).Once()
+
+	state := s.stateToken(skauth.ProviderGoogle, "triplan://auth")
+
+	res, err := hosting.ServeAuth(s.oauthRequest(
+		host,
+		fmt.Sprintf("/_stormkit/auth/callback?state=%s&code=test-code", state),
+		nil,
+	))
+
+	s.Require().NoError(err)
+	s.Require().NotNil(res.Redirect)
+	s.Empty(res.Cookies)
+	s.Contains(*res.Redirect, "triplan://auth?login_error=")
+	s.NotContains(*res.Redirect, "token=")
+	s.NotContains(*res.Redirect, "code=")
 }
 
 // Test_Callback_NativeScheme_NotAllowListed_StaysFirstParty guards the token

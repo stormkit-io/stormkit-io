@@ -72,6 +72,9 @@ func registerReservedRoutes(s *shttp.Service) {
 	reg("/logout", handleAuthLogout, http.MethodPost, http.MethodOptions)
 	reg("/refresh", handleAuthRefresh, http.MethodPost, http.MethodOptions)
 	reg("/me", handleAuthMe, http.MethodGet, http.MethodOptions)
+	// Native deep-link handover: exchanges the single-use code delivered on a
+	// custom-scheme redirect for the session token, proved with the PKCE verifier.
+	reg("/token", handleAuthNativeToken, http.MethodPost, http.MethodOptions)
 	// Magic link: GET follows the emailed verification link, POST requests one.
 	reg("/magic", handleAuthMagic, http.MethodGet, http.MethodPost, http.MethodOptions)
 	// Navigation endpoints reached by a top-level GET redirect.
@@ -115,6 +118,7 @@ var (
 	handleAuthLogout        = serveReservedAuth((*skAuthMiddleware).handleLogout)
 	handleAuthMe            = serveReservedAuth((*skAuthMiddleware).handleMe)
 	handleAuthMagic         = serveReservedAuth((*skAuthMiddleware).handleMagic)
+	handleAuthNativeToken   = serveReservedAuth((*skAuthMiddleware).handleNativeToken)
 	handleAuthOAuthCallback = serveReservedAuth((*skAuthMiddleware).handleOAuthCallback)
 
 	handleAuthRegisterLogin = serveReservedAuth(func(m *skAuthMiddleware) (*shttp.Response, error) {

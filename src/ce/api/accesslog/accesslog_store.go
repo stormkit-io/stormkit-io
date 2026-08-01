@@ -15,7 +15,13 @@ import (
 
 // accessLogInsertFields is the number of columns written per row (log_id is
 // generated and excluded).
-const accessLogInsertFields = 15
+const accessLogInsertFields = 16
+
+// MaxInsertRows is how many access logs fit in one INSERT. Postgres accepts at
+// most 65535 bind parameters per statement, and the driver refuses the statement
+// outright beyond that — so a batch larger than this has to be split rather than
+// attempted and lost.
+const MaxInsertRows = 65535 / accessLogInsertFields
 
 // DefaultLimit caps a single page of access-log results.
 const DefaultLimit = 100
@@ -28,16 +34,18 @@ var stmt = struct {
 		INSERT INTO request_logs (
 			app_id, env_id, deployment_id, domain_id, host_name,
 			request_timestamp, method, request_path, response_code,
-			client_ip, user_agent, referrer, is_bot, bytes_sent, request_id
+			client_ip, user_agent, referrer, is_bot, bytes_sent, request_id,
+			duration_ms
 		)
-		VALUES {{ generateValues 15 (len .) }};
+		VALUES {{ generateValues 16 (len .) }};
 	`,
 
 	selectLogs: `
 		SELECT
 			log_id, app_id, env_id, deployment_id, domain_id, host_name,
 			request_timestamp, method, request_path, response_code,
-			client_ip, user_agent, referrer, is_bot, bytes_sent, request_id
+			client_ip, user_agent, referrer, is_bot, bytes_sent, request_id,
+			duration_ms
 		FROM request_logs
 		WHERE {{ .where }}
 		ORDER BY request_timestamp DESC, log_id DESC
@@ -65,8 +73,27 @@ func stripNull(s string) string {
 	return strings.ReplaceAll(s, "\x00", "")
 }
 
-// InsertLogs writes a batch of access logs in a single multi-row INSERT.
+// InsertLogs writes a batch of access logs, splitting it into as many multi-row
+// INSERTs as the bind-parameter limit requires.
+//
+// The ingest job hands over everything it drained in a tick — tens of thousands
+// of rows under load — so the batch routinely exceeds what one statement can
+// carry. Chunking here rather than at the call site keeps the limit an
+// implementation detail of the write, and keeps a traffic burst from failing the
+// insert outright and dropping every access log in it.
 func (s *Store) InsertLogs(ctx context.Context, logs []AccessLog) error {
+	for len(logs) > MaxInsertRows {
+		if err := s.insertLogsChunk(ctx, logs[:MaxInsertRows]); err != nil {
+			return err
+		}
+
+		logs = logs[MaxInsertRows:]
+	}
+
+	return s.insertLogsChunk(ctx, logs)
+}
+
+func (s *Store) insertLogsChunk(ctx context.Context, logs []AccessLog) error {
 	if len(logs) == 0 {
 		return nil
 	}
@@ -78,7 +105,7 @@ func (s *Store) InsertLogs(ctx context.Context, logs []AccessLog) error {
 			l.AppID, l.EnvID, l.DeploymentID, l.DomainID, stripNull(l.HostName),
 			l.RequestTS.UTC(), stripNull(l.Method), stripNull(l.RequestPath), l.StatusCode,
 			stripNull(l.ClientIP), stripNull(l.UserAgent), stripNull(l.Referrer),
-			l.IsBot, l.BytesSent, l.RequestID,
+			l.IsBot, l.BytesSent, l.RequestID, l.DurationMS,
 		)
 	}
 
@@ -110,11 +137,15 @@ type SelectLogsParams struct {
 	Path     string
 	Status   int
 	IsBot    *bool
-	From     utils.Unix
-	To       utils.Unix
-	BeforeID types.ID
-	BeforeTS utils.Unix
-	Limit    int
+	// MinDurationMS keeps only requests that took at least this many
+	// milliseconds. Entries with a null duration (written before the column
+	// existed, or never stamped) are excluded rather than treated as 0.
+	MinDurationMS int
+	From          utils.Unix
+	To            utils.Unix
+	BeforeID      types.ID
+	BeforeTS      utils.Unix
+	Limit         int
 }
 
 // SelectLogs returns access logs matching the filters, newest first, with one
@@ -172,6 +203,10 @@ func (s *Store) SelectLogs(ctx context.Context, p SelectLogsParams) ([]AccessLog
 		add("is_bot = $%d", *p.IsBot)
 	}
 
+	if p.MinDurationMS > 0 {
+		add("duration_ms >= $%d", p.MinDurationMS)
+	}
+
 	// The cursor compares on the same tuple the query orders by, otherwise
 	// Postgres cannot seek to the page and re-walks the window from the newest
 	// row every time. Both halves are required — see AccessLog.Cursor.
@@ -221,6 +256,7 @@ func (s *Store) SelectLogs(ctx context.Context, p SelectLogsParams) ([]AccessLog
 			&l.ID, &l.AppID, &l.EnvID, &deploymentID, &domainID, &hostName,
 			&l.RequestTS, &method, &path, &status,
 			&clientIP, &userAgent, &referrer, &l.IsBot, &bytesSent, &l.RequestID,
+			&l.DurationMS,
 		); err != nil {
 			return nil, err
 		}

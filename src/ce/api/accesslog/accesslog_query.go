@@ -35,20 +35,21 @@ func SelectLogsParamsFromQuery(q url.Values) SelectLogsParams {
 	}
 
 	return SelectLogsParams{
-		AppID:    utils.StringToID(q.Get("appId")),
-		EnvID:    utils.StringToID(q.Get("envId")),
-		DomainID: utils.StringToID(q.Get("domainId")),
-		HostName: q.Get("hostName"),
-		ClientIP: q.Get("clientIp"),
-		Method:   q.Get("method"),
-		Path:     q.Get("path"),
-		Status:   utils.StringToInt(q.Get("status")),
-		IsBot:    boolFromQuery(q.Get("isBot")),
-		From:     from,
-		To:       to,
-		BeforeID: beforeID,
-		BeforeTS: beforeTS,
-		Limit:    DefaultLimit,
+		AppID:         utils.StringToID(q.Get("appId")),
+		EnvID:         utils.StringToID(q.Get("envId")),
+		DomainID:      utils.StringToID(q.Get("domainId")),
+		MinDurationMS: utils.StringToInt(q.Get("minDurationMs")),
+		HostName:      q.Get("hostName"),
+		ClientIP:      q.Get("clientIp"),
+		Method:        q.Get("method"),
+		Path:          q.Get("path"),
+		Status:        utils.StringToInt(q.Get("status")),
+		IsBot:         boolFromQuery(q.Get("isBot")),
+		From:          from,
+		To:            to,
+		BeforeID:      beforeID,
+		BeforeTS:      beforeTS,
+		Limit:         DefaultLimit,
 	}
 }
 
