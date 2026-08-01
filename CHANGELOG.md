@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.07.31.2...v2026.08.01.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.31.2...v2026.08.01.1)
+
+### 🚀 Enhancements
+
+- Record request duration in access logs ([#401](https://github.com/stormkit-io/stormkit-io/pull/401))
+
+### 🏡 Chore
+
+- Update changelog for v2026.07.31.2 ([#400](https://github.com/stormkit-io/stormkit-io/pull/400))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.07.31.1...v2026.07.31.2
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.07.31.1...v2026.07.31.2)
