@@ -1,3 +1,18 @@
+export const mockTriggerLog = (): TriggerLog => ({
+  id: "9",
+  triggerId: "2",
+  createdAt: 1734602569,
+  request: {
+    method: "POST",
+    url: "https://app.stormkit.io/api/test",
+    payload: `{"hello":"world"}`,
+  },
+  response: {
+    code: 200,
+    body: `{"status":"ok"}`,
+  },
+});
+
 export default (): FunctionTrigger[] => [
   {
     id: "2",

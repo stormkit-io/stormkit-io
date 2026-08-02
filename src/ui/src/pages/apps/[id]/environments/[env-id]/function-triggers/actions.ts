@@ -72,7 +72,7 @@ export function invokeFunctionTrigger({
   tfid,
   appId,
   envId,
-}: InvokeFunctionTriggerProps): Promise<void> {
+}: InvokeFunctionTriggerProps): Promise<{ log: TriggerLog }> {
   return api.post(`/v1/trigger/invoke`, {
     id: tfid,
     appId,

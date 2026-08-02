@@ -18,10 +18,14 @@ import CardRow from "~/components/CardRow";
 import EmptyPage from "~/components/EmptyPage";
 import Span from "~/components/Span";
 import FunctionTriggerModal from "./FunctionTriggerModal";
+import TriggerLogsDrawer from "./_components/TriggerLogsDrawer";
 import * as actions from "./actions";
 
-const { useFetchFunctionTriggers, deleteFunctionTrigger, invokeFunctionTrigger } =
-  actions;
+const {
+  useFetchFunctionTriggers,
+  deleteFunctionTrigger,
+  invokeFunctionTrigger,
+} = actions;
 
 const colors: Record<
   FunctionTriggerMethod,
@@ -51,8 +55,11 @@ export default function FunctionTriggers() {
   const [toBeDeleted, setToBeDeleted] = useState<FunctionTrigger>();
   const [isFunctionTriggerModalOpen, setFunctionTriggerModal] = useState(false);
   const [actionError, setActionError] = useState<string>();
-  const [actionSuccess, setActionSuccess] = useState<string>();
   const [invoking, setInvoking] = useState<string>();
+  const [drawer, setDrawer] = useState<{
+    trigger: FunctionTrigger;
+    initialLog?: TriggerLog;
+  }>();
   const [refreshToken, setRefreshToken] = useState(0);
   const { error, loading, functionTriggers, paymentRequired } =
     useFetchFunctionTriggers({
@@ -93,7 +100,6 @@ export default function FunctionTriggers() {
 
   const handleInvoke = (f: FunctionTrigger) => {
     setActionError(undefined);
-    setActionSuccess(undefined);
     setInvoking(f.id);
 
     invokeFunctionTrigger({
@@ -101,10 +107,8 @@ export default function FunctionTriggers() {
       appId: app.id,
       envId: environment.id!,
     })
-      .then(() => {
-        setActionSuccess(
-          "Trigger executed. Open 'Past triggers' to see the output."
-        );
+      .then(({ log }) => {
+        setDrawer({ trigger: f, initialLog: log });
       })
       .catch(res => {
         setActionError(
@@ -140,7 +144,6 @@ export default function FunctionTriggers() {
       sx={{ width: "100%" }}
       loading={loading}
       error={error || actionError}
-      success={actionSuccess}
       contentPadding={false}
     >
       <CardHeader
@@ -190,14 +193,23 @@ export default function FunctionTriggers() {
               label={f.options.method}
               sx={{ fontSize: 10, mr: 2, minWidth: "60px" }}
             />
-            <Typography
-              component="span"
-              color="text.secondary"
-              noWrap
-              sx={{ mr: 2, flex: 1 }}
-            >
-              {f.options.url}
-            </Typography>
+            <Tooltip title="See past triggers">
+              <Typography
+                component="span"
+                color="text.secondary"
+                noWrap
+                data-testid="trigger-url"
+                onClick={() => setDrawer({ trigger: f })}
+                sx={{
+                  mr: 2,
+                  flex: 1,
+                  cursor: "pointer",
+                  "&:hover": { textDecoration: "underline" },
+                }}
+              >
+                {f.options.url}
+              </Typography>
+            </Tooltip>
             <Span sx={{ display: "inline-flex", alignItems: "center" }}>
               <Tooltip
                 title={
@@ -256,6 +268,15 @@ export default function FunctionTriggers() {
             setFunctionTriggerModal(false);
           }}
           onSuccess={() => setRefreshToken(Date.now())}
+        />
+      )}
+      {drawer && (
+        <TriggerLogsDrawer
+          trigger={drawer.trigger}
+          appId={app.id}
+          envId={environment.id!}
+          initialLog={drawer.initialLog}
+          onClose={() => setDrawer(undefined)}
         />
       )}
       {toBeDeleted && functionTriggers && (

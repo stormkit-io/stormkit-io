@@ -151,9 +151,7 @@ describe("~/apps/[id]/environments/[env-id]/function-triggers/[trigger-id]/Trigg
     fireEvent.click(wrapper.getAllByTestId("trigger-log").at(0)!);
 
     await waitFor(() => {
-      expect(
-        wrapper.getByText("dial tcp: connection refused")
-      ).toBeTruthy();
+      expect(wrapper.getByText("dial tcp: connection refused")).toBeTruthy();
     });
   });
 
@@ -168,10 +166,14 @@ describe("~/apps/[id]/environments/[env-id]/function-triggers/[trigger-id]/Trigg
     await waitFor(() => {
       expect(wrapper.getByText("Log details")).toBeTruthy();
       expect(wrapper.getByText("Request payload")).toBeTruthy();
-      expect(wrapper.getByText(`{ "hello": "world" }`)).toBeTruthy();
+      expect(
+        wrapper.getByText(`{\n  "hello": "world"\n}`, { normalizer: s => s })
+      ).toBeTruthy();
     });
 
     // This is trigger log #2 so shouldn't exist
-    expect(() => wrapper.getByText(`{ "hi": "world" }`)).toThrow();
+    expect(() =>
+      wrapper.getByText(`{\n  "hi": "world"\n}`, { normalizer: s => s })
+    ).toThrow();
   });
 });

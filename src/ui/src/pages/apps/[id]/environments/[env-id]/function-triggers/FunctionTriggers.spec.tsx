@@ -10,7 +10,9 @@ import { RouterProvider, createMemoryRouter } from "react-router";
 import { AppContext } from "~/pages/apps/[id]/App.context";
 import { EnvironmentContext } from "~/pages/apps/[id]/environments/Environment.context";
 import mockApp from "~/testing/data/mock_app";
-import mockFunctionTriggers from "~/testing/data/mock_function_triggers";
+import mockFunctionTriggers, {
+  mockTriggerLog,
+} from "~/testing/data/mock_function_triggers";
 import mockEnvironment from "~/testing//data/mock_environment";
 import * as mockActions from "~/testing/nocks/nock_function_triggers";
 import FunctionTriggers from "./FunctionTriggers";
@@ -19,6 +21,7 @@ const {
   mockFetchFunctionTriggers,
   mockDeleteFunctionTrigger,
   mockInvokeFunctionTrigger,
+  mockFetchTriggerLogs,
 } = mockActions;
 
 interface Props {
@@ -151,9 +154,49 @@ describe("~/apps/[id]/environments/[env-id]/function-triggers/FunctionTriggers.t
 
     await waitFor(() => {
       expect(invokeScope.isDone()).toBe(true);
+      expect(wrapper.getByText("Log details")).toBeTruthy();
+      // The response body is pretty printed.
       expect(
-        wrapper.getByText(/Open 'Past triggers' to see the output/)
+        wrapper.getByText(`{\n  "status": "ok"\n}`, { normalizer: s => s })
       ).toBeTruthy();
+    });
+  });
+
+  it("should open the past triggers drawer when the url is clicked", async () => {
+    createWrapper();
+
+    await waitFor(() => {
+      expect(scope.isDone()).toBe(true);
+    });
+
+    const logsScope = mockFetchTriggerLogs({
+      appId: currentApp.id,
+      envId: currentEnv.id!,
+      triggerId: currentTriggers[0].id!,
+      response: { logs: [mockTriggerLog()] },
+    });
+
+    fireEvent.click(wrapper.getByTestId("trigger-url"));
+
+    await waitFor(() => {
+      expect(logsScope.isDone()).toBe(true);
+      expect(wrapper.getByText("Past triggers")).toBeTruthy();
+      expect(wrapper.getAllByTestId("trigger-log")).toHaveLength(1);
+    });
+
+    fireEvent.click(wrapper.getAllByTestId("trigger-log").at(0)!);
+
+    await waitFor(() => {
+      expect(wrapper.getByText("Log details")).toBeTruthy();
+      expect(
+        wrapper.getByText(`{\n  "status": "ok"\n}`, { normalizer: s => s })
+      ).toBeTruthy();
+    });
+
+    fireEvent.click(wrapper.getByTestId("back-to-logs"));
+
+    await waitFor(() => {
+      expect(wrapper.getByText("Past triggers")).toBeTruthy();
     });
   });
 
