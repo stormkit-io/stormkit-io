@@ -23,8 +23,16 @@ const accessLogInsertFields = 16
 // attempted and lost.
 const MaxInsertRows = 65535 / accessLogInsertFields
 
-// DefaultLimit caps a single page of access-log results.
+// DefaultLimit caps a single page of access-log results when the caller does
+// not ask for a specific page size.
 const DefaultLimit = 100
+
+// MaxLimit is the largest page an API caller may ask for. Rows are wide (user
+// agent, referrer, path) and the whole page is serialized into a single
+// response, so this is kept well below what the index could stream. It bounds
+// what arrives over HTTP only — internal callers set SelectLogsParams.Limit
+// directly and are trusted with it.
+const MaxLimit = 1000
 
 var stmt = struct {
 	insertLogs string

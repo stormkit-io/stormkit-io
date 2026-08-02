@@ -19,8 +19,8 @@ func handlerAccessLogs(req *user.RequestContext) *shttp.Response {
 
 	pagination := map[string]any{"hasNextPage": false}
 
-	if len(logs) > accesslog.DefaultLimit {
-		logs = logs[:accesslog.DefaultLimit]
+	if len(logs) > params.Limit {
+		logs = logs[:params.Limit]
 		last := logs[len(logs)-1]
 
 		pagination["hasNextPage"] = true

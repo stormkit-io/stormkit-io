@@ -79,6 +79,26 @@ func (s *QuerySuite) Test_MinDurationMS_Absent() {
 	}
 }
 
+func (s *QuerySuite) Test_Limit() {
+	params := accesslog.SelectLogsParamsFromQuery(url.Values{"limit": {"250"}})
+
+	s.Equal(250, params.Limit)
+}
+
+// A missing or nonsensical page size falls back to the default, and an
+// oversized one is clamped rather than rejected — the caller still gets a page.
+func (s *QuerySuite) Test_Limit_Fallbacks() {
+	for _, v := range []string{"", "0", "-1", "abc"} {
+		params := accesslog.SelectLogsParamsFromQuery(url.Values{"limit": {v}})
+
+		s.Equal(accesslog.DefaultLimit, params.Limit, v)
+	}
+
+	params := accesslog.SelectLogsParamsFromQuery(url.Values{"limit": {"999999"}})
+
+	s.Equal(accesslog.MaxLimit, params.Limit)
+}
+
 func TestQuery(t *testing.T) {
 	suite.Run(t, &QuerySuite{})
 }

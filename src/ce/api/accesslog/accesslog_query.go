@@ -49,8 +49,24 @@ func SelectLogsParamsFromQuery(q url.Values) SelectLogsParams {
 		To:            to,
 		BeforeID:      beforeID,
 		BeforeTS:      beforeTS,
-		Limit:         DefaultLimit,
+		Limit:         limitFromQuery(q.Get("limit")),
 	}
+}
+
+// limitFromQuery clamps a requested page size to [1, MaxLimit], falling back to
+// DefaultLimit when absent or unparseable.
+func limitFromQuery(v string) int {
+	limit := utils.StringToInt(v)
+
+	if limit <= 0 {
+		return DefaultLimit
+	}
+
+	if limit > MaxLimit {
+		return MaxLimit
+	}
+
+	return limit
 }
 
 // unixFromQuery parses a query value as unix seconds, returning an invalid Unix
