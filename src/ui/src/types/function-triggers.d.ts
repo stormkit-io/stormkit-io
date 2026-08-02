@@ -21,6 +21,8 @@ declare interface FunctionTrigger {
 }
 
 declare interface TriggerLog {
+  id?: string;
+  triggerId?: string;
   request: {
     headers?: Record<string, string>;
     method?: string;

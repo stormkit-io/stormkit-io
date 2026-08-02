@@ -42,9 +42,12 @@ func Run(p RunParams) (TriggerLog, error) {
 		}
 	}
 
+	// The row's created_at is filled in by the database on insert, but callers
+	// that return the log straight to a client need it populated here too.
 	return TriggerLog{
 		TriggerID: p.TriggerID,
 		Request:   request,
 		Response:  response,
+		CreatedAt: utils.NewUnix(),
 	}, err
 }

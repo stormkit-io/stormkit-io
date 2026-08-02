@@ -1,4 +1,5 @@
 import nock from "nock";
+import { mockTriggerLog } from "~/testing/data/mock_function_triggers";
 
 const endpoint = process.env.API_DOMAIN || "";
 
@@ -41,6 +42,7 @@ interface MockInvokeFunctionTriggerProps {
   envId: string;
   tfid: string;
   status?: number;
+  response?: { log: TriggerLog };
 }
 
 export const mockInvokeFunctionTrigger = ({
@@ -48,6 +50,7 @@ export const mockInvokeFunctionTrigger = ({
   envId,
   tfid,
   status = 200,
+  response = { log: mockTriggerLog() },
 }: MockInvokeFunctionTriggerProps) => {
   return nock(endpoint)
     .post(`/v1/trigger/invoke`, {
@@ -55,7 +58,7 @@ export const mockInvokeFunctionTrigger = ({
       appId,
       envId,
     })
-    .reply(status, { ok: true });
+    .reply(status, response);
 };
 
 interface MockUpdateFunctionTriggerProps {
