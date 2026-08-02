@@ -1,5 +1,4 @@
 export const mockTriggerLog = (): TriggerLog => ({
-  id: "9",
   triggerId: "2",
   createdAt: 1734602569,
   request: {

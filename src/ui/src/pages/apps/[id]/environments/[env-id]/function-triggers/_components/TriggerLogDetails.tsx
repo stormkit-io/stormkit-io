@@ -2,6 +2,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Span from "~/components/Span";
 import { formatBody } from "./prettyPrint";
+import { statusColor } from "./statusColor";
 
 interface Props {
   log: TriggerLog;
@@ -41,11 +42,7 @@ export default function TriggerLogDetails({ log }: Props) {
           <Span
             sx={{ mr: 0 }}
             size="small"
-            color={
-              log.response?.code?.toString()?.[0] === "2"
-                ? "success"
-                : undefined
-            }
+            color={statusColor(log.response?.code)}
           >
             {log.response?.code || "ERR"}
           </Span>

@@ -60,13 +60,21 @@ export default function FunctionTriggers() {
     trigger: FunctionTrigger;
     initialLog?: TriggerLog;
   }>();
+  // Kept separate from `drawer` so the panel stays mounted while it slides out.
+  const [isDrawerOpen, setDrawerOpen] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
+
   const { error, loading, functionTriggers, paymentRequired } =
     useFetchFunctionTriggers({
       appId: app.id,
       environmentId: environment.id!,
       refreshToken,
     });
+
+  const openDrawer = (trigger: FunctionTrigger, initialLog?: TriggerLog) => {
+    setDrawer({ trigger, initialLog });
+    setDrawerOpen(true);
+  };
 
   const handleDelete = ({
     setError,
@@ -108,7 +116,7 @@ export default function FunctionTriggers() {
       envId: environment.id!,
     })
       .then(({ log }) => {
-        setDrawer({ trigger: f, initialLog: log });
+        openDrawer(f, log);
       })
       .catch(res => {
         setActionError(
@@ -163,7 +171,7 @@ export default function FunctionTriggers() {
             {
               icon: <TimeIcon />,
               text: "Past triggers",
-              href: `/apps/${app.id}/environments/${environment.id}/function-triggers/${f.id}/logs`,
+              onClick: () => openDrawer(f),
             },
             {
               icon: <EditIcon />,
@@ -199,7 +207,7 @@ export default function FunctionTriggers() {
                 color="text.secondary"
                 noWrap
                 data-testid="trigger-url"
-                onClick={() => setDrawer({ trigger: f })}
+                onClick={() => openDrawer(f)}
                 sx={{
                   mr: 2,
                   flex: 1,
@@ -272,11 +280,14 @@ export default function FunctionTriggers() {
       )}
       {drawer && (
         <TriggerLogsDrawer
+          key={`${drawer.trigger.id}-${drawer.initialLog?.createdAt ?? ""}`}
+          open={isDrawerOpen}
           trigger={drawer.trigger}
           appId={app.id}
           envId={environment.id!}
           initialLog={drawer.initialLog}
-          onClose={() => setDrawer(undefined)}
+          onClose={() => setDrawerOpen(false)}
+          onExited={() => setDrawer(undefined)}
         />
       )}
       {toBeDeleted && functionTriggers && (

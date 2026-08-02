@@ -16,29 +16,49 @@ interface Props {
   appId: string;
   envId: string;
   initialLog?: TriggerLog;
+  open: boolean;
   onClose: () => void;
+  /** Fires once the slide-out transition has finished. */
+  onExited: () => void;
 }
 
-const cardStyles = { minWidth: "40vw", maxWidth: "600px", margin: "0" };
+const cardStyles = {
+  minWidth: "40vw",
+  maxWidth: "600px",
+  margin: "0",
+  border: "none",
+  borderRadius: 0,
+};
 
 export default function TriggerLogsDrawer({
   trigger,
   appId,
   envId,
   initialLog,
+  open,
   onClose,
+  onExited,
 }: Props) {
   const [selected, setSelected] = useState<TriggerLog | undefined>(initialLog);
   const [refreshToken, setRefreshToken] = useState(0);
+  // Opening the drawer on a fresh invoke shows the details straight away, so
+  // the list is only fetched once the user actually navigates back to it.
+  const [listRequested, setListRequested] = useState(!initialLog);
   const { logs, error, loading } = useFetchTriggerLogs({
     triggerId: trigger.id!,
     appId,
     envId,
     refreshToken,
+    enabled: listRequested,
   });
 
   return (
-    <Drawer anchor="right" open onClose={onClose}>
+    <Drawer
+      anchor="right"
+      open={open}
+      onClose={onClose}
+      onTransitionExited={onExited}
+    >
       {selected ? (
         <Card sx={cardStyles}>
           <CardHeader
@@ -51,7 +71,10 @@ export default function TriggerLogsDrawer({
                 variant="text"
                 color="info"
                 data-testid="back-to-logs"
-                onClick={() => setSelected(undefined)}
+                onClick={() => {
+                  setListRequested(true);
+                  setSelected(undefined);
+                }}
               >
                 <ArrowBackIcon fontSize="small" />
               </Button>

@@ -184,6 +184,8 @@ interface UseFetchTriggerLogsProps {
   envId: string;
   triggerId: string;
   refreshToken?: number;
+  /** Skips the request while false, for callers that render the logs lazily. */
+  enabled?: boolean;
 }
 
 export const useFetchTriggerLogs = ({
@@ -191,17 +193,19 @@ export const useFetchTriggerLogs = ({
   envId,
   triggerId,
   refreshToken,
+  enabled = true,
 }: UseFetchTriggerLogsProps) => {
   const [logs, setLogs] = useState<TriggerLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
 
   useEffect(() => {
-    if (!appId || !envId || !triggerId) {
+    if (!appId || !envId || !triggerId || !enabled) {
       return;
     }
 
     setLoading(true);
+    setError(undefined);
 
     api
       .fetch<{ logs: TriggerLog[] }>(
@@ -216,7 +220,7 @@ export const useFetchTriggerLogs = ({
       .finally(() => {
         setLoading(false);
       });
-  }, [appId, envId, triggerId, refreshToken]);
+  }, [appId, envId, triggerId, refreshToken, enabled]);
 
   return { logs, loading, error };
 };

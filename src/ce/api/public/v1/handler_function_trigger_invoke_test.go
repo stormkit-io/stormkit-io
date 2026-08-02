@@ -2,6 +2,7 @@ package publicapiv1_test
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -76,6 +77,18 @@ func (s *HandlerFunctionTriggerInvokeSuite) Test_Invoke() {
 	)
 
 	s.Equal(http.StatusOK, response.Code)
+
+	// The returned log is rendered directly by the dashboard, so it has to
+	// carry a timestamp rather than the zero value that marshals to null.
+	body := struct {
+		Log struct {
+			CreatedAt *int64 `json:"createdAt"`
+		} `json:"log"`
+	}{}
+
+	s.NoError(json.Unmarshal(response.Body.Bytes(), &body))
+	s.NotNil(body.Log.CreatedAt)
+	s.NotZero(*body.Log.CreatedAt)
 
 	logs, err := functiontrigger.NewStore().Logs(context.Background(), tf.ID)
 

@@ -3,6 +3,7 @@ import Span from "~/components/Span";
 import CardRow from "~/components/CardRow";
 import EmptyList from "~/components/EmptyPage";
 import { formatDate } from "~/utils/helpers/date";
+import { statusColor } from "./statusColor";
 
 interface Props {
   logs?: TriggerLog[];
@@ -27,15 +28,7 @@ export default function TriggerLogList({ logs, onSelect }: Props) {
           }}
         >
           <Typography sx={{ display: "flex", alignItems: "center" }}>
-            <Span
-              color={
-                log.response?.code?.toString()?.[0] === "2"
-                  ? "success"
-                  : log.response?.code
-                  ? "default"
-                  : "failure"
-              }
-            >
+            <Span color={statusColor(log.response?.code)}>
               {log.response?.code || "ERR"}
             </Span>
             <Span>{log.request?.url}</Span>
