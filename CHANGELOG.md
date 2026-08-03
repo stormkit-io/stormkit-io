@@ -1,5 +1,22 @@
 # Changelog
 
+## v2026.08.01.2...v2026.08.02.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.08.01.2...v2026.08.02.1)
+
+### 🚀 Enhancements
+
+- Configurable access-log page size ([#405](https://github.com/stormkit-io/stormkit-io/pull/405))
+- Show trigger responses in a drawer ([#406](https://github.com/stormkit-io/stormkit-io/pull/406))
+
+### 🏡 Chore
+
+- Update changelog for v2026.08.01.2 ([#404](https://github.com/stormkit-io/stormkit-io/pull/404))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.08.01.1...v2026.08.01.2
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.08.01.1...v2026.08.01.2)
