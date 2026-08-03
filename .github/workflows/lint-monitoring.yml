@@ -1,0 +1,79 @@
+name: Lint Monitoring Configs
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "deploy/**"
+      - ".github/workflows/lint-monitoring.yml"
+  push:
+    branches: [main]
+    paths:
+      - "deploy/**"
+      - ".github/workflows/lint-monitoring.yml"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate prometheus.yml
+        run: |
+          docker run --rm --entrypoint promtool \
+            -v "$PWD/deploy/monitoring:/cfg:ro" \
+            prom/prometheus:v3.1.0 check config /cfg/prometheus.yml
+
+      - name: Validate dashboard JSON
+        run: |
+          for file in deploy/monitoring/grafana/dashboards/*.json; do
+            jq empty "$file"
+          done
+
+      # A dashboard that references a datasource Grafana did not provision
+      # renders every panel empty, which looks like a broken metrics pipeline
+      # rather than a broken dashboard.
+      - name: Check dashboard datasource uids
+        run: |
+          for file in deploy/monitoring/grafana/dashboards/*.json; do
+            wrong=$(jq '[
+              (.panels[] | .datasource.uid),
+              (.panels[].targets // [] | .[] | .datasource.uid)
+            ] | map(select(. != "stormkit-prometheus")) | length' "$file")
+
+            if [ "$wrong" != "0" ]; then
+              echo "$file: $wrong reference(s) not pointing at the stormkit-prometheus datasource"
+              exit 1
+            fi
+          done
+
+      # Every dashboard expression must parse. promtool only validates PromQL
+      # inside rule files, so the expressions are lifted into one.
+      - name: Validate dashboard PromQL
+        run: |
+          jq -rs '
+            [ .[] | .panels[] | (.targets // [])[] | .expr ]
+            | to_entries
+            | map("      - record: dashboard:check\(.key)\n        expr: |\n          " + (.value | gsub("\n"; " ")))
+            | "groups:\n  - name: dashboard-exprs\n    rules:\n" + join("\n")
+          ' deploy/monitoring/grafana/dashboards/*.json > /tmp/promql_check.yml
+
+          docker run --rm --entrypoint promtool \
+            -v /tmp:/cfg:ro \
+            prom/prometheus:v3.1.0 check rules /cfg/promql_check.yml
+
+      - name: Validate compose profile
+        working-directory: deploy
+        env:
+          GRAFANA_ADMIN_PASSWORD: lint
+          REDIS_ADDR: redis:6379
+          POSTGRES_HOST: db
+          POSTGRES_PORT: "5432"
+          POSTGRES_DB: stormkit
+          POSTGRES_USER: stormkit
+          POSTGRES_PASSWORD: lint
+          STORMKIT_DOMAIN: example.org
+          STORMKIT_APP_SECRET: lint
+        run: docker compose --profile monitoring config -q
