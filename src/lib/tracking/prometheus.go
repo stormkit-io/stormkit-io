@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
+	"github.com/stormkit-io/stormkit-io/src/lib/database"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
@@ -81,6 +82,11 @@ func newRegistry(opts PrometheusOpts) *prometheus.Registry {
 	if opts.Apdex {
 		reg.MustRegister(RTHistogramProdEndpoints)
 	}
+
+	// Both binaries hold a pool, so both report their own saturation.
+	// CurrentConnection never opens one, so a scrape cannot make the metrics
+	// endpoint sit waiting on the database it is reporting about.
+	reg.MustRegister(newDBPoolCollector(database.CurrentConnection))
 
 	reg.MustRegister(collectors.NewBuildInfoCollector())
 	reg.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))

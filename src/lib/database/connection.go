@@ -120,6 +120,16 @@ func SetConnection(db *sql.DB) {
 	_db = db
 }
 
+// CurrentConnection returns the established connection, or nil when there is
+// none yet. Unlike Connection it never opens one, so observers such as the
+// metrics endpoint cannot trigger a connect and ping of their own.
+func CurrentConnection() *sql.DB {
+	dbmux.Lock()
+	defer dbmux.Unlock()
+
+	return _db
+}
+
 // IsDuplicate checks whether an error is a duplicate error or not.
 func IsDuplicate(dberr error) bool {
 	duplicateErrCode := "23505"
