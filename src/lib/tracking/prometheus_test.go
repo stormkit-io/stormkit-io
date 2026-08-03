@@ -2,6 +2,7 @@ package tracking
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"io"
 	"net"
@@ -9,6 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stormkit-io/stormkit-io/src/lib/database"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -50,6 +52,24 @@ func (s *PrometheusSuite) Test_ApdexRegisteredOnlyWhenEnabled() {
 
 	s.Contains(s.gathered(PrometheusOpts{Apdex: true}), "stormkit_lb_response_time_ms")
 	s.NotContains(s.gathered(PrometheusOpts{Apdex: false}), "stormkit_lb_response_time_ms")
+}
+
+// Registration is easy to get wrong silently: a collector left out of
+// newRegistry is simply never scraped, and the dashboards show "No data".
+func (s *PrometheusSuite) Test_DatabasePoolRegisteredOnEveryProfile() {
+	db, err := sql.Open("trackingfake", "")
+	s.Require().NoError(err)
+
+	defer db.Close()
+
+	previous := database.CurrentConnection()
+	database.SetConnection(db)
+
+	defer database.SetConnection(previous)
+
+	for _, opts := range []PrometheusOpts{{Apdex: true}, {Apdex: false}} {
+		s.Contains(s.gathered(opts), "stormkit_db_connections")
+	}
 }
 
 func (s *PrometheusSuite) Test_RuntimeCollectorsAlwaysRegistered() {

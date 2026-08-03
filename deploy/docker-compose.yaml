@@ -315,7 +315,12 @@ services:
       # Read-only view of the host so disk figures describe the machine rather
       # than the container. Safe here because no deployed app code ever runs in
       # this container.
-      - /:/host:ro,rslave
+      #
+      # No rslave propagation: Docker Desktop refuses it because the VM root is
+      # neither a shared nor a slave mount, which would make this fail outright
+      # on a developer machine. The cost is that a filesystem mounted after this
+      # container starts is not picked up until it is restarted.
+      - /:/host:ro
 
   postgres-exporter:
     image: prometheuscommunity/postgres-exporter:v0.17.1
