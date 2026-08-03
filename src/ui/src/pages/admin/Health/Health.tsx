@@ -101,7 +101,11 @@ function MachineCard({
         )}
         {sample && !sample.reachable && (
           <Box>
-            <Chip label="Unreachable" color="error" size="small" />
+            <Chip
+              color="error"
+              size="small"
+              label={<Typography sx={{ fontSize: 11 }}>Unreachable</Typography>}
+            />
             <Typography sx={{ fontSize: 14, mt: 1, opacity: 0.8 }}>
               node_exporter is not answering on this machine.
             </Typography>
