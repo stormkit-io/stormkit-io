@@ -1,0 +1,12 @@
+# The uid is fixed because the bundled dashboards reference it directly.
+# Changing it orphans every panel.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: stormkit-prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
