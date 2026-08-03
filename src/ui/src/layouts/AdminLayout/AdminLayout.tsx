@@ -95,6 +95,14 @@ export default function AdminLayout({ children }: Props) {
               <MenuLink
                 inline
                 item={{
+                  path: "/admin/health",
+                  text: "Health",
+                  isActive: pathname.includes("/admin/health"),
+                }}
+              />
+              <MenuLink
+                inline
+                item={{
                   path: "/admin/jobs",
                   text: "Jobs",
                   isActive: pathname.includes("/admin/jobs"),

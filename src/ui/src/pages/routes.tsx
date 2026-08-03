@@ -149,6 +149,10 @@ const routes: Array<ExtendedRouterProps> = [
     element: Async(() => import("~/pages/admin/AccessLogs"), adminLayout),
   },
   {
+    path: "/admin/health",
+    element: Async(() => import("~/pages/admin/Health"), adminLayout),
+  },
+  {
     path: "/admin/cloud/apps",
     element: Async(() => import("~/pages/admin/CloudApps"), adminLayout),
     cloudOnly: true,
