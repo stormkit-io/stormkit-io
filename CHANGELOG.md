@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.08.02.1...v2026.08.03.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.08.02.1...v2026.08.03.1)
+
+### 🩹 Fixes
+
+- Honour start command for .stormkit/server ([#410](https://github.com/stormkit-io/stormkit-io/pull/410))
+
+### 🏡 Chore
+
+- Update changelog for v2026.08.02.1 ([#407](https://github.com/stormkit-io/stormkit-io/pull/407))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.08.01.2...v2026.08.02.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.08.01.2...v2026.08.02.1)
