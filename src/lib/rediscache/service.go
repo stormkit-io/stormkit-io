@@ -60,11 +60,36 @@ var (
 type Handler func(context.Context, ...string)
 
 type MicroService struct {
-	ID     string `json:"id"`
-	Name   string `json:"name"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+
+	// Host is the address other services can reach this machine on. It is what
+	// turns the registry into a list of monitoring targets: every machine
+	// running Stormkit contributes one without any configuration.
+	//
+	// Inside the default compose setup the container hostname resolves on the
+	// shared network. Across machines it does not, so STORMKIT_ADVERTISE_HOST
+	// overrides it with an address that is routable from the other hosts.
+	Host string `json:"host,omitempty"`
+
 	ctx    context.Context
 	cancel context.CancelFunc
 	client *RedisCache
+}
+
+// advertisedHost resolves the address this instance publishes to the registry.
+func advertisedHost() string {
+	if host := os.Getenv("STORMKIT_ADVERTISE_HOST"); host != "" {
+		return host
+	}
+
+	host, err := os.Hostname()
+
+	if err != nil {
+		return ""
+	}
+
+	return host
 }
 
 type MicroServiceInterface interface {
@@ -95,6 +120,7 @@ func newService() MicroServiceInterface {
 	service := &MicroService{
 		ID:     uuid.New().String(),
 		Name:   utils.GetString(os.Getenv("STORMKIT_SERVICE_NAME"), "no-name"),
+		Host:   advertisedHost(),
 		ctx:    ctx,
 		cancel: cancel,
 		client: client,

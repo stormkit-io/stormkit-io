@@ -143,6 +143,16 @@ type InstanceConfig struct {
 	AuthConfig         *AuthConfig            `json:"auth,omitempty"`
 	DomainConfig       *DomainConfig          `json:"domains,omitempty"`
 	AnalyticsScript    *AnalyticsScriptConfig `json:"analyticsScript,omitempty"`
+	MonitoringConfig   *MonitoringConfig      `json:"monitoring,omitempty"`
+}
+
+// MonitoringConfig holds node_exporter endpoints that are not discovered
+// through the service registry — a dedicated database host, for instance, which
+// runs an exporter but no Stormkit process.
+//
+// Machines running Stormkit register themselves, so this list is normally empty.
+type MonitoringConfig struct {
+	Targets []string `json:"targets,omitempty"`
 }
 
 // AnalyticsScriptConfig holds an admin-supplied override for the client-side
@@ -333,6 +343,16 @@ func (vc InstanceConfig) Clone() InstanceConfig {
 	if vc.DomainConfig != nil {
 		v := *vc.DomainConfig
 		out.DomainConfig = &v
+	}
+
+	if vc.MonitoringConfig != nil {
+		v := *vc.MonitoringConfig
+
+		if vc.MonitoringConfig.Targets != nil {
+			v.Targets = append([]string(nil), vc.MonitoringConfig.Targets...)
+		}
+
+		out.MonitoringConfig = &v
 	}
 
 	return out

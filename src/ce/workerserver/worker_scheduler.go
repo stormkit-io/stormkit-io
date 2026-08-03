@@ -93,6 +93,7 @@ func (s *Scheduler) RegisterMasterTasks(ctx context.Context) {
 		{Handler: CleanupDeletedTeams, Def: dj(EVERY_HOUR), Opt: immediate},
 		{Handler: PingDomains, Def: dj(EVERY_MINUTE), Opt: immediate},
 		{Handler: TimedOutDeployments, Def: dj(EVERY_MINUTE), Opt: immediate},
+		{Handler: CollectSystemStats, Def: dj(EVERY_MINUTE), Opt: immediate},
 	}
 
 	s.masterTasks = s.registerTasks(ctx, tasks)
