@@ -19,6 +19,10 @@ type machineResponse struct {
 	Services []string         `json:"services"`
 	Manual   bool             `json:"manual"`
 	Sample   *sysstats.Sample `json:"sample"`
+
+	// Processes is what Stormkit itself is using on this machine, as opposed to
+	// the machine-wide figures in Sample.
+	Processes []sysstats.ProcessStats `json:"processes,omitempty"`
 }
 
 func handlerMetrics(req *user.RequestContext) *shttp.Response {
@@ -32,6 +36,7 @@ func handlerMetrics(req *user.RequestContext) *shttp.Response {
 	}
 
 	machines := make([]machineResponse, 0, len(targets))
+	processes := sysstats.ReadProcessStats()
 
 	for _, target := range targets {
 		sample, err := store.Latest(ctx, target.Host)
@@ -41,10 +46,11 @@ func handlerMetrics(req *user.RequestContext) *shttp.Response {
 		}
 
 		machines = append(machines, machineResponse{
-			Host:     target.Host,
-			Services: target.Services,
-			Manual:   target.Manual,
-			Sample:   sample,
+			Host:      target.Host,
+			Services:  target.Services,
+			Manual:    target.Manual,
+			Sample:    sample,
+			Processes: processes[target.Host],
 		})
 	}
 

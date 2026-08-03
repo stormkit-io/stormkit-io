@@ -37,6 +37,15 @@ const defaultMetrics: Metrics = {
       host: "node-a",
       services: ["hosting", "workerserver"],
       manual: false,
+      processes: [
+        {
+          service: "hosting",
+          instanceId: "abc",
+          goroutines: 120,
+          heapBytes: 40 * 1024 ** 2,
+          rssBytes: 90 * 1024 ** 2,
+        },
+      ],
       sample: {
         ts: 1754100000,
         target: "node-a",
@@ -177,6 +186,19 @@ describe("~/pages/admin/Health/Health.tsx", () => {
     await waitFor(() => {
       expect(wrapper.getByText("Unreachable")).toBeTruthy();
       expect(wrapper.getByText("connection refused")).toBeTruthy();
+    });
+  });
+
+  // Machine-wide numbers answer "is the box loaded"; these answer "is it
+  // Stormkit's fault".
+  it("shows what Stormkit's own processes use", async () => {
+    await createWrapper();
+
+    await waitFor(() => {
+      expect(
+        wrapper.getByText("Stormkit processes on this machine"),
+      ).toBeTruthy();
+      expect(wrapper.getByText("90 MB · 120 goroutines")).toBeTruthy();
     });
   });
 

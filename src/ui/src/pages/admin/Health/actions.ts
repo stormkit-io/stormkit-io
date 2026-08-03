@@ -28,12 +28,23 @@ export interface Sample {
   bootTime: number;
 }
 
+export interface ProcessStats {
+  service: string;
+  instanceId: string;
+  goroutines: number;
+  heapBytes: number;
+  /** Zero where the platform does not expose RSS; fall back to heapBytes. */
+  rssBytes: number;
+}
+
 export interface Machine {
   host: string;
   services: string[];
   manual: boolean;
   /** Null until the scraper has run, which is normal in the first minute. */
   sample: Sample | null;
+  /** What Stormkit itself uses here, as opposed to the machine-wide figures. */
+  processes?: ProcessStats[];
 }
 
 export interface TableSize {

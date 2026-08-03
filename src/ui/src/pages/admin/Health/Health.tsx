@@ -157,6 +157,28 @@ function MachineCard({
             ))}
 
             <MachineChart target={machine.host} refreshToken={refreshToken} />
+
+            {machine.processes?.length ? (
+              <Box sx={{ mt: 2 }}>
+                <Typography sx={{ fontSize: 12, mb: 0.5, opacity: 0.6 }}>
+                  Stormkit processes on this machine
+                </Typography>
+                {machine.processes.map(p => (
+                  <Box
+                    key={p.instanceId}
+                    sx={{ display: "flex", justifyContent: "space-between" }}
+                  >
+                    <Typography sx={{ fontSize: 12, opacity: 0.8 }}>
+                      {p.service}
+                    </Typography>
+                    <Typography sx={{ fontSize: 12, opacity: 0.6 }}>
+                      {formatBytes(p.rssBytes || p.heapBytes)} &middot;{" "}
+                      {p.goroutines} goroutines
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
+            ) : null}
           </Box>
         )}
       </CardRow>

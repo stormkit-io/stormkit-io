@@ -11,6 +11,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/database"
 	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
+	"github.com/stormkit-io/stormkit-io/src/lib/sysstats"
 	"github.com/stormkit-io/stormkit-io/src/lib/tracking"
 	"github.com/stormkit-io/stormkit-io/src/migrations"
 )
@@ -44,6 +45,10 @@ func main() {
 	if conf.Tracking.Prometheus {
 		tracking.Prometheus(tracking.PrometheusOpts{})
 	}
+
+	// Machine stats are scraped centrally, but a process can only report its
+	// own usage, so each instance publishes that itself.
+	sysstats.StartProcessReporter(context.Background())
 
 	srv, mux := jobs.Server()
 
