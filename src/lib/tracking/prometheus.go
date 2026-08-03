@@ -28,6 +28,13 @@ func Prometheus(opts PrometheusOpts) {
 		reg.MustRegister(RTHistogramProdEndpoints)
 	}
 
+	// Only meaningful where deployments are stored locally; the filesystem
+	// deployer is the only one with a storage directory on this machine.
+	if config.Get().Deployer != nil && config.Get().Deployer.StorageDir != "" {
+		reg.MustRegister(DeploymentStorageFree)
+		reg.MustRegister(DeploymentStorageTotal)
+	}
+
 	// Add Go module build info.
 	reg.MustRegister(collectors.NewBuildInfoCollector())
 	reg.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
