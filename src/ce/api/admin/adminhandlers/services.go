@@ -24,6 +24,12 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodGet, "/settings", user.WithAdmin(handlerSystemSettings)).
 		Handler(shttp.MethodPut, "/settings", user.WithAdmin(handlerSystemSettingsUpdate))
 
+	s.NewEndpoint("/admin/metrics").
+		Handler(shttp.MethodGet, "", user.WithAdmin(handlerMetrics)).
+		Handler(shttp.MethodGet, "/history", user.WithAdmin(handlerMetricsHistory)).
+		Handler(shttp.MethodGet, "/targets", user.WithAdmin(handlerMetricsTargets)).
+		Handler(shttp.MethodPut, "/targets", user.WithAdmin(handlerMetricsTargetsUpdate))
+
 	s.NewEndpoint("/admin/license").
 		Handler(shttp.MethodPost, "", user.WithAdmin(handlerLicenseSet))
 
