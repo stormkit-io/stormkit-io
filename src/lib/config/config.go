@@ -120,8 +120,14 @@ type DeployerConfig struct {
 }
 
 type TrackingConfig struct {
-	Prometheus             bool
-	PrometheusPort         string
+	Prometheus     bool
+	PrometheusPort string
+
+	// PrometheusPortExplicit reports whether PROMETHEUS_PORT was set by the
+	// operator. A defaulted port is allowed to move when it is already taken;
+	// an explicitly configured one is not.
+	PrometheusPortExplicit bool
+
 	SlowRequestThresholdMs int
 }
 
@@ -330,6 +336,7 @@ func New() *Config {
 		Tracking: &TrackingConfig{
 			Prometheus:             isTrueString(os.Getenv("PROMETHEUS_METRICS")),
 			PrometheusPort:         get(os.Getenv("PROMETHEUS_PORT"), "2112"),
+			PrometheusPortExplicit: os.Getenv("PROMETHEUS_PORT") != "",
 			SlowRequestThresholdMs: getInt(os.Getenv("STORMKIT_SLOW_REQUEST_THRESHOLD_MS"), 0),
 		},
 
