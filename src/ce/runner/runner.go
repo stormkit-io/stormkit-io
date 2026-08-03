@@ -183,7 +183,6 @@ type BuildOpts struct {
 	BuildCmd         string
 	InstallCmd       string
 	ServerCmd        string
-	ServerFolder     string
 	HeadersFile      string
 	RedirectsFile    string
 	APIFolder        string            // Relative path to the API folder (trimmed)
@@ -280,7 +279,6 @@ func Start(payload, rootDir string) error {
 			BuildCmd:         msg.Build.BuildCmd,
 			InstallCmd:       msg.Build.InstallCmd,
 			ServerCmd:        msg.Build.ServerCmd,
-			ServerFolder:     trim(msg.Build.ServerFolder), // Backwards compatibility
 			HeadersFile:      trim(msg.Build.HeadersFile),
 			RedirectsFile:    trim(msg.Build.RedirectsFile),
 			APIFolder:        trim(msg.Build.APIFolder),

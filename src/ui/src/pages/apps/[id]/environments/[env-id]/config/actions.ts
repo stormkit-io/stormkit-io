@@ -146,7 +146,7 @@ export const buildFormValues = (
     "build.buildCmd": env.build.buildCmd,
     "build.serverCmd": env.build.serverCmd,
     "build.installCmd": env.build.installCmd,
-    "build.distFolder": env.build.distFolder || env.build.serverFolder,
+    "build.distFolder": env.build.distFolder,
     "build.workDir": env.build.workDir,
     "build.redirects": JSON.stringify(env.build.redirects),
     "build.vars": Object.keys(env.build?.vars || {})

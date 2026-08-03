@@ -35,7 +35,6 @@ type EnvUpdateRequest struct {
 	Redirects          *[]redirects.Redirect   `json:"redirects,omitempty"`
 	RedirectsFile      *string                 `json:"redirectsFile,omitempty"`
 	ServerCmd          *string                 `json:"serverCmd,omitempty"`
-	ServerFolder       *string                 `json:"serverFolder,omitempty"`
 	StatusChecks       []buildconf.StatusCheck `json:"statusChecks,omitempty"`
 	PriorityPattern    *string                 `json:"priorityPattern,omitempty"`
 	EnvVars            map[string]string       `json:"envVars,omitempty"`
@@ -138,10 +137,6 @@ func handlerEnvUpdate(req *RequestContext) *shttp.Response {
 
 	if data.ServerCmd != nil {
 		env.Data.ServerCmd = *data.ServerCmd
-	}
-
-	if data.ServerFolder != nil {
-		env.Data.ServerFolder = utils.TrimPath(*data.ServerFolder)
 	}
 
 	if data.Redirects != nil {

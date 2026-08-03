@@ -18,7 +18,6 @@ declare type BuildConfig = {
   buildCmd?: string;
   installCmd?: string;
   serverCmd?: string;
-  serverFolder?: string; // @deprecated: use distFolder instead.
   statusChecks?: StatusCheck[];
   priorityPattern?: string;
   cacheDirs?: string[]; // Directories restored before install and snapshotted after a successful build

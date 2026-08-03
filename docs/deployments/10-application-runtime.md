@@ -44,15 +44,18 @@ go = "1.22.5"
 
 In **Your App** > **Environments** > **Config**:
 
-- **Build command**: `go build -o .stormkit/server/app ./cmd/server`
-- **Output folder**: `.stormkit`
-- **Start command**: `./app`
+- **Build command**: `go build -o dist/app ./cmd/server`
+- **Output folder**: `dist`
+- **Start command**: `./dist/app`
 
 This configuration will:
 
-- Build your Go binary into `.stormkit/server`.
+- Build your Go binary into `dist`.
 - Upload that folder as the server artifact.
 - Start the binary when requests arrive.
+
+The start command runs from the root of the uploaded artifact, so it has to
+include the server folder in the path (`./dist/app`, not `./app`).
 
 ### Minimal server example
 
@@ -82,4 +85,4 @@ func main() {
 ### Notes
 
 - You can also use `go run ./cmd/server` as the Start command, but compiling a binary is faster and more reliable.
-- If your binary needs extra assets (templates, migrations, etc.), place them under `.stormkit/server` as part of the build step.
+- If your binary needs extra assets (templates, migrations, etc.), place them under your server folder as part of the build step.
