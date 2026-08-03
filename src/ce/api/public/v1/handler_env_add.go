@@ -34,7 +34,6 @@ type EnvAddRequest struct {
 	Redirects          []redirects.Redirect    `json:"redirects,omitempty"`
 	RedirectsFile      string                  `json:"redirectsFile,omitempty"`
 	ServerCmd          string                  `json:"serverCmd,omitempty"`
-	ServerFolder       string                  `json:"serverFolder,omitempty"`
 	StatusChecks       []buildconf.StatusCheck `json:"statusChecks,omitempty"`
 	CacheDirs          []string                `json:"cacheDirs,omitempty"`
 }
@@ -60,7 +59,6 @@ func handlerEnvAdd(req *RequestContext) *shttp.Response {
 			WorkDir:       utils.TrimPath(data.WorkDir),
 			ErrorFile:     utils.TrimPath(data.ErrorFile),
 			HeadersFile:   utils.TrimPath(data.HeadersFile),
-			ServerFolder:  utils.TrimPath(data.ServerFolder),
 			RedirectsFile: utils.TrimPath(data.RedirectsFile),
 			Headers:       data.Headers,
 			BuildCmd:      data.BuildCmd,

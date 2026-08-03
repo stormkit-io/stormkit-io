@@ -19,6 +19,8 @@ To modify the working directory, navigate to **Your App** > **Environments** > *
 
 To specify a different subfolder other than `.stormkit`, visit **Your App** > **Environments** > **Config** > **Deployment settings** > **Build** and update the `Output folder` setting. If changed, the folder structure mentioned above is also validated against this folder. If it differs, the entire content of the directory will be uploaded.
 
+Setting an `Output folder` takes precedence over the `.stormkit` convention: when it is set to anything other than `.stormkit`, the top-level `.stormkit/public` and `.stormkit/server` folders are no longer detected. Leave it empty if your build emits the `.stormkit` structure.
+
 If the deployment lacks a `.stormkit` subfolder and the output folder isn't specified, Stormkit checks for these common subfolders:
 
 - `out`

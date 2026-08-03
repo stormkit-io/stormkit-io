@@ -87,6 +87,11 @@ type Artifacts struct {
 	migrationsZip  string // absolute path to migrations zip
 	isAPIAutoBuilt bool
 
+	// Whether the server zip contains the contents of ServerDirs[0] rather than
+	// the directories themselves. Only the serverless `.stormkit/server` layout
+	// is flattened, because that path rsyncs the dependencies into the folder.
+	serverDirsFlattened bool
+
 	// List of redirects.
 	Redirects []deploy.Redirect
 
@@ -233,17 +238,17 @@ func findDistDir(opts RunnerOpts) string {
 
 // distDirs determines the client, server and api directories to deploy.
 //
-// Case 1: `.stormkit` folder exists
-//
-// - client: .stormkit/public
-// - server: .stormkit/server
-// - api: .stormkit/api
-//
-// Case 2: custom dist folder exists
+// Case 1: a custom output folder is configured
 //
 // - client: <dist-folder>/public | static | client
 // - server: <dist-folder>/server
-// - api: <dist-folder>/api
+//
+// Case 2: no custom output folder, `.stormkit` folder exists
+//
+// - client: .stormkit/public
+// - server: .stormkit/server
+//
+// `.stormkit/api` is built by us, so it wins in both cases.
 func distDirs(opts RunnerOpts) ([]string, []string, []string) {
 	clientDirs := []string{}
 	serverDirs := []string{}
@@ -260,8 +265,13 @@ func distDirs(opts RunnerOpts) ([]string, []string, []string) {
 		apiDirs = append(apiDirs, StormkitAPIFolder)
 	}
 
-	hasStormkitPublicSubfolder := file.Exists(filepath.Join(opts.WorkDir, ".stormkit", "public"))
-	hasStormkitServerSubfolder := file.Exists(filepath.Join(opts.WorkDir, ".stormkit", "server"))
+	// An explicitly configured output folder takes precedence over the auto
+	// detected `.stormkit` output. `.stormkit` itself is the convention folder
+	// rather than a custom one, so it keeps the subfolder layout below.
+	hasCustomDistFolder := trim(opts.Build.DistFolder) != "" && trim(opts.Build.DistFolder) != ".stormkit"
+
+	hasStormkitPublicSubfolder := !hasCustomDistFolder && file.Exists(filepath.Join(opts.WorkDir, ".stormkit", "public"))
+	hasStormkitServerSubfolder := !hasCustomDistFolder && file.Exists(filepath.Join(opts.WorkDir, ".stormkit", "server"))
 
 	if hasStormkitPublicSubfolder {
 		clientDirs = append(clientDirs, StormkitPublicFolder)
@@ -281,8 +291,8 @@ func distDirs(opts RunnerOpts) ([]string, []string, []string) {
 	distDir := findDistDir(opts)
 
 	// We're deploying a server application in this case
-	if opts.Build.ServerCmd != "" || opts.Build.ServerFolder != "" {
-		return clientDirs, []string{utils.GetString(distDir, opts.Build.ServerFolder)}, apiDirs
+	if opts.Build.ServerCmd != "" {
+		return clientDirs, []string{distDir}, apiDirs
 	}
 
 	if distDir == "" {
@@ -366,13 +376,15 @@ func (b Bundler) Bundle(ctx context.Context) (*Artifacts, error) {
 		distDir: b.distDir,
 	}
 
-	var err error
-
-	artifacts.ServerDirs, artifacts.FunctionHandler, err = b.bundleServerSide()
+	server, err := b.bundleServerSide()
 
 	if err != nil {
 		return nil, err
 	}
+
+	artifacts.ServerDirs = server.dirs
+	artifacts.FunctionHandler = server.functionHandler
+	artifacts.serverDirsFlattened = server.flattened
 
 	artifacts.ApiDirs, artifacts.ApiHandler, err = b.bundleApiFolder(ctx)
 
@@ -414,18 +426,18 @@ func (b Bundler) findServerDependencies(commands []utils.Command) []string {
 
 // bundleServerSideStormkitSubfolder bundles the server side code when the built files
 // are located inside `.stormkit/server` folder. This is mainly used for serverless deployments.
-func (b Bundler) bundleServerSideStormkitSubfolder() ([]string, string, error) {
+func (b Bundler) bundleServerSideStormkitSubfolder() (serverBundle, error) {
 	pathToDist := filepath.Join(b.workDir, b.serverDirs[0])
 	serverEntry, functionHandler := autoDetectServerFile(pathToDist)
 
 	if serverEntry == "" {
-		return nil, "", fmt.Errorf("cannot auto detect serverless entry file: expecting a file name called (index|server).{js,mjs,cjs}")
+		return serverBundle{}, fmt.Errorf("cannot auto detect serverless entry file: expecting a file name called (index|server).{js,mjs,cjs}")
 	}
 
 	dependencies, err := b.bundleDependencies(pathToDist)
 
 	if err != nil {
-		return nil, "", err
+		return serverBundle{}, err
 	}
 
 	// Move required node_modules to .stormkit/server/node_modules
@@ -443,7 +455,11 @@ func (b Bundler) bundleServerSideStormkitSubfolder() ([]string, string, error) {
 		}
 	}
 
-	return []string{StormkitServerFolder}, fmt.Sprintf("%s:%s", serverEntry, functionHandler), nil
+	return serverBundle{
+		dirs:            []string{StormkitServerFolder},
+		functionHandler: fmt.Sprintf("%s:%s", serverEntry, functionHandler),
+		flattened:       true,
+	}, nil
 }
 
 // copyNixFlake copies flake.nix and flake.lock from the detected flake directory
@@ -479,10 +495,20 @@ func (b Bundler) copyNixFlake(destDir string) {
 	}
 }
 
+// serverBundle describes the server artifact produced by bundleServerSide.
+type serverBundle struct {
+	dirs            []string
+	functionHandler string
+
+	// flattened means the zip holds the contents of dirs[0] rather than the
+	// directories themselves. See Artifacts.serverDirsFlattened.
+	flattened bool
+}
+
 // bundleServerSide returns the necessary information to bundle the server side code.
-func (b Bundler) bundleServerSide() ([]string, string, error) {
+func (b Bundler) bundleServerSide() (serverBundle, error) {
 	if b.serverCmd == "" && len(b.serverDirs) == 0 {
-		return nil, "", nil
+		return serverBundle{}, nil
 	}
 
 	functionHandler := ".:server"
@@ -490,11 +516,13 @@ func (b Bundler) bundleServerSide() ([]string, string, error) {
 	// Handle bundling the whole folder case (go, python, ruby, etc...)
 	if len(b.serverDirs) == 1 && b.serverDirs[0] == "" {
 		b.copyNixFlake(b.workDir)
-		return []string{"."}, functionHandler, nil
+		return serverBundle{dirs: []string{"."}, functionHandler: functionHandler}, nil
 	}
 
-	// Handle .stormkit/server subfolder case (serverless)
-	if len(b.serverDirs) == 1 && b.serverDirs[0] == StormkitServerFolder {
+	// Handle .stormkit/server subfolder case (serverless). A start command means
+	// an application runtime (go, python, ruby, ...), in which case the folder is
+	// no different from any other server folder and takes the generic path below.
+	if len(b.serverDirs) == 1 && b.serverDirs[0] == StormkitServerFolder && b.serverCmd == "" {
 		return b.bundleServerSideStormkitSubfolder()
 	}
 
@@ -563,7 +591,7 @@ func (b Bundler) bundleServerSide() ([]string, string, error) {
 		}
 	}
 
-	return serverDirs, functionHandler, nil
+	return serverBundle{dirs: serverDirs, functionHandler: functionHandler}, nil
 }
 
 // bundleApiFolder will look at <relative-dist>/api folder
@@ -830,13 +858,7 @@ func (b Bundler) Zip(artifacts *Artifacts) error {
 		return err
 	}
 
-	includeParentFolder := true
-
-	if len(artifacts.ServerDirs) != 0 && artifacts.ServerDirs[0] == StormkitServerFolder {
-		includeParentFolder = false
-	}
-
-	if err := zip(serverZip, artifacts.ServerDirs, includeParentFolder, ""); err != nil {
+	if err := zip(serverZip, artifacts.ServerDirs, !artifacts.serverDirsFlattened, ""); err != nil {
 		return err
 	}
 

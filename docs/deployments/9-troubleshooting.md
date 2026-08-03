@@ -25,7 +25,7 @@ on the <b>Manifest</b> button. The <b>CDN Files</b> section contains a list of d
 
 If the deployed files are not the correct ones, you can change the output folder by modifying the environment configuration's <b>Output</b> option and re-deploy.
 
-If you need a dynamic application you will need to enable Server Side Rendering. For Nuxt.js, we detect server side rendering automatically. For Next.js, we only support static applications. To enable server side rendering for other applications, your build must generate a `.stormkit/server` folder with a file called <b>server.js</b>. The file must export a method called `handler` like below:
+If you need a dynamic application you will need to enable Server Side Rendering. For Nuxt.js, we detect server side rendering automatically. For Next.js, we only support static applications. To enable server side rendering for other applications, your build must generate a `.stormkit/server` folder with a file called <b>server.js</b>. This requires the <b>Output</b> option to be empty or set to `.stormkit` — any other value takes precedence and the `.stormkit/server` folder is not detected. The file must export a method called `handler` like below:
 
 ```js
 // .stormkit/server/server.js

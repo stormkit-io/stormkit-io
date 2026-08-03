@@ -134,7 +134,6 @@ func (dd *DefaultDeployer) Deploy(ctx context.Context, a *app.App, d *deploy.Dep
 			ServerCmd:        d.BuildConfig.ServerCmd,
 			InstallCmd:       d.BuildConfig.InstallCmd,
 			WorkDir:          d.BuildConfig.WorkDir,
-			ServerFolder:     d.BuildConfig.ServerFolder,
 			DistFolder:       d.BuildConfig.DistFolder,
 			DeploymentID:     d.ID.String(),
 			EnvID:            d.EnvID.String(),

@@ -120,9 +120,7 @@ export default function TabConfigGeneral({
           label="Output folder"
           variant="filled"
           autoComplete="off"
-          defaultValue={
-            env?.build.distFolder || env?.build.serverFolder || "./"
-          }
+          defaultValue={env?.build.distFolder || "./"}
           fullWidth
           name="build.distFolder"
           placeholder="Defaults to `build`, `dist`, `output` or `.stormkit`"

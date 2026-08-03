@@ -1,6 +1,7 @@
 package runner_test
 
 import (
+	"archive/zip"
 	"context"
 	"encoding/json"
 	"os"
@@ -97,12 +98,12 @@ func (s *BundlerSuite) Test_Bundle_StormkitFolder_And_PublicFolder() {
 	s.Equal(text, string(data))
 }
 
-func (s *BundlerSuite) Test_Bundle_WithServerFolderSpecified() {
+func (s *BundlerSuite) Test_Bundle_WithDistFolderSpecified() {
 	s.NoError(os.MkdirAll(path.Join(s.config.Repo.Dir, "public"), 0774))
 	s.NoError(os.MkdirAll(path.Join(s.config.Repo.Dir, "build", "public"), 0774))
 	s.NoError(os.WriteFile(path.Join(s.config.Repo.Dir, "build", "index.js"), []byte("Hello world"), 0664))
 
-	s.config.Build.ServerFolder = "build"
+	s.config.Build.DistFolder = "build"
 	s.config.Build.ServerCmd = "npm run start"
 
 	bundler := runner.NewBundler(s.config)
@@ -147,7 +148,7 @@ func (s *BundlerSuite) Test_Bundle_NextServer() {
 
 	s.config.Repo.PackageJson = packageJson
 	s.config.Build.ServerCmd = "npm run start"
-	s.config.Build.ServerFolder = ".next"
+	s.config.Build.DistFolder = ".next"
 
 	bundler := runner.NewBundler(s.config)
 	artifacts, err := bundler.Bundle(context.Background())
@@ -226,7 +227,7 @@ func (s *BundlerSuite) Test_Bundle_CopiesFlakeNix_FromRepoDirToServerDir() {
 	s.NoError(os.WriteFile(path.Join(s.config.Repo.Dir, "flake.nix"), []byte("{}"), 0664))
 
 	s.config.WorkDir = subDir
-	s.config.Build.ServerFolder = "dist"
+	s.config.Build.DistFolder = "dist"
 	s.config.Build.ServerCmd = "./dist/server"
 
 	bundler := runner.NewBundler(s.config)
@@ -237,9 +238,142 @@ func (s *BundlerSuite) Test_Bundle_CopiesFlakeNix_FromRepoDirToServerDir() {
 	s.Contains(artifacts.ServerDirs, "flake.nix")
 }
 
+// serverZipEntries zips the artifacts and returns the file names inside the
+// server zip, so tests can assert the layout the runtime will actually see.
+func (s *BundlerSuite) serverZipEntries(bundler runner.BundlerInterface, artifacts *runner.Artifacts) []string {
+	// Zip errors out when the configured migrations folder is missing.
+	s.Require().NoError(os.MkdirAll(path.Join(s.config.WorkDir, "migrations"), 0774))
+	s.Require().NoError(bundler.Zip(artifacts))
+
+	reader, err := zip.OpenReader(path.Join(s.config.RootDir, "dist", "sk-server.zip"))
+	s.Require().NoError(err)
+
+	defer reader.Close()
+
+	names := []string{}
+
+	for _, f := range reader.File {
+		names = append(names, f.Name)
+	}
+
+	return names
+}
+
+func (s *BundlerSuite) Test_Bundle_StormkitServerFolder_WithServerCmd() {
+	// Application runtime: a start command makes `.stormkit/server` an ordinary
+	// server folder, so it is bundled exactly like `dist` or `.next` would be —
+	// no serverless entry file detection, and the parent folder is kept.
+	serverDir := path.Join(s.config.Repo.Dir, ".stormkit", "server")
+	s.NoError(os.MkdirAll(serverDir, 0774))
+	s.NoError(os.WriteFile(path.Join(serverDir, "app"), []byte("binary"), 0775))
+
+	s.config.Build.ServerCmd = "./.stormkit/server/app"
+
+	bundler := runner.NewBundler(s.config)
+	artifacts, err := bundler.Bundle(context.Background())
+
+	s.NoError(err)
+	s.Empty(artifacts.ApiDirs)
+	s.Empty(artifacts.ClientDirs)
+	s.Equal(".:server", artifacts.FunctionHandler)
+	s.Equal([]string{".stormkit/server"}, artifacts.ServerDirs)
+	s.Contains(s.serverZipEntries(bundler, artifacts), ".stormkit/server/app")
+}
+
+func (s *BundlerSuite) Test_Bundle_StormkitServerFolder_WithServerCmd_KeepsFlakeAtRoot() {
+	// The zip is rooted at the working directory, so the flake stays where the
+	// generic server-command path puts it instead of being copied into the folder.
+	serverDir := path.Join(s.config.Repo.Dir, ".stormkit", "server")
+	s.NoError(os.MkdirAll(serverDir, 0774))
+	s.NoError(os.WriteFile(path.Join(serverDir, "app"), []byte("binary"), 0775))
+	s.NoError(os.WriteFile(path.Join(s.config.Repo.Dir, "flake.nix"), []byte("{}"), 0664))
+	s.NoError(os.WriteFile(path.Join(s.config.Repo.Dir, "flake.lock"), []byte("{}"), 0664))
+
+	s.config.Build.ServerCmd = "./.stormkit/server/app"
+
+	bundler := runner.NewBundler(s.config)
+	artifacts, err := bundler.Bundle(context.Background())
+
+	s.NoError(err)
+	s.Contains(artifacts.ServerDirs, ".stormkit/server")
+	s.Contains(artifacts.ServerDirs, "flake.nix")
+	s.Contains(artifacts.ServerDirs, "flake.lock")
+	s.NoFileExists(path.Join(serverDir, "flake.nix"))
+
+	entries := s.serverZipEntries(bundler, artifacts)
+
+	s.Contains(entries, "flake.nix")
+	s.Contains(entries, ".stormkit/server/app")
+}
+
+func (s *BundlerSuite) Test_Bundle_StormkitServerFolder_WithoutServerCmd_IsFlattened() {
+	// Without a start command the folder keeps its serverless meaning: the entry
+	// file is auto detected and the zip holds the folder contents at the root.
+	serverDir := path.Join(s.config.Repo.Dir, ".stormkit", "server")
+	s.NoError(os.MkdirAll(serverDir, 0774))
+	s.NoError(os.WriteFile(path.Join(serverDir, "index.js"), []byte("export const handler = () => {}"), 0664))
+
+	bundler := runner.NewBundler(s.config)
+	artifacts, err := bundler.Bundle(context.Background())
+
+	s.NoError(err)
+	s.Equal("index.js:handler", artifacts.FunctionHandler)
+	s.Equal([]string{".stormkit/server"}, artifacts.ServerDirs)
+
+	entries := s.serverZipEntries(bundler, artifacts)
+
+	s.Contains(entries, "index.js")
+	s.NotContains(entries, ".stormkit/server/index.js")
+}
+
+func (s *BundlerSuite) Test_Bundle_DistFolder_WinsOver_StormkitServerFolder() {
+	// A leftover `.stormkit/server` must not shadow an explicitly configured
+	// output folder.
+	s.NoError(os.MkdirAll(path.Join(s.config.Repo.Dir, ".stormkit", "server"), 0774))
+	s.NoError(os.WriteFile(path.Join(s.config.Repo.Dir, ".stormkit", "server", "leftover"), []byte("stale"), 0664))
+	s.NoError(os.MkdirAll(path.Join(s.config.Repo.Dir, "dist"), 0774))
+	s.NoError(os.WriteFile(path.Join(s.config.Repo.Dir, "dist", "index.js"), []byte("Hello world"), 0664))
+
+	s.config.Build.DistFolder = "dist"
+	s.config.Build.ServerCmd = "npm run start"
+
+	bundler := runner.NewBundler(s.config)
+	artifacts, err := bundler.Bundle(context.Background())
+
+	s.NoError(err)
+	s.Equal([]string{"dist"}, artifacts.ServerDirs)
+}
+
+func (s *BundlerSuite) Test_Bundle_DistFolder_Stormkit_KeepsSubfolderLayout() {
+	// `.stormkit` is the convention folder, not a custom output folder, so
+	// setting it explicitly must still resolve to the `.stormkit/*` subfolders.
+	s.NoError(os.MkdirAll(path.Join(s.config.Repo.Dir, ".stormkit", "server"), 0774))
+	s.NoError(os.WriteFile(path.Join(s.config.Repo.Dir, ".stormkit", "server", "app"), []byte("binary"), 0775))
+
+	s.config.Build.DistFolder = ".stormkit"
+	s.config.Build.ServerCmd = "./.stormkit/server/app"
+
+	bundler := runner.NewBundler(s.config)
+	artifacts, err := bundler.Bundle(context.Background())
+
+	s.NoError(err)
+	s.Equal([]string{".stormkit/server"}, artifacts.ServerDirs)
+}
+
+func (s *BundlerSuite) Test_Bundle_StormkitServerFolder_WithoutServerCmd_RequiresEntryFile() {
+	serverDir := path.Join(s.config.Repo.Dir, ".stormkit", "server")
+	s.NoError(os.MkdirAll(serverDir, 0774))
+	s.NoError(os.WriteFile(path.Join(serverDir, "app"), []byte("binary"), 0775))
+
+	bundler := runner.NewBundler(s.config)
+	_, err := bundler.Bundle(context.Background())
+
+	s.ErrorContains(err, "cannot auto detect serverless entry file")
+}
+
 func (s *BundlerSuite) Test_Bundle_NextServer_AlternativeSyntax() {
 	s.config.Build.ServerCmd = "npm run start"
-	s.config.Build.ServerFolder = ".next"
+	s.config.Build.DistFolder = ".next"
 
 	s.NoError(os.MkdirAll(path.Join(s.config.Repo.Dir, ".next"), 0774))
 	s.NoError(os.WriteFile(path.Join(s.config.Repo.Dir, ".next", "index.js"), []byte("Hello world"), 0664))

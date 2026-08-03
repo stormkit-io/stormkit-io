@@ -58,9 +58,6 @@ type BuildConfig struct {
 	// ServerCmd is the command to run the Node.js application.
 	ServerCmd string `json:"serverCmd,omitempty"`
 
-	// ServerFolder is the output folder for the server side application.
-	ServerFolder string `json:"serverFolder,omitempty"`
-
 	// DistFolder is the folder which the client is built.
 	DistFolder string `json:"distFolder"`
 

@@ -33,8 +33,8 @@ func (s *DepTree) SetupTest() {
 		WorkDir:  path.Join(s.cacheFolder, "repo"),
 		Reporter: runner.NewReporter("http://example.com"),
 		Build: runner.BuildOpts{
-			BuildCmd:     "npm run build",
-			ServerFolder: ".next",
+			BuildCmd:   "npm run build",
+			DistFolder: ".next",
 			EnvVars: map[string]string{
 				"CI": "true",
 			},

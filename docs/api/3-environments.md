@@ -104,7 +104,6 @@ Creates a new environment for an application.
 | `redirects`          | `Redirect[]`            | No       | Inline redirect/rewrite rules. See the Redirects API for the `Redirect` object shape.                       |
 | `redirectsFile`      | string                  | No       | Path to a file containing redirect/rewrite rules.                                                           |
 | `serverCmd`          | string                  | No       | Command to start the server (self-hosted only).                                                             |
-| `serverFolder`       | string                  | No       | Server-side upload folder.                                                                                  |
 | `statusChecks`       | `StatusCheck[]`         | No       | Post-deployment commands to run. See `StatusCheck` object below.                                            |
 | `workDir`            | string                  | No       | Working directory relative to the repository root where install/build commands run. Defaults to repo root.  |
 
@@ -185,7 +184,6 @@ All fields are **optional**. Only the fields you include will be updated.
 | `redirects`          | `Redirect[]`            | Inline redirect/rewrite rules. Replaces all existing inline rules. See the Redirects API for the `Redirect` object shape.                    |
 | `redirectsFile`      | string                  | Path to a file containing redirect/rewrite rules.                                                                                            |
 | `serverCmd`          | string                  | Command to start the server (self-hosted only).                                                                                              |
-| `serverFolder`       | string                  | Server-side upload folder.                                                                                                                   |
 | `statusChecks`       | `StatusCheck[]`         | Post-deployment commands to run. Replaces all existing checks. See `StatusCheck` in `POST /v1/env`.                                          |
 | `workDir`            | string                  | Working directory relative to the repository root where install/build commands run. Defaults to repo root.                                   |
 

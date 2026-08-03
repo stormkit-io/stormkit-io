@@ -236,7 +236,6 @@ func mcpAllTools() []mcpToolDef {
 					"buildCmd":           map[string]any{"type": "string", "description": "Build command, e.g. 'npm run build'."},
 					"installCmd":         map[string]any{"type": "string", "description": "Install command, e.g. 'npm install'."},
 					"distFolder":         map[string]any{"type": "string", "description": "Client output directory, e.g. 'dist'."},
-					"serverFolder":       map[string]any{"type": "string", "description": "Server output directory for self-hosted deployments."},
 					"workDir":            map[string]any{"type": "string", "description": "Working directory relative to the repository root where install/build commands run. Defaults to the repo root."},
 					"serverCmd":          map[string]any{"type": "string", "description": "Command to start the server process (self-hosted only)."},
 					"apiFolder":          map[string]any{"type": "string", "description": "Path to the API / serverless functions folder."},
@@ -308,7 +307,6 @@ func mcpAllTools() []mcpToolDef {
 					"apiFolder":          map[string]any{"type": "string", "description": "Path to the API / serverless functions folder."},
 					"apiPathPrefix":      map[string]any{"type": "string", "description": "URL prefix used to route requests to API functions (default: /api)."},
 					"serverCmd":          map[string]any{"type": "string", "description": "Command to start the server process (self-hosted only)."},
-					"serverFolder":       map[string]any{"type": "string", "description": "Server output directory for self-hosted deployments."},
 					"errorFile":          map[string]any{"type": "string", "description": "Custom error page file served instead of 404.html."},
 					"headers":            map[string]any{"type": "string", "description": "Custom response headers in Netlify / Caddy format."},
 					"headersFile":        map[string]any{"type": "string", "description": "Path to a headers file (relative to repo root)."},
@@ -879,7 +877,6 @@ func mcpCreateEnvironment(req *RequestContextMCP, id any, args map[string]any) *
 		InstallCmd:    stringArg(args, "installCmd"),
 		DistFolder:    stringArg(args, "distFolder"),
 		WorkDir:       stringArg(args, "workDir"),
-		ServerFolder:  stringArg(args, "serverFolder"),
 		ServerCmd:     stringArg(args, "serverCmd"),
 		APIFolder:     stringArg(args, "apiFolder"),
 		APIPathPrefix: stringArg(args, "apiPathPrefix"),
@@ -1058,7 +1055,6 @@ func mcpUpdateEnvironment(req *RequestContextMCP, id any, args map[string]any) *
 	setString("apiFolder", &update.APIFolder)
 	setString("apiPathPrefix", &update.APIPathPrefix)
 	setString("serverCmd", &update.ServerCmd)
-	setString("serverFolder", &update.ServerFolder)
 	setString("errorFile", &update.ErrorFile)
 	setString("headers", &update.Headers)
 	setString("headersFile", &update.HeadersFile)
