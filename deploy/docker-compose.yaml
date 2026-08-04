@@ -316,6 +316,18 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_AUTH_ANONYMOUS_ENABLED=false
+
+      # Installing a plugin from the UI runs that plugin's code inside this
+      # container, which sits on the same network as Postgres and Redis. That
+      # turns the admin password into remote code execution next to the
+      # database, so the catalogue is off. Mount a plugin into the image if you
+      # genuinely need one.
+      - GF_PLUGINS_PLUGIN_ADMIN_ENABLED=false
+
+      # Grafana derives absolute URLs (the post-login redirect, share links)
+      # from this. It only needs setting if you put Grafana behind a proxy on a
+      # public hostname; the loopback default is right for the SSH tunnel.
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://localhost:${GRAFANA_PORT:-3000}}
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro

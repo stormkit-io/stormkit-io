@@ -5,11 +5,15 @@ on:
     branches: [main]
     paths:
       - "deploy/**"
+      - "src/www/public/install.sh"
+      - "docs/self-hosting/8-monitoring.md"
       - ".github/workflows/lint-monitoring.yml"
   push:
     branches: [main]
     paths:
       - "deploy/**"
+      - "src/www/public/install.sh"
+      - "docs/self-hosting/8-monitoring.md"
       - ".github/workflows/lint-monitoring.yml"
 
 # Reading the checkout is all this workflow does. Nothing here writes to the
@@ -36,6 +40,27 @@ jobs:
           for file in deploy/monitoring/grafana/dashboards/*.json; do
             jq empty "$file"
           done
+
+      # A dashboard committed here but missing from the installer or the
+      # upgrade docs exists only in the repository: Grafana provisions from
+      # whatever is on the operator's disk, so the panel simply never appears
+      # and nothing errors. Both lists are hand-maintained, so check them.
+      - name: Check dashboards are shipped
+        run: |
+          missing=0
+
+          for file in deploy/monitoring/grafana/dashboards/*.json; do
+            name=$(basename "$file")
+
+            for consumer in src/www/public/install.sh docs/self-hosting/8-monitoring.md; do
+              if ! grep -q "$name" "$consumer"; then
+                echo "$name is not downloaded by $consumer"
+                missing=1
+              fi
+            done
+          done
+
+          exit "$missing"
 
       # A dashboard that references a datasource Grafana did not provision
       # renders every panel empty, which looks like a broken metrics pipeline

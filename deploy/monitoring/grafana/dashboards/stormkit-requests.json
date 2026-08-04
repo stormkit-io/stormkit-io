@@ -22,15 +22,15 @@
     {
       "id": 1,
       "type": "timeseries",
-      "title": "Apdex (T = 100ms)",
-      "description": "Requests under 100ms count as satisfied, under 500ms as tolerating at half weight. 500ms is the nearest histogram bucket to the textbook 4T, since there is no 400ms boundary.",
+      "title": "Apdex (T = 250ms)",
+      "description": "Successful requests under 250ms count as satisfied, under 1s as tolerating at half weight. T is 250ms because 250 and 4T = 1000 are both exact histogram bucket boundaries, so the standard Apdex definition applies with no approximation. Only 2xx and 3xx responses can score; errors stay in the denominator, so a fast 500 counts as frustrated rather than satisfied. The expression is the standard (satisfied + tolerating/2) / total, algebraically reduced.",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" },
       "targets": [
         {
           "refId": "A",
           "legendFormat": "Apdex",
-          "expr": "(\n  sum(rate(stormkit_lb_response_time_ms_bucket{le=\"100.0\"}[5m]))\n  + (\n      sum(rate(stormkit_lb_response_time_ms_bucket{le=\"500.0\"}[5m]))\n      - sum(rate(stormkit_lb_response_time_ms_bucket{le=\"100.0\"}[5m]))\n    ) * 0.5\n) / sum(rate(stormkit_lb_response_time_ms_bucket{le=\"+Inf\"}[5m]))",
+          "expr": "(\n  sum(rate(stormkit_lb_response_time_ms_bucket{le=\"250.0\",status_code=~\"2..|3..\"}[5m]))\n  + sum(rate(stormkit_lb_response_time_ms_bucket{le=\"1000.0\",status_code=~\"2..|3..\"}[5m]))\n) / (2 * sum(rate(stormkit_lb_response_time_ms_bucket{le=\"+Inf\"}[5m])))",
           "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" }
         }
       ],
@@ -145,7 +145,7 @@
       "id": 4,
       "type": "timeseries",
       "title": "Response time percentiles",
-      "description": "GET and POST requests that returned 2xx or 3xx. Errors are excluded because a fast 404 would otherwise flatter the percentiles.",
+      "description": "GET and POST requests that returned 2xx or 3xx. Errors are excluded because a fast 404 would otherwise flatter the percentiles. Percentiles cannot exceed 5s, the histogram's top bucket: a line sitting flat at exactly 5s means the real value is somewhere above it, and the average response time panel below is unbounded and will show how far.",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
       "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" },
       "targets": [
