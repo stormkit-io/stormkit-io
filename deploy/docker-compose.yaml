@@ -112,6 +112,10 @@ services:
       # Expose Prometheus metrics on port 2112 inside this network. Off by
       # default; required by the `monitoring` compose profile.
       - PROMETHEUS_METRICS=${PROMETHEUS_METRICS:-false}
+
+      # Passed explicitly so the port is bound strictly rather than probed for.
+      # If you change it, update the targets in monitoring/prometheus.yml too.
+      - PROMETHEUS_PORT=${PROMETHEUS_PORT:-2112}
     depends_on:
       db:
         condition: service_healthy
@@ -159,6 +163,10 @@ services:
       # Expose Prometheus metrics on port 2112 inside this network. Off by
       # default; required by the `monitoring` compose profile.
       - PROMETHEUS_METRICS=${PROMETHEUS_METRICS:-false}
+
+      # Passed explicitly so the port is bound strictly rather than probed for.
+      # If you change it, update the targets in monitoring/prometheus.yml too.
+      - PROMETHEUS_PORT=${PROMETHEUS_PORT:-2112}
 
       ####################################################################################
       #                                                                                  #
@@ -284,10 +292,28 @@ services:
       - stormkit
     depends_on:
       - prometheus
+    # The password check lives here rather than in a `${VAR:?}` default, because
+    # Compose interpolates the whole file before it filters by profile: a
+    # required-variable marker on this service would abort `docker compose up`
+    # for everyone, including instances that never enable monitoring. Checking
+    # at container start keeps the failure scoped to the profile that needs it.
+    entrypoint:
+      - sh
+      - -c
+      - |
+        if [ -z "$${GF_SECURITY_ADMIN_PASSWORD}" ]; then
+          echo "GRAFANA_ADMIN_PASSWORD is empty. Set it in .env before starting the monitoring profile." >&2
+          exit 1
+        fi
+        exec /run.sh
     environment:
-      # Fails fast rather than silently running admin/admin. install.sh
-      # generates this for you.
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}
+      # Empty is rejected by the entrypoint above rather than silently falling
+      # back to Grafana's admin/admin default. install.sh generates one for you.
+      #
+      # Only read on Grafana's FIRST start: once the admin user exists in the
+      # `grafana` volume, changing this has no effect. Rotate with
+      # `docker compose exec grafana grafana-cli admin reset-admin-password <new>`.
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_AUTH_ANONYMOUS_ENABLED=false
     volumes:
@@ -331,7 +357,10 @@ services:
     networks:
       - stormkit
     environment:
-      - DATA_SOURCE_NAME=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=disable
+      # libpq keyword form rather than a URL: a password containing @ / # ? or :
+      # needs percent-encoding in a URL, and an unescaped one silently reparses
+      # into a different host. The quotes cover values containing spaces.
+      - DATA_SOURCE_NAME=host=${POSTGRES_HOST} port=${POSTGRES_PORT} user='${POSTGRES_USER}' password='${POSTGRES_PASSWORD}' dbname='${POSTGRES_DB}' sslmode=disable
     depends_on:
       db:
         condition: service_healthy

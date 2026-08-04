@@ -57,6 +57,15 @@ Then visit `http://localhost:3000` and sign in as `admin` with the password from
 your `.env`. The dashboards are already provisioned under the **Stormkit**
 folder — there is nothing to import.
 
+`GRAFANA_ADMIN_PASSWORD` is read only on Grafana's **first** start. Once the
+admin user exists in the `grafana` volume, editing that variable and restarting
+has no effect — the old password keeps working. This matters if you are rotating
+after a suspected leak: change it in Grafana itself, or run
+
+```bash
+docker compose exec grafana grafana-cli admin reset-admin-password <new-password>
+```
+
 If you would rather expose Grafana properly, put your own TLS termination and
 authentication in front of it. Do not simply change the published address to
 `0.0.0.0`.
@@ -104,9 +113,13 @@ the usual Go runtime metrics.
 You do not need the bundled stack. Set `PROMETHEUS_METRICS=true` and scrape
 `hosting:2112` and `workerserver:2112` from wherever your Prometheus lives.
 
-`PROMETHEUS_PORT` changes the port. If you set it, it is used exactly as given
-and startup fails loudly if the port is taken — the port never silently moves,
-so your scrape configuration cannot end up pointing at nothing.
+`PROMETHEUS_PORT` changes the port. It is used exactly as given and never
+silently moves, so your scrape configuration cannot end up pointing at nothing.
+If the port is taken or the value is not a valid port number, metrics are
+disabled and an error is logged — the service itself keeps serving traffic, so
+check the logs if a target is unexpectedly down. Changing this in the bundled
+stack also means updating the targets in `monitoring/prometheus.yml`, which
+addresses `hosting:2112` and `workerserver:2112` directly.
 
 The dashboard JSON under `monitoring/grafana/dashboards/` imports into any
 Grafana, as long as your Prometheus datasource has the uid

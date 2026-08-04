@@ -255,11 +255,19 @@ setup_monitoring_configs() {
     monitoring/grafana/provisioning/dashboards \
     monitoring/grafana/dashboards
 
-  curl -o "monitoring/prometheus.yml" "$base/prometheus.yml" --silent
-  curl -o "monitoring/grafana/provisioning/datasources/prometheus.yml" "$base/grafana/provisioning/datasources/prometheus.yml" --silent
-  curl -o "monitoring/grafana/provisioning/dashboards/dashboards.yml" "$base/grafana/provisioning/dashboards/dashboards.yml" --silent
-  curl -o "monitoring/grafana/dashboards/stormkit-host.json" "$base/grafana/dashboards/stormkit-host.json" --silent
-  curl -o "monitoring/grafana/dashboards/stormkit-dependencies.json" "$base/grafana/dashboards/stormkit-dependencies.json" --silent
+  # -f matters here: without it curl writes the 404 body to disk and still
+  # exits 0, so a missing file surfaces months later as a Prometheus that
+  # cannot parse its own config.
+  for file in prometheus.yml \
+    grafana/provisioning/datasources/prometheus.yml \
+    grafana/provisioning/dashboards/dashboards.yml \
+    grafana/dashboards/stormkit-host.json \
+    grafana/dashboards/stormkit-dependencies.json; do
+    if ! curl -fsS -o "monitoring/$file" "$base/$file"; then
+      echo "Failed to download monitoring/$file" >&2
+      exit 1
+    fi
+  done
 }
 
 DOMAIN=""

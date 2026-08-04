@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -128,14 +129,20 @@ type metricsListener struct {
 }
 
 func (m *metricsListener) listen() (net.Listener, error) {
-	port := utils.StringToInt(m.port)
+	// Parsed strictly rather than through utils.StringToInt, which reports a
+	// bad value as 0 and would make net.Listen pick an arbitrary free port --
+	// silently the one thing an explicitly configured port must never do.
+	port, err := strconv.Atoi(m.port)
+
+	if err != nil || port < 1 || port > 65535 {
+		return nil, fmt.Errorf("invalid metrics port %q", m.port)
+	}
+
 	attempts := 1
 
 	if m.probe {
 		attempts = maxPortProbeAttempts
 	}
-
-	var err error
 
 	for i := range attempts {
 		var ln net.Listener

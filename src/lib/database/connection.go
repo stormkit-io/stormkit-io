@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/lib/pq"
@@ -29,7 +30,10 @@ type DBConf struct {
 	DriverName string
 }
 
-var _db *sql.DB
+// _db is read without the mutex so that observers such as the metrics endpoint
+// never wait on the connect path, which holds dbmux across NewConnection's
+// retry loop. dbmux still serialises establishing the pool.
+var _db atomic.Pointer[sql.DB]
 
 // Config holds the current configuration instance.
 var Config DBConf
@@ -45,11 +49,14 @@ func Connection() *sql.DB {
 	dbmux.Lock()
 	defer dbmux.Unlock()
 
-	if _db == nil {
-		_db = NewConnection()
+	if db := _db.Load(); db != nil {
+		return db
 	}
 
-	return _db
+	db := NewConnection()
+	_db.Store(db)
+
+	return db
 }
 
 type ConnectionOptions struct {
@@ -117,17 +124,19 @@ func NewConnectionWithConfig(cfg DBConf) (*sql.DB, error) {
 // SetConnection replaces the cached sql connection with the given argument value.
 // It is useful for tests so that they can mock the sql connection.
 func SetConnection(db *sql.DB) {
-	_db = db
+	_db.Store(db)
 }
 
 // CurrentConnection returns the established connection, or nil when there is
 // none yet. Unlike Connection it never opens one, so observers such as the
 // metrics endpoint cannot trigger a connect and ping of their own.
+//
+// It also never takes dbmux: Connection holds that across NewConnection's retry
+// loop, which sleeps 5 seconds between five attempts. A scrape that waited on
+// it would exceed Prometheus' scrape timeout during exactly the database
+// outage the pool metrics exist to explain.
 func CurrentConnection() *sql.DB {
-	dbmux.Lock()
-	defer dbmux.Unlock()
-
-	return _db
+	return _db.Load()
 }
 
 // IsDuplicate checks whether an error is a duplicate error or not.

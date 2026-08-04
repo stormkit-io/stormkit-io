@@ -159,6 +159,24 @@ func (s *PrometheusSuite) Test_DefaultPortProbesWhenBusy() {
 	s.Equal(port+1, ln.Addr().(*net.TCPAddr).Port)
 }
 
+// A port that does not parse must be refused. Falling back to 0 would make
+// net.Listen pick an arbitrary free port, which is the silent move that an
+// explicitly configured port is supposed to rule out.
+func (s *PrometheusSuite) Test_InvalidPortIsRefused() {
+	for _, port := range []string{"2112 ", ":2112", "abc", "", "0", "70000", "-1"} {
+		listener := &metricsListener{port: port, probe: false}
+
+		ln, err := listener.listen()
+
+		s.Error(err, "port %q should be refused", port)
+
+		if ln != nil {
+			ln.Close()
+			s.Fail("port %q bound a listener instead of failing", port)
+		}
+	}
+}
+
 func TestPrometheusSuite(t *testing.T) {
 	suite.Run(t, new(PrometheusSuite))
 }
