@@ -8,6 +8,8 @@ volumes:
   stormkit:
   redis:
   psql:
+  prometheus:
+  grafana:
   workerserver:
   hosting:
   workerserver_nix:
@@ -106,6 +108,14 @@ services:
       # Possible values to turn it on: 1, 2, 3, TRUE
       # Level 1 is the least verbose, level 3 is the most verbose.
       - DEBUG=${DEBUG:-off}
+
+      # Expose Prometheus metrics on port 2112 inside this network. Off by
+      # default; required by the `monitoring` compose profile.
+      - PROMETHEUS_METRICS=${PROMETHEUS_METRICS:-false}
+
+      # Passed explicitly so the port is bound strictly rather than probed for.
+      # If you change it, update the targets in monitoring/prometheus.yml too.
+      - PROMETHEUS_PORT=${PROMETHEUS_PORT:-2112}
     depends_on:
       db:
         condition: service_healthy
@@ -149,6 +159,14 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - REDIS_ADDR=${REDIS_ADDR}
       - DEBUG=${DEBUG:-off}
+
+      # Expose Prometheus metrics on port 2112 inside this network. Off by
+      # default; required by the `monitoring` compose profile.
+      - PROMETHEUS_METRICS=${PROMETHEUS_METRICS:-false}
+
+      # Passed explicitly so the port is bound strictly rather than probed for.
+      # If you change it, update the targets in monitoring/prometheus.yml too.
+      - PROMETHEUS_PORT=${PROMETHEUS_PORT:-2112}
 
       ####################################################################################
       #                                                                                  #
@@ -233,3 +251,127 @@ services:
         target: ${STORMKIT_HTTPS_PORT:-443}
         published: ${STORMKIT_HTTPS_PORT:-443}
         protocol: tcp
+
+  ###############################################################################
+  #                                                                             #
+  # Monitoring. Nothing below runs unless you ask for it:                       #
+  #                                                                             #
+  #   docker compose --profile monitoring up -d                                 #
+  #                                                                             #
+  # Set PROMETHEUS_METRICS=true in your .env first, otherwise Stormkit exposes  #
+  # no metrics and the two stormkit-* scrape targets stay down.                 #
+  #                                                                             #
+  # See docs/self-hosting/8-monitoring.md                                       #
+  #                                                                             #
+  ###############################################################################
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    profiles: ["monitoring"]
+    container_name: prometheus
+    restart: always
+    logging: *default-logging
+    networks:
+      - stormkit
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-15d}
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus:/prometheus
+    # Deliberately not published to the host. The Prometheus API is
+    # unauthenticated and allows arbitrary queries; only Grafana needs it.
+
+  grafana:
+    image: grafana/grafana-oss:11.6.0
+    profiles: ["monitoring"]
+    container_name: grafana
+    restart: always
+    logging: *default-logging
+    networks:
+      - stormkit
+    depends_on:
+      - prometheus
+    # The password check lives here rather than in a `${VAR:?}` default, because
+    # Compose interpolates the whole file before it filters by profile: a
+    # required-variable marker on this service would abort `docker compose up`
+    # for everyone, including instances that never enable monitoring. Checking
+    # at container start keeps the failure scoped to the profile that needs it.
+    entrypoint:
+      - sh
+      - -c
+      - |
+        if [ -z "$${GF_SECURITY_ADMIN_PASSWORD}" ]; then
+          echo "GRAFANA_ADMIN_PASSWORD is empty. Set it in .env before starting the monitoring profile." >&2
+          exit 1
+        fi
+        exec /run.sh
+    environment:
+      # Empty is rejected by the entrypoint above rather than silently falling
+      # back to Grafana's admin/admin default. install.sh generates one for you.
+      #
+      # Only read on Grafana's FIRST start: once the admin user exists in the
+      # `grafana` volume, changing this has no effect. Rotate with
+      # `docker compose exec grafana grafana-cli admin reset-admin-password <new>`.
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana:/var/lib/grafana
+    ports:
+      # Loopback only. Reach it with an SSH tunnel:
+      #   ssh -L 3000:127.0.0.1:3000 you@your-server
+      # If you want it on the network, put your own TLS and auth in front.
+      - "127.0.0.1:${GRAFANA_PORT:-3000}:3000"
+
+  node-exporter:
+    image: prom/node-exporter:v1.9.0
+    profiles: ["monitoring"]
+    container_name: node-exporter
+    restart: always
+    logging: *default-logging
+    networks:
+      - stormkit
+    pid: host
+    command:
+      - --path.rootfs=/host
+    volumes:
+      # Read-only view of the host so disk figures describe the machine rather
+      # than the container. Safe here because no deployed app code ever runs in
+      # this container.
+      #
+      # No rslave propagation: Docker Desktop refuses it because the VM root is
+      # neither a shared nor a slave mount, which would make this fail outright
+      # on a developer machine. The cost is that a filesystem mounted after this
+      # container starts is not picked up until it is restarted.
+      - /:/host:ro
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.17.1
+    profiles: ["monitoring"]
+    container_name: postgres-exporter
+    restart: always
+    logging: *default-logging
+    networks:
+      - stormkit
+    environment:
+      # libpq keyword form rather than a URL: a password containing @ / # ? or :
+      # needs percent-encoding in a URL, and an unescaped one silently reparses
+      # into a different host. The quotes cover values containing spaces.
+      - DATA_SOURCE_NAME=host=${POSTGRES_HOST} port=${POSTGRES_PORT} user='${POSTGRES_USER}' password='${POSTGRES_PASSWORD}' dbname='${POSTGRES_DB}' sslmode=disable
+    depends_on:
+      db:
+        condition: service_healthy
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.67.0
+    profiles: ["monitoring"]
+    container_name: redis-exporter
+    restart: always
+    logging: *default-logging
+    networks:
+      - stormkit
+    environment:
+      - REDIS_ADDR=${REDIS_ADDR}

@@ -41,7 +41,7 @@ func main() {
 		slog.Infof("local deployer: %s", conf.Deployer.Executable)
 	}
 
-	if conf.Tracking.Prometheus {
+	if conf.Tracking != nil && conf.Tracking.Prometheus {
 		tracking.Prometheus(tracking.PrometheusOpts{})
 	}
 

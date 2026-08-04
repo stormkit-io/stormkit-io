@@ -1,0 +1,17 @@
+# Dashboards are provisioned from disk and mounted read-only, so the files in
+# this repo stay the single source of truth. To customise one, use "Save As" in
+# Grafana and edit your copy -- edits to the provisioned originals are
+# intentionally not allowed, since they would be silently reverted.
+apiVersion: 1
+
+providers:
+  - name: stormkit
+    orgId: 1
+    folder: Stormkit
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

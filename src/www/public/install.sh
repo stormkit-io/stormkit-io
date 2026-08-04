@@ -238,6 +238,36 @@ setup_base_env_variables() {
 
   update_env_var_in_env_file POSTGRES_PASSWORD $(rand_alnum 12 24)
   update_env_var_in_env_file STORMKIT_APP_SECRET $(rand_alnum 48 32)
+  update_env_var_in_env_file GRAFANA_ADMIN_PASSWORD $(rand_alnum 12 24)
+}
+
+# Downloads the Prometheus and Grafana configuration.
+#
+# These are always fetched, even though nothing here runs by default: the
+# `monitoring` compose profile is what decides that. Having the files on disk
+# means turning monitoring on later is a flag flip rather than a download.
+#
+# Keep this list in sync with deploy/monitoring/ in the repository.
+setup_monitoring_configs() {
+  base="https://raw.githubusercontent.com/stormkit-io/stormkit-io/main/deploy/monitoring"
+
+  mkdir -p monitoring/grafana/provisioning/datasources \
+    monitoring/grafana/provisioning/dashboards \
+    monitoring/grafana/dashboards
+
+  # -f matters here: without it curl writes the 404 body to disk and still
+  # exits 0, so a missing file surfaces months later as a Prometheus that
+  # cannot parse its own config.
+  for file in prometheus.yml \
+    grafana/provisioning/datasources/prometheus.yml \
+    grafana/provisioning/dashboards/dashboards.yml \
+    grafana/dashboards/stormkit-host.json \
+    grafana/dashboards/stormkit-dependencies.json; do
+    if ! curl -fsS -o "monitoring/$file" "$base/$file"; then
+      echo "Failed to download monitoring/$file" >&2
+      exit 1
+    fi
+  done
 }
 
 DOMAIN=""
@@ -332,6 +362,7 @@ setup_agent_env() {
 curl -o "docker-compose.yaml" "https://raw.githubusercontent.com/stormkit-io/stormkit-io/main/deploy/docker-compose.yaml" --silent
 
 setup_base_env_variables
+setup_monitoring_configs
 setup_domain
 
 if [ "$AGENT_MODE" = "1" ]; then
