@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.08.03.1...v2026.08.04.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.08.03.1...v2026.08.04.1)
+
+### 🚀 Enhancements
+
+- Monitoring stack for self-hosted instances ([#412](https://github.com/stormkit-io/stormkit-io/pull/412))
+
+### 🏡 Chore
+
+- Update changelog for v2026.08.03.1 ([#411](https://github.com/stormkit-io/stormkit-io/pull/411))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.08.02.1...v2026.08.03.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.08.02.1...v2026.08.03.1)
