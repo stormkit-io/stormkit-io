@@ -12,6 +12,11 @@ on:
       - "deploy/**"
       - ".github/workflows/lint-monitoring.yml"
 
+# Reading the checkout is all this workflow does. Nothing here writes to the
+# repository, so the token gets no more than that.
+permissions:
+  contents: read
+
 jobs:
   lint:
     runs-on: ubuntu-latest
