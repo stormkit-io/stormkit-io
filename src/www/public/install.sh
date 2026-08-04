@@ -247,7 +247,9 @@ setup_base_env_variables() {
 # `monitoring` compose profile is what decides that. Having the files on disk
 # means turning monitoring on later is a flag flip rather than a download.
 #
-# Keep this list in sync with deploy/monitoring/ in the repository.
+# Keep this list in sync with deploy/monitoring/ in the repository. The
+# lint-monitoring workflow fails the build if a dashboard is added there
+# without being added here.
 setup_monitoring_configs() {
   base="https://raw.githubusercontent.com/stormkit-io/stormkit-io/main/deploy/monitoring"
 
@@ -262,7 +264,8 @@ setup_monitoring_configs() {
     grafana/provisioning/datasources/prometheus.yml \
     grafana/provisioning/dashboards/dashboards.yml \
     grafana/dashboards/stormkit-host.json \
-    grafana/dashboards/stormkit-dependencies.json; do
+    grafana/dashboards/stormkit-dependencies.json \
+    grafana/dashboards/stormkit-requests.json; do
     if ! curl -fsS -o "monitoring/$file" "$base/$file"; then
       echo "Failed to download monitoring/$file" >&2
       exit 1

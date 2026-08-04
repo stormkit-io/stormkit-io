@@ -1,0 +1,268 @@
+{
+  "uid": "stormkit-requests",
+  "title": "Stormkit — Requests",
+  "description": "Throughput, status codes and response times for traffic served by the hosting service. Aggregate only: there is no per-application dimension here, that lives in the Stormkit UI under Analytics.",
+  "tags": ["stormkit"],
+  "editable": false,
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Apdex (T = 250ms)",
+      "description": "Successful requests under 250ms count as satisfied, under 1s as tolerating at half weight. T is 250ms because 250 and 4T = 1000 are both exact histogram bucket boundaries, so the standard Apdex definition applies with no approximation. Only 2xx and 3xx responses can score; errors stay in the denominator, so a fast 500 counts as frustrated rather than satisfied. The expression is the standard (satisfied + tolerating/2) / total, algebraically reduced.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "Apdex",
+          "expr": "(\n  sum(rate(stormkit_lb_response_time_ms_bucket{le=\"250.0\",status_code=~\"2..|3..\"}[5m]))\n  + sum(rate(stormkit_lb_response_time_ms_bucket{le=\"1000.0\",status_code=~\"2..|3..\"}[5m]))\n) / (2 * sum(rate(stormkit_lb_response_time_ms_bucket{le=\"+Inf\"}[5m])))",
+          "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" }
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "custom": { "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 0.85 },
+              { "color": "green", "value": 0.94 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Requests per minute",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "requests",
+          "expr": "sum(rate(stormkit_lb_response_time_ms_count[5m])) * 60",
+          "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" }
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm",
+          "min": 0,
+          "custom": { "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Requests by status code",
+      "description": "Requests in each 5 minute window. Status codes are recorded exactly for 200 and 304 and collapsed to a class otherwise, so 4xx covers every client error.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "{{status_code}}",
+          "expr": "sum by (status_code) (increase(stormkit_lb_response_time_ms_count[5m]))",
+          "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" }
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": { "fillOpacity": 10, "lineWidth": 1, "showPoints": "never" }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "200" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "2xx" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "semi-dark-green" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "304" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "3xx" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "semi-dark-blue" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "4xx" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "5xx" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "other" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "purple" } }]
+          }
+        ]
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Response time percentiles",
+      "description": "GET and POST requests that returned 2xx or 3xx. Errors are excluded because a fast 404 would otherwise flatter the percentiles. Percentiles cannot exceed 5s, the histogram's top bucket: a line sitting flat at exactly 5s means the real value is somewhere above it, and the average response time panel below is unbounded and will show how far.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "p50",
+          "expr": "histogram_quantile(0.5, sum(rate(stormkit_lb_response_time_ms_bucket{method=~\"GET|POST\",status_code=~\"2..|3..\"}[5m])) by (le))",
+          "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" }
+        },
+        {
+          "refId": "B",
+          "legendFormat": "p95",
+          "expr": "histogram_quantile(0.95, sum(rate(stormkit_lb_response_time_ms_bucket{method=~\"GET|POST\",status_code=~\"2..|3..\"}[5m])) by (le))",
+          "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" }
+        },
+        {
+          "refId": "C",
+          "legendFormat": "p99",
+          "expr": "histogram_quantile(0.99, sum(rate(stormkit_lb_response_time_ms_bucket{method=~\"GET|POST\",status_code=~\"2..|3..\"}[5m])) by (le))",
+          "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" }
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "min": 0,
+          "custom": { "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Request rate by method",
+      "description": "PUT, PATCH and DELETE are recorded as POST; anything else as OTHER.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "{{method}}",
+          "expr": "sum by (method) (rate(stormkit_lb_response_time_ms_count[5m]))",
+          "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" }
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0,
+          "custom": { "fillOpacity": 10, "lineWidth": 1, "showPoints": "never" }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Request rate by method and status",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "{{method}} — {{status_code}}",
+          "expr": "sum by (method, status_code) (rate(stormkit_lb_response_time_ms_count[5m]))",
+          "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" }
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0,
+          "custom": { "fillOpacity": 0, "lineWidth": 1, "showPoints": "never" }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Average response time by method and status",
+      "description": "The mean is shown per method and status class, which the percentile panel deliberately collapses. Useful for spotting one status class getting slower while the overall percentiles stay flat.",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "{{method}} — {{status_code}}",
+          "expr": "sum by (method, status_code) (rate(stormkit_lb_response_time_ms_sum[5m]))\n/\nsum by (method, status_code) (rate(stormkit_lb_response_time_ms_count[5m]))",
+          "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" }
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "min": 0,
+          "custom": { "fillOpacity": 0, "lineWidth": 1, "showPoints": "never" }
+        },
+        "overrides": []
+      }
+    }
+  ]
+}

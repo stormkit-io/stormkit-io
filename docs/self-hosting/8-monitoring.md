@@ -83,6 +83,14 @@ database size, deadlocks, cache hit ratio and transaction rates; Redis memory
 against `maxmemory`, evictions, hit ratio and client counts. It also has a row
 for Stormkit's own connection pool, described below.
 
+**Stormkit — Requests.** Requests per minute, status codes, request rate by
+method, response time percentiles and an Apdex score, for the traffic served by
+the `hosting` service. Like the other two it has no per-application dimension —
+per-app traffic lives in the Stormkit UI under Analytics. Status codes are
+recorded exactly for `200` and `304` and collapsed to a class (`4xx`, `5xx`)
+otherwise, and every method other than `GET` and the body-carrying verbs shows
+up as `OTHER`.
+
 The first panel on the Host dashboard is **Scrape targets up**, expected to read
 5. If it reads 3, the two `stormkit-*` targets are down and
 `PROMETHEUS_METRICS` is almost certainly still `false`.
@@ -105,7 +113,8 @@ what the server sees; it cannot tell you that Stormkit is queuing for a slot in
 its own pool. A sustained wait rate means the pool is undersized, and it can
 happen while PostgreSQL itself looks completely idle.
 
-Stormkit also exports HTTP response time (`stormkit_lb_response_time_ms`) and
+Stormkit also exports HTTP response time (`stormkit_lb_response_time_ms`, the
+histogram behind the Requests dashboard) and
 the usual Go runtime metrics.
 
 ## Using your own Prometheus
@@ -138,10 +147,23 @@ metrics at all.
 ## Security notes
 
 - The metrics endpoints on port 2112 are unauthenticated. They are never
-  published to the host — only reachable from inside the Compose network.
+  published to the host, so they are not reachable from outside the machine.
 - Prometheus is not published to the host either. Its API is unauthenticated and
-  allows arbitrary queries, so only Grafana can reach it.
-- Grafana binds `127.0.0.1`, disables anonymous access and disables sign-up.
+  allows arbitrary queries. Note that "not published" means not reachable from
+  *outside*: the Compose network is flat, so any container on it can reach
+  Prometheus by name — including `hosting`, where deployed application code runs
+  as child processes. The same is true of the exporters and of Redis, which has
+  no password of its own on a default install.
+- Grafana is published on `127.0.0.1` only, disables anonymous access and
+  disables sign-up. Inside the Compose network it still listens on all
+  interfaces, so the loopback binding protects it from the internet, not from
+  the other containers.
+- Grafana's plugin catalogue is disabled, because installing a plugin from the
+  UI runs its code inside the Grafana container. Treat this as defence in depth
+  rather than a cap on what an admin session is worth: an admin can still point
+  a new datasource at any address on the Compose network and query it through
+  Grafana's datasource proxy. Guard the admin password accordingly, especially
+  if you put Grafana behind a public hostname rather than the SSH tunnel.
 - `node_exporter` mounts the host filesystem read-only. This is safe because no
   deployed application code runs in that container. Do not replicate that mount
   into `hosting` or `workerserver`, where deployments execute as child
@@ -167,6 +189,7 @@ curl -sfo monitoring/grafana/provisioning/datasources/prometheus.yml "$BASE/graf
 curl -sfo monitoring/grafana/provisioning/dashboards/dashboards.yml "$BASE/grafana/provisioning/dashboards/dashboards.yml"
 curl -sfo monitoring/grafana/dashboards/stormkit-host.json "$BASE/grafana/dashboards/stormkit-host.json"
 curl -sfo monitoring/grafana/dashboards/stormkit-dependencies.json "$BASE/grafana/dashboards/stormkit-dependencies.json"
+curl -sfo monitoring/grafana/dashboards/stormkit-requests.json "$BASE/grafana/dashboards/stormkit-requests.json"
 ```
 
 You will also need the monitoring services in your `docker-compose.yaml`. The
