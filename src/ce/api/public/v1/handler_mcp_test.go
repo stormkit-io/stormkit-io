@@ -831,7 +831,7 @@ func (s *HandlerMCPSuite) Test_PublishDeployment_Success() {
 	usr := s.MockUser()
 	appl := s.MockApp(usr)
 	mockEnv := s.MockEnv(appl)
-	depl := s.MockDeployment(mockEnv)
+	depl := s.MockDeployment(mockEnv, map[string]any{"ExitCode": null.IntFrom(0)})
 	key := s.userKey(usr)
 
 	resp := s.post(key.Value, mcpToolCall(1, "publish_deployment", map[string]any{
@@ -843,6 +843,23 @@ func (s *HandlerMCPSuite) Test_PublishDeployment_Success() {
 	data := s.toolContent(env)
 
 	s.Equal(true, data["ok"])
+}
+
+func (s *HandlerMCPSuite) Test_PublishDeployment_RunningDeployment() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl)
+	depl := s.MockDeployment(mockEnv)
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "publish_deployment", map[string]any{
+		"envId":        mockEnv.ID.String(),
+		"deploymentId": depl.ID.String(),
+	}))
+
+	env := s.rpcOK(resp)
+	result := env["result"].(map[string]any)
+	s.True(result["isError"].(bool))
 }
 
 func (s *HandlerMCPSuite) Test_CreateEnvironment_MissingAppId() {

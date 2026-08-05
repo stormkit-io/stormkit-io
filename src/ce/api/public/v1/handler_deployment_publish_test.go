@@ -46,7 +46,7 @@ func (s *HandlerDeploymentPublishSuite) Test_Success() {
 	usr := s.MockUser()
 	appl := s.MockApp(usr)
 	env := s.MockEnv(appl)
-	depl := s.MockDeployment(env)
+	depl := s.MockDeployment(env, map[string]any{"ExitCode": null.IntFrom(0)})
 	key := s.MockAPIKey(appl, env)
 
 	response := shttptest.RequestWithHeaders(
@@ -71,7 +71,7 @@ func (s *HandlerDeploymentPublishSuite) Test_PublishedStateReflected() {
 	usr := s.MockUser()
 	appl := s.MockApp(usr)
 	env := s.MockEnv(appl)
-	depl := s.MockDeployment(env)
+	depl := s.MockDeployment(env, map[string]any{"ExitCode": null.IntFrom(0)})
 	key := s.MockAPIKey(appl, env)
 
 	shttptest.RequestWithHeaders(
@@ -212,6 +212,29 @@ func (s *HandlerDeploymentPublishSuite) Test_BadRequest_FailedDeployment() {
 
 	body := response.Map()
 	s.Equal([]any{"Deployment must have a successful build before it can be published"}, body["errors"])
+}
+
+// Test_BadRequest_RunningDeployment verifies that a deployment which has not
+// finished building yet (NULL exit code) cannot be published.
+func (s *HandlerDeploymentPublishSuite) Test_BadRequest_RunningDeployment() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	env := s.MockEnv(appl)
+	depl := s.MockDeployment(env)
+	key := s.MockAPIKey(appl, env)
+
+	response := shttptest.RequestWithHeaders(
+		s.handler(),
+		shttp.MethodPost,
+		s.publishURL(depl.ID),
+		nil,
+		map[string]string{"Authorization": key.Value},
+	)
+
+	s.Equal(http.StatusBadRequest, response.Code)
+
+	body := response.Map()
+	s.Equal([]any{"Deployment is still running and cannot be published"}, body["errors"])
 }
 
 func TestHandlerDeploymentPublish(t *testing.T) {
