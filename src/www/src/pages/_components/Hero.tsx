@@ -55,9 +55,10 @@ export default function Hero() {
           color: grey[400],
         }}
       >
-        Stormkit gives development teams full control, faster CI/CD, and up to
-        47% lower infrastructure costs, all on your own terms. From
-        side-projects, to Enterprise scale.
+        Your agent can run the whole platform through MCP: provision a server,
+        deploy, publish, read the logs when something breaks. You keep the
+        infrastructure, the data, and full control. From side-projects, to
+        Enterprise scale.
       </Typography>
       <ToggleButtonGroup
         exclusive
