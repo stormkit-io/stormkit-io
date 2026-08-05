@@ -30,6 +30,13 @@ func handlerDeploymentPublish(req *RequestContext) *shttp.Response {
 		return shttp.NotFound()
 	}
 
+	// A running deployment has no exit code yet.
+	if !depl.ExitCode.Valid {
+		return shttp.BadRequest(map[string]any{
+			"errors": []string{"Deployment is still running and cannot be published"},
+		})
+	}
+
 	if depl.ExitCode.ValueOrZero() != deploy.ExitCodeSuccess {
 		return shttp.BadRequest(map[string]any{
 			"errors": []string{"Deployment must have a successful build before it can be published"},
