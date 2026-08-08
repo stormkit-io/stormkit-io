@@ -13,6 +13,10 @@ interface Props {
   label?: string;
   fullWidth?: boolean;
   withDevDomains?: boolean;
+  // Drops domains that are excluded from analytics. Only the analytics views
+  // want this — snippets and triggers still target those hosts, which are
+  // served normally.
+  hideAnalyticsExcluded?: boolean;
   placeholder?: string;
   onFetch?: (d: Domain[]) => void;
   // If withDevDomains is true, returns selected domain names
@@ -26,6 +30,7 @@ export default function DomainSelector({
   fullWidth,
   multiple = false,
   withDevDomains = false,
+  hideAnalyticsExcluded = false,
   selected,
   label,
   size = "small",
@@ -35,22 +40,28 @@ export default function DomainSelector({
   onDomainSelect,
 }: Props) {
   const [search, setSearch] = useState("");
+
+  const visible = (d: Domain[]) =>
+    hideAnalyticsExcluded ? d.filter(i => !i.analyticsExcluded) : d;
+
   const { domains, error } = useFetchDomains({
     appId,
     envId,
     verified: true,
     search,
-    onFetch,
+    onFetch: onFetch && (d => onFetch(visible(d))),
   });
+
+  const selectable = visible(domains || []);
 
   const items = useMemo(() => {
     return [
       withDevDomains
         ? { value: "*.dev", text: "All development endpoints (*.dev)" }
         : { value: "", text: "" },
-      ...domains?.map(d => ({ value: d.domainName, text: d.domainName })),
+      ...selectable.map(d => ({ value: d.domainName, text: d.domainName })),
     ].filter(i => i.value);
-  }, [withDevDomains, domains]);
+  }, [withDevDomains, selectable]);
 
   if (error) {
     return <></>;
@@ -72,7 +83,7 @@ export default function DomainSelector({
         if (withDevDomains) {
           onDomainSelect(values);
         } else {
-          onDomainSelect(domains.filter(d => values.includes(d.domainName)));
+          onDomainSelect(selectable.filter(d => values.includes(d.domainName)));
         }
       }}
     />

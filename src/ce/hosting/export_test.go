@@ -3,6 +3,7 @@ package hosting
 import (
 	"context"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/accesslog"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
@@ -16,6 +17,15 @@ import (
 // (and are not) recorded as page views.
 func AnalyticsRecord(req *RequestContext, res *shttp.Response) *analytics.Record {
 	return analyticsRecord(req, res)
+}
+
+// AccessLogRecordParams exposes accessLogRecordParams to tests.
+type AccessLogRecordParams = accessLogRecordParams
+
+// AccessLogRecord exposes accessLogRecord so tests can assert that access logs
+// stay unfiltered where analytics is filtered.
+func AccessLogRecord(p AccessLogRecordParams) *accesslog.AccessLog {
+	return accessLogRecord(p)
 }
 
 // ResolveAnalyticsScript exposes resolveAnalyticsScript so tests can assert the

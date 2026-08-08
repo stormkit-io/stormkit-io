@@ -20,6 +20,24 @@ To enable Analytics, users must set up a custom domain for their web application
 
 To do so, visit your **Environment** > **Config** > **Other** > **Custom Domains**
 
+## Excluding a domain
+
+An application often answers on more than one hostname for the same site — an
+apex domain plus its `www` alias, or a staging hostname. Analytics are reported
+per domain, so each of these shows up as its own entry in the domain picker and
+in Team Insights, and keeps accumulating stored rows, even when you only ever
+look at the production hostname.
+
+To keep a domain out of analytics, visit your **Environment** > **Config** >
+**Other** > **Custom Domains**, open the domain's menu and select
+**Exclude from analytics**. The same menu offers **Include in analytics** to
+undo it.
+
+An excluded domain is still served normally and its requests are still written
+to [access logs](/docs/api/access-logs) — only page views and custom events are
+dropped. The change applies to requests served after the setting is saved;
+data collected before it is not removed.
+
 ## Collecting stats
 
 All stats are collected on the server-side, which makes this privacy friendly. We collect the following data:

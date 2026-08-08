@@ -624,7 +624,8 @@ CREATE TABLE skitapi.domains (
     custom_cert_value text,
     custom_cert_key text,
     last_ping jsonb,
-    created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text) NOT NULL
+    created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text) NOT NULL,
+    analytics_excluded boolean DEFAULT false NOT NULL
 );
 
 

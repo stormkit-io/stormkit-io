@@ -65,6 +65,7 @@ type DiffFields struct {
 	DomainName               string                 `json:"domainName,omitempty"`
 	DomainCertValue          string                 `json:"domainCertValue,omitempty"`
 	DomainCertKey            string                 `json:"domainCertKey,omitempty"`
+	DomainAnalyticsExcluded  *bool                  `json:"domainAnalyticsExcluded,omitempty"`
 	SnippetTitle             string                 `json:"snippetTitle,omitempty"`
 	SnippetContent           string                 `json:"snippetContent,omitempty"`
 	SnippetEnabled           *bool                  `json:"snippetEnabled,omitempty"`

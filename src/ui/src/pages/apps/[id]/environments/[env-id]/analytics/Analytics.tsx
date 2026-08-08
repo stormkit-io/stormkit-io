@@ -65,6 +65,7 @@ export default function Analytics() {
               appId={environment.appId}
               envId={environment.id!}
               fullWidth={false}
+              hideAnalyticsExcluded
               onFetch={domains => {
                 if (domains?.[0]) {
                   setDomain(

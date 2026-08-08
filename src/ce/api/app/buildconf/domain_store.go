@@ -19,18 +19,20 @@ import (
 var tableDomains = "domains"
 
 var dstmt = struct {
-	selectDomains    string
-	insertDomain     string
-	deleteDomains    string
-	verifyDomain     string
-	updateDomainCert string
-	updateLastPing   string
+	selectDomains     string
+	insertDomain      string
+	deleteDomains     string
+	verifyDomain      string
+	updateDomainCert  string
+	updateLastPing    string
+	updateDomainFlags string
 }{
 	selectDomains: `
 		SELECT
 			d.domain_id, d.app_id, d.env_id, d.domain_name,
 			d.domain_verified, d.domain_verified_at, d.domain_token,
-			d.custom_cert_value, d.custom_cert_key, d.last_ping
+			d.custom_cert_value, d.custom_cert_key, d.last_ping,
+			d.analytics_excluded
 		FROM
 			domains d
 		WHERE
@@ -60,6 +62,10 @@ var dstmt = struct {
 
 	updateDomainCert: `
 		UPDATE domains SET custom_cert_value = $1, custom_cert_key = $2 WHERE domain_id = $3;
+	`,
+
+	updateDomainFlags: `
+		UPDATE domains SET analytics_excluded = $1 WHERE domain_id = $2;
 	`,
 
 	updateLastPing: `
@@ -125,7 +131,7 @@ func (s *DStore) selectDomain(ctx context.Context, data map[string]any, params .
 		&domain.Name, &domain.Verified,
 		&domain.VerifiedAt, &domain.Token,
 		&customCertVal, &customCertKey,
-		&domain.LastPing,
+		&domain.LastPing, &domain.AnalyticsExcluded,
 	)
 
 	if err != nil {
@@ -241,6 +247,7 @@ func (s *DStore) Domains(ctx context.Context, filters DomainFilters) ([]*DomainM
 			&domain.Name, &domain.Verified,
 			&domain.VerifiedAt, &domain.Token,
 			&customCertVal, &customCertKey, &domain.LastPing,
+			&domain.AnalyticsExcluded,
 		)
 
 		if err != nil {
@@ -330,6 +337,13 @@ func (s *DStore) UpdateDomainCert(ctx context.Context, domain *DomainModel) erro
 	}
 
 	_, err := s.Exec(ctx, dstmt.updateDomainCert, cert, key, domain.ID)
+	return err
+}
+
+// UpdateDomainFlags persists the domain's per-domain settings — currently only
+// the analytics exclusion toggle.
+func (s *DStore) UpdateDomainFlags(ctx context.Context, domain *DomainModel) error {
+	_, err := s.Exec(ctx, dstmt.updateDomainFlags, domain.AnalyticsExcluded, domain.ID)
 	return err
 }
 

@@ -97,6 +97,28 @@ export const mockDeleteDomain = ({
     .reply(status, response);
 };
 
+interface MockUpdateDomainProps {
+  appId: string;
+  envId: string;
+  domainId: string;
+  analyticsExcluded: boolean;
+  status?: number;
+  response?: { ok?: boolean; error?: string };
+}
+
+export const mockUpdateDomain = ({
+  appId,
+  envId,
+  domainId,
+  analyticsExcluded,
+  status = 200,
+  response = { ok: true },
+}: MockUpdateDomainProps) => {
+  return nock(endpoint)
+    .put("/v1/domains", { appId, envId, domainId, analyticsExcluded })
+    .reply(status, response);
+};
+
 interface UpdateCustomCertProps {
   appId: string;
   envId: string;

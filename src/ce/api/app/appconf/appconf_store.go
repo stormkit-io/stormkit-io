@@ -87,7 +87,7 @@ var stmt = &statement{
 				a.display_name,
 				coalesce(u.metadata->>'package', 'free') 			 as subscription_tier,
 				u.user_id							 	 			 as billing_user_id,
-				{{ or .columns "'' as cert_value, '' as cert_key, 0 as domain_id" }}
+				{{ or .columns "'' as cert_value, '' as cert_key, 0 as domain_id, false as analytics_excluded" }}
 			FROM
 				deployments d
 			INNER JOIN
@@ -136,7 +136,7 @@ var stmt = &statement{
 			d.manifest, d.build_conf_snapshot, d.env_updated, d.build_conf, d.percentage,
 			coalesce(d.cert_value, '') as cert_value,
 			coalesce(d.cert_key, '') as cert_key,
-			d.domain_id, d.auth_wall_conf, d.auth_conf,
+			d.domain_id, d.analytics_excluded, d.auth_wall_conf, d.auth_conf,
 			(SELECT json_data FROM snippets) as snippets,
 			d.display_name, d.env_name, d.subscription_tier, d.billing_user_id
 		FROM deployment d
@@ -181,7 +181,7 @@ func (s *Store) queryWithDomainName(filters ConfigFilters) (string, []any, error
 	err := s.selectConfigs.Execute(&wr, map[string]any{
 		"join":    "INNER JOIN domains dm ON dm.env_id = dp.env_id",
 		"where":   "dm.domain_name = $1 AND dm.domain_verified IS TRUE AND dp.deployment_id IS NOT NULL",
-		"columns": "dm.custom_cert_value as cert_value, dm.custom_cert_key as cert_key, dm.domain_id",
+		"columns": "dm.custom_cert_value as cert_value, dm.custom_cert_key as cert_key, dm.domain_id, dm.analytics_excluded",
 	})
 
 	return wr.String(), []any{strings.ToLower(filters.HostName)}, err
@@ -318,7 +318,7 @@ func rowsToConfigs(rows *sql.Rows, err error) ([]*Config, error) {
 			&cnf.FunctionLocation, &cnf.StorageLocation,
 			&cnf.APILocation, &cnf.APIPathPrefix,
 			&buildManifest, &buildConfSnapshot, &cnf.UpdatedAt, &buildConf,
-			&cnf.Percentage, &certVal, &certKey, &cnf.DomainID,
+			&cnf.Percentage, &certVal, &certKey, &cnf.DomainID, &cnf.AnalyticsExcluded,
 			&authwall, &authConf, &cnf.Snippets, &displayName, &envName, &tier,
 			&cnf.BillingUserID,
 		)

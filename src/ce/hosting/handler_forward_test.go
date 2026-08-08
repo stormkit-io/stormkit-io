@@ -738,6 +738,34 @@ func (s *HandlerForwardSuite) Test_Analytics_ExcludesReservedPaths() {
 	s.Equal("/about", record.RequestPath)
 }
 
+func (s *HandlerForwardSuite) Test_Analytics_ExcludedDomain() {
+	host := &hosting.Host{
+		Name: "www.stormkit.io",
+		Config: &appconf.Config{
+			IsEnterprise:      true,
+			AppID:             types.ID(25),
+			EnvID:             types.ID(100),
+			DomainID:          types.ID(501),
+			AnalyticsExcluded: true,
+		},
+	}
+
+	res := &shttp.Response{Status: http.StatusOK}
+
+	header := http.Header{}
+	header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+
+	req := s.newRequest(host, "/about", header)
+	s.Nil(hosting.AnalyticsRecord(req, res))
+
+	// The access log is deliberately unaffected by the analytics opt-out.
+	log := hosting.AccessLogRecord(hosting.AccessLogRecordParams{Req: req, Res: res})
+
+	s.Require().NotNil(log)
+	s.Equal("/about", log.RequestPath)
+	s.Equal(types.ID(501), log.DomainID)
+}
+
 func (s *HandlerForwardSuite) Test_Analytics() {
 	config.Get().TrustProxyHeaders = true
 

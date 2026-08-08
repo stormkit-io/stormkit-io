@@ -20,6 +20,60 @@ export const setDomain = ({
   });
 };
 
+interface UpdateDomainProps {
+  setError: (e?: string) => void;
+  setSuccess: (e?: string) => void;
+  appId: string;
+  envId: string;
+  domain: Domain;
+  analyticsExcluded: boolean;
+}
+
+export const updateDomain = ({
+  setError,
+  setSuccess,
+  appId,
+  envId,
+  domain,
+  analyticsExcluded,
+}: UpdateDomainProps) => {
+  setError(undefined);
+  setSuccess(undefined);
+
+  return api
+    .put("/v1/domains", {
+      appId,
+      envId,
+      domainId: domain.id,
+      analyticsExcluded,
+    })
+    .then(() => {
+      setSuccess(
+        analyticsExcluded
+          ? `${domain.domainName} is no longer tracked in analytics. Access logs are unaffected.`
+          : `${domain.domainName} is now tracked in analytics.`
+      );
+
+      return true;
+    })
+    .catch(async res => {
+      let error = "";
+
+      try {
+        const data = await res.json();
+        error = data.error;
+      } catch {}
+
+      setError(
+        res.status === 400
+          ? error
+          : "Something went wrong while updating the analytics setting for the domain."
+      );
+
+      return false;
+    });
+};
+
 interface DeleteDomainProps {
   appId: string;
   envId: string;

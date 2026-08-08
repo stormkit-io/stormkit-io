@@ -100,6 +100,46 @@ To paginate results, you can specify the `afterId` querystring parameter. This v
 <details>
 
 <summary>
+  <span>PUT </span><span>/v1/domains</span>
+</summary>
+
+Update the settings of a domain. The domain name itself is immutable — delete
+and re-add the domain to change it.
+
+Omitted properties are left untouched.
+
+```typescript
+interface Request {
+  domainId: string
+  analyticsExcluded?: boolean
+}
+
+interface Response {
+  ok: boolean
+}
+```
+
+```bash
+# Example
+
+curl -X PUT \
+     -H 'Authorization: <api_key>' \
+     -H 'Content-Type: application/javascript' \
+     'https://api.stormkit.io/v1/domains' \
+     -d '{ "domainId": "18914", "analyticsExcluded": true }'
+```
+
+```json
+{
+  "ok": true
+}
+```
+
+</details>
+
+<details>
+
+<summary>
   <span>DELETE </span><span>/v1/domains</span>
 </summary>
 
@@ -216,6 +256,7 @@ interface Domain {
   domainName: string
   verified: boolean
   token: string
+  analyticsExcluded: boolean
   customCert?: {
     value: string
     key: string
@@ -234,5 +275,6 @@ interface Pagination {
 | domainName        | The domain name.                                                                     |
 | verified          | Whether the domain is verified or not. For self-hosted users, this is always `true`. |
 | token             | A token used to create TXT record to verify a domain.                                |
+| analyticsExcluded | Whether traffic on this domain is kept out of analytics. Access logs are unaffected. |
 | customCert?.value | If present, the value of the custom certificate.                                     |
 | customCert?.key   | If present, the private key of the custom certificate.                               |

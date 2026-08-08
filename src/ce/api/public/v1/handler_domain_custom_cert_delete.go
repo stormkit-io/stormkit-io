@@ -17,16 +17,13 @@ func HandlerCertDelete(req *RequestContext) *shttp.Response {
 
 	domainID := utils.StringToID(id)
 
+	domain, res := req.domainInEnv(domainID)
+
+	if res != nil {
+		return res
+	}
+
 	store := buildconf.DomainStore()
-	domain, err := store.DomainByID(req.Context(), domainID)
-
-	if err != nil {
-		return shttp.Error(err)
-	}
-
-	if domain == nil || domain.AppID != req.App.ID {
-		return shttp.NotFound()
-	}
 
 	var oldCert string
 	var oldKey string
@@ -43,7 +40,7 @@ func HandlerCertDelete(req *RequestContext) *shttp.Response {
 	}
 
 	if req.License().IsEnterprise() {
-		err = audit.FromRequestContext(req).
+		err := audit.FromRequestContext(req).
 			WithAction(audit.UpdateAction, audit.TypeDomain).
 			WithDiff(&audit.Diff{
 				Old: audit.DiffFields{DomainName: domain.Name, DomainCertValue: oldCert, DomainCertKey: oldKey},
