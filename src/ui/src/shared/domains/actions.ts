@@ -35,6 +35,8 @@ export const useFetchDomains = ({
       return;
     }
 
+    setError(undefined);
+
     const qs = new URLSearchParams(
       JSON.parse(
         JSON.stringify({

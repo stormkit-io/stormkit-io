@@ -141,6 +141,18 @@ func (s *CollectHandlerSuite) Test_Bot_Dropped() {
 	s.Empty(s.waitForRecords(1))
 }
 
+// A domain excluded from analytics drops both pageviews and custom events, and
+// still answers 204 so a cached script does not surface errors to the visitor.
+func (s *CollectHandlerSuite) Test_ExcludedDomain_Dropped() {
+	s.host.Config.AnalyticsExcluded = true
+
+	body := `{"events":[{"name":"purchase"}],"pageviews":[{"path":"/pricing"}]}`
+	res := handleCollect(s.request(http.MethodPost, "203.0.113.9", collectTestUA, body))
+
+	s.Equal(http.StatusNoContent, res.Status)
+	s.Empty(s.waitForRecords(1))
+}
+
 func (s *CollectHandlerSuite) Test_BadBody() {
 	res := handleCollect(s.request(http.MethodPost, "203.0.113.4", collectTestUA, `not-json`))
 

@@ -69,8 +69,8 @@ func (s *HandlerDomainsListSuite) Test_Success_WithoutFilters() {
 
 	expected := fmt.Sprintf(`{
 		"domains": [
-			{ "id": "%d", "domainName": "example.org", "verified": true, "token": "", "customCert": null, "lastPing": null },
-			{ "id": "%d", "domainName": "my.example.org", "verified": false, "token": "my-token", "customCert": null, "lastPing": null }
+			{ "id": "%d", "domainName": "example.org", "verified": true, "token": "", "customCert": null, "lastPing": null, "analyticsExcluded": false },
+			{ "id": "%d", "domainName": "my.example.org", "verified": false, "token": "my-token", "customCert": null, "lastPing": null, "analyticsExcluded": false }
 		],
 		"pagination": {
 			"hasNextPage": false
@@ -123,7 +123,7 @@ func (s *HandlerDomainsListSuite) Test_Success_Pagination() {
 
 	expected := fmt.Sprintf(`{
 		"domains": [
-			{ "id": "%d", "domainName": "example.org", "verified": true, "token": "", "customCert": null, "lastPing": null }
+			{ "id": "%d", "domainName": "example.org", "verified": true, "token": "", "customCert": null, "lastPing": null, "analyticsExcluded": false }
 		],
 		"pagination": {
 			"hasNextPage": true,
@@ -151,7 +151,7 @@ func (s *HandlerDomainsListSuite) Test_Success_Pagination() {
 
 	expected = fmt.Sprintf(`{
 		"domains": [
-			{ "id": "%d", "domainName": "my.example.org", "verified": false, "token": "my-token", "customCert": null, "lastPing": null }
+			{ "id": "%d", "domainName": "my.example.org", "verified": false, "token": "my-token", "customCert": null, "lastPing": null, "analyticsExcluded": false }
 		],
 		"pagination": {
 			"hasNextPage": false
@@ -198,7 +198,7 @@ func (s *HandlerDomainsListSuite) Test_Success_WithFilters() {
 
 	expected := fmt.Sprintf(`{
 		"domains": [
-			{ "id": "%d", "domainName": "example.org", "verified": true, "token": "", "customCert": null, "lastPing": null }
+			{ "id": "%d", "domainName": "example.org", "verified": true, "token": "", "customCert": null, "lastPing": null, "analyticsExcluded": false }
 		],
 		"pagination": {
 			"hasNextPage": false
@@ -245,7 +245,7 @@ func (s *HandlerDomainsListSuite) Test_Success_WithFilters_DomainName() {
 
 	expected := fmt.Sprintf(`{
 		"domains": [
-			{ "id": "%d", "domainName": "example.org", "verified": true, "token": "", "customCert": null, "lastPing": null }
+			{ "id": "%d", "domainName": "example.org", "verified": true, "token": "", "customCert": null, "lastPing": null, "analyticsExcluded": false }
 		],
 		"pagination": {
 			"hasNextPage": false

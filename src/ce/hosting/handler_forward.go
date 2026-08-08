@@ -915,6 +915,12 @@ func analyticsRecord(req *RequestContext, res *shttp.Response) *analytics.Record
 		return nil
 	}
 
+	// The domain is opted out of visitor analytics. The access log written
+	// alongside this record is deliberately left untouched.
+	if req.Host.Config.AnalyticsExcluded {
+		return nil
+	}
+
 	// Do not count XHR requests and ignore records non-html records.
 	if strings.EqualFold(req.Header.Get("X-Requested-With"), "xmlhttprequest") {
 		return nil

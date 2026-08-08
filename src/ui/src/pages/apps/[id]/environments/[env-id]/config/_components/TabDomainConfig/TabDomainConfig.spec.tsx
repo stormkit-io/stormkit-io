@@ -7,6 +7,7 @@ import mockDomain from "~/testing/data/mock_domain";
 import {
   mockDeleteDomain,
   mockFetchDomains,
+  mockUpdateDomain,
 } from "~/testing/nocks/nock_domains";
 import TabDomainConfig from "./TabDomainConfig";
 
@@ -80,7 +81,12 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabDomainCo
         response: {
           domains: [
             domain,
-            { id: "2", domainName: "www.stormkit.io", verified: false },
+            {
+              id: "2",
+              domainName: "www.stormkit.io",
+              verified: false,
+              analyticsExcluded: true,
+            },
             {
               id: "3",
               domainName: "api.stormkit.io",
@@ -142,6 +148,63 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabDomainCo
         expect(wrapper.getByTestId("api.stormkit.io-status").textContent).toBe(
           "Status: 200"
         );
+      });
+    });
+
+    it("should allow excluding a domain from analytics", async () => {
+      const scope = mockUpdateDomain({
+        appId: currentApp.id,
+        envId: currentEnv.id!,
+        domainId: domain.id,
+        analyticsExcluded: true,
+      });
+
+      await waitFor(() => {
+        expect(wrapper.getAllByLabelText("expand").at(0)).toBeTruthy();
+      });
+
+      fireEvent.click(wrapper.getAllByLabelText("expand").at(0)!);
+      fireEvent.click(wrapper.getByText("Exclude from analytics"));
+
+      await waitFor(() => {
+        expect(scope.isDone()).toBe(true);
+      });
+    });
+
+    it("should allow including an excluded domain back into analytics", async () => {
+      const scope = mockUpdateDomain({
+        appId: currentApp.id,
+        envId: currentEnv.id!,
+        domainId: "2",
+        analyticsExcluded: false,
+      });
+
+      // The "expand" label is on both the icon button and its inner icon, so
+      // query by role to get the second row's button rather than the first
+      // row's icon.
+      const expandButtons = () =>
+        wrapper.getAllByRole("button", { name: "expand" });
+
+      await waitFor(() => {
+        expect(expandButtons().at(1)).toBeTruthy();
+      });
+
+      fireEvent.click(expandButtons().at(1)!);
+
+      await waitFor(() => {
+        expect(wrapper.getByText("Include in analytics")).toBeTruthy();
+      });
+
+      fireEvent.click(wrapper.getByText("Include in analytics"));
+
+      await waitFor(() => {
+        expect(scope.isDone()).toBe(true);
+      });
+    });
+
+    it("should mark excluded domains in the list", async () => {
+      await waitFor(() => {
+        expect(wrapper.getByText("Excluded from analytics")).toBeTruthy();
       });
     });
 

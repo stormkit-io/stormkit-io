@@ -64,6 +64,7 @@ func Services(r *shttp.Router) *shttp.Service {
 	s.NewEndpoint("/v1/domains").
 		Handler(shttp.MethodGet, "", WithAPIKey(HandlerDomainsList, &Opts{MinimumScope: apikey.SCOPE_ENV})).
 		Handler(shttp.MethodPost, "", WithAPIKey(HandlerDomainAdd, &Opts{MinimumScope: apikey.SCOPE_ENV})).
+		Handler(shttp.MethodPut, "", WithAPIKey(HandlerDomainUpdate, &Opts{MinimumScope: apikey.SCOPE_ENV})).
 		Handler(shttp.MethodDelete, "", WithAPIKey(HandlerDomainDelete, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	s.NewEndpoint("/v1/domains").

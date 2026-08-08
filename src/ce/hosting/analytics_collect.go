@@ -81,6 +81,13 @@ func handleCollect(req *RequestContext) (res *shttp.Response) {
 		return &shttp.Response{Status: http.StatusNotFound}
 	}
 
+	// The domain is opted out of visitor analytics, so neither its pageviews nor
+	// its custom events are recorded. Answered as success so a cached tracking
+	// script on an excluded host does not report errors to the visitor.
+	if req.Host.Config.AnalyticsExcluded {
+		return &shttp.Response{Status: http.StatusNoContent}
+	}
+
 	if !collectLimiter.Get(req.RemoteIP()).Limiter.Allow() {
 		return &shttp.Response{Status: http.StatusTooManyRequests}
 	}

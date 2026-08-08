@@ -14,6 +14,8 @@ import DomainSelector from "./DomainSelector";
 interface Props {
   multiple?: boolean;
   withDevDomains?: boolean;
+  hideAnalyticsExcluded?: boolean;
+  domains?: Domain[];
 }
 
 describe("~/shared/domains/DomainSelector.tsx", () => {
@@ -32,13 +34,18 @@ describe("~/shared/domains/DomainSelector.tsx", () => {
     { domainName: "e.org", verified: true, id: "2" },
   ];
 
-  const createWrapper = async ({ withDevDomains, multiple }: Props) => {
+  const createWrapper = async ({
+    withDevDomains,
+    multiple,
+    hideAnalyticsExcluded,
+    domains: overwrite,
+  }: Props) => {
     fetchDomainsScope = mockFetchDomains({
       appId,
       envId,
       verified: true,
       response: {
-        domains,
+        domains: overwrite || domains,
       },
     });
 
@@ -51,8 +58,9 @@ describe("~/shared/domains/DomainSelector.tsx", () => {
         envId={envId}
         multiple={multiple}
         withDevDomains={withDevDomains}
+        hideAnalyticsExcluded={hideAnalyticsExcluded}
         onDomainSelect={onDomainSelect}
-      />
+      />,
     );
 
     await waitFor(() => {
@@ -109,6 +117,33 @@ describe("~/shared/domains/DomainSelector.tsx", () => {
 
       // When single select, we return the domain object instead.
       expect(onDomainSelect).toHaveBeenCalledWith([domains[0]]);
+    });
+  });
+
+  describe("hideAnalyticsExcluded", () => {
+    const mixed = [
+      {
+        domainName: "www.e.org",
+        verified: true,
+        id: "2",
+        analyticsExcluded: true,
+      },
+      { domainName: "e.org", verified: true, id: "3" },
+    ];
+
+    it("should drop domains excluded from analytics", async () => {
+      await createWrapper({ hideAnalyticsExcluded: true, domains: mixed });
+      await openDropdown();
+
+      expect(findOption("e.org")).toBeTruthy();
+      expect(() => findOption("www.e.org")).toThrow();
+    });
+
+    it("should keep them when the flag is off", async () => {
+      await createWrapper({ domains: mixed });
+      await openDropdown();
+
+      expect(findOption("www.e.org")).toBeTruthy();
     });
   });
 

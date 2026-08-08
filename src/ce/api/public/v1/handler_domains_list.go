@@ -65,12 +65,13 @@ func HandlerDomainsList(req *RequestContext) *shttp.Response {
 
 	for _, domain := range domains {
 		response = append(response, map[string]any{
-			"id":         domain.ID.String(),
-			"domainName": domain.Name,
-			"verified":   domain.Verified,
-			"token":      domain.Token.ValueOrZero(),
-			"customCert": domain.CustomCert,
-			"lastPing":   domain.LastPing,
+			"id":                domain.ID.String(),
+			"domainName":        domain.Name,
+			"verified":          domain.Verified,
+			"token":             domain.Token.ValueOrZero(),
+			"customCert":        domain.CustomCert,
+			"lastPing":          domain.LastPing,
+			"analyticsExcluded": domain.AnalyticsExcluded,
 		})
 	}
 

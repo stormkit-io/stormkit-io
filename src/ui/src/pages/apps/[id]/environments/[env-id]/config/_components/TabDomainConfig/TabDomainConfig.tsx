@@ -21,7 +21,7 @@ import { isSelfHosted } from "~/utils/helpers/instance";
 import DomainModal from "./DomainModal";
 import DomainVerifyModal from "./DomainVerifyModal";
 import CustomCertModal from "./CustomCertModal";
-import { deleteDomain, useFetchDomains } from "./actions";
+import { deleteDomain, updateDomain, useFetchDomains } from "./actions";
 import { formattedDate } from "~/utils/helpers/deployments";
 
 interface Props {
@@ -39,6 +39,7 @@ export default function TabDomainConfig({ app, environment }: Props) {
   const [isDomainModalOpen, toggleDomainModal] = useState(false);
   const [domainToModifyCustomCert, toggleCustomCertModal] = useState<Domain>();
   const [success, setSuccess] = useState<string>();
+  const [updateError, setUpdateError] = useState<string>();
   const [domainToVerify, setDomainToVerify] = useState<Domain>();
   const [domainToDelete, setDomainToDelete] = useState<Domain>();
   const { domains, error, loading, pagination } = useFetchDomains({
@@ -49,8 +50,23 @@ export default function TabDomainConfig({ app, environment }: Props) {
     search: "",
   });
 
+  const toggleAnalytics = (domain: Domain) => {
+    updateDomain({
+      setError: setUpdateError,
+      setSuccess,
+      appId: app.id,
+      envId: environment.id!,
+      domain,
+      analyticsExcluded: !domain.analyticsExcluded,
+    }).then(ok => {
+      if (ok) {
+        setRefreshToken(Date.now());
+      }
+    });
+  };
+
   return (
-    <Card error={error} success={success} loading={loading}>
+    <Card error={updateError || error} success={success} loading={loading}>
       <CardHeader
         title="Custom domains"
         subtitle="Set custom domains to serve your application from."
@@ -78,6 +94,12 @@ export default function TabDomainConfig({ app, environment }: Props) {
               {
                 text: "Custom certificate",
                 onClick: () => toggleCustomCertModal(domain),
+              },
+              {
+                text: domain.analyticsExcluded
+                  ? "Include in analytics"
+                  : "Exclude from analytics",
+                onClick: () => toggleAnalytics(domain),
               },
               {
                 text: "Delete",
@@ -119,6 +141,12 @@ export default function TabDomainConfig({ app, environment }: Props) {
                     <Typography component="span" color="text.secondary">
                       <Dot sx={{ mx: 1 }} />
                       Custom certificate
+                    </Typography>
+                  )}
+                  {domain.analyticsExcluded && (
+                    <Typography component="span" color="text.secondary">
+                      <Dot sx={{ mx: 1 }} />
+                      Excluded from analytics
                     </Typography>
                   )}
                 </Box>

@@ -25,6 +25,10 @@ type DomainModel struct {
 	CreatedAt  utils.Unix
 	CustomCert *CustomCert
 	LastPing   *PingResult
+
+	// AnalyticsExcluded drops the domain's traffic from visitor analytics.
+	// Access logs are unaffected — they remain the raw, unfiltered record.
+	AnalyticsExcluded bool
 }
 
 type PingResult struct {

@@ -68,6 +68,7 @@ declare interface Domain {
   domainName: string;
   verified: boolean;
   token?: string;
+  analyticsExcluded?: boolean;
   customCert?: {
     value: string;
     key: string;

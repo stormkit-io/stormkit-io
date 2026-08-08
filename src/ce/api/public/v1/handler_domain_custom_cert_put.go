@@ -42,16 +42,13 @@ func HandlerCertPut(req *RequestContext) *shttp.Response {
 		}
 	}
 
+	domain, res := req.domainInEnv(data.DomainID)
+
+	if res != nil {
+		return res
+	}
+
 	store := buildconf.DomainStore()
-	domain, err := store.DomainByID(req.Context(), data.DomainID)
-
-	if err != nil {
-		return shttp.Error(err)
-	}
-
-	if domain == nil || domain.AppID != req.App.ID {
-		return shttp.NotFound()
-	}
 
 	var oldCert string
 	var oldKey string
@@ -71,7 +68,7 @@ func HandlerCertPut(req *RequestContext) *shttp.Response {
 	}
 
 	if req.License().IsEnterprise() {
-		err = audit.FromRequestContext(req).
+		err := audit.FromRequestContext(req).
 			WithAction(audit.UpdateAction, audit.TypeDomain).
 			WithDiff(&audit.Diff{
 				Old: audit.DiffFields{DomainName: domain.Name, DomainCertValue: oldCert, DomainCertKey: oldKey},

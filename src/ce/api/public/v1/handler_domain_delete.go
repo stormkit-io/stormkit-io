@@ -1,6 +1,8 @@
 package publicapiv1
 
 import (
+	"net/http"
+
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appcache"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
@@ -23,19 +25,17 @@ func HandlerDomainDelete(req *RequestContext) *shttp.Response {
 		return shttp.BadRequest()
 	}
 
-	store := buildconf.DomainStore()
-	domain, err := store.DomainByID(req.Context(), domainID)
+	domain, res := req.domainInEnv(domainID)
 
-	if err != nil {
-		return shttp.Error(err)
-	}
+	// Deleting is idempotent: a domain that is already gone — or that belongs to
+	// another environment, which the caller must not be able to tell apart —
+	// reports success without touching anything.
+	if res != nil {
+		if res.Status == http.StatusNotFound {
+			return shttp.NoContent()
+		}
 
-	if domain == nil {
-		return shttp.NoContent()
-	}
-
-	if domain.AppID != req.App.ID {
-		return shttp.NotAllowed()
+		return res
 	}
 
 	// Reset the cache first because the Reset function checks the Database
@@ -44,7 +44,7 @@ func HandlerDomainDelete(req *RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	err = buildconf.DomainStore().DeleteDomain(req.Context(), buildconf.DeleteDomainArgs{
+	err := buildconf.DomainStore().DeleteDomain(req.Context(), buildconf.DeleteDomainArgs{
 		DomainID: domainID,
 	})
 
