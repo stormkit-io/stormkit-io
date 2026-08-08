@@ -155,10 +155,11 @@ describe("~/apps/[id]/environments/[env-id]/function-triggers/FunctionTriggers.t
     await waitFor(() => {
       expect(invokeScope.isDone()).toBe(true);
       expect(wrapper.getByText("Log details")).toBeTruthy();
-      // The response body is pretty printed.
+      // The response body is pretty printed. Its text is split across
+      // highlighting spans, so it is matched on the block's text content.
       expect(
-        wrapper.getByText(`{\n  "status": "ok"\n}`, { normalizer: s => s })
-      ).toBeTruthy();
+        wrapper.getAllByTestId("code-block").at(1)?.textContent
+      ).toBe(`{\n  "status": "ok"\n}`);
     });
 
     // The past runs are only fetched once the user navigates back to them.
@@ -206,8 +207,8 @@ describe("~/apps/[id]/environments/[env-id]/function-triggers/FunctionTriggers.t
     await waitFor(() => {
       expect(wrapper.getByText("Log details")).toBeTruthy();
       expect(
-        wrapper.getByText(`{\n  "status": "ok"\n}`, { normalizer: s => s })
-      ).toBeTruthy();
+        wrapper.getAllByTestId("code-block").at(1)?.textContent
+      ).toBe(`{\n  "status": "ok"\n}`);
     });
 
     fireEvent.click(wrapper.getByTestId("back-to-logs"));

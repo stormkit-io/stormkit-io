@@ -25,8 +25,9 @@ var stmts = struct {
 }{
 	selectTriggers: `
 		SELECT
-			trigger_id, env_id, cron, trigger_options, 
-			trigger_status, created_at, next_run_at, updated_at
+			trigger_id, env_id, cron, trigger_options,
+			trigger_status, created_at, next_run_at, updated_at,
+			COALESCE(documentation, '')
         FROM
 			function_triggers
 		WHERE
@@ -54,9 +55,9 @@ var stmts = struct {
 	`,
 	insertTrigger: `
 		INSERT INTO function_triggers
-		    (env_id, cron, next_run_at, trigger_options, trigger_status)
+		    (env_id, cron, next_run_at, trigger_options, trigger_status, documentation)
 		VALUES
-			($1, $2, $3, $4, $5)
+			($1, $2, $3, $4, $5, $6)
     	RETURNING
 			trigger_id;
 	`,
@@ -68,9 +69,10 @@ var stmts = struct {
 			trigger_options = $2,
 			trigger_status = $3,
 			next_run_at = $4,
+			documentation = $5,
 			updated_at = timezone('utc', now())
 		WHERE
-			trigger_id = $5;
+			trigger_id = $6;
 	`,
 	updateNextRunAt: `
 		UPDATE
@@ -200,6 +202,7 @@ func (s *Store) Insert(ctx context.Context, ft *FunctionTrigger) error {
 		ft.NextRunAt,
 		opts,
 		ft.Status,
+		ft.Documentation,
 	)
 
 	if err != nil {
@@ -253,7 +256,7 @@ func (s *Store) Update(ctx context.Context, ft *FunctionTrigger) error {
 		ft.NextRunAt = utils.Unix{Valid: false}
 	}
 
-	_, err = s.Exec(ctx, stmts.updateTrigger, ft.Cron, opts, ft.Status, ft.NextRunAt, ft.ID)
+	_, err = s.Exec(ctx, stmts.updateTrigger, ft.Cron, opts, ft.Status, ft.NextRunAt, ft.Documentation, ft.ID)
 	return err
 }
 
@@ -329,7 +332,7 @@ func (s *Store) selectRows(ctx context.Context, query string, args ...any) ([]*F
 		err := rows.Scan(
 			&tmp.ID, &tmp.EnvID, &tmp.Cron,
 			&tmp.Options, &tmp.Status, &tmp.CreatedAt,
-			&tmp.NextRunAt, &tmp.UpdatedAt,
+			&tmp.NextRunAt, &tmp.UpdatedAt, &tmp.Documentation,
 		)
 
 		if err != nil {

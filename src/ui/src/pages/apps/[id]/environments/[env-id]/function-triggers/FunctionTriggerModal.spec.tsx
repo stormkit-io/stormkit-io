@@ -105,6 +105,49 @@ describe("~/apps/[id]/environments/[env-id]/function-triggers/_components/Functi
     });
   });
 
+  it("should submit documentation and preview it as markdown", async () => {
+    await createWrapper();
+    await openDropdown();
+    await fireEvent.click(findOption("www.e.org")!);
+
+    const scope = mockActions.mockCreateFunctionTrigger({
+      appId: currentApp.id,
+      envId: currentEnv.id!,
+      status: false,
+      options: {
+        url: `https://www.e.org/test`,
+        method: "GET",
+        headers: {},
+        payload: "",
+      },
+      cron: "1 * * * *",
+      documentation: "Runs the **rollup**",
+    });
+
+    await userEvent.type(wrapper.getByLabelText("Cron"), "1 * * * *");
+    await userEvent.type(wrapper.getByLabelText(/trigger periodi/), "test");
+    await userEvent.type(
+      wrapper.getByLabelText("Documentation"),
+      "Runs the **rollup**"
+    );
+
+    await fireEvent.click(wrapper.getByText("Preview"));
+
+    await waitFor(() => {
+      expect(
+        wrapper.getByTestId("documentation-preview").innerHTML
+      ).toContain("<strong>rollup</strong>");
+    });
+
+    await fireEvent.click(wrapper.getByText("Edit"));
+    await fireEvent.click(wrapper.getByText("Create"));
+
+    await waitFor(() => {
+      expect(scope.isDone()).toBe(true);
+      expect(successHandler).toHaveBeenCalled();
+    });
+  });
+
   it("should create a new trigger", async () => {
     await createWrapper();
     await openDropdown();

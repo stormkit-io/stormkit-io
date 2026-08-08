@@ -80,7 +80,10 @@ export default function TriggerLogsDrawer({
               </Button>
             }
           />
-          <TriggerLogDetails log={selected} />
+          <TriggerLogDetails
+            log={selected}
+            documentation={trigger.documentation}
+          />
         </Card>
       ) : (
         <Card

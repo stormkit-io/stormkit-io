@@ -1,0 +1,12 @@
+-- Free-form notes describing what a periodic trigger is for, rendered as
+-- markdown in the UI. A trigger's cron and URL say when and where it fires, but
+-- not why it exists or what breaks if it stops — that context previously lived
+-- outside Stormkit.
+--
+-- A column rather than a key inside trigger_options: the text documents the
+-- trigger, not the HTTP request that Options models, and keeping it top level
+-- leaves it searchable without digging through jsonb.
+--
+-- Nullable with no default, so existing triggers read as "undocumented" rather
+-- than carrying an empty string.
+ALTER TABLE function_triggers ADD COLUMN IF NOT EXISTS documentation text;

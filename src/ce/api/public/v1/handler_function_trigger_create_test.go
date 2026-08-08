@@ -3,6 +3,7 @@ package publicapiv1_test
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
@@ -85,6 +86,113 @@ func (s *HandlerFunctionTriggerCreateSuite) Test_Success_Enabled() {
 	s.Equal(tfs[0].Options.URL, "https://test.com/")
 	s.Equal(tfs[0].Options.Headers.String(), "name:joe;surname:doe")
 	s.Equal(string(tfs[0].Options.Payload), triggerRequestPayload)
+}
+
+func (s *HandlerFunctionTriggerCreateSuite) Test_Success_Documentation() {
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+
+	documentation := "# Nightly rollup\n\nPings `/cron/rollup`. Ask **#data** if it fails."
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/v1/trigger",
+
+		map[string]any{
+			"appId":         env.AppID.String(),
+			"envId":         env.ID.String(),
+			"cron":          "*/1 * * * *",
+			"status":        true,
+			"documentation": documentation,
+			"options": map[string]any{
+				"method": "GET",
+				"url":    "https://test.com/",
+			},
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(env.GetApp().UserID),
+		},
+	)
+
+	s.Equal(http.StatusCreated, response.Code)
+
+	tfs, err := functiontrigger.NewStore().List(context.Background(), env.ID)
+	s.NoError(err)
+	s.Len(tfs, 1)
+	s.Equal(documentation, tfs[0].Documentation)
+}
+
+// Test_Fail_DocumentationTooLong verifies that the free-form notes are bounded:
+// the column is plain text and every listing returns it in full.
+func (s *HandlerFunctionTriggerCreateSuite) Test_Fail_DocumentationTooLong() {
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/v1/trigger",
+
+		map[string]any{
+			"appId":         env.AppID.String(),
+			"envId":         env.ID.String(),
+			"cron":          "*/1 * * * *",
+			"status":        true,
+			"documentation": strings.Repeat("a", 64*1024+1),
+			"options": map[string]any{
+				"method": "GET",
+				"url":    "https://test.com/",
+			},
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(env.GetApp().UserID),
+		},
+	)
+
+	s.Equal(http.StatusBadRequest, response.Code)
+	s.Contains(response.String(), "documentation")
+
+	tfs, err := functiontrigger.NewStore().List(context.Background(), env.ID)
+	s.Require().NoError(err)
+	s.Empty(tfs)
+}
+
+// Test_Success_NoDocumentation verifies that a trigger created without
+// documentation reads back as an empty string rather than failing the scan.
+func (s *HandlerFunctionTriggerCreateSuite) Test_Success_NoDocumentation() {
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/v1/trigger",
+
+		map[string]any{
+			"appId":  env.AppID.String(),
+			"envId":  env.ID.String(),
+			"cron":   "*/1 * * * *",
+			"status": true,
+			"options": map[string]any{
+				"method": "GET",
+				"url":    "https://test.com/",
+			},
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(env.GetApp().UserID),
+		},
+	)
+
+	s.Equal(http.StatusCreated, response.Code)
+
+	tfs, err := functiontrigger.NewStore().List(context.Background(), env.ID)
+	s.NoError(err)
+	s.Len(tfs, 1)
+	s.Empty(tfs[0].Documentation)
 }
 
 func (s *HandlerFunctionTriggerCreateSuite) Test_Success_Disabled() {
