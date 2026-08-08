@@ -88,6 +88,105 @@ func (s *HandlerMCPSuite) Test_UpdateTrigger() {
 	s.Equal("https://www.example.org/updated", record.Options.URL)
 }
 
+func (s *HandlerMCPSuite) Test_Trigger_Documentation() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	env := s.MockEnv(appl)
+	key := s.userKey(usr)
+
+	documentation := "Rebuilds the **search index**. Safe to disable."
+
+	resp := s.post(key.Value, mcpToolCall(1, "create_trigger", map[string]any{
+		"envId":         env.ID.String(),
+		"cron":          "*/5 * * * *",
+		"status":        true,
+		"method":        "POST",
+		"url":           "https://www.example.org/cron",
+		"documentation": documentation,
+	}))
+
+	trigger := s.toolContent(s.rpcOK(resp))["trigger"].(map[string]any)
+	s.Equal(documentation, trigger["documentation"])
+
+	stored, err := functiontrigger.NewStore().List(context.Background(), env.ID)
+	s.Require().NoError(err)
+	s.Len(stored, 1)
+	s.Equal(documentation, stored[0].Documentation)
+
+	updateResp := s.post(key.Value, mcpToolCall(2, "update_trigger", map[string]any{
+		"envId":         env.ID.String(),
+		"triggerId":     stored[0].ID.String(),
+		"cron":          "*/5 * * * *",
+		"status":        true,
+		"url":           "https://www.example.org/cron",
+		"documentation": "Now documented differently.",
+	}))
+
+	s.rpcOK(updateResp)
+
+	record, err := functiontrigger.NewStore().ByID(context.Background(), stored[0].ID)
+	s.Require().NoError(err)
+	s.Equal("Now documented differently.", record.Documentation)
+	s.True(record.Status)
+}
+
+// Test_UpdateTrigger_Partial verifies that an update changes only the fields it
+// carries: a caller changing the cron alone keeps the documentation, status,
+// URL, headers and payload it never mentioned.
+func (s *HandlerMCPSuite) Test_UpdateTrigger_Partial() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	env := s.MockEnv(appl)
+	key := s.userKey(usr)
+
+	documentation := "Rebuilds the search index. Ping #data if it fails."
+
+	s.rpcOK(s.post(key.Value, mcpToolCall(1, "create_trigger", map[string]any{
+		"envId":         env.ID.String(),
+		"cron":          "*/5 * * * *",
+		"status":        true,
+		"method":        "POST",
+		"url":           "https://www.example.org/cron",
+		"payload":       `{"full":true}`,
+		"headers":       map[string]any{"authorization": "Bearer sk-1"},
+		"documentation": documentation,
+	})))
+
+	stored, err := functiontrigger.NewStore().List(context.Background(), env.ID)
+	s.Require().NoError(err)
+	s.Require().Len(stored, 1)
+
+	s.rpcOK(s.post(key.Value, mcpToolCall(2, "update_trigger", map[string]any{
+		"envId":     env.ID.String(),
+		"triggerId": stored[0].ID.String(),
+		"cron":      "*/10 * * * *",
+	})))
+
+	record, err := functiontrigger.NewStore().ByID(context.Background(), stored[0].ID)
+	s.Require().NoError(err)
+	s.Equal("*/10 * * * *", record.Cron)
+	s.Equal(documentation, record.Documentation)
+	s.True(record.Status)
+	s.Equal("POST", record.Options.Method)
+	s.Equal("https://www.example.org/cron", record.Options.URL)
+	s.Equal(`{"full":true}`, string(record.Options.Payload))
+	s.Equal("Bearer sk-1", record.Options.Headers["authorization"])
+
+	// An explicit empty value still clears a field.
+	s.rpcOK(s.post(key.Value, mcpToolCall(3, "update_trigger", map[string]any{
+		"envId":         env.ID.String(),
+		"triggerId":     stored[0].ID.String(),
+		"documentation": "",
+		"status":        false,
+	})))
+
+	record, err = functiontrigger.NewStore().ByID(context.Background(), stored[0].ID)
+	s.Require().NoError(err)
+	s.Empty(record.Documentation)
+	s.False(record.Status)
+	s.Equal("*/10 * * * *", record.Cron)
+}
+
 func (s *HandlerMCPSuite) Test_DeleteTrigger() {
 	usr := s.MockUser()
 	appl := s.MockApp(usr)

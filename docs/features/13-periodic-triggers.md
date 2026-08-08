@@ -26,6 +26,26 @@ This will call the specified endpoint with the configured cron periodicity. The 
 
 </section>
 
+## Documentation
+
+<section>
+
+A trigger's cron and URL say when and where it fires, but not why it exists or
+what breaks when it stops. The **Documentation** field on the trigger modal
+holds that context: free-form **markdown**, with an Edit/Preview toggle while
+you write it.
+
+It is shown alongside the trigger's run details (expand the dot menu `(...)` >
+**Past triggers** > a run), so whoever is looking at a failed run also sees what
+the trigger is for and who to contact. The text is never sent with the request
+and never affects execution.
+
+Documentation can also be set through the [API](/docs/api/triggers) and the MCP
+`create_trigger` / `update_trigger` tools, which is a convenient way to have an
+agent write up a trigger it just created.
+
+</section>
+
 ## Environment variables
 
 <section>

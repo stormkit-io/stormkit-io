@@ -39,6 +39,7 @@ interface Request {
   envId?: string // Required when the API key is not environment-scoped.
   cron: string // Cron expression, evaluated in UTC.
   status: boolean // Whether the trigger is active.
+  documentation?: string // Markdown notes describing the trigger. Max 64KB.
   options: {
     method: string // GET, POST, HEAD, PATCH or DELETE.
     url: string // http/https URL to call.
@@ -62,6 +63,7 @@ curl -X POST \
      -d '{
        "cron": "*/5 * * * *",
        "status": true,
+       "documentation": "Nightly rollup. Ping #data if it fails.",
        "options": {
          "method": "POST",
          "url": "https://www.example.org/cron",
@@ -77,6 +79,7 @@ curl -X POST \
     "id": "18914",
     "envId": "1500",
     "cron": "*/5 * * * *",
+    "documentation": "Nightly rollup. Ping #data if it fails.",
     "status": true,
     "nextRunAt": 1712418330,
     "options": {
@@ -95,6 +98,9 @@ curl -X POST \
 Validation errors return `400` with a map of field errors, e.g.
 `{ "cron": "Invalid cron format" }` or `{ "url": "Invalid URL" }`.
 
+`documentation` is free-form markdown shown in the Stormkit UI next to the
+trigger. It is never sent with the request and never affects execution.
+
 </details>
 
 <details>
@@ -106,19 +112,25 @@ Validation errors return `400` with a map of field errors, e.g.
 Update an existing trigger. The `id` must belong to the authenticated
 environment.
 
-> `options.headers` is replaced wholesale with what you send. Because list
+This is a **partial update**: only the fields present in the body are changed
+and everything else keeps its current value. To clear a field, send its empty
+value explicitly (e.g. `"documentation": ""`).
+
+> `options.headers` is replaced wholesale when you send it. Because list
 > responses mask header values, always re-send the real values you want to keep
 > — sending back the masked (blanked) values will overwrite the stored ones.
+> Omitting `options.headers` leaves the stored headers untouched.
 
 ```typescript
 interface Request {
   id: string
   envId?: string // Required when the API key is not environment-scoped.
-  cron: string
-  status: boolean
-  options: {
-    method: string
-    url: string
+  cron?: string
+  status?: boolean
+  documentation?: string
+  options?: {
+    method?: string
+    url?: string
     payload?: string
     headers?: Record<string, string> | string
   }
@@ -130,7 +142,8 @@ interface Response {
 ```
 
 ```bash
-# Example
+# Example — changes the schedule only; status, documentation and every
+# option keep their current values.
 
 curl -X PATCH \
      -H 'Authorization: <api_key>' \
@@ -138,9 +151,7 @@ curl -X PATCH \
      'https://api.stormkit.io/v1/trigger' \
      -d '{
        "id": "18914",
-       "cron": "0 * * * *",
-       "status": false,
-       "options": { "method": "GET", "url": "https://www.example.org/cron" }
+       "cron": "0 * * * *"
      }'
 ```
 
@@ -271,6 +282,7 @@ curl -X GET \
       "id": "18914",
       "envId": "1500",
       "cron": "*/5 * * * *",
+      "documentation": "Nightly rollup. Ping #data if it fails.",
       "status": true,
       "nextRunAt": 1712418330,
       "options": {
@@ -345,6 +357,7 @@ interface Trigger {
   id: string
   envId: string
   cron: string
+  documentation: string // Markdown notes. Empty when undocumented.
   status: boolean
   nextRunAt: number // Unix timestamp of the next scheduled run.
   options: {
@@ -373,11 +386,12 @@ interface TriggerLog {
 }
 ```
 
-| Property    | Definition                                                                  |
-| ----------- | --------------------------------------------------------------------------- |
-| id          | The unique id of the trigger.                                               |
-| envId       | The environment the trigger belongs to.                                     |
-| cron        | The cron expression, evaluated in UTC.                                       |
-| status      | Whether the trigger is active. Inactive triggers are not scheduled.         |
-| nextRunAt   | Unix timestamp of the next scheduled run. `0` when the trigger is inactive. |
-| options     | The HTTP request executed on each run.                                      |
+| Property      | Definition                                                                  |
+| ------------- | --------------------------------------------------------------------------- |
+| id            | The unique id of the trigger.                                               |
+| envId         | The environment the trigger belongs to.                                     |
+| cron          | The cron expression, evaluated in UTC.                                       |
+| documentation | Markdown notes describing the trigger, shown in the UI. Max 64KB.           |
+| status        | Whether the trigger is active. Inactive triggers are not scheduled.         |
+| nextRunAt     | Unix timestamp of the next scheduled run. `0` when the trigger is inactive. |
+| options       | The HTTP request executed on each run.                                      |

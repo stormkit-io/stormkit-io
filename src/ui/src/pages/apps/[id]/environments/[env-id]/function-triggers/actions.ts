@@ -92,6 +92,7 @@ export function createFunctionTrigger({
   cron,
   options,
   status,
+  documentation,
 }: CreateFunctionTriggerProps): Promise<FunctionTrigger> {
   if (appId === "" || envId === "") {
     return Promise.reject("AppId and EnvId cannot be empty.");
@@ -111,6 +112,7 @@ export function createFunctionTrigger({
     cron,
     status,
     options,
+    documentation,
   });
 }
 
@@ -121,6 +123,7 @@ interface UpdateFunctionTriggerProps {
   cron: string;
   status: boolean;
   options: FunctionTriggerOptions;
+  documentation?: string;
 }
 
 export const updateFunctionTrigger = ({
@@ -130,6 +133,7 @@ export const updateFunctionTrigger = ({
   cron,
   status,
   options,
+  documentation,
 }: UpdateFunctionTriggerProps): Promise<void> => {
   if (options.url.trim() === "") {
     return Promise.reject("Url cannot be empty.");
@@ -146,6 +150,7 @@ export const updateFunctionTrigger = ({
     status,
     cron,
     options,
+    documentation,
   });
 };
 
@@ -156,6 +161,7 @@ interface UpsertFunctionTriggerProps {
   status: boolean;
   cron: string;
   options: FunctionTriggerOptions;
+  documentation?: string;
 }
 
 export const upsertFunctionTrigger = ({
@@ -165,9 +171,18 @@ export const upsertFunctionTrigger = ({
   status,
   cron,
   options,
+  documentation,
 }: UpsertFunctionTriggerProps): Promise<void | FunctionTrigger> => {
   if (tfid) {
-    return updateFunctionTrigger({ tfid, status, cron, options, appId, envId });
+    return updateFunctionTrigger({
+      tfid,
+      status,
+      cron,
+      options,
+      documentation,
+      appId,
+      envId,
+    });
   }
 
   return createFunctionTrigger({
@@ -176,6 +191,7 @@ export const upsertFunctionTrigger = ({
     status,
     cron,
     options,
+    documentation,
   });
 };
 

@@ -68,6 +68,7 @@ interface MockUpdateFunctionTriggerProps {
   status: boolean;
   cron: string;
   options: any;
+  documentation?: string;
 }
 
 export const mockUpdateFunctionTrigger = ({
@@ -77,6 +78,7 @@ export const mockUpdateFunctionTrigger = ({
   status,
   cron,
   options,
+  documentation = "",
 }: MockUpdateFunctionTriggerProps) => {
   return nock(endpoint)
     .patch(`/v1/trigger`, {
@@ -86,6 +88,7 @@ export const mockUpdateFunctionTrigger = ({
       status,
       cron,
       options,
+      documentation,
     })
     .reply(201, { ok: true });
 };
@@ -96,6 +99,7 @@ interface MockCreateFunctionTriggerProps {
   status: boolean;
   cron: string;
   options: any;
+  documentation?: string;
 }
 
 export const mockCreateFunctionTrigger = ({
@@ -104,6 +108,7 @@ export const mockCreateFunctionTrigger = ({
   status,
   cron,
   options,
+  documentation = "",
 }: MockCreateFunctionTriggerProps) => {
   return nock(endpoint)
     .post(`/v1/trigger`, {
@@ -112,6 +117,7 @@ export const mockCreateFunctionTrigger = ({
       status,
       cron,
       options,
+      documentation,
     })
     .reply(201, { ok: true });
 };

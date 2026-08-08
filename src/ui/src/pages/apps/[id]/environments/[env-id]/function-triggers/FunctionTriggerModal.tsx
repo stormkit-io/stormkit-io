@@ -14,6 +14,7 @@ import Link from "@mui/material/Link";
 import Modal from "~/components/Modal";
 import Form from "~/components/FormV2";
 import Card from "~/components/Card";
+import Markdown from "~/components/Markdown";
 import CardHeader from "~/components/CardHeader";
 import KeyValue from "~/components/FormV2/KeyValue";
 import CardFooter from "~/components/CardFooter";
@@ -54,6 +55,12 @@ export default function TriggerFunctionModal({
   const [showHeaders, setShowHeaders] = useState(Boolean(options?.headers));
   const [showPayload, setShowPayload] = useState(Boolean(options?.payload));
   const [codeContent, setCodeContent] = useState(options?.payload || "");
+  const [documentation, setDocumentation] = useState(
+    triggerFunction?.documentation || ""
+  );
+  // The editor and the preview swap in place, so the value is kept in state
+  // rather than read off the form on submit.
+  const [showPreview, setShowPreview] = useState(false);
 
   const defaultHeaders = useMemo(() => {
     return triggerFunction?.options?.headers || {};
@@ -85,6 +92,7 @@ export default function TriggerFunctionModal({
       envId: environment.id || "",
       cron,
       status,
+      documentation,
       options: {
         url: `https://${host}/${urlPath.replace(/^\/+/, "")}`,
         method: method as FunctionTriggerMethod,
@@ -176,6 +184,50 @@ export default function TriggerFunctionModal({
                 }
               />
             </Box>
+            <Box sx={{ mb: 4 }}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  mb: 1,
+                }}
+              >
+                <Typography variant="h4">Documentation</Typography>
+                <Button
+                  type="button"
+                  variant="text"
+                  size="small"
+                  disabled={!documentation.trim()}
+                  onClick={() => setShowPreview(!showPreview)}
+                >
+                  {showPreview ? "Edit" : "Preview"}
+                </Button>
+              </Box>
+
+              {showPreview ? (
+                <Box
+                  data-testid="documentation-preview"
+                  sx={{ bgcolor: "container.paper", p: 1.75, minHeight: 120 }}
+                >
+                  <Markdown>{documentation}</Markdown>
+                </Box>
+              ) : (
+                <TextField
+                  name="documentation"
+                  variant="filled"
+                  multiline
+                  minRows={4}
+                  fullWidth
+                  placeholder="What this trigger does, and who to ping when it breaks."
+                  value={documentation}
+                  onChange={e => setDocumentation(e.target.value)}
+                  inputProps={{ "aria-label": "Documentation" }}
+                  helperText="Markdown supported. Shown with the trigger's run details, never sent with the request."
+                />
+              )}
+            </Box>
+
             <Box sx={{ bgcolor: "container.paper", p: 1.75, pt: 1, mb: 4 }}>
               <FormControlLabel
                 sx={{ pl: 0, ml: 0 }}

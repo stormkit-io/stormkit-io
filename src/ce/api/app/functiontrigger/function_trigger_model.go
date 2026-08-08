@@ -37,14 +37,17 @@ func (a *Options) Scan(value any) error {
 }
 
 type FunctionTrigger struct {
-	ID        types.ID   `json:"id,string"`
-	EnvID     types.ID   `json:"envId,string"`
-	Cron      string     `json:"cron"`
-	Status    bool       `json:"status"`
-	Options   Options    `json:"options,omitempty"`
-	NextRunAt utils.Unix `json:"nextRunAt,omitempty"`
-	CreatedAt utils.Unix `json:"-"`
-	UpdatedAt utils.Unix `json:"-"`
+	ID    types.ID `json:"id,string"`
+	EnvID types.ID `json:"envId,string"`
+	Cron  string   `json:"cron"`
+	// Documentation is free-form markdown describing what the trigger is for.
+	// Rendered by the UI, never interpreted when the trigger runs.
+	Documentation string     `json:"documentation,omitempty"`
+	Status        bool       `json:"status"`
+	Options       Options    `json:"options,omitempty"`
+	NextRunAt     utils.Unix `json:"nextRunAt,omitempty"`
+	CreatedAt     utils.Unix `json:"-"`
+	UpdatedAt     utils.Unix `json:"-"`
 }
 
 // MaskHeaders returns a copy of headers with every VALUE blanked (keys kept).
@@ -71,11 +74,12 @@ func MaskHeaders(h shttp.Headers) shttp.Headers {
 // directly and never go through here.
 func (t *FunctionTrigger) ToMap() map[string]any {
 	return map[string]any{
-		"id":        t.ID.String(),
-		"envId":     t.EnvID.String(),
-		"cron":      t.Cron,
-		"status":    t.Status,
-		"nextRunAt": t.NextRunAt.Unix(),
+		"id":            t.ID.String(),
+		"envId":         t.EnvID.String(),
+		"cron":          t.Cron,
+		"documentation": t.Documentation,
+		"status":        t.Status,
+		"nextRunAt":     t.NextRunAt.Unix(),
 		"options": map[string]any{
 			"url":     t.Options.URL,
 			"headers": MaskHeaders(t.Options.Headers),

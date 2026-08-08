@@ -64,6 +64,7 @@ func (s *HandlerTriggerFunctionGetSuite) Test_Success() {
 			"id": "1",
 			"envId": "1",
 			"cron": "*/1 * * * *",
+			"documentation": "",
 			"nextRunAt": 1712418330,
 			"options": {
 				"method": "POST",

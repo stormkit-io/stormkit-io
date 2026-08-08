@@ -84,6 +84,78 @@ func (s *HandlerFunctionTriggerUpdateSuite) Test_Success() {
 	s.Equal(string(record.Cron), "5 5 * * *")
 }
 
+// Test_Partial verifies that PATCH applies only the fields the body carries:
+// a request that mentions the cron alone keeps the documentation, status, URL
+// and headers it never mentioned, and an explicit empty value still clears.
+func (s *HandlerFunctionTriggerUpdateSuite) Test_Partial() {
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+	tf := s.MockTriggerFunction(env)
+
+	store := functiontrigger.NewStore()
+	before, err := store.ByID(context.Background(), tf.ID)
+	s.Require().NoError(err)
+
+	before.Documentation = "Ping #data when this fails."
+	before.Options = functiontrigger.Options{
+		Method:  "POST",
+		URL:     "https://test.com/rollup",
+		Payload: []byte(`{"full":true}`),
+		Headers: shttp.Headers{"name": "joe"},
+	}
+
+	s.Require().NoError(store.Update(context.Background(), before))
+
+	handler := shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler()
+	auth := map[string]string{"Authorization": usertest.Authorization(usr.ID)}
+
+	response := shttptest.RequestWithHeaders(
+		handler,
+		shttp.MethodPatch,
+		"/v1/trigger",
+		map[string]any{
+			"id":    tf.ID.String(),
+			"appId": app.ID.String(),
+			"envId": env.ID.String(),
+			"cron":  "5 5 * * *",
+		},
+		auth,
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+
+	record, err := store.ByID(context.Background(), tf.ID)
+	s.Require().NoError(err)
+	s.Equal("5 5 * * *", record.Cron)
+	s.Equal("Ping #data when this fails.", record.Documentation)
+	s.Equal(before.Status, record.Status)
+	s.Equal("POST", record.Options.Method)
+	s.Equal("https://test.com/rollup", record.Options.URL)
+	s.Equal(`{"full":true}`, string(record.Options.Payload))
+	s.Equal("name:joe", record.Options.Headers.String())
+
+	response = shttptest.RequestWithHeaders(
+		handler,
+		shttp.MethodPatch,
+		"/v1/trigger",
+		map[string]any{
+			"id":            tf.ID.String(),
+			"appId":         app.ID.String(),
+			"envId":         env.ID.String(),
+			"documentation": "",
+		},
+		auth,
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+
+	record, err = store.ByID(context.Background(), tf.ID)
+	s.Require().NoError(err)
+	s.Empty(record.Documentation)
+	s.Equal("5 5 * * *", record.Cron)
+}
+
 func (s *HandlerFunctionTriggerUpdateSuite) Test_Permission() {
 	usr := s.MockUser()
 	app := s.MockApp(usr)

@@ -14,13 +14,6 @@ func handlerFunctionTriggerUpdate(req *RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	if errs := validateFunctionTrigger(tf); errs != nil {
-		return &shttp.Response{
-			Status: http.StatusBadRequest,
-			Data:   errs,
-		}
-	}
-
 	store := functiontrigger.NewStore()
 	existing, err := store.ByID(req.Context(), tf.ID)
 
@@ -32,7 +25,20 @@ func handlerFunctionTriggerUpdate(req *RequestContext) *shttp.Response {
 		return shttp.NotFound()
 	}
 
-	if err := store.Update(req.Context(), tf.toRecord(req.Env.ID)); err != nil {
+	// A partial update: the fields the body carries are applied to the stored
+	// trigger and the rest keep their current values, so a caller that only
+	// means to change the cron cannot destroy headers or documentation it never
+	// mentioned.
+	tf.applyTo(existing)
+
+	if errs := validateFunctionTrigger(existing); errs != nil {
+		return &shttp.Response{
+			Status: http.StatusBadRequest,
+			Data:   errs,
+		}
+	}
+
+	if err := store.Update(req.Context(), existing); err != nil {
 		return shttp.Error(err)
 	}
 

@@ -409,13 +409,14 @@ func mcpAllTools() []mcpToolDef {
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"envId":   map[string]any{"type": "string", "description": "Environment ID to attach the trigger to."},
-					"cron":    map[string]any{"type": "string", "description": "Cron expression, evaluated in UTC, e.g. '*/5 * * * *'."},
-					"status":  map[string]any{"type": "boolean", "description": "Whether the trigger is active. Inactive triggers are not scheduled."},
-					"method":  map[string]any{"type": "string", "description": "HTTP method: GET, POST, HEAD, PATCH or DELETE. Defaults to GET."},
-					"url":     map[string]any{"type": "string", "description": "http/https URL to call."},
-					"payload": map[string]any{"type": "string", "description": "Request body, sent for non-GET methods."},
-					"headers": map[string]any{"type": "object", "description": "Request headers as a key/value map.", "additionalProperties": map[string]any{"type": "string"}},
+					"envId":         map[string]any{"type": "string", "description": "Environment ID to attach the trigger to."},
+					"cron":          map[string]any{"type": "string", "description": "Cron expression, evaluated in UTC, e.g. '*/5 * * * *'."},
+					"status":        map[string]any{"type": "boolean", "description": "Whether the trigger is active. Inactive triggers are not scheduled."},
+					"documentation": map[string]any{"type": "string", "description": "Markdown notes describing what the trigger is for. Displayed in the UI only; never affects execution."},
+					"method":        map[string]any{"type": "string", "description": "HTTP method: GET, POST, HEAD, PATCH or DELETE. Defaults to GET."},
+					"url":           map[string]any{"type": "string", "description": "http/https URL to call."},
+					"payload":       map[string]any{"type": "string", "description": "Request body, sent for non-GET methods."},
+					"headers":       map[string]any{"type": "object", "description": "Request headers as a key/value map.", "additionalProperties": map[string]any{"type": "string"}},
 				},
 				"required":             []string{"envId", "cron", "url"},
 				"additionalProperties": false,
@@ -423,20 +424,21 @@ func mcpAllTools() []mcpToolDef {
 		},
 		{
 			Name:        "update_trigger",
-			Description: "Update an existing periodic trigger. The trigger must belong to the given environment.",
+			Description: "Update an existing periodic trigger. The trigger must belong to the given environment. This is a partial update: only the fields you pass are changed and everything else keeps its current value, so pass just what you want to change. To clear a field, pass its empty value explicitly (e.g. an empty string for documentation or payload).",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"envId":     map[string]any{"type": "string", "description": "Environment the trigger belongs to."},
-					"triggerId": map[string]any{"type": "string", "description": "ID of the trigger to update (from list_triggers or create_trigger)."},
-					"cron":      map[string]any{"type": "string", "description": "Cron expression, evaluated in UTC."},
-					"status":    map[string]any{"type": "boolean", "description": "Whether the trigger is active."},
-					"method":    map[string]any{"type": "string", "description": "HTTP method: GET, POST, HEAD, PATCH or DELETE."},
-					"url":       map[string]any{"type": "string", "description": "http/https URL to call."},
-					"payload":   map[string]any{"type": "string", "description": "Request body, sent for non-GET methods."},
-					"headers":   map[string]any{"type": "object", "description": "Request headers as a key/value map.", "additionalProperties": map[string]any{"type": "string"}},
+					"envId":         map[string]any{"type": "string", "description": "Environment the trigger belongs to."},
+					"triggerId":     map[string]any{"type": "string", "description": "ID of the trigger to update (from list_triggers or create_trigger)."},
+					"cron":          map[string]any{"type": "string", "description": "Cron expression, evaluated in UTC."},
+					"status":        map[string]any{"type": "boolean", "description": "Whether the trigger is active."},
+					"documentation": map[string]any{"type": "string", "description": "Markdown notes describing what the trigger is for. Displayed in the UI only; never affects execution."},
+					"method":        map[string]any{"type": "string", "description": "HTTP method: GET, POST, HEAD, PATCH or DELETE."},
+					"url":           map[string]any{"type": "string", "description": "http/https URL to call."},
+					"payload":       map[string]any{"type": "string", "description": "Request body, sent for non-GET methods."},
+					"headers":       map[string]any{"type": "object", "description": "Request headers as a key/value map.", "additionalProperties": map[string]any{"type": "string"}},
 				},
-				"required":             []string{"envId", "triggerId", "cron", "url"},
+				"required":             []string{"envId", "triggerId"},
 				"additionalProperties": false,
 			},
 		},
@@ -1149,22 +1151,32 @@ func mcpListTriggers(req *RequestContextMCP, args map[string]any) *shttp.Respons
 // triggerBodyFromArgs builds the request body shared by create_trigger and
 // update_trigger from the tool arguments. The headers map is forwarded as-is so
 // that shttp.Headers unmarshals it the same way the REST handler does.
+//
+// Only the arguments the caller actually supplied are forwarded: an update is a
+// partial one, so filling in a zero value for an absent argument here would
+// clear the stored field instead of leaving it alone.
 func triggerBodyFromArgs(args map[string]any) map[string]any {
-	options := map[string]any{
-		"method":  stringArg(args, "method"),
-		"url":     stringArg(args, "url"),
-		"payload": stringArg(args, "payload"),
+	options := map[string]any{}
+
+	for _, key := range []string{"method", "url", "payload", "headers"} {
+		if v, ok := args[key]; ok {
+			options[key] = v
+		}
 	}
 
-	if h, ok := args["headers"]; ok {
-		options["headers"] = h
+	body := map[string]any{}
+
+	for _, key := range []string{"cron", "status", "documentation"} {
+		if v, ok := args[key]; ok {
+			body[key] = v
+		}
 	}
 
-	return map[string]any{
-		"cron":    stringArg(args, "cron"),
-		"status":  boolArg(args, "status"),
-		"options": options,
+	if len(options) > 0 {
+		body["options"] = options
 	}
+
+	return body
 }
 
 func mcpCreateTrigger(req *RequestContextMCP, id any, args map[string]any) *shttp.Response {

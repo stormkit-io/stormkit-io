@@ -118,7 +118,7 @@ All tools return JSON. Errors are reported as MCP `isError` content while the tr
 | ------------------ | --------------------------------------------------------------------------- |
 | `list_triggers`    | List periodic triggers configured for an environment.                       |
 | `create_trigger`   | Create a periodic trigger that calls a URL on a cron schedule (UTC).         |
-| `update_trigger`   | Update an existing periodic trigger.                                         |
+| `update_trigger`   | Update an existing periodic trigger. Partial: only the fields you pass change. |
 | `delete_trigger`   | Delete a periodic trigger.                                                   |
 | `invoke_trigger`   | Run a trigger immediately and return the execution log.                      |
 | `get_trigger_logs` | Return the last 25 executions (scheduled or manual) of a trigger.           |
