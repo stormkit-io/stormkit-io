@@ -1,5 +1,28 @@
 # Changelog
 
+## v2026.08.04.1...v2026.08.08.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.08.04.1...v2026.08.08.1)
+
+### 🚀 Enhancements
+
+- **monitoring:** Add request metrics dashboard ([#414](https://github.com/stormkit-io/stormkit-io/pull/414))
+- Add markdown documentation to triggers ([#417](https://github.com/stormkit-io/stormkit-io/pull/417))
+- Allow excluding domains from analytics ([#418](https://github.com/stormkit-io/stormkit-io/pull/418))
+
+### 🩹 Fixes
+
+- Reject publishing running deployments ([#415](https://github.com/stormkit-io/stormkit-io/pull/415))
+
+### 🏡 Chore
+
+- Update changelog for v2026.08.04.1 ([#413](https://github.com/stormkit-io/stormkit-io/pull/413))
+- Lead hero copy with agent operability ([#416](https://github.com/stormkit-io/stormkit-io/pull/416))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.08.03.1...v2026.08.04.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.08.03.1...v2026.08.04.1)
