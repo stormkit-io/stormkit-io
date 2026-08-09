@@ -23,9 +23,9 @@ func (tf MockFunctionTrigger) Insert(conn databasetest.TestDB) error {
 
 	insertQuery := `
 		INSERT INTO skitapi.function_triggers
-			(env_id, cron, next_run_at, trigger_options, trigger_status, updated_at, created_at, documentation)
+			(env_id, cron, next_run_at, trigger_options, trigger_status, updated_at, created_at, documentation, description)
 		VALUES
-			($1, $2, $3, $4, $5, $6, $7, $8)
+			($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING
 			trigger_id;
 	`
@@ -39,6 +39,7 @@ func (tf MockFunctionTrigger) Insert(conn databasetest.TestDB) error {
 		tf.UpdatedAt,
 		tf.CreatedAt,
 		tf.Documentation,
+		tf.Description,
 	).Scan(&tf.ID)
 }
 

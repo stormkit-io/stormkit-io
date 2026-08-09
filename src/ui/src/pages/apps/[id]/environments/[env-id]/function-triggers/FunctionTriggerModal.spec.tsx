@@ -148,6 +148,39 @@ describe("~/apps/[id]/environments/[env-id]/function-triggers/_components/Functi
     });
   });
 
+  it("should submit a one-line description", async () => {
+    await createWrapper();
+    await openDropdown();
+    await fireEvent.click(findOption("www.e.org")!);
+
+    const scope = mockActions.mockCreateFunctionTrigger({
+      appId: currentApp.id,
+      envId: currentEnv.id!,
+      status: false,
+      options: {
+        url: `https://www.e.org/test`,
+        method: "GET",
+        headers: {},
+        payload: "",
+      },
+      cron: "1 * * * *",
+      description: "Autofill weekly newsletter",
+    });
+
+    await userEvent.type(wrapper.getByLabelText("Cron"), "1 * * * *");
+    await userEvent.type(wrapper.getByLabelText(/trigger periodi/), "test");
+    await userEvent.type(
+      wrapper.getByLabelText("Description"),
+      "Autofill weekly newsletter"
+    );
+    await fireEvent.click(wrapper.getByText("Create"));
+
+    await waitFor(() => {
+      expect(scope.isDone()).toBe(true);
+      expect(successHandler).toHaveBeenCalled();
+    });
+  });
+
   it("should create a new trigger", async () => {
     await createWrapper();
     await openDropdown();

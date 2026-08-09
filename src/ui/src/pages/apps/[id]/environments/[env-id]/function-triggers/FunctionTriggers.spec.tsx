@@ -86,6 +86,33 @@ describe("~/apps/[id]/environments/[env-id]/function-triggers/FunctionTriggers.t
     });
   });
 
+  it("shows the description when set", async () => {
+    createWrapper({
+      triggers: [
+        {
+          ...mockFunctionTriggers()[0],
+          description: "Autofill weekly newsletter",
+        },
+      ],
+    });
+
+    await waitFor(() => {
+      expect(scope.isDone()).toBe(true);
+      expect(wrapper.getByText("Autofill weekly newsletter")).toBeTruthy();
+    });
+  });
+
+  // The description is optional, so a trigger without one must not render an
+  // empty line in its place.
+  it("omits the description line by default", async () => {
+    createWrapper();
+
+    await waitFor(() => {
+      expect(scope.isDone()).toBe(true);
+      expect(wrapper.queryByTestId("trigger-description")).toBeNull();
+    });
+  });
+
   it("should handle deleting function trigger", async () => {
     createWrapper();
 

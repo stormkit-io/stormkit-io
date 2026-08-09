@@ -1,0 +1,11 @@
+-- A one-line summary of what a trigger does, shown next to it in listings.
+--
+-- Distinct from documentation: that column is the team-facing runbook (markdown,
+-- how to use the trigger, what breaks if it stops), while this is the label that
+-- makes a list of triggers scannable when the cron expression and URL alone say
+-- nothing about intent — "Autofill weekly newsletter" against a URL ending in
+-- /api/cron/newsletter-autofill.
+--
+-- Nullable with no default, so existing triggers read as "no description"
+-- rather than carrying an empty string.
+ALTER TABLE function_triggers ADD COLUMN IF NOT EXISTS description text;

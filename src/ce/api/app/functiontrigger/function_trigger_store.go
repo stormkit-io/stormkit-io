@@ -27,7 +27,7 @@ var stmts = struct {
 		SELECT
 			trigger_id, env_id, cron, trigger_options,
 			trigger_status, created_at, next_run_at, updated_at,
-			COALESCE(documentation, '')
+			COALESCE(documentation, ''), COALESCE(description, '')
         FROM
 			function_triggers
 		WHERE
@@ -55,9 +55,9 @@ var stmts = struct {
 	`,
 	insertTrigger: `
 		INSERT INTO function_triggers
-		    (env_id, cron, next_run_at, trigger_options, trigger_status, documentation)
+		    (env_id, cron, next_run_at, trigger_options, trigger_status, documentation, description)
 		VALUES
-			($1, $2, $3, $4, $5, $6)
+			($1, $2, $3, $4, $5, $6, $7)
     	RETURNING
 			trigger_id;
 	`,
@@ -70,9 +70,10 @@ var stmts = struct {
 			trigger_status = $3,
 			next_run_at = $4,
 			documentation = $5,
+			description = $6,
 			updated_at = timezone('utc', now())
 		WHERE
-			trigger_id = $6;
+			trigger_id = $7;
 	`,
 	updateNextRunAt: `
 		UPDATE
@@ -203,6 +204,7 @@ func (s *Store) Insert(ctx context.Context, ft *FunctionTrigger) error {
 		opts,
 		ft.Status,
 		ft.Documentation,
+		ft.Description,
 	)
 
 	if err != nil {
@@ -256,7 +258,18 @@ func (s *Store) Update(ctx context.Context, ft *FunctionTrigger) error {
 		ft.NextRunAt = utils.Unix{Valid: false}
 	}
 
-	_, err = s.Exec(ctx, stmts.updateTrigger, ft.Cron, opts, ft.Status, ft.NextRunAt, ft.Documentation, ft.ID)
+	_, err = s.Exec(
+		ctx,
+		stmts.updateTrigger,
+		ft.Cron,
+		opts,
+		ft.Status,
+		ft.NextRunAt,
+		ft.Documentation,
+		ft.Description,
+		ft.ID,
+	)
+
 	return err
 }
 
@@ -333,6 +346,7 @@ func (s *Store) selectRows(ctx context.Context, query string, args ...any) ([]*F
 			&tmp.ID, &tmp.EnvID, &tmp.Cron,
 			&tmp.Options, &tmp.Status, &tmp.CreatedAt,
 			&tmp.NextRunAt, &tmp.UpdatedAt, &tmp.Documentation,
+			&tmp.Description,
 		)
 
 		if err != nil {

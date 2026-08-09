@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"unicode"
 
 	"github.com/adhocore/gronx"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/functiontrigger"
@@ -20,6 +21,7 @@ import (
 type functionTriggerRequest struct {
 	ID            types.ID `json:"id,string"`
 	Cron          *string  `json:"cron"`
+	Description   *string  `json:"description"`
 	Documentation *string  `json:"documentation"`
 	Status        *bool    `json:"status"`
 	Options       *struct {
@@ -35,6 +37,12 @@ type functionTriggerRequest struct {
 func (r *functionTriggerRequest) applyTo(ft *functiontrigger.FunctionTrigger) {
 	if r.Cron != nil {
 		ft.Cron = *r.Cron
+	}
+
+	// A whitespace-only description would otherwise render as a blank line
+	// under the trigger's URL in the listing.
+	if r.Description != nil {
+		ft.Description = strings.TrimSpace(*r.Description)
 	}
 
 	if r.Documentation != nil {
@@ -72,6 +80,29 @@ func (r *functionTriggerRequest) applyTo(ft *functiontrigger.FunctionTrigger) {
 // accident.
 const maxDocumentationLength = 64 * 1024
 
+// maxDescriptionLength keeps the description a label rather than a second
+// documentation field: it is rendered inline next to the trigger in listings,
+// where anything longer stops being scannable.
+const maxDescriptionLength = 200
+
+// hasDisplayControlRune reports whether s carries a rune that changes how the
+// rest of the string renders rather than adding a glyph of its own. The
+// description is shown inline next to the trigger's URL and returned verbatim
+// to MCP clients, so a bidi override or an escape sequence could misrepresent
+// which endpoint a trigger calls.
+func hasDisplayControlRune(s string) bool {
+	for _, r := range s {
+		if unicode.IsControl(r) ||
+			unicode.Is(unicode.Cf, r) ||
+			unicode.Is(unicode.Zl, r) ||
+			unicode.Is(unicode.Zp, r) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // validateFunctionTrigger checks the trigger as it will be stored, so that an
 // update is validated against the merged record rather than the partial body
 // that produced it.
@@ -86,6 +117,16 @@ func validateFunctionTrigger(ft *functiontrigger.FunctionTrigger) map[string]str
 		errors["documentation"] = fmt.Sprintf(
 			"Documentation cannot exceed %d characters", maxDocumentationLength,
 		)
+	}
+
+	if len(ft.Description) > maxDescriptionLength {
+		errors["description"] = fmt.Sprintf(
+			"Description cannot exceed %d characters", maxDescriptionLength,
+		)
+	} else if strings.ContainsAny(ft.Description, "\r\n") {
+		errors["description"] = "Description must be a single line"
+	} else if hasDisplayControlRune(ft.Description) {
+		errors["description"] = "Description must not contain control characters"
 	}
 
 	parsedURL, err := url.Parse(ft.Options.URL)

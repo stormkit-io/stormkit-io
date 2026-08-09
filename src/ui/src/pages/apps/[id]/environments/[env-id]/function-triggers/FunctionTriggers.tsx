@@ -4,6 +4,7 @@ import EditIcon from "@mui/icons-material/ModeEdit";
 import PlayIcon from "@mui/icons-material/PlayArrow";
 import TimeIcon from "@mui/icons-material/AccessTime";
 import CircleIcon from "@mui/icons-material/Circle";
+import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 import Chip from "@mui/material/Chip";
@@ -201,23 +202,37 @@ export default function FunctionTriggers() {
               label={f.options.method}
               sx={{ fontSize: 10, mr: 2, minWidth: "60px" }}
             />
-            <Tooltip title="See past triggers">
-              <Typography
-                component="span"
-                color="text.secondary"
-                noWrap
-                data-testid="trigger-url"
-                onClick={() => openDrawer(f)}
-                sx={{
-                  mr: 2,
-                  flex: 1,
-                  cursor: "pointer",
-                  "&:hover": { textDecoration: "underline" },
-                }}
-              >
-                {f.options.url}
-              </Typography>
-            </Tooltip>
+            <Box
+              component="span"
+              sx={{ display: "block", flex: 1, mr: 2, minWidth: 0 }}
+            >
+              <Tooltip title="See past triggers">
+                <Typography
+                  component="span"
+                  color="text.secondary"
+                  noWrap
+                  data-testid="trigger-url"
+                  onClick={() => openDrawer(f)}
+                  sx={{
+                    display: "block",
+                    cursor: "pointer",
+                    "&:hover": { textDecoration: "underline" },
+                  }}
+                >
+                  {f.options.url}
+                </Typography>
+              </Tooltip>
+              {f.description && (
+                <Typography
+                  component="span"
+                  noWrap
+                  data-testid="trigger-description"
+                  sx={{ display: "block", fontSize: 12, opacity: 0.6 }}
+                >
+                  {f.description}
+                </Typography>
+              )}
+            </Box>
             <Span sx={{ display: "inline-flex", alignItems: "center" }}>
               <Tooltip
                 title={

@@ -15,6 +15,8 @@ declare interface FunctionTriggerOptions {
 declare interface FunctionTrigger {
   id?: string;
   cron: string;
+  /** One-line summary shown next to the trigger in listings. */
+  description?: string;
   /** Free-form markdown describing what the trigger is for. */
   documentation?: string;
   status: boolean;
