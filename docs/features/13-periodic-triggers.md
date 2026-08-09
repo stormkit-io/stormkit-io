@@ -26,6 +26,20 @@ This will call the specified endpoint with the configured cron periodicity. The 
 
 </section>
 
+## Description
+
+<section>
+
+A list of triggers is a list of cron expressions and URLs, which says nothing
+about intent. The **Description** field holds a one-line summary shown next to
+the trigger — "Autofill weekly newsletter" against a URL ending in
+`/api/cron/newsletter-autofill` — so a list of them stays scannable.
+
+Keep it to a single line of at most 200 characters. For anything longer, use
+**Documentation** below.
+
+</section>
+
 ## Documentation
 
 <section>
@@ -40,9 +54,9 @@ It is shown alongside the trigger's run details (expand the dot menu `(...)` >
 the trigger is for and who to contact. The text is never sent with the request
 and never affects execution.
 
-Documentation can also be set through the [API](/docs/api/triggers) and the MCP
-`create_trigger` / `update_trigger` tools, which is a convenient way to have an
-agent write up a trigger it just created.
+Description and documentation can also be set through the
+[API](/docs/api/triggers) and the MCP `create_trigger` / `update_trigger` tools,
+which is a convenient way to have an agent write up a trigger it just created.
 
 </section>
 

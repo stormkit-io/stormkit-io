@@ -39,6 +39,7 @@ interface Request {
   envId?: string // Required when the API key is not environment-scoped.
   cron: string // Cron expression, evaluated in UTC.
   status: boolean // Whether the trigger is active.
+  description?: string // One-line summary shown in listings. Max 200 chars, single line.
   documentation?: string // Markdown notes describing the trigger. Max 64KB.
   options: {
     method: string // GET, POST, HEAD, PATCH or DELETE.
@@ -63,6 +64,7 @@ curl -X POST \
      -d '{
        "cron": "*/5 * * * *",
        "status": true,
+       "description": "Nightly rollup",
        "documentation": "Nightly rollup. Ping #data if it fails.",
        "options": {
          "method": "POST",
@@ -79,6 +81,7 @@ curl -X POST \
     "id": "18914",
     "envId": "1500",
     "cron": "*/5 * * * *",
+    "description": "Nightly rollup",
     "documentation": "Nightly rollup. Ping #data if it fails.",
     "status": true,
     "nextRunAt": 1712418330,
@@ -98,8 +101,11 @@ curl -X POST \
 Validation errors return `400` with a map of field errors, e.g.
 `{ "cron": "Invalid cron format" }` or `{ "url": "Invalid URL" }`.
 
-`documentation` is free-form markdown shown in the Stormkit UI next to the
-trigger. It is never sent with the request and never affects execution.
+`description` is a one-line summary shown next to the trigger in listings —
+"Autofill weekly newsletter" against a URL ending in `/api/cron/newsletter-autofill`.
+`documentation` is free-form markdown: the longer runbook explaining how the
+trigger is used and what breaks if it stops. Neither is sent with the request or
+affects execution.
 
 </details>
 
@@ -127,6 +133,7 @@ interface Request {
   envId?: string // Required when the API key is not environment-scoped.
   cron?: string
   status?: boolean
+  description?: string
   documentation?: string
   options?: {
     method?: string
@@ -282,6 +289,7 @@ curl -X GET \
       "id": "18914",
       "envId": "1500",
       "cron": "*/5 * * * *",
+      "description": "Nightly rollup",
       "documentation": "Nightly rollup. Ping #data if it fails.",
       "status": true,
       "nextRunAt": 1712418330,
@@ -357,6 +365,7 @@ interface Trigger {
   id: string
   envId: string
   cron: string
+  description: string // One-line summary. Empty when unset.
   documentation: string // Markdown notes. Empty when undocumented.
   status: boolean
   nextRunAt: number // Unix timestamp of the next scheduled run.
@@ -391,6 +400,7 @@ interface TriggerLog {
 | id            | The unique id of the trigger.                                               |
 | envId         | The environment the trigger belongs to.                                     |
 | cron          | The cron expression, evaluated in UTC.                                       |
+| description   | One-line summary shown next to the trigger in listings. Max 200 chars.      |
 | documentation | Markdown notes describing the trigger, shown in the UI. Max 64KB.           |
 | status        | Whether the trigger is active. Inactive triggers are not scheduled.         |
 | nextRunAt     | Unix timestamp of the next scheduled run. `0` when the trigger is inactive. |

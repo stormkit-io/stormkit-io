@@ -81,7 +81,7 @@ export default function TriggerFunctionModal({
       string
     >;
 
-    const { urlPath = "", cron, method } = values;
+    const { urlPath = "", cron, method, description } = values;
 
     setLoading(true);
     setError(null);
@@ -92,6 +92,7 @@ export default function TriggerFunctionModal({
       envId: environment.id || "",
       cron,
       status,
+      description,
       documentation,
       options: {
         url: `https://${host}/${urlPath.replace(/^\/+/, "")}`,
@@ -104,14 +105,34 @@ export default function TriggerFunctionModal({
         closeModal();
         onSuccess();
       })
-      .catch((e: string | Error) => {
+      .catch((e: unknown) => {
         if (typeof e === "string") {
           setError(e);
-        } else if (typeof e === "object") {
-          setError("Cron is invalid. Example expected format: 5 4 * * *");
-        } else {
-          setError("Something went wrong while saving periodic trigger");
+          return;
         }
+
+        // The api layer rejects with the raw Response. Validation failures
+        // carry a field -> message map, which is more useful than a guess at
+        // which field the server disliked.
+        if (e instanceof Response) {
+          e.json()
+            .then((errors: Record<string, string>) => {
+              const messages = Object.values(errors || {});
+
+              setError(
+                messages.length
+                  ? messages.join(" ")
+                  : "Something went wrong while saving periodic trigger"
+              );
+            })
+            .catch(() => {
+              setError("Something went wrong while saving periodic trigger");
+            });
+
+          return;
+        }
+
+        setError("Something went wrong while saving periodic trigger");
       })
       .finally(() => {
         setLoading(false);
@@ -156,6 +177,23 @@ export default function TriggerFunctionModal({
                   "aria-label": "URL to trigger periodically",
                 }}
                 InputLabelProps={{ shrink: true }}
+                fullWidth
+              />
+            </Box>
+
+            <Box sx={{ mb: 4 }}>
+              <TextField
+                name="description"
+                variant="filled"
+                label="Description"
+                placeholder="Autofill weekly newsletter"
+                defaultValue={triggerFunction?.description || ""}
+                inputProps={{
+                  "aria-label": "Description",
+                  maxLength: 200,
+                }}
+                InputLabelProps={{ shrink: true }}
+                helperText="One line explaining what this trigger does, shown next to it in the list."
                 fullWidth
               />
             </Box>

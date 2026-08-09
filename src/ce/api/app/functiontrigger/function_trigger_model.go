@@ -40,6 +40,9 @@ type FunctionTrigger struct {
 	ID    types.ID `json:"id,string"`
 	EnvID types.ID `json:"envId,string"`
 	Cron  string   `json:"cron"`
+	// Description is a one-line summary shown next to the trigger in listings.
+	// Documentation is the long-form runbook; this is the label.
+	Description string `json:"description,omitempty"`
 	// Documentation is free-form markdown describing what the trigger is for.
 	// Rendered by the UI, never interpreted when the trigger runs.
 	Documentation string     `json:"documentation,omitempty"`
@@ -77,6 +80,7 @@ func (t *FunctionTrigger) ToMap() map[string]any {
 		"id":            t.ID.String(),
 		"envId":         t.EnvID.String(),
 		"cron":          t.Cron,
+		"description":   t.Description,
 		"documentation": t.Documentation,
 		"status":        t.Status,
 		"nextRunAt":     t.NextRunAt.Unix(),

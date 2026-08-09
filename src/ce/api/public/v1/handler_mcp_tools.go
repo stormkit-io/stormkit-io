@@ -412,6 +412,7 @@ func mcpAllTools() []mcpToolDef {
 					"envId":         map[string]any{"type": "string", "description": "Environment ID to attach the trigger to."},
 					"cron":          map[string]any{"type": "string", "description": "Cron expression, evaluated in UTC, e.g. '*/5 * * * *'."},
 					"status":        map[string]any{"type": "boolean", "description": "Whether the trigger is active. Inactive triggers are not scheduled."},
+					"description":   map[string]any{"type": "string", "description": "One-line summary of what the trigger does, e.g. 'Autofill weekly newsletter'. Shown next to the trigger in listings. Max 200 characters, single line."},
 					"documentation": map[string]any{"type": "string", "description": "Markdown notes describing what the trigger is for. Displayed in the UI only; never affects execution."},
 					"method":        map[string]any{"type": "string", "description": "HTTP method: GET, POST, HEAD, PATCH or DELETE. Defaults to GET."},
 					"url":           map[string]any{"type": "string", "description": "http/https URL to call."},
@@ -432,6 +433,7 @@ func mcpAllTools() []mcpToolDef {
 					"triggerId":     map[string]any{"type": "string", "description": "ID of the trigger to update (from list_triggers or create_trigger)."},
 					"cron":          map[string]any{"type": "string", "description": "Cron expression, evaluated in UTC."},
 					"status":        map[string]any{"type": "boolean", "description": "Whether the trigger is active."},
+					"description":   map[string]any{"type": "string", "description": "One-line summary of what the trigger does, e.g. 'Autofill weekly newsletter'. Shown next to the trigger in listings. Max 200 characters, single line."},
 					"documentation": map[string]any{"type": "string", "description": "Markdown notes describing what the trigger is for. Displayed in the UI only; never affects execution."},
 					"method":        map[string]any{"type": "string", "description": "HTTP method: GET, POST, HEAD, PATCH or DELETE."},
 					"url":           map[string]any{"type": "string", "description": "http/https URL to call."},
@@ -1166,7 +1168,7 @@ func triggerBodyFromArgs(args map[string]any) map[string]any {
 
 	body := map[string]any{}
 
-	for _, key := range []string{"cron", "status", "documentation"} {
+	for _, key := range []string{"cron", "status", "description", "documentation"} {
 		if v, ok := args[key]; ok {
 			body[key] = v
 		}
