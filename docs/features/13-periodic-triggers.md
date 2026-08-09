@@ -92,6 +92,37 @@ available; host/system variables are never exposed to a trigger.
 
 Stormkit saves the request and response for each periodic task. You can view the last 25 logs for each trigger by expanding the dot menu `(...)` and clicking on the `Past triggers` menu item.
 
+## Long-running jobs
+
+<section>
+
+A trigger is an outgoing HTTP request that Stormkit makes on a schedule, and it waits for
+the response. How long the job may run depends on where you are running it.
+
+On **Stormkit Cloud**, a trigger pointed at a [serverless function](/docs/features/writing-api)
+is capped at the 15 second function timeout, and the worker making the request gives up
+after 30 seconds. A job that needs longer has to be started by the trigger rather than
+run inside it.
+
+On a **self-hosted instance** neither limit is fixed. Functions are not subject to the 15
+second cap at all, and the worker's own deadline —
+`STORMKIT_HTTP_PROXY_TIMEOUT`, [30 seconds by default](/docs/self-hosting/advanced-configuration)
+— can be raised, or set to `0` to remove it entirely. Point the trigger at a
+[Start command](/docs/deployments/application-runtime) server and the job can run for
+as long as you allow.
+
+The trade-off is that triggers due in the same sweep are executed one after another, so a
+slow trigger holds up the others behind it and none of their logs appear until the batch
+finishes. For jobs long enough that this matters — video processing, a large import —
+have the endpoint enqueue the work and return immediately, then let the same
+start-command server do the work outside the request.
+
+Either way, make the endpoint idempotent. When a trigger fails, Stormkit does not advance
+its next run time, so the trigger stays due and fires again on the following sweep — a
+job that times out while its work is still running will be started a second time.
+
+</section>
+
 ## Self Hosting
 
 <section>

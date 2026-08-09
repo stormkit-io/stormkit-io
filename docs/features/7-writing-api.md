@@ -15,9 +15,24 @@ You can create node.js/typescript APIs using Stormkit.
 
 </section>
 
+## Serverless functions on self-hosted instances
+
+<div class="blog-alert">
+
+On Stormkit Cloud, functions run on managed function infrastructure (AWS Lambda). A
+self-hosted instance has none by default, so it forks a short-lived `node` process per
+invocation instead — fine for parity and local development, but not for production
+traffic.
+
+For a self-hosted backend, use a
+[**Start command**](/docs/deployments/application-runtime) and run a long-lived server.
+See [when to use it](/docs/deployments/application-runtime) for the trade-offs.
+
+</div>
+
 ## How it works
 
-> **Note: Function timeouts are set at 15 seconds. If you require a different timeout, please inform us, and we can adjust it to suit your workflow.**
+> **Note: On Stormkit Cloud, function timeouts are set at 15 seconds. If you require a different timeout, please inform us, and we can adjust it to suit your workflow. Work that legitimately runs longer — headless-browser rendering, video processing, large report generation — does not belong in a function. Self-hosted instances do not apply this limit, but a function still forks a fresh `node` process per request; run that kind of work behind a [Start command](/docs/deployments/application-runtime) server instead.**
 
 <section>
 
