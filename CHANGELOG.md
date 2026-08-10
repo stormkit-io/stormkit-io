@@ -1,5 +1,29 @@
 # Changelog
 
+## v2026.08.08.1...v2026.08.10.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.08.08.1...v2026.08.10.1)
+
+### 🚀 Enhancements
+
+- Add trigger description ([#420](https://github.com/stormkit-io/stormkit-io/pull/420))
+
+### 🩹 Fixes
+
+- Return 503 for warm-up interstitials ([#426](https://github.com/stormkit-io/stormkit-io/pull/426))
+
+### 📖 Documentation
+
+- Clarify nix runtime scope and cloud-only functions ([#424](https://github.com/stormkit-io/stormkit-io/pull/424))
+
+### 🏡 Chore
+
+- Update changelog for v2026.08.08.1 ([#419](https://github.com/stormkit-io/stormkit-io/pull/419))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.08.04.1...v2026.08.08.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.08.04.1...v2026.08.08.1)
