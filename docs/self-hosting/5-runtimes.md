@@ -76,7 +76,7 @@ The following files are recognized automatically:
 
 ## Nix Flakes
 
-If your repository contains a `flake.nix` file, Stormkit will automatically run `nix develop` during the **install runtimes** step to bootstrap the Nix development shell. The packages defined in the flake are then available for all subsequent build commands — no additional configuration required.
+If your repository contains a `flake.nix` file, Stormkit will automatically run `nix develop` during the **install runtimes** step to bootstrap the Nix development shell. The packages defined in the flake are then available for all subsequent build commands — no additional configuration required — and, as described under **Availability at runtime** below, to your deployed server as well.
 
 A typical `flake.nix` that provides `ffmpeg` and `imagemagick` during builds:
 
@@ -96,6 +96,59 @@ A typical `flake.nix` that provides `ffmpeg` and `imagemagick` during builds:
 ```
 
 `flake.nix` and `mise.toml` can coexist — mise handles language runtimes while the flake covers system-level tools.
+
+### Availability at runtime
+
+The flake is not a build-only feature. `flake.nix` and `flake.lock` are copied into
+the server artifact, and when your environment has a **Start command**, Stormkit wraps
+that command in `nix develop` before spawning the process. Your server therefore starts
+_inside_ the same shell your build commands ran in, so every package in the flake is on
+`PATH` — system binaries such as headless-browser dependencies can be launched from your
+application at request time, not only from build commands.
+
+This also explains why `/nix` has to be mounted on the `hosting` (serving) service and
+not only on the `workerserver` (builds, periodic jobs): the store has to be there when
+the app runs, too. Give each service its own volume rather than sharing one — see
+**Persisting the Nix Store** below.
+
+<div class="blog-alert">
+
+Two conditions apply:
+
+- **Auto install** must be enabled — the `nix develop` wrapper is skipped when it is off.
+- It applies to the [Application Runtime](/docs/deployments/application-runtime)
+  (**Start command**) only. [Serverless functions](/docs/features/writing-api) are
+  invoked as a plain `node` process with no Nix shell around them, so flake packages are
+  **not** on `PATH` there. If your code needs system binaries, run it behind a start
+  command.
+
+</div>
+
+The first request after a deployment may take a while, or briefly show a "dependencies
+are being installed" page, while Nix realises the shell. Subsequent requests reuse the
+warm store.
+
+A `flake.nix` providing headless Chromium to a start-command server:
+
+```javascript
+{
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+
+  outputs = { self, nixpkgs }: let
+    system = "x86_64-linux";
+    pkgs = nixpkgs.legacyPackages.${system};
+  in {
+    devShells.${system}.default = pkgs.mkShell {
+      packages = [ pkgs.playwright-driver.browsers pkgs.chromium ];
+
+      shellHook = ''
+        export PLAYWRIGHT_BROWSERS_PATH=${pkgs.playwright-driver.browsers}
+        export PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=true
+      '';
+    };
+  };
+}
+```
 
 ## Mise Runtime Manager
 

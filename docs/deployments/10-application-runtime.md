@@ -13,6 +13,42 @@ This option is available only on **self-hosted** Stormkit instances.
 
 </section>
 
+## When to use it
+
+<section>
+
+On a self-hosted instance, the Application Runtime is the **recommended way to run
+backend code**. [Serverless functions](/docs/features/writing-api) are a Stormkit Cloud
+feature; self-hosted instances execute them by forking a short-lived `node` process per
+request, which is fine for parity and local development but not for production traffic.
+
+Reach for a Start command whenever your backend:
+
+- pays a cost per request it should pay once — booting a runtime, opening a connection,
+  loading a model or a large file into memory,
+- benefits from state that outlives a single request — connection pools, warm caches,
+  a headless browser you keep open,
+- needs system binaries from a [Nix flake](/docs/self-hosting/runtimes) at request time,
+  not only during the build.
+
+The process is reaped after 10 minutes without a request. Published environments are kept
+warm by the domain ping, so this is invisible in practice; preview deployments, which are
+not pinged, pay a cold start after an idle spell. Set `STORMKIT_MAX_IDLE` (in minutes) as
+an environment variable to widen the window.
+
+Requests reach your server through Stormkit's proxy, which applies
+`STORMKIT_HTTP_PROXY_TIMEOUT`
+([default 30 seconds](/docs/self-hosting/advanced-configuration)) to the time your server
+may take to start sending response headers. This is the only request deadline on a
+self-hosted instance — the 15 second function timeout is a Stormkit Cloud limit and does
+not apply here. Raise it, or set it to `0`, if a request legitimately needs longer.
+
+The runtime is not Go-specific — any process that listens on `PORT` works, including a
+Node/Express or Fastify server. Go is used in the examples below because compiling a
+binary is the most common case.
+
+</section>
+
 ## Go programs
 
 <section>
