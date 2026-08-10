@@ -185,153 +185,131 @@ func (s *JobTriggerFunctionsSuite) Test_HandleFunctionTrigger_PartialFailure() {
 	// Ensures code handles mixed success/failure gracefully.
 }
 
-func (s *JobTriggerFunctionsSuite) Test_HandleFunctionTrigger_Unavailable_KeepsNextRunAt() {
-	payload := s.generateMockMessage()
-	task := asynq.NewTask("", payload)
+type expectTargetParams struct {
+	URL         string
+	Method      string
+	ContentType string
+	Payload     []byte
+	Response    *shttp.HTTPResponse
+	Err         error
+}
 
-	messages := []jobs.FunctionTriggerMessage{}
-	s.NoError(json.Unmarshal(payload, &messages))
-	s.Require().Len(messages, 2)
+// expectTarget wires the request mock for one of generateMockMessage's targets.
+func (s *JobTriggerFunctionsSuite) expectTarget(p expectTargetParams) {
+	s.mockRequest.On("URL", p.URL).Return(s.mockRequest).Once()
+	s.mockRequest.On("Method", p.Method).Return(s.mockRequest).Once()
+	s.mockRequest.On("Headers", shttp.HeadersFromMap(map[string]string{"content-type": p.ContentType})).Return(s.mockRequest).Once()
+	s.mockRequest.On("Payload", p.Payload).Return(s.mockRequest).Once()
+	s.mockRequest.On("Do").Return(p.Response, p.Err).Once()
+}
 
-	store := functiontrigger.NewStore()
-	ctx := context.Background()
-
-	before := map[types.ID]int64{}
-
-	for _, m := range messages {
-		tf, err := store.ByID(ctx, m.ID)
-		s.Require().NoError(err)
-		before[m.ID] = tf.NextRunAt.Unix()
+func unavailableResponse() *shttp.HTTPResponse {
+	return &shttp.HTTPResponse{
+		Response: &http.Response{
+			StatusCode: http.StatusServiceUnavailable,
+			Body:       io.NopCloser(strings.NewReader("Service not yet started, retry in a bit.")),
+			Header:     make(http.Header),
+		},
 	}
+}
 
-	// First target is up and runs the job.
-	s.mockRequest.On("URL", "https://example-1.org").Return(s.mockRequest).Once()
-	s.mockRequest.On("Method", "GET").Return(s.mockRequest).Once()
-	s.mockRequest.On("Headers", shttp.HeadersFromMap(map[string]string{"content-type": "application/json"})).Return(s.mockRequest).Once()
-	s.mockRequest.On("Payload", []byte(nil)).Return(s.mockRequest).Once()
-	s.mockRequest.On("Do").Return(&shttp.HTTPResponse{
+func okResponse() *shttp.HTTPResponse {
+	return &shttp.HTTPResponse{
 		Response: &http.Response{
 			StatusCode: http.StatusOK,
-			Body:       io.NopCloser(strings.NewReader("ok-1")),
+			Body:       io.NopCloser(strings.NewReader("ok")),
 			Header:     make(http.Header),
 		},
-	}, nil).Once()
-
-	// Second target is still warming up and never runs the job.
-	s.mockRequest.On("URL", "https://example-2.org").Return(s.mockRequest).Once()
-	s.mockRequest.On("Method", "PATCH").Return(s.mockRequest).Once()
-	s.mockRequest.On("Headers", shttp.HeadersFromMap(map[string]string{"content-type": "text/html"})).Return(s.mockRequest).Once()
-	s.mockRequest.On("Payload", []byte("Hello World!")).Return(s.mockRequest).Once()
-	s.mockRequest.On("Do").Return(&shttp.HTTPResponse{
-		Response: &http.Response{
-			StatusCode: http.StatusServiceUnavailable,
-			Body:       io.NopCloser(strings.NewReader("Service not yet started, retry in a bit.")),
-			Header:     make(http.Header),
-		},
-	}, nil).Once()
-
-	s.NoError(jobs.HandleFunctionTrigger(ctx, task))
-
-	ran, err := store.ByID(ctx, messages[0].ID)
-	s.Require().NoError(err)
-	s.Equal(messages[0].NextRunAt.Unix(), ran.NextRunAt.Unix(), "a trigger that ran should advance to its next tick")
-
-	skipped, err := store.ByID(ctx, messages[1].ID)
-	s.Require().NoError(err)
-	s.Equal(before[messages[1].ID], skipped.NextRunAt.Unix(), "a trigger that got a 503 should stay due for the next sweep")
+	}
 }
 
-// The first message is scheduled ten minutes ago, past the retry window; the
-// second two minutes ago, still inside it.
-func (s *JobTriggerFunctionsSuite) Test_HandleFunctionTrigger_Unavailable_BeyondRetryWindow() {
-	payload := s.generateMockMessage()
-	task := asynq.NewTask("", payload)
+// Test_HandleFunctionTrigger_RetryWindow covers what a run that never happened
+// does to nextRunAt. The fixture's first trigger is ten minutes overdue, past
+// the five minute retry window, and the second two minutes, still inside it, so
+// every case asserts both the "give up" and the "stay due" side of the bound.
+func (s *JobTriggerFunctionsSuite) Test_HandleFunctionTrigger_RetryWindow() {
+	type target struct {
+		response *shttp.HTTPResponse
+		err      error
+		advances bool
+	}
 
-	messages := []jobs.FunctionTriggerMessage{}
-	s.NoError(json.Unmarshal(payload, &messages))
-	s.Require().Len(messages, 2)
-
-	store := functiontrigger.NewStore()
-	ctx := context.Background()
-
-	stale, err := store.ByID(ctx, messages[1].ID)
-	s.Require().NoError(err)
-	staleNextRunAt := stale.NextRunAt.Unix()
-
-	// Long overdue target, still unavailable — give up and wait for the next tick.
-	s.mockRequest.On("URL", "https://example-1.org").Return(s.mockRequest).Once()
-	s.mockRequest.On("Method", "GET").Return(s.mockRequest).Once()
-	s.mockRequest.On("Headers", shttp.HeadersFromMap(map[string]string{"content-type": "application/json"})).Return(s.mockRequest).Once()
-	s.mockRequest.On("Payload", []byte(nil)).Return(s.mockRequest).Once()
-	s.mockRequest.On("Do").Return(&shttp.HTTPResponse{
-		Response: &http.Response{
-			StatusCode: http.StatusServiceUnavailable,
-			Body:       io.NopCloser(strings.NewReader("Service not yet started, retry in a bit.")),
-			Header:     make(http.Header),
+	cases := []struct {
+		name   string
+		first  target
+		second target
+	}{
+		{
+			name:   "a 503 stays due while a sibling that ran advances",
+			first:  target{response: okResponse(), advances: true},
+			second: target{response: unavailableResponse()},
 		},
-	}, nil).Once()
-
-	// Recently overdue target, still within the window — stays due.
-	s.mockRequest.On("URL", "https://example-2.org").Return(s.mockRequest).Once()
-	s.mockRequest.On("Method", "PATCH").Return(s.mockRequest).Once()
-	s.mockRequest.On("Headers", shttp.HeadersFromMap(map[string]string{"content-type": "text/html"})).Return(s.mockRequest).Once()
-	s.mockRequest.On("Payload", []byte("Hello World!")).Return(s.mockRequest).Once()
-	s.mockRequest.On("Do").Return(&shttp.HTTPResponse{
-		Response: &http.Response{
-			StatusCode: http.StatusServiceUnavailable,
-			Body:       io.NopCloser(strings.NewReader("Service not yet started, retry in a bit.")),
-			Header:     make(http.Header),
+		{
+			name:   "a 503 past the window advances, one inside it stays due",
+			first:  target{response: unavailableResponse(), advances: true},
+			second: target{response: unavailableResponse()},
 		},
-	}, nil).Once()
+		{
+			name:   "a transport error is bounded by the same window",
+			first:  target{err: errors.New("connection refused"), advances: true},
+			second: target{err: errors.New("connection refused")},
+		},
+	}
 
-	s.NoError(jobs.HandleFunctionTrigger(ctx, task))
+	for _, c := range cases {
+		s.Run(c.name, func() {
+			s.mockRequest = &mocks.RequestInterface{}
+			shttp.DefaultRequest = s.mockRequest
 
-	gaveUp, err := store.ByID(ctx, messages[0].ID)
-	s.Require().NoError(err)
-	s.Equal(messages[0].NextRunAt.Unix(), gaveUp.NextRunAt.Unix(), "a 503 past the retry window should advance to the next tick")
+			payload := s.generateMockMessage()
+			task := asynq.NewTask("", payload)
 
-	retrying, err := store.ByID(ctx, messages[1].ID)
-	s.Require().NoError(err)
-	s.Equal(staleNextRunAt, retrying.NextRunAt.Unix(), "a 503 within the retry window should stay due")
-}
+			messages := []jobs.FunctionTriggerMessage{}
+			s.NoError(json.Unmarshal(payload, &messages))
+			s.Require().Len(messages, 2)
 
-func (s *JobTriggerFunctionsSuite) Test_HandleFunctionTrigger_TransportError_IsBounded() {
-	payload := s.generateMockMessage()
-	task := asynq.NewTask("", payload)
+			store := functiontrigger.NewStore()
+			ctx := context.Background()
 
-	messages := []jobs.FunctionTriggerMessage{}
-	s.NoError(json.Unmarshal(payload, &messages))
-	s.Require().Len(messages, 2)
+			before := map[types.ID]int64{}
 
-	store := functiontrigger.NewStore()
-	ctx := context.Background()
+			for _, m := range messages {
+				tf, err := store.ByID(ctx, m.ID)
+				s.Require().NoError(err)
+				before[m.ID] = tf.NextRunAt.Unix()
+			}
 
-	stale, err := store.ByID(ctx, messages[1].ID)
-	s.Require().NoError(err)
-	staleNextRunAt := stale.NextRunAt.Unix()
+			s.expectTarget(expectTargetParams{
+				URL:         "https://example-1.org",
+				Method:      "GET",
+				ContentType: "application/json",
+				Response:    c.first.response,
+				Err:         c.first.err,
+			})
 
-	// Both targets are unreachable; only the long overdue one gives up.
-	s.mockRequest.On("URL", "https://example-1.org").Return(s.mockRequest).Once()
-	s.mockRequest.On("Method", "GET").Return(s.mockRequest).Once()
-	s.mockRequest.On("Headers", shttp.HeadersFromMap(map[string]string{"content-type": "application/json"})).Return(s.mockRequest).Once()
-	s.mockRequest.On("Payload", []byte(nil)).Return(s.mockRequest).Once()
-	s.mockRequest.On("Do").Return(nil, errors.New("connection refused")).Once()
+			s.expectTarget(expectTargetParams{
+				URL:         "https://example-2.org",
+				Method:      "PATCH",
+				ContentType: "text/html",
+				Payload:     []byte("Hello World!"),
+				Response:    c.second.response,
+				Err:         c.second.err,
+			})
 
-	s.mockRequest.On("URL", "https://example-2.org").Return(s.mockRequest).Once()
-	s.mockRequest.On("Method", "PATCH").Return(s.mockRequest).Once()
-	s.mockRequest.On("Headers", shttp.HeadersFromMap(map[string]string{"content-type": "text/html"})).Return(s.mockRequest).Once()
-	s.mockRequest.On("Payload", []byte("Hello World!")).Return(s.mockRequest).Once()
-	s.mockRequest.On("Do").Return(nil, errors.New("connection refused")).Once()
+			s.NoError(jobs.HandleFunctionTrigger(ctx, task))
 
-	s.NoError(jobs.HandleFunctionTrigger(ctx, task))
+			for i, want := range []bool{c.first.advances, c.second.advances} {
+				tf, err := store.ByID(ctx, messages[i].ID)
+				s.Require().NoError(err)
 
-	gaveUp, err := store.ByID(ctx, messages[0].ID)
-	s.Require().NoError(err)
-	s.Equal(messages[0].NextRunAt.Unix(), gaveUp.NextRunAt.Unix(), "a transport error past the retry window should advance to the next tick")
-
-	retrying, err := store.ByID(ctx, messages[1].ID)
-	s.Require().NoError(err)
-	s.Equal(staleNextRunAt, retrying.NextRunAt.Unix(), "a transport error within the retry window should stay due")
+				if want {
+					s.Equal(messages[i].NextRunAt.Unix(), tf.NextRunAt.Unix(), "expected the trigger to advance to its next tick")
+				} else {
+					s.Equal(before[messages[i].ID], tf.NextRunAt.Unix(), "expected the trigger to stay due for the next sweep")
+				}
+			}
+		})
+	}
 }
 
 func TestJobTriggerFunctionSuite(t *testing.T) {
