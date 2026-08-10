@@ -17,13 +17,21 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
+// triggerRetryWindow is how long a trigger stays due after a run that never
+// happened. The sweep runs every minute, so this is roughly five attempts.
+const triggerRetryWindow = 5 * time.Minute
+
 type FunctionTriggerMessage struct {
-	ID        types.ID      `json:"id,string"`
-	Payload   []byte        `json:"payload"`
-	Headers   shttp.Headers `json:"headers"`
-	Method    string        `json:"method"`
-	URL       string        `json:"url"`
-	NextRunAt utils.Unix    `json:"nextRunAt"`
+	ID      types.ID      `json:"id,string"`
+	Payload []byte        `json:"payload"`
+	Headers shttp.Headers `json:"headers"`
+	Method  string        `json:"method"`
+	URL     string        `json:"url"`
+	// NextRunAt is the tick this run advances the trigger to once it succeeds.
+	NextRunAt utils.Unix `json:"nextRunAt"`
+	// ScheduledAt is the overdue tick this run was fired for. It bounds how long
+	// a failing trigger is allowed to stay due.
+	ScheduledAt utils.Unix `json:"scheduledAt"`
 }
 
 // InvokeDueFunctionTriggers fetches function triggers from the database that are due date. Matching
@@ -71,12 +79,13 @@ func InvokeDueFunctionTriggers(ctx context.Context) error {
 		}
 
 		messages = append(messages, FunctionTriggerMessage{
-			URL:       opts.URL,
-			Payload:   opts.Payload,
-			Headers:   opts.Headers,
-			Method:    opts.Method,
-			ID:        tf.ID,
-			NextRunAt: utils.UnixFrom(nextRunAt),
+			URL:         opts.URL,
+			Payload:     opts.Payload,
+			Headers:     opts.Headers,
+			Method:      opts.Method,
+			ID:          tf.ID,
+			NextRunAt:   utils.UnixFrom(nextRunAt),
+			ScheduledAt: tf.NextRunAt,
 		})
 	}
 
@@ -115,17 +124,16 @@ func HandleFunctionTrigger(ctx context.Context, t *asynq.Task) error {
 
 		logs = append(logs, log)
 
-		if err != nil {
-			slog.Errorf("trigger function request failed %v", err)
-			continue
-		}
+		// The run never happened — the target was unreachable or still warming up.
+		// Stay due for a short grace window so a cold start is picked up by the next
+		// sweep, then fall through to the regular tick so one dead target cannot
+		// re-fire every minute forever.
+		if err != nil || log.ResponseCode() == http.StatusServiceUnavailable {
+			slog.Infof("trigger function %d did not run: %v", tf.ID, err)
 
-		// A 503 means the target never got to run the job — it was warming up
-		// or otherwise unavailable. Leave nextRunAt untouched so the next sweep
-		// picks the trigger up again instead of skipping to the following tick.
-		if log.ResponseCode() == http.StatusServiceUnavailable {
-			slog.Errorf("trigger function %d unavailable, will retry on the next sweep", tf.ID)
-			continue
+			if time.Since(tf.ScheduledAt.Time) < triggerRetryWindow {
+				continue
+			}
 		}
 
 		updates[tf.ID] = tf.NextRunAt
