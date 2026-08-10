@@ -129,9 +129,18 @@ func HandleFunctionTrigger(ctx context.Context, t *asynq.Task) error {
 		// sweep, then fall through to the regular tick so one dead target cannot
 		// re-fire every minute forever.
 		if err != nil || log.ResponseCode() == http.StatusServiceUnavailable {
-			slog.Infof("trigger function %d did not run: %v", tf.ID, err)
+			retrying := time.Since(tf.ScheduledAt.Time) < triggerRetryWindow
 
-			if time.Since(tf.ScheduledAt.Time) < triggerRetryWindow {
+			// A warming target is expected and sweeps once a minute, so it stays at
+			// info; a transport failure is a genuine trigger error and keeps its
+			// error level so log-based alerting still sees it.
+			if err != nil {
+				slog.Errorf("trigger function %d request failed, retrying: %t: %v", tf.ID, retrying, err)
+			} else {
+				slog.Infof("trigger function %d did not run, target responded with %d, retrying: %t", tf.ID, log.ResponseCode(), retrying)
+			}
+
+			if retrying {
 				continue
 			}
 		}
