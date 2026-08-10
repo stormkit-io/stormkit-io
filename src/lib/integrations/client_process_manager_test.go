@@ -193,6 +193,26 @@ func (s *ProcessManagerSuite) Test_Invoke_WithServerCmd() {
 	s.Equal("Hello, https://example.org!\n", string(result.Body))
 }
 
+func (s *ProcessManagerSuite) Test_Invoke_WarmingUp_ReturnsServiceUnavailable() {
+	fileName := path.Join(s.tmpdir, "index.js")
+
+	result, err := s.pm.Invoke(integrations.InvokeArgs{
+		URL:          &url.URL{},
+		ARN:          fmt.Sprintf("local:%s:warming_up", fileName),
+		Method:       shttp.MethodGet,
+		Command:      "node index.js",
+		HostName:     "example.org",
+		CaptureLogs:  true,
+		DeploymentID: 1,
+	}, s.tmpdir)
+
+	s.NoError(err)
+	s.Require().NotNil(result)
+	s.Equal("1", result.Headers.Get("Retry-After"), "expected the warming-up interstitial")
+	s.Equal(http.StatusServiceUnavailable, result.StatusCode)
+	s.Contains(string(result.Body), "Service not yet started")
+}
+
 func (s *ProcessManagerSuite) Test_CustomPortHandling_Published() {
 	args := &integrations.InvokeArgs{
 		URL:          &url.URL{},
