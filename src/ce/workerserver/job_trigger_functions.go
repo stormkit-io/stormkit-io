@@ -3,6 +3,7 @@ package jobs
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"time"
 
 	"github.com/adhocore/gronx"
@@ -116,6 +117,14 @@ func HandleFunctionTrigger(ctx context.Context, t *asynq.Task) error {
 
 		if err != nil {
 			slog.Errorf("trigger function request failed %v", err)
+			continue
+		}
+
+		// A 503 means the target never got to run the job — it was warming up
+		// or otherwise unavailable. Leave nextRunAt untouched so the next sweep
+		// picks the trigger up again instead of skipping to the following tick.
+		if log.ResponseCode() == http.StatusServiceUnavailable {
+			slog.Errorf("trigger function %d unavailable, will retry on the next sweep", tf.ID)
 			continue
 		}
 

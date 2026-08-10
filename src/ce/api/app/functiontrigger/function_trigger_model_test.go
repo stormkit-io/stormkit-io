@@ -8,6 +8,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -55,6 +56,17 @@ func (s *TriggerFunctionModelSuite) Test_FetchingStringHeadersFromDB() {
 	s.NoError(err)
 	s.NotNil(tf)
 	s.Equal(tf.Options.Headers.String(), "name:joe;surname:doe")
+}
+
+func (s *TriggerFunctionModelSuite) Test_ResponseCode() {
+	s.Equal(0, functiontrigger.TriggerLog{}.ResponseCode())
+	s.Equal(0, functiontrigger.TriggerLog{Response: utils.Map{"error": "boom"}}.ResponseCode())
+
+	// Freshly built in-process.
+	s.Equal(503, functiontrigger.TriggerLog{Response: utils.Map{"code": 503}}.ResponseCode())
+
+	// After a JSON round-trip out of the database.
+	s.Equal(503, functiontrigger.TriggerLog{Response: utils.Map{"code": float64(503)}}.ResponseCode())
 }
 
 func TestHandlerTrigger(t *testing.T) {

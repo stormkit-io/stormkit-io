@@ -18,6 +18,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/tasks"
+	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"github.com/stormkit-io/stormkit-io/src/mocks"
 	"github.com/stretchr/testify/mock"
@@ -181,6 +182,62 @@ func (s *JobTriggerFunctionsSuite) Test_HandleFunctionTrigger_PartialFailure() {
 
 	// We only assert no panic/error; deeper DB assertions can be added if store getters are available.
 	// Ensures code handles mixed success/failure gracefully.
+}
+
+func (s *JobTriggerFunctionsSuite) Test_HandleFunctionTrigger_Unavailable_KeepsNextRunAt() {
+	payload := s.generateMockMessage()
+	task := asynq.NewTask("", payload)
+
+	messages := []jobs.FunctionTriggerMessage{}
+	s.NoError(json.Unmarshal(payload, &messages))
+	s.Require().Len(messages, 2)
+
+	store := functiontrigger.NewStore()
+	ctx := context.Background()
+
+	before := map[types.ID]int64{}
+
+	for _, m := range messages {
+		tf, err := store.ByID(ctx, m.ID)
+		s.NoError(err)
+		before[m.ID] = tf.NextRunAt.Unix()
+	}
+
+	// First target is up and runs the job.
+	s.mockRequest.On("URL", "https://example-1.org").Return(s.mockRequest).Once()
+	s.mockRequest.On("Method", "GET").Return(s.mockRequest).Once()
+	s.mockRequest.On("Headers", shttp.HeadersFromMap(map[string]string{"content-type": "application/json"})).Return(s.mockRequest).Once()
+	s.mockRequest.On("Payload", []byte(nil)).Return(s.mockRequest).Once()
+	s.mockRequest.On("Do").Return(&shttp.HTTPResponse{
+		Response: &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader("ok-1")),
+			Header:     make(http.Header),
+		},
+	}, nil).Once()
+
+	// Second target is still warming up and never runs the job.
+	s.mockRequest.On("URL", "https://example-2.org").Return(s.mockRequest).Once()
+	s.mockRequest.On("Method", "PATCH").Return(s.mockRequest).Once()
+	s.mockRequest.On("Headers", shttp.HeadersFromMap(map[string]string{"content-type": "text/html"})).Return(s.mockRequest).Once()
+	s.mockRequest.On("Payload", []byte("Hello World!")).Return(s.mockRequest).Once()
+	s.mockRequest.On("Do").Return(&shttp.HTTPResponse{
+		Response: &http.Response{
+			StatusCode: http.StatusServiceUnavailable,
+			Body:       io.NopCloser(strings.NewReader("Service not yet started, retry in a bit.")),
+			Header:     make(http.Header),
+		},
+	}, nil).Once()
+
+	s.NoError(jobs.HandleFunctionTrigger(ctx, task))
+
+	ran, err := store.ByID(ctx, messages[0].ID)
+	s.NoError(err)
+	s.Equal(messages[0].NextRunAt.Unix(), ran.NextRunAt.Unix(), "a trigger that ran should advance to its next tick")
+
+	skipped, err := store.ByID(ctx, messages[1].ID)
+	s.NoError(err)
+	s.Equal(before[messages[1].ID], skipped.NextRunAt.Unix(), "a trigger that got a 503 should stay due for the next sweep")
 }
 
 func TestJobTriggerFunctionSuite(t *testing.T) {
