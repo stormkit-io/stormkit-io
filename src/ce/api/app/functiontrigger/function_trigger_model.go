@@ -101,6 +101,25 @@ type TriggerLog struct {
 	CreatedAt utils.Unix `json:"createdAt"`
 }
 
+// ResponseCode returns the status the trigger's target responded with, or 0 if
+// the request never produced a response. The value is an int when the log was
+// just built in-process and a float64 after a JSON round-trip out of the
+// database.
+func (l TriggerLog) ResponseCode() int {
+	if l.Response == nil {
+		return 0
+	}
+
+	switch code := l.Response["code"].(type) {
+	case int:
+		return code
+	case float64:
+		return int(code)
+	}
+
+	return 0
+}
+
 // Masked returns a copy of the log with the request header values blanked so a
 // trigger's secret headers are never returned to a client. The request map is
 // copied shallowly except for the rebuilt headers entry, leaving the original

@@ -447,7 +447,7 @@ func (pm *ProcessManager) Invoke(args InvokeArgs, workDir string) (*InvokeResult
 		})
 
 		return &InvokeResult{
-			StatusCode: http.StatusOK,
+			StatusCode: http.StatusServiceUnavailable,
 			Headers: http.Header{
 				"Retry-After":  []string{"1"},
 				"Content-Type": []string{"text/html"},
@@ -468,7 +468,7 @@ func (pm *ProcessManager) Invoke(args InvokeArgs, workDir string) (*InvokeResult
 		})
 
 		return &InvokeResult{
-			StatusCode: http.StatusOK,
+			StatusCode: http.StatusServiceUnavailable,
 			Headers: http.Header{
 				"Retry-After":  []string{"5"},
 				"Content-Type": []string{"text/html"},

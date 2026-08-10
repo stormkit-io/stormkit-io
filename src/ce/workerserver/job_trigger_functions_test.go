@@ -18,6 +18,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/tasks"
+	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"github.com/stormkit-io/stormkit-io/src/mocks"
 	"github.com/stretchr/testify/mock"
@@ -94,12 +95,13 @@ func (s *JobTriggerFunctionsSuite) generateMockMessage() []byte {
 		s.NoError(err)
 
 		messages = append(messages, jobs.FunctionTriggerMessage{
-			ID:        tf.ID,
-			URL:       tf.Options.URL,
-			Payload:   tf.Options.Payload,
-			Headers:   tf.Options.Headers,
-			Method:    tf.Options.Method,
-			NextRunAt: utils.UnixFrom(nextRunAt),
+			ID:          tf.ID,
+			URL:         tf.Options.URL,
+			Payload:     tf.Options.Payload,
+			Headers:     tf.Options.Headers,
+			Method:      tf.Options.Method,
+			NextRunAt:   utils.UnixFrom(nextRunAt),
+			ScheduledAt: tf.NextRunAt,
 		})
 	}
 
@@ -181,6 +183,133 @@ func (s *JobTriggerFunctionsSuite) Test_HandleFunctionTrigger_PartialFailure() {
 
 	// We only assert no panic/error; deeper DB assertions can be added if store getters are available.
 	// Ensures code handles mixed success/failure gracefully.
+}
+
+type expectTargetParams struct {
+	URL         string
+	Method      string
+	ContentType string
+	Payload     []byte
+	Response    *shttp.HTTPResponse
+	Err         error
+}
+
+// expectTarget wires the request mock for one of generateMockMessage's targets.
+func (s *JobTriggerFunctionsSuite) expectTarget(p expectTargetParams) {
+	s.mockRequest.On("URL", p.URL).Return(s.mockRequest).Once()
+	s.mockRequest.On("Method", p.Method).Return(s.mockRequest).Once()
+	s.mockRequest.On("Headers", shttp.HeadersFromMap(map[string]string{"content-type": p.ContentType})).Return(s.mockRequest).Once()
+	s.mockRequest.On("Payload", p.Payload).Return(s.mockRequest).Once()
+	s.mockRequest.On("Do").Return(p.Response, p.Err).Once()
+}
+
+func unavailableResponse() *shttp.HTTPResponse {
+	return &shttp.HTTPResponse{
+		Response: &http.Response{
+			StatusCode: http.StatusServiceUnavailable,
+			Body:       io.NopCloser(strings.NewReader("Service not yet started, retry in a bit.")),
+			Header:     make(http.Header),
+		},
+	}
+}
+
+func okResponse() *shttp.HTTPResponse {
+	return &shttp.HTTPResponse{
+		Response: &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader("ok")),
+			Header:     make(http.Header),
+		},
+	}
+}
+
+// Test_HandleFunctionTrigger_RetryWindow covers what a run that never happened
+// does to nextRunAt. The fixture's first trigger is ten minutes overdue, past
+// the five minute retry window, and the second two minutes, still inside it, so
+// every case asserts both the "give up" and the "stay due" side of the bound.
+func (s *JobTriggerFunctionsSuite) Test_HandleFunctionTrigger_RetryWindow() {
+	type target struct {
+		response *shttp.HTTPResponse
+		err      error
+		advances bool
+	}
+
+	cases := []struct {
+		name   string
+		first  target
+		second target
+	}{
+		{
+			name:   "a 503 stays due while a sibling that ran advances",
+			first:  target{response: okResponse(), advances: true},
+			second: target{response: unavailableResponse()},
+		},
+		{
+			name:   "a 503 past the window advances, one inside it stays due",
+			first:  target{response: unavailableResponse(), advances: true},
+			second: target{response: unavailableResponse()},
+		},
+		{
+			name:   "a transport error is bounded by the same window",
+			first:  target{err: errors.New("connection refused"), advances: true},
+			second: target{err: errors.New("connection refused")},
+		},
+	}
+
+	for _, c := range cases {
+		s.Run(c.name, func() {
+			s.mockRequest = &mocks.RequestInterface{}
+			shttp.DefaultRequest = s.mockRequest
+
+			payload := s.generateMockMessage()
+			task := asynq.NewTask("", payload)
+
+			messages := []jobs.FunctionTriggerMessage{}
+			s.NoError(json.Unmarshal(payload, &messages))
+			s.Require().Len(messages, 2)
+
+			store := functiontrigger.NewStore()
+			ctx := context.Background()
+
+			before := map[types.ID]int64{}
+
+			for _, m := range messages {
+				tf, err := store.ByID(ctx, m.ID)
+				s.Require().NoError(err)
+				before[m.ID] = tf.NextRunAt.Unix()
+			}
+
+			s.expectTarget(expectTargetParams{
+				URL:         "https://example-1.org",
+				Method:      "GET",
+				ContentType: "application/json",
+				Response:    c.first.response,
+				Err:         c.first.err,
+			})
+
+			s.expectTarget(expectTargetParams{
+				URL:         "https://example-2.org",
+				Method:      "PATCH",
+				ContentType: "text/html",
+				Payload:     []byte("Hello World!"),
+				Response:    c.second.response,
+				Err:         c.second.err,
+			})
+
+			s.NoError(jobs.HandleFunctionTrigger(ctx, task))
+
+			for i, want := range []bool{c.first.advances, c.second.advances} {
+				tf, err := store.ByID(ctx, messages[i].ID)
+				s.Require().NoError(err)
+
+				if want {
+					s.Equal(messages[i].NextRunAt.Unix(), tf.NextRunAt.Unix(), "expected the trigger to advance to its next tick")
+				} else {
+					s.Equal(before[messages[i].ID], tf.NextRunAt.Unix(), "expected the trigger to stay due for the next sweep")
+				}
+			}
+		})
+	}
 }
 
 func TestJobTriggerFunctionSuite(t *testing.T) {
