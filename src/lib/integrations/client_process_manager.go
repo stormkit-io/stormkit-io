@@ -298,7 +298,7 @@ func (pm *ProcessManager) Start(ctx context.Context, args *InvokeArgs, workDir s
 			return
 		}
 
-		service.cmd = sys.Command(ctx, sys.CommandOpts{
+		s.cmd = sys.Command(ctx, sys.CommandOpts{
 			String:      pm.BuildServerCommand(args.Command, workDir),
 			Dir:         workDir,
 			Env:         vars,
@@ -309,6 +309,13 @@ func (pm *ProcessManager) Start(ctx context.Context, args *InvokeArgs, workDir s
 
 		if err := s.cmd.Start(); err != nil {
 			pm.QueueLog(args, err.Error())
+			slog.Errorf("error while starting service, arn: %s, err: %s", s.arn, err.Error())
+
+			// Evict the service so that the next Invoke re-attempts the start.
+			// Without this the ARN stays registered with started=false and every
+			// subsequent request gets the warm-up interstitial forever.
+			s.Kill()
+
 			return
 		}
 

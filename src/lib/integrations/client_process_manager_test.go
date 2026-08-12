@@ -413,6 +413,47 @@ func (s *ProcessManagerSuite) Test_Invoke_StaleProcess() {
 	s.Equal("Hello, https://example.org!\n", string(result.Body))
 }
 
+func (s *ProcessManagerSuite) Test_Invoke_FailedStart_EvictsService() {
+	arn := fmt.Sprintf("local:%s:failed_start", path.Join(s.tmpdir, "index.js"))
+
+	args := integrations.InvokeArgs{
+		URL:          &url.URL{},
+		ARN:          arn,
+		Method:       shttp.MethodGet,
+		Command:      "stormkit-binary-that-does-not-exist",
+		HostName:     "example.org",
+		CaptureLogs:  true,
+		DeploymentID: 1,
+	}
+
+	result, err := s.pm.Invoke(args, s.tmpdir)
+	s.NoError(err)
+	s.Require().NotNil(result)
+	s.Equal(http.StatusServiceUnavailable, result.StatusCode)
+
+	// The failed start must evict the service, otherwise every subsequent
+	// Invoke would keep returning the warm-up interstitial forever.
+	deadline := time.Now().Add(3 * time.Second)
+
+	for time.Now().Before(deadline) {
+		if s.pm.GetService(arn) == nil {
+			break
+		}
+
+		s.pm.Invoke(args, s.tmpdir)
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	s.Nil(s.pm.GetService(arn), "expected the service to be evicted after a failed start")
+
+	// A subsequent invocation with a working command must be able to start.
+	args.Command = "node index.js"
+
+	result, err = s.invokeWithRetry(args, s.tmpdir)
+	s.NoError(err)
+	s.Equal("Hello, https://example.org!\n", string(result.Body))
+}
+
 func (s *ProcessManagerSuite) Test_BuildServerCommand_WithoutFlake() {
 	cmd := s.pm.BuildServerCommand("node index.js", s.tmpdir)
 	s.Equal("node index.js", cmd)
