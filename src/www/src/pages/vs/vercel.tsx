@@ -9,9 +9,9 @@ import { useScrollToHash } from '~/helpers/scroll'
 export const fetchData: FetchDataFunc = async () => {
   return {
     head: {
-      title: 'What makes Stormkit a great Vercel alternative?',
+      title: 'Stormkit vs Vercel: self-hosted, no per-seat pricing',
       description:
-        'Stormkit is a fully-featured, powerful, and self-hostable alternative to Vercel.Discover Stormkit, a self-hostable Vercel alternative with powerful features like deployment previews, custom configurations, and transparent pricing for your web applications.',
+        'A side-by-side comparison of Stormkit and Vercel: self-hosting on your own infrastructure, transparent pricing without per-seat fees, deployment previews, and no vendor lock-in.',
     },
     context: {},
   }

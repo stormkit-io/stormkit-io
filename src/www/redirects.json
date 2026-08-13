@@ -3,7 +3,7 @@
     "from": "stormkit.io",
     "to": "www.stormkit.io",
     "assets": true,
-    "status": 302
+    "status": 301
   },
   {
     "from": "/docs/welcome/self-hosting",

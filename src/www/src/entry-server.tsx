@@ -7,6 +7,7 @@ import http from 'node:http'
 import { fileURLToPath } from 'node:url'
 import serverless from '@stormkit/serverless'
 import createRoutes from './routes'
+import { canonicalUrl } from './helpers/seo'
 import Context from './context'
 import App from './App'
 import createEmotionCache from './emotion-cache'
@@ -72,6 +73,7 @@ export const render: RenderFunction = async (url, seo) => {
   const emotionCss = constructStyleTagsFromChunks(emotionChunks)
 
   const title = tags.title.replace(/^["']|["']$/g, '')
+  const canonical = canonicalUrl(url, tags.domain?.url)
 
   return {
     status: 200,
@@ -81,9 +83,10 @@ export const render: RenderFunction = async (url, seo) => {
       `<meta charset="utf-8" />`,
       `<meta name="viewport" content="width=device-width, initial-scale=1" />`,
       `<meta name="description" content="${tags.description}" />`,
+      `<link rel="canonical" href="${canonical}" />`,
       `<meta property="og:title" content="${title}" />`,
       `<meta property="og:type" content="${tags.type}" />`,
-      `<meta property="og:url" content="${tags.domain?.url}" />`,
+      `<meta property="og:url" content="${canonical}" />`,
       `<meta property="og:description" content="${tags.description}" />`,
       `<meta property="og:image" content="${tags.domain?.url}/stormkit-og-image.png" />`,
       `<meta name="twitter:card" content="${tags.twitter!.card}" />`,
@@ -99,7 +102,7 @@ export const render: RenderFunction = async (url, seo) => {
         tags.twitter!.imageWidth
       }"/>`,
       `<meta name="twitter:image:height" content="${
-        tags.twitter!.imageWidth
+        tags.twitter!.imageHeight
       }"/>`,
       `<link rel="apple-touch-icon" href="/stormkit-logo.png"/>`,
       `<link rel="icon" type="image/svg+xml" href="/stormkit-logo.png" />`,
@@ -120,7 +123,7 @@ export const handler = serverless(
     const html = fs.readFileSync(path.join(dir, './index.html'), 'utf-8')
 
     const { status, content, head } = await render(
-      req.url?.split(/\?#/)[0] || '/'
+      req.url?.split(/[?#]/)[0] || '/'
     )
 
     res.writeHead(status, 'OK', { 'Content-Type': 'text/html; charset=utf-8' })
