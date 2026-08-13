@@ -1,5 +1,9 @@
 # Changelog
 
+## v2026.08.13.1...v2026.08.13.2
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.08.13.1...v2026.08.13.2)
+
 ## v2026.08.08.1...v2026.08.10.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.08.08.1...v2026.08.10.1)
