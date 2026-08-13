@@ -1,0 +1,5 @@
+# llms.txt is written for language models, not searchers. It was indexed and
+# drew 1,193 impressions at position 51 over 90 days with zero clicks, so it can
+# only ever produce a poor search result.
+/llms.txt
+  X-Robots-Tag: noindex
