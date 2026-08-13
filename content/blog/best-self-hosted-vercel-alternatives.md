@@ -4,6 +4,7 @@ description: An honest comparison of the open source platforms you can run on yo
 date: 2026-08-13
 author-name: Savas Vedova
 author-tw: @savasvedova
+author-img: https://pbs.twimg.com/profile_images/1993991074138779648/Up6HP-Jw_reasonably_small.jpg
 ---
 
 **Disclosure up front: we build Stormkit, one of the options below.** We have
@@ -129,7 +130,7 @@ analytics — is yours to assemble and operate. Stormkit ships those as part of
 the platform:
 
 - **[PostgreSQL](/docs/features/database)** attached to an environment, with migrations run on deploy
-- **[End-user authentication](/docs/self-hosting/authentication)** — email and password, magic links, Google and X OAuth, with session cookies handled for you
+- **[End-user authentication](/docs/features/authentication)** — email and password, magic links, Google and X OAuth, with session cookies handled for you
 - **[Transactional email](/docs/features/mailer)** through a built-in mailer
 - **[Periodic triggers](/docs/features/periodic-triggers)** for scheduled work, without a separate cron box
 - **[Server-side analytics](/docs/features/analytics)** that do not depend on client-side tracking
