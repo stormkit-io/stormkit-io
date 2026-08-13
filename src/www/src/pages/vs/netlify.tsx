@@ -9,9 +9,9 @@ import { useScrollToHash } from '~/helpers/scroll'
 export const fetchData: FetchDataFunc = async () => {
   return {
     head: {
-      title: 'What makes Stormkit a great Netlify alternative?',
+      title: 'Stormkit vs Netlify: self-hosted, no per-seat pricing',
       description:
-        'Stormkit is a fully-featured, powerful, and self-hostable alternative to Netlify.',
+        'A side-by-side comparison of Stormkit and Netlify: self-hosting on your own servers, predictable pricing without per-seat fees, deployment previews, and full control over your build pipeline.',
     },
     context: {},
   }
