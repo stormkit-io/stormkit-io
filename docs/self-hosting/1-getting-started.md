@@ -1,13 +1,13 @@
 ---
 title: "Self-Hosting with Stormkit: Deploy Web Apps with Full Control"
-description: Discover Stormkit, the self-hosted alternative to Vercel and Netlify. Deploy your frontend apps with full control over your infrastructure, offering powerful features like multiple environments, deployment previews, snippet injections, status checks and analytics.
+description: Discover Stormkit, the self-hosted alternative to Vercel and Netlify. Deploy web apps in any language with full control over your infrastructure, offering powerful features like multiple environments, deployment previews, snippet injections, status checks and analytics.
 ---
 
 # Self-Hosting
 
 <section>
 
-Stormkit is a deployment platform for frontend applications. It helps you focus on your product by providing a solution for most common technical challenges, such as deployments, logs, hosting, scaling tls certificates, and helps saving valuable time.
+Stormkit is a deployment platform for web applications. It helps you focus on your product by providing a solution for most common technical challenges, such as deployments, logs, hosting, scaling tls certificates, and helps saving valuable time. Your app can be written in any language — see [Runtime Management](/docs/self-hosting/runtimes) for how runtimes and system packages are provisioned.
 
 </section>
 

@@ -7,16 +7,18 @@ date: 2023-08-17
 <details>
 <summary>How Stormkit is different than Heroku?</summary>
 
-Stormkit stands out in its capability to host static websites, single-page applications (SPAs), and serverless functions. Its optimization for performance ensures a smooth journey for JavaScript developers. The platform offers a range of features, including dynamic injection of frontend code, instant rollbacks, customizable CDN storage, and trigger functions.
+Both are deployment platforms that take your code and run it. Stormkit hosts static sites, single-page apps, server-side rendered apps, serverless functions and long-running server processes, in any language — runtimes are provisioned with [mise](https://mise.jdx.dev), and system-level packages can come from a `flake.nix`. On top of deployment it ships a [PostgreSQL database](/docs/features/database), [end-user authentication](/docs/features/authentication), a [mailer](/docs/features/mailer), [periodic triggers](/docs/features/periodic-triggers) and [analytics](/docs/features/analytics), so you are not assembling those from separate vendors.
 
-Conversely, Heroku provides a broader application platform that accommodates diverse application types, including web apps, APIs, and beyond. It enables developers to deploy applications constructed with a variety of programming languages and frameworks.
+The bigger difference is that Stormkit can be [self-hosted](/docs/self-hosting/getting-started) on your own infrastructure, which is what most people are looking for when they compare the two.
 
 </details>
 
 <details>
 <summary>Can I run my Node.js applications on Stormkit?</summary>
 
-Not directly, Stormkit is optimized for serverless deployments and provides a serverless computing environment through its serverless functions feature, which allows you to deploy pieces of code that respond to HTTP requests. These functions are stateless and designed to be short-lived. You can use Nuxt.js functions or [use plain functions](/docs/features/writing-api) which has same interface as Node.js. If you are looking for long lived executions please contact with us. We can tailor our platform according your needs.
+Yes. On a [self-hosted instance](/docs/self-hosting/getting-started), set a **Start command** and Stormkit runs your server as a long-lived process — see [Application runtime](/docs/deployments/application-runtime). This is the recommended way to run backend code when self-hosting, and it is not limited to Node: a Go, Python or Ruby server works the same way.
+
+On Stormkit Cloud, backend code runs as [serverless functions](/docs/features/writing-api) — same interface as Node.js request handlers — which are stateless, short-lived and subject to a 15 second timeout. If you need long-lived processes, connection pools or a warm cache, self-host.
 
 </details>
 

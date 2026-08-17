@@ -1,12 +1,12 @@
 ---
 title: Getting started
-description: Stormkit is a deployment platform for jamstack applications. It helps you focus on your product by providing a solution for most common technical challenges, such as deployments, logs, hosting, scaling tls certificates, and helps saving valuable time.
+description: Stormkit is a deployment platform for web applications in any language. It helps you focus on your product by providing a solution for most common technical challenges, such as deployments, logs, hosting, scaling tls certificates, and helps saving valuable time.
 ---
 
 # Welcome
 
 <section>
-Stormkit is a deployment platform for frontend applications. It helps you focus on your product by providing a solution for most common technical challenges, such as deployments, logs, hosting, scaling, tls certificates, and helps saving valuable time.
+Stormkit is a deployment platform for web applications. It helps you focus on your product by providing a solution for most common technical challenges, such as deployments, logs, hosting, scaling, tls certificates, and helps saving valuable time. Builds can use any language runtime, and <a href="/docs/self-hosting/getting-started">self-hosted instances</a> additionally run long-lived server processes written in any language.
 </section>
 
 ## Getting Started

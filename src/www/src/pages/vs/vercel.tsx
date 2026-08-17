@@ -80,9 +80,10 @@ export default function Vercel() {
         </Typography>
         <Typography>
           Stormkit is an intuitive, scalable, and cost-effective self-hostable
-          platform for frontend applications. It comes with built-in features
-          like deployment previews, analytics, snippet injections, multiple
-          environments and more.
+          deployment platform for web applications in any language. It comes
+          with built-in features like deployment previews, a PostgreSQL
+          database, end-user authentication, a mailer, scheduled jobs,
+          analytics, snippet injections, multiple environments and more.
         </Typography>
         <Typography sx={{ mt: 2 }}>
           Vercel, on the other hand, is a fully-managed cloud provider in the
@@ -92,7 +93,7 @@ export default function Vercel() {
         <Box
           component="img"
           src={StormkitToolImg}
-          alt="Stormkit - Self-Hosted Frontend Hosting platform"
+          alt="Stormkit - self-hosted deployment platform"
           sx={{
             mt: { xs: 4, lg: 8 },
             mb: { xs: 4, lg: 8 },
@@ -201,7 +202,7 @@ export default function Vercel() {
         <Subtitle id="flexibility">2. Deployment Flexibility</Subtitle>
         <Typography component="ul" sx={{ mt: 2 }}>
           <Typography component="li">
-            When self-hosting Stormkit, developers can deploy their frontend
+            When self-hosting Stormkit, developers can deploy their
             applications in multiple ways, whether via GitHub Actions, custom
             servers, or other CI/CD platforms. This approach empowers teams by
             allowing them to choose the best solution that fits their
@@ -278,8 +279,8 @@ export default function Vercel() {
         <Subtitle id="conclusion">Conclusion</Subtitle>
         <Typography component="ul" sx={{ mt: 2 }}>
           <Typography component="li">
-            Both Stormkit and Vercel offer powerful solutions for frontend
-            hosting, but they cater to different needs: Stormkit is best for
+            Both Stormkit and Vercel offer powerful solutions for deploying
+            web applications, but they cater to different needs: Stormkit is best for
             developers and teams who value flexibility, control, and
             customizability. Its self-hostable nature makes it ideal for
             projects with specific infrastructure requirements, such as
