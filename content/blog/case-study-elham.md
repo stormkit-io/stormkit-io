@@ -1,6 +1,6 @@
 ---
 title: 'Case Study: Elham - a Leading Learning Platform'
-description: Discover how Elham, a leading learning platform, reduced deployment times from 24+ hours to 7 minutes, cut hosting costs, and scaled to handle millions of visitors per month with Stormkit’s self-hosted, compliant, and customizable frontend hosting solution.
+description: Discover how Elham, a leading learning platform, reduced deployment times from 24+ hours to 7 minutes, cut hosting costs, and scaled to handle millions of visitors per month with Stormkit’s self-hosted, compliant, and customizable hosting solution.
 date: 2024-09-03
 ---
 
@@ -9,7 +9,7 @@ date: 2024-09-03
 | **Customer**   | `Elham, a leading learning platform`                                                         |
 | **Industry**   | `Educaton and Training`                                                                      |
 | **Challenges** | `Slow deployment times, high costs, regulatory concerns, and lack of infrastructure control` |
-| **Solution**   | `Stormkit’s scalable, custom-tailored frontend hosting solution`                             |
+| **Solution**   | `Stormkit’s scalable, custom-tailored self-hosted deployment platform`                      |
 
 ### Results
 

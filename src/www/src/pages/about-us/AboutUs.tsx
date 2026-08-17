@@ -58,7 +58,7 @@ export default function AboutUs() {
           At Stormkit, our mission is to simplify the job for developers,
           stripping away the complexity of deployment so you can focus on
           building your product. Our vision is to give you unmatched flexibility
-          and control, letting you deploy JavaScript apps — whether solo
+          and control, letting you deploy your apps — whether solo
           projects or enterprise-scale — on your own terms. I work closely with
           my users to understand their struggles and craft solutions that truly
           fit their needs. Seeing the satisfaction on their faces when Stormkit

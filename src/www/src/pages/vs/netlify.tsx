@@ -80,10 +80,11 @@ export default function Netlify() {
           <br /> great Netlify alternative
         </Typography>
         <Typography>
-          When it comes to hosting and deploying frontend applications, both{' '}
+          When it comes to hosting and deploying web applications, both{' '}
           <strong>Stormkit</strong> and <b>Netlify</b> are prominent platforms.
           While Netlify is well-known for its ease of use and cloud-based
-          hosting, Stormkit stands out by offering self-hosting capabilities,
+          hosting, Stormkit stands out by offering self-hosting capabilities and
+          a built-in database, authentication, mailer and scheduled jobs,
           giving developers more control over their infrastructure. In this
           guide, we'll compare the two platforms across key categories to help
           you determine which one best suits your needs.
@@ -91,7 +92,7 @@ export default function Netlify() {
         <Box
           component="img"
           src={StormkitToolImg}
-          alt="Stormkit - Self-Hosted Frontend Hosting platform"
+          alt="Stormkit - self-hosted deployment platform"
           sx={{
             mt: { xs: 4, lg: 8 },
             mb: { xs: 4, lg: 8 },
