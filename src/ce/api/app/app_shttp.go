@@ -150,11 +150,15 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 
 			request.EnvID = envID
 
-			// Then let's fetch the app
-			if appID != 0 {
-				request.App, err = NewStore().AppByID(req.Context(), appID)
-			} else if envID != 0 {
+			// Then let's fetch the app. The environment is authoritative when
+			// one is given: an app- or team-level key carries an appID while
+			// envID may come from the caller, so resolving from appID would
+			// run the ownership checks below against the wrong app. An envID
+			// that resolves to no app does not exist.
+			if envID != 0 {
 				request.App, err = NewStore().AppByEnvID(req.Context(), envID)
+			} else if appID != 0 {
+				request.App, err = NewStore().AppByID(req.Context(), appID)
 			}
 
 			if err != nil {
@@ -203,12 +207,19 @@ func WithApp(handler func(*RequestContext) *shttp.Response, opts ...*Opts) shttp
 
 		var err error
 
-		if appID != 0 {
-			app.App, err = store.AppByID(req.Context(), appID)
-		} else if envID != 0 {
+		if appID == 0 && envID == 0 {
+			return shttp.Error(ErrMissingOrInvalidAppID)
+		}
+
+		// The environment is authoritative when one is given: envID and appID
+		// arrive independently, so resolving from appID would check membership
+		// against the caller's own app while the handler acts on the
+		// environment another tenant owns. An envID that resolves to no app
+		// does not exist, which the nil check below reports as a 404.
+		if envID != 0 {
 			app.App, err = store.AppByEnvID(req.Context(), envID)
 		} else {
-			return shttp.Error(ErrMissingOrInvalidAppID)
+			app.App, err = store.AppByID(req.Context(), appID)
 		}
 
 		if err != nil || app.App == nil {

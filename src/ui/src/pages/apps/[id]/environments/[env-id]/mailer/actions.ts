@@ -5,6 +5,7 @@ interface MailerConfig {
   host: string;
   port: string;
   username: string;
+  // Never the real password: a placeholder marking that one is stored.
   password: string;
 }
 

@@ -1,6 +1,7 @@
 package buildconf_test
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
@@ -76,6 +77,33 @@ func (s *EnvModelSuite) Test_JSON_MasksEnvVars() {
 
 	// The original Env keeps the real values for internal use.
 	s.Equal("shh", env.Data.Vars["SECRET"])
+}
+
+// Test_JSON_MasksMailerPassword guards the wide surface: every environment
+// serialization (dashboard env GET, public API env list, the list_environments
+// MCP tool) goes through Env.JSON, so the SMTP credential must not be in it.
+func (s *EnvModelSuite) Test_JSON_MasksMailerPassword() {
+	env := buildconf.Env{
+		Name: "production",
+		MailerConf: &buildconf.MailerConf{
+			Host:     "smtp.gmail.com",
+			Port:     "587",
+			Username: "test",
+			Password: "super-secret",
+		},
+	}
+
+	mailer := env.JSON()["mailer"].(map[string]any)
+
+	s.Equal(buildconf.PasswordPlaceholder, mailer["password"])
+	s.Equal("smtp.gmail.com", mailer["host"])
+
+	serialized, err := json.Marshal(env)
+	s.NoError(err)
+	s.NotContains(string(serialized), "super-secret")
+
+	// The original Env keeps the real value for internal use.
+	s.Equal("super-secret", env.MailerConf.Password)
 }
 
 func TestEnvModelSuite(t *testing.T) {

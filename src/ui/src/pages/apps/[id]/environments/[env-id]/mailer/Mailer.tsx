@@ -35,10 +35,6 @@ export default function TabMailer() {
       string
     >;
 
-    if (data["username"] === "") {
-      return setFormError("Username is a required field");
-    }
-
     setFormError(undefined);
     setSuccess(undefined);
 
@@ -47,6 +43,12 @@ export default function TabMailer() {
       .then(() => {
         setSuccess("Mailer configuration saved successfully.");
         setRefreshToken(Date.now());
+      })
+      .catch(async (res: Response) => {
+        // The API rejects a first-time save with no password, which is easy to
+        // hit now that the field is never prefilled - show what it objected to
+        // rather than leaving the form looking inert.
+        setFormError((await api.errors(res)).join(" "));
       });
   };
 
@@ -184,7 +186,12 @@ export default function TabMailer() {
           label="Password"
           name="password"
           fullWidth
-          defaultValue={config?.password || ""}
+          defaultValue=""
+          helperText={
+            config?.password
+              ? "A password is stored. Leave this empty to keep it — changing the host or username requires re-entering it."
+              : undefined
+          }
           variant="filled"
           autoComplete="off"
         />

@@ -114,6 +114,60 @@ describe("~/pages/apps/[id]/environments/[env-id]/mailer/Mailer.tsx", () => {
     expect(fetchScope.isDone()).toBe(true);
   });
 
+  it("should surface server validation errors on save", async () => {
+    createWrapper({});
+
+    const scope = mockSetMailerConfig({
+      appId: currentApp.id,
+      envId: currentEnv.id,
+      username: "joe@example.org",
+      password: "",
+      smtpHost: "smtp.example.org",
+      smtpPort: "",
+      status: 400,
+      // @ts-ignore - error shape, not the success shape
+      response: { errors: { password: "Password is a required field." } },
+    });
+
+    await waitFor(() => {
+      expect(fetchScope.isDone()).toBe(true);
+      expect(wrapper.getByLabelText("SMTP Host")).toBeTruthy();
+    });
+
+    await userEvent.type(wrapper.getByLabelText("SMTP Host"), "smtp.example.org");
+    await userEvent.type(wrapper.getByLabelText("Username"), "joe@example.org");
+
+    fireEvent.click(wrapper.getByText("Save"));
+
+    await waitFor(() => {
+      expect(scope.isDone()).toBe(true);
+      expect(wrapper.getByText("Password is a required field.")).toBeTruthy();
+    });
+  });
+
+  it("should not prefill the password field", async () => {
+    createWrapper({
+      config: {
+        host: "smtp.example.org",
+        port: "587",
+        username: "joe@example.org",
+        // What the API returns in place of the stored password.
+        password: "****-****-****-****",
+      },
+    });
+
+    await waitFor(() => {
+      expect(wrapper.getByDisplayValue("smtp.example.org")).toBeTruthy();
+    });
+
+    expect(wrapper.getByLabelText("Password").getAttribute("value")).toBe("");
+    expect(
+      wrapper.getByText(
+        "A password is stored. Leave this empty to keep it — changing the host or username requires re-entering it.",
+      ),
+    ).toBeTruthy();
+  });
+
   it("should send a test email", async () => {
     createWrapper({
       config: {

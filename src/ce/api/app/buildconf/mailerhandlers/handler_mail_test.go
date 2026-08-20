@@ -126,6 +126,31 @@ func (s *MailerSuite) Test_NoConfig_StoresEmail() {
 	s.Equal("Welcome to my world!", emails[0].Body)
 }
 
+// Test_UnknownEnvID guards a nil dereference: WithApp only asserts that an
+// envId was provided, and the store returns (nil, nil) for an unknown id.
+func (s *MailerSuite) Test_UnknownEnvID() {
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(mailerhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/mailer",
+		map[string]any{
+			"appId":   app.ID.String(),
+			"envId":   "999999999",
+			"to":      "joe@stormkit.io",
+			"subject": "Hello",
+			"body":    "Welcome to my world!",
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusNotFound, response.Code)
+}
+
 func TestMailerSuite(t *testing.T) {
 	suite.Run(t, &MailerSuite{})
 }

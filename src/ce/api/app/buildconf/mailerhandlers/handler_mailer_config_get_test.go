@@ -58,13 +58,80 @@ func (s *HandlerMailerConfigGetSuite) Test_Success() {
 		"config": { 
 			"host": "smtp.gmail.com",
 			"port": "587",
-			"password": "testpwd",
+			"password": "****-****-****-****",
 			"username": "test"
 		}
 	}`
 
 	s.Equal(http.StatusOK, response.Code)
 	s.JSONEq(expected, response.String())
+}
+
+// Test_MasksPassword is the guarantee the MCP tools rely on: the stored SMTP
+// password never leaves the server, so an agent that can read the config
+// cannot exfiltrate the credential.
+func (s *HandlerMailerConfigGetSuite) Test_MasksPassword() {
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app, map[string]any{
+		"MailerConf": &buildconf.MailerConf{
+			Host:     "smtp.gmail.com",
+			Username: "test",
+			Password: "super-secret",
+		},
+	})
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(mailerhandlers.Services).Router().Handler(),
+		shttp.MethodGet,
+		fmt.Sprintf("/mailer/config?appId=%d&envId=%d", app.ID, env.ID),
+		nil,
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+
+	body := response.String()
+
+	s.Equal(http.StatusOK, response.Code)
+	s.NotContains(body, "super-secret")
+	s.Contains(body, buildconf.PasswordPlaceholder)
+}
+
+func (s *HandlerMailerConfigGetSuite) Test_NoConfig() {
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app, nil)
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(mailerhandlers.Services).Router().Handler(),
+		shttp.MethodGet,
+		fmt.Sprintf("/mailer/config?appId=%d&envId=%d", app.ID, env.ID),
+		nil,
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+	s.JSONEq(`{"config": null}`, response.String())
+}
+
+func (s *HandlerMailerConfigGetSuite) Test_UnknownEnvID() {
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(mailerhandlers.Services).Router().Handler(),
+		shttp.MethodGet,
+		fmt.Sprintf("/mailer/config?appId=%d&envId=999999999", app.ID),
+		nil,
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusNotFound, response.Code)
 }
 
 func TestHandlerMailerConfigGetSuite(t *testing.T) {

@@ -22,6 +22,12 @@ type SendEmailParams struct {
 	Body    string
 }
 
+// PasswordPlaceholder stands in for the stored SMTP password whenever a mailer
+// configuration is rendered for a client. Writing it back leaves the stored
+// password untouched, so a client can round-trip a configuration without ever
+// handling the real secret.
+const PasswordPlaceholder = "****-****-****-****"
+
 type MailerConf struct {
 	EnvID    types.ID `json:"-"`
 	Host     string   `json:"host"`
@@ -30,12 +36,46 @@ type MailerConf struct {
 	Password string   `json:"password"`
 }
 
-// Bytes uses the json marshaler to return the byte representation.
+// Bytes uses the json marshaler to return the byte representation. It marshals
+// a storage type that sheds MarshalJSON, so persistence keeps writing the
+// encrypted credential rather than the placeholder rendered for clients.
 func (mc *MailerConf) Bytes() ([]byte, error) {
-	cnf := *mc
+	type mailerConfStorage MailerConf
+
+	cnf := mailerConfStorage(*mc)
 	cnf.Username = utils.EncryptToString(cnf.Username)
 	cnf.Password = utils.EncryptToString(cnf.Password)
+
 	return json.Marshal(cnf)
+}
+
+// MarshalJSON implements json.Marshaler by delegating to JSON, so masking is
+// the default: a MailerConf placed in a response cannot serialize the password
+// even if the caller forgets to call JSON explicitly.
+func (mc *MailerConf) MarshalJSON() ([]byte, error) {
+	return json.Marshal(mc.JSON())
+}
+
+// JSON renders the configuration for API responses. The password is never
+// included; the placeholder marks that one is stored. Every client-facing
+// serialization goes through here so the credential cannot escape by accident.
+func (mc *MailerConf) JSON() map[string]any {
+	if mc == nil {
+		return nil
+	}
+
+	password := ""
+
+	if mc.Password != "" {
+		password = PasswordPlaceholder
+	}
+
+	return map[string]any{
+		"host":     mc.Host,
+		"port":     mc.Port,
+		"username": mc.Username,
+		"password": password,
+	}
 }
 
 // String returns a connection string.

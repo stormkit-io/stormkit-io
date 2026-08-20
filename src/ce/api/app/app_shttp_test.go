@@ -132,6 +132,7 @@ func (s *AppSHTTPSuite) Test_WithAPIKey_Success_EnvID() {
 func (s *AppSHTTPSuite) Test_WithAPIKey_UserAuth() {
 	usr := s.MockUser()
 	appl := s.MockApp(usr)
+	env := s.MockEnv(appl)
 
 	fn := app.WithAPIKey(func(rc *app.RequestContext) *shttp.Response {
 		return &shttp.Response{
@@ -143,7 +144,7 @@ func (s *AppSHTTPSuite) Test_WithAPIKey_UserAuth() {
 		}
 	})
 
-	jsonData := fmt.Sprintf(`{"appId":"%s","envId":"1"}`, appl.ID.String())
+	jsonData := fmt.Sprintf(`{"appId":"%s","envId":"%s"}`, appl.ID.String(), env.ID.String())
 
 	res := fn(&shttp.RequestContext{
 		Request: &http.Request{
@@ -156,7 +157,7 @@ func (s *AppSHTTPSuite) Test_WithAPIKey_UserAuth() {
 
 	s.Equal(http.StatusOK, res.Status)
 	s.Equal(appl.ID.String(), (res.Data.(map[string]string))["appId"])
-	s.Equal("1", (res.Data.(map[string]string))["envId"])
+	s.Equal(env.ID.String(), (res.Data.(map[string]string))["envId"])
 }
 
 func (s *AppSHTTPSuite) Test_WithAPIKey_APIKeyInvalid() {
@@ -428,6 +429,39 @@ func (s *AppSHTTPSuite) Test_WithApp_WithEnvID() {
 	s.Equal(http.StatusOK, res.Status)
 	s.Equal(appl.ID.String(), (res.Data.(map[string]string))["appId"])
 	s.Equal(env.ID.String(), (res.Data.(map[string]string))["envId"])
+}
+
+// Test_WithApp_EnvBelongsToAnotherApp guards a cross-tenant IDOR: appId and
+// envId arrive independently, so pairing an app the caller owns with someone
+// else's envId used to pass the membership check and hand the handler the
+// victim's environment.
+func (s *AppSHTTPSuite) Test_WithApp_EnvBelongsToAnotherApp() {
+	usr := s.MockUser()
+	attacker := s.MockApp(usr)
+
+	victim := s.MockApp(s.MockUser())
+	victimEnv := s.MockEnv(victim)
+
+	fn := app.WithApp(func(rc *app.RequestContext) *shttp.Response {
+		return &shttp.Response{Status: http.StatusOK}
+	})
+
+	jsonData := fmt.Sprintf(
+		`{"appId":"%s","envId":"%s"}`,
+		attacker.ID.String(),
+		victimEnv.ID.String(),
+	)
+
+	res := fn(&shttp.RequestContext{
+		Request: &http.Request{
+			Body: io.NopCloser(strings.NewReader(jsonData)),
+			Header: http.Header{
+				"Authorization": []string{usertest.Authorization(usr.ID)},
+			},
+		},
+	})
+
+	s.Equal(http.StatusNotFound, res.Status)
 }
 
 func (s *AppSHTTPSuite) Test_WithApp_RequireEnv_Missing() {

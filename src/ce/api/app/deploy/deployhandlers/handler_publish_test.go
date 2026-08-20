@@ -175,6 +175,7 @@ func (s *HandlerPublishDeploymentSuite) Test_BadRequest() {
 func (s *HandlerPublishDeploymentSuite) Test_BadRequest_PercentageNot100() {
 	usr := s.MockUser()
 	app := s.MockApp(usr)
+	env := s.MockEnv(app)
 
 	response := shttptest.RequestWithHeaders(
 		shttp.NewRouter().RegisterService(deployhandlers.Services).Router().Handler(),
@@ -182,7 +183,7 @@ func (s *HandlerPublishDeploymentSuite) Test_BadRequest_PercentageNot100() {
 		"/app/deployments/publish",
 		map[string]any{
 			"appId": app.ID.String(),
-			"envId": app.ID.String(),
+			"envId": env.ID.String(),
 			"publish": []map[string]any{
 				{"percentage": 70, "deploymentId": app.ID.String()},
 			},

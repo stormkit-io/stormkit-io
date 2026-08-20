@@ -319,7 +319,7 @@ func (env Env) JSON() map[string]any {
 	}
 
 	if env.MailerConf != nil {
-		m["mailer"] = env.MailerConf
+		m["mailer"] = env.MailerConf.JSON()
 	}
 
 	if len(env.Published) > 0 {

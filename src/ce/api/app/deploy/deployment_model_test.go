@@ -299,6 +299,34 @@ func (s *DeploymentModelSuite) Test_PopulateFromEnv_SchemaDoNotInjectEnvVars() {
 	s.Empty(dep.BuildConfig.Vars["DATABASE_URL"])
 }
 
+// Test_PopulateFromEnv_MailerOnlyWithNoVars guards a nil-map assignment:
+// includeSchemaVars allocates BuildConf.Vars, so an environment with a mailer
+// but no database integration and no build vars is the only path that reaches
+// includeMailerVars with a nil map.
+func (s *DeploymentModelSuite) Test_PopulateFromEnv_MailerOnlyWithNoVars() {
+	dep := &deploy.Deployment{}
+	env := &buildconf.Env{
+		ID:     16,
+		Name:   "production",
+		Branch: "main",
+		Data:   &buildconf.BuildConf{},
+		MailerConf: &buildconf.MailerConf{
+			Username: "test-user",
+			Password: "test-pwd",
+			Host:     "smtp.gmail.com",
+			Port:     "587",
+		},
+	}
+
+	s.Nil(env.Data.Vars)
+
+	s.NotPanics(func() {
+		dep.PopulateFromEnv(env)
+	})
+
+	s.Equal("smtp://test-user:test-pwd@smtp.gmail.com:587", dep.BuildConfig.Vars["MAILER_URL"])
+}
+
 func (s *DeploymentModelSuite) Test_PopulateFromEnv() {
 	dep := &deploy.Deployment{}
 	env := &buildconf.Env{

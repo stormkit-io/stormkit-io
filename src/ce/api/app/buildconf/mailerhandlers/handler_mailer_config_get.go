@@ -8,6 +8,8 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 )
 
+// HandlerMailerConfigGet returns the SMTP configuration for the environment.
+// The password is never included — see MailerConf.JSON.
 func HandlerMailerConfigGet(req *app.RequestContext) *shttp.Response {
 	env, err := buildconf.NewStore().EnvironmentByID(req.Context(), req.EnvID)
 
@@ -15,21 +17,12 @@ func HandlerMailerConfigGet(req *app.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	response := map[string]any{
-		"config": nil,
-	}
-
-	if env.MailerConf != nil {
-		response["config"] = map[string]any{
-			"host":     env.MailerConf.Host,
-			"port":     env.MailerConf.Port,
-			"username": env.MailerConf.Username,
-			"password": env.MailerConf.Password,
-		}
+	if env == nil {
+		return shttp.NotFound()
 	}
 
 	return &shttp.Response{
 		Status: http.StatusOK,
-		Data:   response,
+		Data:   map[string]any{"config": env.MailerConf.JSON()},
 	}
 }
