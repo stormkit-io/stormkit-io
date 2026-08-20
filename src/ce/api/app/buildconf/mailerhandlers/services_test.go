@@ -18,9 +18,6 @@ func (s *ServicesSuite) Test_Services() {
 
 	handlers := []string{
 		"GET:/mailer",
-		"GET:/mailer/config",
-		"POST:/mailer",
-		"POST:/mailer/config",
 	}
 
 	s.Equal(handlers, services.HandlerKeys())

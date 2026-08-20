@@ -8,7 +8,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 )
 
-func HandlerMailList(req *app.RequestContext) *shttp.Response {
+func handlerMailList(req *app.RequestContext) *shttp.Response {
 	emails, err := buildconf.MailerStore().Emails(req.Context(), req.EnvID)
 
 	if err != nil {
