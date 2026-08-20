@@ -156,8 +156,9 @@ did not write, or you need a stack with no proprietary components at all. A
 container platform fits the first better, and Coolify or Dokku the second.
 
 If that sounds like your fit, the [self-hosting guide](/docs/self-hosting/getting-started)
-gets you running on your own server in a few minutes, and the [Vercel comparison](/vs-vercel)
-goes deeper on the migration.
+gets you running on your own server in a few minutes, and the
+[Vercel](/vs-vercel) and [Netlify](/vs-netlify) comparisons go deeper on the
+migration.
 
 ## Which one should you pick
 

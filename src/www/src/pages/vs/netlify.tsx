@@ -1,6 +1,12 @@
 import Typography from '@mui/material/Typography'
 import Box from '@mui/material/Box'
 import Link from '@mui/material/Link'
+import Table from '@mui/material/Table'
+import TableBody from '@mui/material/TableBody'
+import TableCell from '@mui/material/TableCell'
+import TableContainer from '@mui/material/TableContainer'
+import TableHead from '@mui/material/TableHead'
+import TableRow from '@mui/material/TableRow'
 import Header from '~/components/Header'
 import Footer from '~/components/Footer'
 import StormkitToolImg from '~/assets/images/stormkit-tool.png'
@@ -9,9 +15,9 @@ import { useScrollToHash } from '~/helpers/scroll'
 export const fetchData: FetchDataFunc = async () => {
   return {
     head: {
-      title: 'Stormkit vs Netlify: self-hosted, no per-seat pricing',
+      title: 'Stormkit vs Netlify: a side-by-side comparison',
       description:
-        'A side-by-side comparison of Stormkit and Netlify: self-hosting on your own servers, predictable pricing without per-seat fees, deployment previews, and full control over your build pipeline.',
+        'A side-by-side comparison of Stormkit and Netlify: self-hosting on your own servers, what each plan costs, deployment previews, and how much control you get over your build pipeline.',
     },
     context: {},
   }
@@ -31,6 +37,42 @@ function Subtitle({ children, id }: Props) {
     >
       {children}
     </Typography>
+  )
+}
+
+// Only rows we can source from both vendors' own pricing pages belong here.
+// Netlify does not publish bandwidth or build-minute allowances, so those axes
+// are deliberately absent rather than estimated.
+const comparison: [string, string, string][] = [
+  ['Self-hosting', 'Yes, free with unlimited usage', 'Not offered'],
+  ['Source available', 'Yes, Community and Enterprise editions', 'No'],
+  ['Cloud free tier', '300 build minutes, 100 GB bandwidth', 'Yes'],
+  ['Cloud paid plans', '20 and 100 USD per month', '9 and 20 USD per month'],
+  ['Self-hosted paid plans', '20 and 100 USD per month', 'Not applicable'],
+]
+
+function ComparisonTable() {
+  return (
+    <TableContainer sx={{ mb: 8 }}>
+      <Table size="small" aria-label="Stormkit and Netlify compared">
+        <TableHead>
+          <TableRow>
+            <TableCell sx={{ fontWeight: 600 }}></TableCell>
+            <TableCell sx={{ fontWeight: 600 }}>Stormkit</TableCell>
+            <TableCell sx={{ fontWeight: 600 }}>Netlify</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {comparison.map(([label, stormkit, netlify]) => (
+            <TableRow key={label}>
+              <TableCell sx={{ fontWeight: 600 }}>{label}</TableCell>
+              <TableCell>{stormkit}</TableCell>
+              <TableCell>{netlify}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
   )
 }
 
@@ -76,18 +118,25 @@ export default function Netlify() {
             textAlign: 'center',
           }}
         >
-          What makes Stormkit a
-          <br /> great Netlify alternative
+          Stormkit vs Netlify
         </Typography>
         <Typography>
           When it comes to hosting and deploying web applications, both{' '}
           <strong>Stormkit</strong> and <b>Netlify</b> are prominent platforms.
           While Netlify is well-known for its ease of use and cloud-based
-          hosting, Stormkit stands out by offering self-hosting capabilities and
-          a built-in database, authentication, mailer and scheduled jobs,
-          giving developers more control over their infrastructure. In this
+          hosting, Stormkit stands out by running on your own infrastructure
+          just as well as on ours, with a database, authentication, mailer and
+          scheduled jobs included in both. In this
           guide, we'll compare the two platforms across key categories to help
           you determine which one best suits your needs.
+        </Typography>
+        <Typography sx={{ mt: 2 }}>
+          If you are still weighing up several platforms rather than these two,
+          our roundup of{' '}
+          <Link href="/blog/best-self-hosted-vercel-alternatives">
+            self-hosted Vercel and Netlify alternatives
+          </Link>{' '}
+          covers Coolify, Dokploy, Dokku, CapRover and Kamal alongside Stormkit.
         </Typography>
         <Box
           component="img"
@@ -131,6 +180,7 @@ export default function Netlify() {
             ))}
           </Box>
         </Box>
+        <ComparisonTable />
         <Subtitle id="hosting-approach">
           1. Self-Hostability vs. Managed Service
         </Subtitle>
@@ -265,7 +315,7 @@ export default function Netlify() {
             more.
           </Typography>
         </Typography>
-        <Subtitle id="features">4. Features and Integrations</Subtitle>
+        <Subtitle id="features">5. Features and Integrations</Subtitle>
         <Typography component="ul" sx={{ mt: 2 }}>
           <Typography component="li">
             Stormkit goes beyond basic hosting by offering features like{' '}
@@ -284,7 +334,7 @@ export default function Netlify() {
             features such as image optimization, SEO enhancements, and more.
           </Typography>
         </Typography>
-        <Subtitle id="security">5. Security and Compliance</Subtitle>
+        <Subtitle id="security">6. Security and Compliance</Subtitle>
         <Typography component="ul" sx={{ mt: 2 }}>
           <Typography component="li">
             For businesses requiring enhanced security, Stormkit's self-hosting

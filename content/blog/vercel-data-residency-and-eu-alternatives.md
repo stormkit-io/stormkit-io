@@ -152,7 +152,9 @@ there.
 
 **Look elsewhere if** an EU region and a signed DPA already satisfy your
 requirement. In that case staying on Vercel or Netlify is genuinely the lower-risk
-choice, and this whole article is a problem you do not have.
+choice, and this whole article is a problem you do not have. If you are only
+weighing up one of them against Stormkit, the [Vercel](/vs-vercel) and
+[Netlify](/vs-netlify) comparisons go feature by feature.
 
 ## Which one should you pick
 
