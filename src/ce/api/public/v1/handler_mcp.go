@@ -198,6 +198,20 @@ func mcpDispatch(req *RequestContextMCP, id any, params *toolCallParams) *shttp.
 		}
 
 		resp = mcpConfigureAuth(req, id, params.Arguments)
+	case "get_mailer_config":
+		resp = mcpGetMailerConfig(req, params.Arguments)
+	case "configure_mailer":
+		resp = mcpConfigureMailer(req, id, params.Arguments)
+	case "list_emails":
+		resp = mcpListEmails(req, params.Arguments)
+	case "send_test_email":
+		resp = mcpSendTestEmail(req, id, params.Arguments)
+	case "configure_auth_provider":
+		if !authConfigEnabled() {
+			return jsonRPCError(id, rpcErrMethodUnknown, "unknown tool: "+params.Name)
+		}
+
+		resp = mcpConfigureAuthProvider(req, id, params.Arguments)
 	case "enable_database_integration":
 		if !databaseIntegrationEnabled() {
 			return jsonRPCError(id, rpcErrMethodUnknown, "unknown tool: "+params.Name)

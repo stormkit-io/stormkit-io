@@ -130,11 +130,72 @@ All tools return JSON. Errors are reported as MCP `isError` content while the tr
 | `list_teams`  | List teams the user belongs to.     |
 | `create_team` | Create a new team.                  |
 
+### Mailer
+
+| Tool                | Description                                                                       |
+| ------------------- | --------------------------------------------------------------------------------- |
+| `get_mailer_config` | Read the SMTP settings of an environment. The password is never returned.          |
+| `configure_mailer`  | Set the SMTP settings. Partial: only the fields you pass change, except that changing `smtpHost` or `username` also requires a new `password`. |
+| `send_test_email`   | Send an email through the configured SMTP server to verify the setup.              |
+| `list_emails`       | Return the last 100 emails recorded for an environment. No bodies; recipients masked.|
+
 ### Database integration (self-hosted only)
 
 | Tool                             | Description                                                      |
 | -------------------------------- | --------------------------------------------------------------- |
 | `enable_database_integration`    | Provision a Postgres schema for an environment.                 |
 | `configure_database_integration` | Toggle migrations and env-var injection for a provisioned schema.|
+
+### Authentication (self-hosted only)
+
+| Tool                      | Description                                                                        |
+| ------------------------- | ---------------------------------------------------------------------------------- |
+| `get_auth_config`         | Read the Stormkit Auth configuration of an environment. Secrets are never returned. |
+| `configure_auth`          | Update session, allowed origins and OAuth-server settings. Partial update.          |
+| `configure_auth_provider` | Enable or update a single sign-in provider: `magiclink`, `email`, `google` or `x`. |
+
+## Secrets
+
+Values you send to the MCP server end up in the transcript of whatever agent
+called it, so Stormkit treats every secret it stores as **write-only**: SMTP
+passwords and OAuth client secrets are accepted on write, but these tools never
+echo them back. Reads render a placeholder (`****-****-****-****`) instead, and
+writing that placeholder back leaves the stored value untouched — so an agent
+can round-trip a configuration it is not allowed to see.
+
+Round-tripping stops at the point where it would move the credential. Changing
+`smtpHost` or `username` clears the stored password, so `configure_mailer`
+rejects such a call unless it carries a new one: a password the caller cannot
+read must not follow the configuration to another server or account.
+
+This is a property of these tools, not a containment boundary. An environment
+API key is a powerful credential in its own right: it can repoint `smtpHost` at
+a relay it controls (supplying its own password) and redirect an app's sign-in
+email, and `MAILER_URL` is injected into builds as
+`smtp://user:password@host`, readable from build output. Treat an env-scoped key
+as equivalent to the secrets of that environment, and scope keys accordingly.
+
+Message bodies are withheld for a related reason. The mailer log stores
+magic-link emails verbatim, so a body contains a sign-in link — single-use and
+valid for 15 minutes, but still worth keeping out of a transcript.
+`list_emails` returns sender, subject, timestamp and a masked recipient
+(`j***@example.com`), which is enough to confirm delivery without handing over
+the app's end-user mailing list. Full bodies and addresses remain visible in the
+dashboard, behind a session login.
+
+## Provisioning sign-in end to end
+
+Magic-link sign-in needs three pieces in place. Run them in this order:
+
+1. `enable_database_integration` — Stormkit Auth stores its users in the
+   environment's Postgres schema, and the provider tools refuse to run without
+   one.
+2. `configure_mailer` — magic links are delivered over SMTP. Without a mailer
+   the link is recorded but never sent.
+3. `configure_auth` and `configure_auth_provider` — turn auth on, then enable
+   the `magiclink` provider with a `fromAddress`.
+
+Call `send_test_email` at any point afterwards to confirm delivery works
+without going through a real sign-up.
 
 For the exact input parameters of each tool, call `tools/list` on your instance.

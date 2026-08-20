@@ -5,8 +5,10 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/mailerhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/redirects"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth/skauthhandlers"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
@@ -505,6 +507,62 @@ func mcpAllTools() []mcpToolDef {
 				"additionalProperties": false,
 			},
 		},
+		{
+			Name:        "get_mailer_config",
+			Description: "Return the SMTP configuration for an environment (host, port, username). The password is never returned; a placeholder marks that one is stored.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"envId": map[string]any{"type": "string", "description": "Environment ID to read the mailer configuration for."},
+				},
+				"required":             []string{"envId"},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "configure_mailer",
+			Description: "Set the SMTP configuration used to send transactional email for an environment, including Stormkit Auth magic links. Only the fields you provide are changed; omitted fields keep their current value. Changing smtpHost or username clears the stored password, so such a call must carry a new one - the placeholder a read returns is not accepted. Host, username and password must all be set before email can be sent. The password is write-only and is never returned.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"envId":    map[string]any{"type": "string", "description": "Environment ID."},
+					"smtpHost": map[string]any{"type": "string", "description": "SMTP server hostname (e.g. smtp.gmail.com)."},
+					"smtpPort": map[string]any{"type": "string", "description": "SMTP server port. Defaults to 587 when empty."},
+					"username": map[string]any{"type": "string", "description": "SMTP username, usually the sending email address."},
+					"password": map[string]any{"type": "string", "description": "SMTP password. Write-only: omit it to keep the stored password, except when changing smtpHost or username, which requires a new one."},
+				},
+				"required":             []string{"envId"},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "list_emails",
+			Description: "Return the last 100 emails recorded for an environment, newest first. Message bodies are never included and recipient addresses are masked (j***@example.com): the log stores magic-link emails verbatim and the full recipient list is the app's end-user mailing list. Use it to confirm an email was actually sent.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"envId": map[string]any{"type": "string", "description": "Environment ID to read the mailer log for."},
+				},
+				"required":             []string{"envId"},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "send_test_email",
+			Description: "Send an email through the environment's configured SMTP server. Use it to verify a mailer configuration without going through a real sign-up. Fails when no mailer is configured for the environment.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"envId":   map[string]any{"type": "string", "description": "Environment ID to send the email from."},
+					"to":      map[string]any{"type": "string", "description": "Recipient address. Separate multiple recipients with a semicolon."},
+					"from":    map[string]any{"type": "string", "description": "Sender address. Defaults to the SMTP username when empty."},
+					"subject": map[string]any{"type": "string", "description": "Email subject."},
+					"body":    map[string]any{"type": "string", "description": "Email body. Rendered as HTML."},
+				},
+				"required":             []string{"envId", "to", "subject", "body"},
+				"additionalProperties": false,
+			},
+		},
 	}
 
 	if authConfigEnabled() {
@@ -518,6 +576,23 @@ func mcpAllTools() []mcpToolDef {
 						"envId": map[string]any{"type": "string", "description": "Environment ID to read the auth configuration for."},
 					},
 					"required":             []string{"envId"},
+					"additionalProperties": false,
+				},
+			},
+			mcpToolDef{
+				Name:        "configure_auth_provider",
+				Description: "Enable or update a single Stormkit Auth sign-in provider for an environment. Self-hosted only. Requires the database integration to be enabled first. Supported providers are magiclink, email, google and x. Use magiclink or email for email sign-in (magiclink needs fromAddress and a configured mailer); google and x need clientId and clientSecret. Client secrets are write-only and are never returned.",
+				InputSchema: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"envId":        map[string]any{"type": "string", "description": "Environment ID."},
+						"providerName": map[string]any{"type": "string", "description": "Provider to configure.", "enum": []string{"magiclink", "email", "google", "x"}},
+						"status":       map[string]any{"type": "boolean", "description": "Whether the provider is enabled. Omit to keep the current value; a provider created for the first time defaults to enabled."},
+						"fromAddress":  map[string]any{"type": "string", "description": "Sender address for magic-link emails. Required for the magiclink provider. Omit it to keep the stored address."},
+						"clientId":     map[string]any{"type": "string", "description": "OAuth client ID. Required for OAuth providers. Omit it to keep the stored ID."},
+						"clientSecret": map[string]any{"type": "string", "description": "OAuth client secret. Write-only: omit it to keep the stored secret."},
+					},
+					"required":             []string{"envId", "providerName"},
 					"additionalProperties": false,
 				},
 			},
@@ -610,21 +685,52 @@ func intArg(args map[string]any, key string) int {
 
 // stringPtrArg returns a pointer to the string value at key, or nil when the
 // key is absent. Used by patch-style tools that must distinguish "leave
-// unchanged" (absent) from "set to empty" (present, "").
+// unchanged" (absent) from "set to empty" (present, ""). A model that sends a
+// bare number or boolean for a string field still means to set it, so those are
+// converted rather than dropped - silently ignoring them would report a
+// successful patch that changed nothing.
 func stringPtrArg(args map[string]any, key string) *string {
-	if v, ok := args[key].(string); ok {
-		return &v
+	var s string
+
+	switch v := args[key].(type) {
+	case string:
+		s = v
+	case float64:
+		s = strconv.FormatFloat(v, 'f', -1, 64)
+	case int:
+		s = strconv.Itoa(v)
+	case bool:
+		s = strconv.FormatBool(v)
+	default:
+		return nil
 	}
 
-	return nil
+	return &s
 }
 
+// boolPtrArg mirrors stringPtrArg for boolean fields. A quoted "true"/"false"
+// is accepted for the same reason, and matters more here: dropping it makes
+// resolveStatus keep the stored value, so a request to disable a provider would
+// answer ok while leaving it enabled.
 func boolPtrArg(args map[string]any, key string) *bool {
-	if v, ok := args[key].(bool); ok {
-		return &v
+	var b bool
+
+	switch v := args[key].(type) {
+	case bool:
+		b = v
+	case string:
+		parsed, err := strconv.ParseBool(strings.TrimSpace(v))
+
+		if err != nil {
+			return nil
+		}
+
+		b = parsed
+	default:
+		return nil
 	}
 
-	return nil
+	return &b
 }
 
 func intPtrArg(args map[string]any, key string) *int {
@@ -1393,4 +1499,93 @@ func mcpConfigureAuth(req *RequestContextMCP, id any, args map[string]any) *shtt
 	}
 
 	return handlerAuthConfigSet(req.RequestContext)
+}
+
+func mcpGetMailerConfig(req *RequestContextMCP, args map[string]any) *shttp.Response {
+	if resp := req.withEnv(args); resp != nil {
+		return resp
+	}
+
+	return handlerMailerConfigGet(req.RequestContext)
+}
+
+func mcpConfigureMailer(req *RequestContextMCP, id any, args map[string]any) *shttp.Response {
+	if resp := req.withEnv(args); resp != nil {
+		return resp
+	}
+
+	// Build a patch from only the keys the caller supplied so unspecified
+	// settings keep their stored value (see ConfigUpdateRequest).
+	body := mailerhandlers.ConfigUpdateRequest{
+		SMTPHost: stringPtrArg(args, "smtpHost"),
+		SMTPPort: stringPtrArg(args, "smtpPort"),
+		Username: stringPtrArg(args, "username"),
+		Password: stringPtrArg(args, "password"),
+	}
+
+	if resp := req.setBody(id, body); resp != nil {
+		return resp
+	}
+
+	return handlerMailerConfigSet(req.RequestContext)
+}
+
+func mcpSendTestEmail(req *RequestContextMCP, id any, args map[string]any) *shttp.Response {
+	if resp := req.withEnv(args); resp != nil {
+		return resp
+	}
+
+	body := mailerhandlers.RequestData{
+		To:      stringArg(args, "to"),
+		From:    stringArg(args, "from"),
+		Subject: stringArg(args, "subject"),
+		Body:    stringArg(args, "body"),
+	}
+
+	if resp := req.setBody(id, body); resp != nil {
+		return resp
+	}
+
+	resp := handlerMailSend(req.RequestContext)
+
+	// The send succeeds and records the email even with no SMTP server
+	// configured. Verifying delivery is the whole point of this tool, so
+	// surface that as an error rather than a false positive.
+	if data, ok := resp.Data.(map[string]any); ok {
+		if delivered, found := data["delivered"].(bool); found && !delivered {
+			return shttp.BadRequest(map[string]any{
+				"errors": []string{"no mailer is configured for this environment; call configure_mailer first"},
+			})
+		}
+	}
+
+	return resp
+}
+
+func mcpConfigureAuthProvider(req *RequestContextMCP, id any, args map[string]any) *shttp.Response {
+	if resp := req.withEnv(args); resp != nil {
+		return resp
+	}
+
+	body := skauthhandlers.AuthUpsertRequest{
+		ProviderName: stringArg(args, "providerName"),
+		ClientID:     stringArg(args, "clientId"),
+		ClientSecret: stringArg(args, "clientSecret"),
+		FromAddress:  stringArg(args, "fromAddress"),
+		Status:       boolPtrArg(args, "status"),
+	}
+
+	if resp := req.setBody(id, body); resp != nil {
+		return resp
+	}
+
+	return handlerAuthProviderSet(req.RequestContext)
+}
+
+func mcpListEmails(req *RequestContextMCP, args map[string]any) *shttp.Response {
+	if resp := req.withEnv(args); resp != nil {
+		return resp
+	}
+
+	return handlerMailerEmailsGet(req.RequestContext)
 }

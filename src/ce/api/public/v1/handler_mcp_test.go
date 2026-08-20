@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/smtp"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deployservice"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
 	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
@@ -69,6 +71,7 @@ func (s *HandlerMCPSuite) BeforeTest(suiteName, _ string) {
 
 func (s *HandlerMCPSuite) AfterTest(_, _ string) {
 	deployservice.MockDeployer = nil
+	buildconf.SendMailFunc = buildconf.SendMailWithDeadline
 	s.conn.CloseTx()
 }
 
@@ -312,7 +315,12 @@ func (s *HandlerMCPSuite) Test_ToolsList_ReturnsExpectedTools() {
 		"get_trigger_logs",
 		"list_teams",
 		"create_team",
+		"get_mailer_config",
+		"configure_mailer",
+		"list_emails",
+		"send_test_email",
 		"get_auth_config",
+		"configure_auth_provider",
 		"configure_auth",
 		"enable_database_integration",
 		"configure_database_integration",
@@ -343,6 +351,13 @@ func (s *HandlerMCPSuite) Test_ToolsList_HidesDatabaseToolsOnCloud() {
 	// The auth-config tools are gated the same way (self-hosted only).
 	s.NotContains(names, "get_auth_config")
 	s.NotContains(names, "configure_auth")
+	s.NotContains(names, "configure_auth_provider")
+	// The mailer tools are not gated -- mailer configuration ships in every
+	// edition, same as the /v1/mail endpoint.
+	s.Contains(names, "get_mailer_config")
+	s.Contains(names, "configure_mailer")
+	s.Contains(names, "list_emails")
+	s.Contains(names, "send_test_email")
 }
 
 func (s *HandlerMCPSuite) Test_EnableDatabaseIntegration_RejectedOnCloud() {
@@ -1435,4 +1450,542 @@ func (s *HandlerMCPSuite) Test_AuthTools_RejectedOnCloud() {
 
 func TestHandlerMCP(t *testing.T) {
 	suite.Run(t, &HandlerMCPSuite{})
+}
+
+// ---------------------------------------------------------------------------
+// Mailer tools
+// ---------------------------------------------------------------------------
+
+func (s *HandlerMCPSuite) Test_ConfigureMailer_Success() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl)
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "configure_mailer", map[string]any{
+		"envId":    mockEnv.ID.String(),
+		"smtpHost": "smtp.gmail.com",
+		"smtpPort": "587",
+		"username": "noreply@acme.com",
+		"password": "super-secret",
+	}))
+
+	env := s.rpcOK(resp)
+	data := s.toolContent(env)
+	conf := data["config"].(map[string]any)
+
+	s.Equal("smtp.gmail.com", conf["host"])
+	s.Equal("587", conf["port"])
+	s.Equal("noreply@acme.com", conf["username"])
+	s.Equal(buildconf.PasswordPlaceholder, conf["password"],
+		"the password must never be echoed back into the agent transcript")
+
+	stored, err := buildconf.NewStore().EnvironmentByID(context.Background(), mockEnv.ID)
+	s.Require().NoError(err)
+	s.Require().NotNil(stored.MailerConf)
+	s.Equal("super-secret", stored.MailerConf.Password)
+	s.Equal("smtp.gmail.com", stored.MailerConf.Host)
+}
+
+// Test_ConfigureMailer_IsPatch verifies that omitted fields — the password in
+// particular — keep their stored value. The port is patched rather than the
+// host because repointing the host deliberately drops the stored credential;
+// see Test_ConfigureMailer_HostChangeRequiresPassword.
+func (s *HandlerMCPSuite) Test_ConfigureMailer_IsPatch() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl, map[string]any{
+		"MailerConf": &buildconf.MailerConf{
+			Host:     "smtp.gmail.com",
+			Port:     "587",
+			Username: "noreply@acme.com",
+			Password: "original-pwd",
+		},
+	})
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "configure_mailer", map[string]any{
+		"envId":    mockEnv.ID.String(),
+		"smtpPort": "2525",
+	}))
+
+	s.rpcOK(resp)
+
+	stored, err := buildconf.NewStore().EnvironmentByID(context.Background(), mockEnv.ID)
+	s.Require().NoError(err)
+	s.Equal("original-pwd", stored.MailerConf.Password, "password must survive a patch that omits it")
+	s.Equal("noreply@acme.com", stored.MailerConf.Username)
+	s.Equal("smtp.gmail.com", stored.MailerConf.Host)
+	s.Equal("2525", stored.MailerConf.Port)
+}
+
+// Test_ConfigureMailer_HostChangeRequiresPassword pins the credential-rebinding
+// guard on the MCP surface: an agent holding an environment key can never
+// repoint the relay while keeping a password it is not allowed to read, so the
+// tool must report the error rather than silently leaving the config untouched.
+func (s *HandlerMCPSuite) Test_ConfigureMailer_HostChangeRequiresPassword() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl, map[string]any{
+		"MailerConf": &buildconf.MailerConf{
+			Host:     "smtp.gmail.com",
+			Port:     "587",
+			Username: "noreply@acme.com",
+			Password: "original-pwd",
+		},
+	})
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "configure_mailer", map[string]any{
+		"envId":    mockEnv.ID.String(),
+		"smtpHost": "smtp.attacker.tld",
+	}))
+
+	env := s.rpcOK(resp)
+	result := env["result"].(map[string]any)
+
+	s.True(result["isError"].(bool), "the agent must see the rejection")
+
+	errs := s.toolContent(env)["errors"].(map[string]any)
+	s.Equal("Password is a required field.", errs["password"])
+
+	stored, err := buildconf.NewStore().EnvironmentByID(context.Background(), mockEnv.ID)
+	s.Require().NoError(err)
+	s.Equal("smtp.gmail.com", stored.MailerConf.Host, "the relay must not move")
+	s.Equal("original-pwd", stored.MailerConf.Password)
+}
+
+func (s *HandlerMCPSuite) Test_ConfigureMailer_Invalid() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl)
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "configure_mailer", map[string]any{
+		"envId":    mockEnv.ID.String(),
+		"username": "noreply@acme.com",
+	}))
+
+	env := s.rpcOK(resp)
+	result := env["result"].(map[string]any)
+	s.True(result["isError"].(bool))
+}
+
+func (s *HandlerMCPSuite) Test_GetMailerConfig_MasksPassword() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl, map[string]any{
+		"MailerConf": &buildconf.MailerConf{
+			Host:     "smtp.gmail.com",
+			Port:     "587",
+			Username: "noreply@acme.com",
+			Password: "super-secret",
+		},
+	})
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "get_mailer_config", map[string]any{
+		"envId": mockEnv.ID.String(),
+	}))
+
+	env := s.rpcOK(resp)
+	conf := s.toolContent(env)["config"].(map[string]any)
+
+	s.Equal("smtp.gmail.com", conf["host"])
+	s.Equal("noreply@acme.com", conf["username"])
+	s.Equal(buildconf.PasswordPlaceholder, conf["password"],
+		"the stored SMTP password must never reach the agent")
+}
+
+func (s *HandlerMCPSuite) Test_GetMailerConfig_Forbidden() {
+	usr := s.MockUser()
+	other := s.MockUser()
+	appl := s.MockApp(other)
+	mockEnv := s.MockEnv(appl)
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "get_mailer_config", map[string]any{
+		"envId": mockEnv.ID.String(),
+	}))
+
+	env := s.rpcOK(resp)
+	result := env["result"].(map[string]any)
+	s.True(result["isError"].(bool))
+}
+
+func (s *HandlerMCPSuite) Test_SendTestEmail_NoMailerConfigured() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl)
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "send_test_email", map[string]any{
+		"envId":   mockEnv.ID.String(),
+		"to":      "someone@acme.com",
+		"subject": "Test",
+		"body":    "Hello",
+	}))
+
+	env := s.rpcOK(resp)
+	result := env["result"].(map[string]any)
+
+	s.True(result["isError"].(bool), "sending without a mailer must report an error, not a silent success")
+	s.Contains(result["content"].([]any)[0].(map[string]any)["text"], "configure_mailer")
+}
+
+func (s *HandlerMCPSuite) Test_SendTestEmail_Success() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl, map[string]any{
+		"MailerConf": &buildconf.MailerConf{
+			Host:     "smtp.gmail.com",
+			Port:     "587",
+			Username: "noreply@acme.com",
+			Password: "super-secret",
+		},
+	})
+	key := s.userKey(usr)
+
+	sent := struct {
+		addr string
+		from string
+		to   []string
+		msg  []byte
+	}{}
+
+	buildconf.SendMailFunc = func(addr string, a smtp.Auth, from string, to []string, msg []byte) error {
+		sent.addr, sent.from, sent.to, sent.msg = addr, from, to, msg
+		return nil
+	}
+
+	resp := s.post(key.Value, mcpToolCall(1, "send_test_email", map[string]any{
+		"envId":   mockEnv.ID.String(),
+		"to":      "someone@acme.com",
+		"from":    "noreply@acme.com",
+		"subject": "Test",
+		"body":    "Hello",
+	}))
+
+	env := s.rpcOK(resp)
+	_, isError := env["result"].(map[string]any)["isError"]
+	s.False(isError)
+
+	s.Equal("smtp.gmail.com:587", sent.addr)
+	s.Equal("noreply@acme.com", sent.from)
+	s.Equal([]string{"someone@acme.com"}, sent.to)
+	s.Contains(string(sent.msg), "Hello")
+}
+
+// ---------------------------------------------------------------------------
+// Auth provider tool
+// ---------------------------------------------------------------------------
+
+func (s *HandlerMCPSuite) Test_ConfigureAuthProvider_MagicLink() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl, map[string]any{
+		"SchemaConf": &buildconf.SchemaConf{
+			Host:              s.conn.Cfg.Host,
+			Port:              s.conn.Cfg.Port,
+			DBName:            s.conn.Cfg.DBName,
+			SchemaName:        s.conn.Cfg.Schema,
+			AppUserName:       s.conn.Cfg.User,
+			AppPassword:       s.conn.Cfg.Password,
+			MigrationPassword: s.conn.Cfg.Password,
+			MigrationUserName: s.conn.Cfg.User,
+			MigrationsEnabled: true,
+		},
+	})
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "configure_auth_provider", map[string]any{
+		"envId":        mockEnv.ID.String(),
+		"providerName": skauth.ProviderMagicLink,
+		"fromAddress":  "Acme <noreply@acme.com>",
+		"status":       true,
+	}))
+
+	env := s.rpcOK(resp)
+	_, isError := env["result"].(map[string]any)["isError"]
+	s.False(isError)
+
+	provider, err := skauth.NewStore().Provider(context.Background(), mockEnv.ID, skauth.ProviderMagicLink)
+	s.Require().NoError(err)
+	s.Require().NotNil(provider)
+	s.True(provider.Status)
+	s.Equal("Acme <noreply@acme.com>", provider.Data.FromAddress)
+}
+
+func (s *HandlerMCPSuite) Test_ConfigureAuthProvider_RequiresSchema() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl)
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "configure_auth_provider", map[string]any{
+		"envId":        mockEnv.ID.String(),
+		"providerName": skauth.ProviderMagicLink,
+		"fromAddress":  "noreply@acme.com",
+		"status":       true,
+	}))
+
+	env := s.rpcOK(resp)
+	result := env["result"].(map[string]any)
+	s.True(result["isError"].(bool))
+}
+
+func (s *HandlerMCPSuite) Test_ConfigureAuthProvider_RejectedOnCloud() {
+	config.SetIsStormkitCloud(true)
+	defer config.SetIsStormkitCloud(false)
+
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl)
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "configure_auth_provider", map[string]any{
+		"envId":        mockEnv.ID.String(),
+		"providerName": skauth.ProviderMagicLink,
+	}))
+
+	errObj := s.rpcError(resp)
+	s.EqualValues(-32601, errObj["code"])
+}
+
+// Test_ListEmails_OmitsBody keeps live magic-link tokens out of an agent's
+// transcript: the mailer log stores those emails verbatim.
+func (s *HandlerMCPSuite) Test_ListEmails_OmitsBody() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl)
+	key := s.userKey(usr)
+
+	err := buildconf.MailerStore().InsertEmail(context.Background(), buildconf.Email{
+		EnvID:   mockEnv.ID,
+		To:      "someone@acme.com",
+		From:    "noreply@acme.com",
+		Subject: "Your magic link",
+		Body:    `<a href="https://app.example.com/_stormkit/auth/magic?token=live-token">link</a>`,
+	})
+
+	s.Require().NoError(err)
+
+	resp := s.post(key.Value, mcpToolCall(1, "list_emails", map[string]any{
+		"envId": mockEnv.ID.String(),
+	}))
+
+	env := s.rpcOK(resp)
+	emails := s.toolContent(env)["emails"].([]any)
+
+	s.Require().Len(emails, 1)
+
+	email := emails[0].(map[string]any)
+	s.Equal("Your magic link", email["subject"])
+	s.Equal("s***@acme.com", email["to"], "the recipient's local part must not reach an agent")
+	s.NotContains(email, "body")
+}
+
+// Test_ConfigureAuthProvider_AcceptsHyphenatedName pins the wire string an
+// agent actually sends. The canonical id is "magiclink"; the tool schema and
+// the docs previously advertised "magic-link", which fell through to the OAuth
+// branch and failed with "Client ID is required".
+func (s *HandlerMCPSuite) Test_ConfigureAuthProvider_AcceptsHyphenatedName() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl, map[string]any{
+		"SchemaConf": &buildconf.SchemaConf{
+			Host:              s.conn.Cfg.Host,
+			Port:              s.conn.Cfg.Port,
+			DBName:            s.conn.Cfg.DBName,
+			SchemaName:        s.conn.Cfg.Schema,
+			AppUserName:       s.conn.Cfg.User,
+			AppPassword:       s.conn.Cfg.Password,
+			MigrationPassword: s.conn.Cfg.Password,
+			MigrationUserName: s.conn.Cfg.User,
+			MigrationsEnabled: true,
+		},
+	})
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "configure_auth_provider", map[string]any{
+		"envId":        mockEnv.ID.String(),
+		"providerName": "magic-link",
+		"fromAddress":  "noreply@acme.com",
+		"status":       true,
+	}))
+
+	env := s.rpcOK(resp)
+	_, isError := env["result"].(map[string]any)["isError"]
+	s.False(isError, "the hyphenated spelling must resolve to the magiclink provider")
+
+	provider, err := skauth.NewStore().Provider(context.Background(), mockEnv.ID, skauth.ProviderMagicLink)
+	s.Require().NoError(err)
+	s.Require().NotNil(provider)
+	s.Equal("noreply@acme.com", provider.Data.FromAddress)
+}
+
+// Test_ConfigureAuthProvider_KeepsStatusWhenOmitted covers the patch semantics
+// the tool advertises: rotating a credential must not disable a live provider.
+func (s *HandlerMCPSuite) Test_ConfigureAuthProvider_KeepsStatusWhenOmitted() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl, map[string]any{
+		"SchemaConf": &buildconf.SchemaConf{
+			Host:              s.conn.Cfg.Host,
+			Port:              s.conn.Cfg.Port,
+			DBName:            s.conn.Cfg.DBName,
+			SchemaName:        s.conn.Cfg.Schema,
+			AppUserName:       s.conn.Cfg.User,
+			AppPassword:       s.conn.Cfg.Password,
+			MigrationPassword: s.conn.Cfg.Password,
+			MigrationUserName: s.conn.Cfg.User,
+			MigrationsEnabled: true,
+		},
+	})
+	key := s.userKey(usr)
+
+	enable := s.post(key.Value, mcpToolCall(1, "configure_auth_provider", map[string]any{
+		"envId":        mockEnv.ID.String(),
+		"providerName": skauth.ProviderGoogle,
+		"clientId":     "client-id",
+		"clientSecret": "client-secret",
+		"status":       true,
+	}))
+
+	s.rpcOK(enable)
+
+	// Rotate the client id without mentioning status.
+	rotate := s.post(key.Value, mcpToolCall(2, "configure_auth_provider", map[string]any{
+		"envId":        mockEnv.ID.String(),
+		"providerName": skauth.ProviderGoogle,
+		"clientId":     "rotated-id",
+	}))
+
+	s.rpcOK(rotate)
+
+	provider, err := skauth.NewStore().Provider(context.Background(), mockEnv.ID, skauth.ProviderGoogle)
+	s.Require().NoError(err)
+	s.Require().NotNil(provider)
+	s.True(provider.Status, "omitting status must not disable a live provider")
+	s.Equal("rotated-id", provider.Data.ClientID)
+	s.Equal("client-secret", provider.Data.ClientSecret, "omitted secret must be retained")
+}
+
+// Test_ConfigureAuthProvider_KeepsFromAddressWhenOmitted covers the same patch
+// semantics for the from address: nothing on the MCP surface can read it back,
+// so requiring it on every write would make a live magiclink provider
+// impossible to disable.
+func (s *HandlerMCPSuite) Test_ConfigureAuthProvider_KeepsFromAddressWhenOmitted() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl, map[string]any{
+		"SchemaConf": &buildconf.SchemaConf{
+			Host:              s.conn.Cfg.Host,
+			Port:              s.conn.Cfg.Port,
+			DBName:            s.conn.Cfg.DBName,
+			SchemaName:        s.conn.Cfg.Schema,
+			AppUserName:       s.conn.Cfg.User,
+			AppPassword:       s.conn.Cfg.Password,
+			MigrationPassword: s.conn.Cfg.Password,
+			MigrationUserName: s.conn.Cfg.User,
+			MigrationsEnabled: true,
+		},
+	})
+	key := s.userKey(usr)
+
+	enable := s.post(key.Value, mcpToolCall(1, "configure_auth_provider", map[string]any{
+		"envId":        mockEnv.ID.String(),
+		"providerName": skauth.ProviderMagicLink,
+		"fromAddress":  "Acme <noreply@acme.com>",
+		"status":       true,
+	}))
+
+	s.rpcOK(enable)
+
+	disable := s.post(key.Value, mcpToolCall(2, "configure_auth_provider", map[string]any{
+		"envId":        mockEnv.ID.String(),
+		"providerName": skauth.ProviderMagicLink,
+		"status":       false,
+	}))
+
+	env := s.rpcOK(disable)
+	_, isError := env["result"].(map[string]any)["isError"]
+	s.False(isError, "a live magiclink provider must be disableable without resending the address")
+
+	provider, err := skauth.NewStore().Provider(context.Background(), mockEnv.ID, skauth.ProviderMagicLink)
+	s.Require().NoError(err)
+	s.Require().NotNil(provider)
+	s.False(provider.Status)
+	s.Equal("Acme <noreply@acme.com>", provider.Data.FromAddress, "omitted from address must be retained")
+}
+
+// Test_ConfigureAuthProvider_CoercesQuotedStatus pins the fail-open direction
+// of a mistyped argument: a quoted boolean must still disable the provider,
+// because an ignored status silently keeps a live sign-in method enabled.
+func (s *HandlerMCPSuite) Test_ConfigureAuthProvider_CoercesQuotedStatus() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl, map[string]any{
+		"SchemaConf": &buildconf.SchemaConf{
+			Host:              s.conn.Cfg.Host,
+			Port:              s.conn.Cfg.Port,
+			DBName:            s.conn.Cfg.DBName,
+			SchemaName:        s.conn.Cfg.Schema,
+			AppUserName:       s.conn.Cfg.User,
+			AppPassword:       s.conn.Cfg.Password,
+			MigrationPassword: s.conn.Cfg.Password,
+			MigrationUserName: s.conn.Cfg.User,
+			MigrationsEnabled: true,
+		},
+	})
+	key := s.userKey(usr)
+
+	enable := s.post(key.Value, mcpToolCall(1, "configure_auth_provider", map[string]any{
+		"envId":        mockEnv.ID.String(),
+		"providerName": skauth.ProviderEmail,
+		"status":       true,
+	}))
+
+	s.rpcOK(enable)
+
+	disable := s.post(key.Value, mcpToolCall(2, "configure_auth_provider", map[string]any{
+		"envId":        mockEnv.ID.String(),
+		"providerName": skauth.ProviderEmail,
+		"status":       "false",
+	}))
+
+	s.rpcOK(disable)
+
+	provider, err := skauth.NewStore().Provider(context.Background(), mockEnv.ID, skauth.ProviderEmail)
+	s.Require().NoError(err)
+	s.Require().NotNil(provider)
+	s.False(provider.Status, "a quoted boolean must not be dropped into keep-existing")
+}
+
+// Test_ConfigureMailer_CoercesNumericPort covers the same coercion for a
+// patch-style string field: a bare JSON number must not be dropped, or the tool
+// answers 200 with the port it failed to change.
+func (s *HandlerMCPSuite) Test_ConfigureMailer_CoercesNumericPort() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl, map[string]any{
+		"MailerConf": &buildconf.MailerConf{
+			Host:     "smtp.gmail.com",
+			Port:     "587",
+			Username: "noreply@acme.com",
+			Password: "original-pwd",
+		},
+	})
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "configure_mailer", map[string]any{
+		"envId":    mockEnv.ID.String(),
+		"smtpPort": 2525,
+	}))
+
+	s.rpcOK(resp)
+
+	stored, err := buildconf.NewStore().EnvironmentByID(context.Background(), mockEnv.ID)
+	s.Require().NoError(err)
+	s.Equal("2525", stored.MailerConf.Port, "a numeric port must not be silently ignored")
 }

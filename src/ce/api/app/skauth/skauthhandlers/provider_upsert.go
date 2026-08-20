@@ -129,6 +129,12 @@ func providerDataFor(p providerDataForParams) (skauth.ProviderData, error) {
 	case skauth.ProviderEmail, skauth.ProviderMagicLink:
 		fromAddress := strings.TrimSpace(data.FromAddress)
 
+		// An omitted from address keeps the stored one, so a caller that cannot
+		// read it back can still toggle the provider.
+		if fromAddress == "" && p.Existing != nil {
+			fromAddress = p.Existing.Data.FromAddress
+		}
+
 		if data.ProviderName == skauth.ProviderMagicLink && fromAddress == "" {
 			return skauth.ProviderData{}, &ProviderValidationError{Message: "From address is required"}
 		}
@@ -142,6 +148,11 @@ func providerDataFor(p providerDataForParams) (skauth.ProviderData, error) {
 		if p.Existing != nil && p.Existing.Data.ClientSecret != "" {
 			data.ClientSecret = p.Existing.Data.ClientSecret
 		}
+	}
+
+	// An omitted client ID keeps the stored one, for the same reason.
+	if data.ClientID == "" && p.Existing != nil {
+		data.ClientID = p.Existing.Data.ClientID
 	}
 
 	if data.ClientID == "" {
