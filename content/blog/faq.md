@@ -26,7 +26,7 @@ On Stormkit Cloud, backend code runs as [serverless functions](/docs/features/wr
 
 <summary>Is it possible to establish a database connection using Stormkit?</summary>
 
-Certainly! Explore our [detailed blog post](/blog/monitoring-app-using-stormkit-and-supabase) as an example, demonstrating the integration with Supabase, a PostgreSQL database. By injecting database credentials as environment variables into backend functions, you can seamlessly establish a connection.
+Certainly! Stormkit can provision a [PostgreSQL database](/docs/features/database) for your environment and run migrations on deployment. You can also connect to an external database by injecting its credentials as environment variables into your backend functions.
 
 </details>
 

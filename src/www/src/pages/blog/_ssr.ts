@@ -35,9 +35,8 @@ export const fetchData: FetchDataFunc = async ({ title }: Params) => {
       search,
     } = attrs
 
-    const titleNormalized = (
+    const titleNormalized =
       title || toTitleCase(fileName.split('--')[0].replace(/-/g, ' '))
-    ).replaceAll("'", '')
 
     if (fileName === slug) {
       active = true
@@ -68,6 +67,20 @@ export const fetchData: FetchDataFunc = async ({ title }: Params) => {
     const date2 = n2.date || ''
     return date1 < date2 ? 1 : date1 > date2 ? -1 : 0
   })
+
+  // The index route shares this loader with /blog/:title and has no title to
+  // match against, so it would otherwise inherit the home page metadata.
+  if (!slug) {
+    return {
+      head: {
+        title: 'Blog',
+        description:
+          'Product updates, engineering write-ups and guides on deploying, self-hosting and running web applications with Stormkit.',
+        type: 'website',
+      },
+      context: { navigation },
+    }
+  }
 
   if (!foundFile || !files[foundFile.fileName]) {
     return { head: {}, context: { navigation } }

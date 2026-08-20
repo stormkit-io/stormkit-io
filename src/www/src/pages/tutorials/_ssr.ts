@@ -37,6 +37,21 @@ export const fetchData: FetchDataFunc = async ({ slug }: Params) => {
     })
   }
 
+  // The index route shares this loader with /tutorials/:slug, and has no slug
+  // to match against. It gets its own listing metadata rather than the
+  // not-found copy meant for an unknown slug.
+  if (!slug) {
+    return {
+      head: {
+        title: 'Tutorials',
+        description:
+          'Step-by-step guides for deploying and self-hosting web apps, APIs and databases on Stormkit.',
+        type: 'website',
+      },
+      context: { navigation, content: '' },
+    }
+  }
+
   if (!articleContent) {
     articleContent = 'Tutorial is not found.'
   }
