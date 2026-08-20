@@ -378,9 +378,10 @@ where you can also update or remove individual users.
 
 ## Configuring authentication via the API
 
-The Authentication **settings** (not the individual providers or users) can be
-managed programmatically, which is handy for scripting an environment or driving
-it from an AI agent. This mirrors the global settings in the dashboard.
+The Authentication **settings** and the individual **sign-in providers** (not
+the users) can be managed programmatically, which is handy for scripting an
+environment or driving it from an AI agent. This mirrors the global settings in
+the dashboard.
 
 - `GET /v1/auth/config?envId=<id>` — returns the current configuration. Secrets
   (the signing secret and provider client secrets) are never included.
@@ -411,6 +412,38 @@ curl -X POST \
      -H 'Content-Type: application/json' \
      -d '{"status": true, "successUrl": "/auth/success", "tokenTtl": 10080}' \
      'https://app.example.com/v1/auth/config?envId=<id>'
+```
+
+### Configuring providers via the API
+
+The sign-in providers themselves are managed through a second pair of endpoints,
+with the same key requirements and the same self-hosted-only availability.
+
+- `GET /v1/auth/providers?envId=<id>` — returns the configured providers
+  alongside the auth configuration. Client secrets are replaced with the
+  `****-****-****-****` placeholder and never returned.
+- `POST /v1/auth/providers` — enables or updates a single provider. `status` is
+  optional: omitting it keeps the provider's current enabled flag, so rotating a
+  secret cannot accidentally disable a live provider.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `providerName` | string | `google`, `x`, `email` or `magiclink`. Separators are ignored, so `magic-link` also works. |
+| `status` | boolean | Enable or disable the provider. Omitted keeps the stored value; a new provider defaults to enabled. |
+| `clientId` | string | OAuth client id. Required for OAuth providers. |
+| `clientSecret` | string | OAuth client secret. Write-only; omit it or send the placeholder to keep the stored one. |
+| `fromAddress` | string | Sender address for the `email` and `magiclink` providers. Required for `magiclink`. |
+
+Enabling a provider requires the environment to have a
+[database schema](/docs/features/database) configured, and creates a default
+auth configuration when the environment has none.
+
+```bash
+curl -X POST \
+     -H 'Authorization: Bearer <api_key>' \
+     -H 'Content-Type: application/json' \
+     -d '{"envId": "<id>", "providerName": "magiclink", "fromAddress": "noreply@example.com"}' \
+     'https://app.example.com/v1/auth/providers'
 ```
 
 The same two operations are exposed to MCP clients as the `get_auth_config` and

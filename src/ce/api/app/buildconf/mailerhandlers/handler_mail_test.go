@@ -29,7 +29,7 @@ func (s *MailerSuite) BeforeTest(suiteName, _ string) {
 
 func (s *MailerSuite) AfterTest(_, _ string) {
 	s.conn.CloseTx()
-	buildconf.SendMailFunc = smtp.SendMail
+	buildconf.SendMailFunc = buildconf.SendMailWithDeadline
 }
 
 func (s *MailerSuite) Test_Success() {

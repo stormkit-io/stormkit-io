@@ -3,7 +3,6 @@ package mailerhandlers_test
 import (
 	"fmt"
 	"net/http"
-	"net/smtp"
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
@@ -29,7 +28,7 @@ func (s *HandlerMailerConfigGetSuite) BeforeTest(suiteName, _ string) {
 
 func (s *HandlerMailerConfigGetSuite) AfterTest(_, _ string) {
 	s.conn.CloseTx()
-	buildconf.SendMailFunc = smtp.SendMail
+	buildconf.SendMailFunc = buildconf.SendMailWithDeadline
 }
 
 func (s *HandlerMailerConfigGetSuite) Test_Success() {

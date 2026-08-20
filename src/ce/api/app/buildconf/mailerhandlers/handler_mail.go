@@ -1,41 +1,19 @@
 package mailerhandlers
 
 import (
+	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
-	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
-
-type RequestData struct {
-	To      string `json:"to"`
-	From    string `json:"from"`
-	Body    string `json:"body"`
-	Subject string `json:"subject"`
-}
 
 func HandlerMail(req *app.RequestContext) *shttp.Response {
 	data := RequestData{}
 
 	if err := req.Post(&data); err != nil {
 		return shttp.Error(err)
-	}
-
-	if strings.TrimSpace(data.Body) == "" {
-		return &shttp.Response{
-			Status: http.StatusBadRequest,
-			Data:   map[string]string{"error": "Email body is a required field."},
-		}
-	}
-
-	if strings.TrimSpace(data.Subject) == "" {
-		return &shttp.Response{
-			Status: http.StatusBadRequest,
-			Data:   map[string]string{"error": "Subject is a required field."},
-		}
 	}
 
 	env, err := buildconf.NewStore().EnvironmentByID(req.Context(), req.EnvID)
@@ -45,43 +23,35 @@ func HandlerMail(req *app.RequestContext) *shttp.Response {
 	}
 
 	// WithApp only asserts that an envId was provided, not that it exists, and
-	// the store returns (nil, nil) for an unknown id.
+	// the store returns (nil, nil) for an unknown id. SendAndRecord
+	// dereferences Env, so this has to be checked before the call.
 	if env == nil {
 		return shttp.NotFound()
 	}
 
-	config := env.MailerConf
-	from := data.From
+	delivered, err := SendAndRecord(req.Context(), SendAndRecordParams{Env: env, Data: data})
 
-	// An environment with no SMTP configuration records the email without
-	// sending it - see Test_NoConfig_StoresEmail.
-	if config != nil {
-		from = utils.GetString(data.From, config.Username)
+	if err != nil {
+		var verr *SendValidationError
 
-		if err := config.Send(buildconf.SendEmailParams{
-			To:      data.To,
-			From:    data.From,
-			Subject: data.Subject,
-			Body:    data.Body,
-		}); err != nil {
+		if errors.As(err, &verr) {
 			return &shttp.Response{
-				Status: http.StatusInternalServerError,
-				Data:   map[string]string{"error": err.Error()},
+				Status: http.StatusBadRequest,
+				Data:   map[string]string{"error": verr.Message},
 			}
 		}
-	}
 
-	email := buildconf.Email{
-		EnvID:   req.EnvID,
-		From:    from,
-		To:      data.To,
-		Body:    data.Body,
-		Subject: data.Subject,
-	}
-
-	if err := buildconf.MailerStore().InsertEmail(req.Context(), email); err != nil {
+		// shttp.Error logs with caller info and returns a generic body. The
+		// SMTP host is configurable, so the raw error would echo whatever the
+		// relay - or the database - said back to the client.
 		return shttp.Error(err)
 	}
 
-	return shttp.OK()
+	// delivered is false when the environment has no SMTP configuration: the
+	// message is recorded but never sent, so a bare ok would let the dashboard
+	// report a successful test email that was never handed to a relay.
+	return &shttp.Response{
+		Status: http.StatusOK,
+		Data:   map[string]any{"ok": true, "delivered": delivered},
+	}
 }

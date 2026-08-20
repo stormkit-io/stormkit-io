@@ -62,8 +62,12 @@ export default function SendTestEmailModal({
           subject: "Test email subject",
         }),
       })
-      .then(() => {
-        setSuccess("Test email sent to " + data.to);
+      .then((res: { delivered?: boolean }) => {
+        setSuccess(
+          res?.delivered === false
+            ? "Email recorded, but not delivered: this environment has no SMTP configuration."
+            : "Test email sent to " + data.to
+        );
       })
       .catch(() => {
         setError("Something went wrong while sending test email.");

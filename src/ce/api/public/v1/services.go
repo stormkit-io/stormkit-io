@@ -3,7 +3,6 @@ package publicapiv1
 import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/mailerhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/volumes"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
@@ -83,7 +82,14 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodGet, "", WithAPIKey(handlerFunctionTriggersGet, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	s.NewEndpoint("/v1/mail").
-		Handler(shttp.MethodPost, "", app.WithAPIKey(mailerhandlers.HandlerMail, &app.Opts{Env: true}))
+		Handler(shttp.MethodPost, "", WithAPIKey(handlerMailSend, &Opts{MinimumScope: apikey.SCOPE_ENV}))
+
+	s.NewEndpoint("/v1/mailer/config").
+		Handler(shttp.MethodGet, "", WithAPIKey(handlerMailerConfigGet, &Opts{MinimumScope: apikey.SCOPE_ENV})).
+		Handler(shttp.MethodPost, "", WithAPIKey(handlerMailerConfigSet, &Opts{MinimumScope: apikey.SCOPE_ENV}))
+
+	s.NewEndpoint("/v1/mailer/emails").
+		Handler(shttp.MethodGet, "", WithAPIKey(handlerMailerEmailsGet, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	s.NewEndpoint("/v1/volumes").
 		Middleware(volumes.LimitRequestBody()).
@@ -101,6 +107,10 @@ func Services(r *shttp.Router) *shttp.Service {
 		s.NewEndpoint("/v1/auth/config").
 			Handler(shttp.MethodGet, "", WithAPIKey(handlerAuthConfigGet, &Opts{MinimumScope: apikey.SCOPE_ENV})).
 			Handler(shttp.MethodPost, "", WithAPIKey(handlerAuthConfigSet, &Opts{MinimumScope: apikey.SCOPE_ENV}))
+
+		s.NewEndpoint("/v1/auth/providers").
+			Handler(shttp.MethodGet, "", WithAPIKey(handlerAuthProvidersGet, &Opts{MinimumScope: apikey.SCOPE_ENV})).
+			Handler(shttp.MethodPost, "", WithAPIKey(handlerAuthProviderSet, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 	}
 
 	if config.IsDevelopment() || config.IsSelfHosted() {

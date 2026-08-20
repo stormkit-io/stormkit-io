@@ -31,6 +31,9 @@ const (
 	TypeAuthWall   string = "AUTHWALL"
 	TypeSchema     string = "SCHEMA"
 	TypeDeployment string = "DEPLOYMENT"
+
+	TypeMailer       string = "MAILER"
+	TypeAuthProvider string = "AUTHPROVIDER"
 )
 
 // AuditData is the data extracted from a request context for auditing.
@@ -79,6 +82,14 @@ type DiffFields struct {
 	AuthWallDeleteLoginIDs   string                 `json:"authWallDeleteLoginIds,omitempty"`
 	SchemaName               string                 `json:"schemaName,omitempty"`
 	DeploymentID             string                 `json:"deploymentId,omitempty"`
+	MailerHost               string                 `json:"mailerHost,omitempty"`
+	MailerPort               string                 `json:"mailerPort,omitempty"`
+	MailerUsername           string                 `json:"mailerUsername,omitempty"`
+	MailerPasswordChanged    *bool                  `json:"mailerPasswordChanged,omitempty"`
+	AuthProviderName         string                 `json:"authProviderName,omitempty"`
+	AuthProviderStatus       *bool                  `json:"authProviderStatus,omitempty"`
+	AuthProviderFromAddress  string                 `json:"authProviderFromAddress,omitempty"`
+	AuthProviderClientID     string                 `json:"authProviderClientId,omitempty"`
 	AutoPublished            *bool                  `json:"autoPublished,omitempty"`
 	Restarted                *bool                  `json:"restarted,omitempty"`
 	Stopped                  *bool                  `json:"stopped,omitempty"`
