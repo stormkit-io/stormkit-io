@@ -1,3 +1,8 @@
+---
+title: Image Optimization Setup
+description: Enable Stormkit's opt-in image optimization: the system dependencies it needs, how to turn it on, and how to verify it is running.
+---
+
 # Image Optimization
 
 Stormkit includes optional image optimization capabilities that can resize and optimize images on-the-fly. This feature is **opt-in** and requires additional system dependencies.

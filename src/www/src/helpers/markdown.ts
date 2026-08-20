@@ -28,6 +28,11 @@ export interface Attributes {
   search?: string // Whether to include as a resource in the search modal or not
 }
 
+// Front matter values may be wrapped in quotes so that a value containing a
+// colon stays valid YAML. The quotes are delimiters, not part of the value.
+const unquote = (value: string): string =>
+  /^(['"]).*\1$/s.test(value) ? value.slice(1, -1) : value
+
 export const parseAttributes = (
   content: string,
   category?: string
@@ -49,7 +54,7 @@ export const parseAttributes = (
             .replace(/-[a-z]/, (m) =>
               m.toUpperCase().replace('-', '')
             ) as keyof Attributes
-        ] = value.join(':').trim()
+        ] = unquote(value.join(':').trim())
       })
   }
 

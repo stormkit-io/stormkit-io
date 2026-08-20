@@ -1,3 +1,8 @@
+---
+title: Development Troubleshooting
+description: Fixes for common problems when running Stormkit locally, including mise, Go toolchain and image optimization setup errors.
+---
+
 # Troubleshooting
 
 <details>
@@ -32,7 +37,7 @@ For other shells, replace `zsh` with your shell (e.g., `bash`, `fish`). See [mis
 Image optimization is disabled by default on local environments to avoid
 requiring additional dependencies.
 
-See [docs/image-optimization.md](docs/image-optimization.md) for more details on enabling and using image optimization.
+See [Image Optimization Setup](/docs/development/image-optimization) for more details on enabling and using image optimization.
 
 </details>
 
