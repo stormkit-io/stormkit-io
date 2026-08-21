@@ -1,7 +1,6 @@
 package publicapiv1
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/mailerhandlers"
@@ -22,16 +21,11 @@ func handlerMailSend(req *RequestContext) *shttp.Response {
 		Data: data,
 	})
 
+	// shttp.Error renders a validation failure as a 400 with the field errors,
+	// and anything else as a generic body logged with caller info. The SMTP
+	// host is caller-supplied, so echoing the raw send error would turn a
+	// failed send into a probe oracle for hosts reachable from the API.
 	if err != nil {
-		var verr *mailerhandlers.SendValidationError
-
-		if errors.As(err, &verr) {
-			return shttp.BadRequest(map[string]any{"error": verr.Message})
-		}
-
-		// shttp.Error logs with caller info and returns a generic body. The
-		// SMTP host is caller-supplied, so echoing the raw error would turn a
-		// failed send into a probe oracle for hosts reachable from the API.
 		return shttp.Error(err)
 	}
 

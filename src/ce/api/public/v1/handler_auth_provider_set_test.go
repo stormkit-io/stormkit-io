@@ -108,9 +108,9 @@ func (s *HandlerAuthProviderSetSuite) Test_Set_StoresProvider() {
 	s.Equal("client-secret", provider.Data.ClientSecret)
 }
 
-// Test_Set_ValidationErrorIsBadRequest covers the ProviderValidationError
-// branch: magiclink has no from address, so the upsert must be rejected with a
-// 400 carrying the message rather than a generic 500.
+// Test_Set_ValidationErrorIsBadRequest covers the validation branch: magiclink
+// has no from address, so the upsert must be rejected with a 400 carrying the
+// field error rather than a generic 500.
 func (s *HandlerAuthProviderSetSuite) Test_Set_ValidationErrorIsBadRequest() {
 	response := shttptest.RequestWithHeaders(
 		s.handler(),
@@ -124,7 +124,7 @@ func (s *HandlerAuthProviderSetSuite) Test_Set_ValidationErrorIsBadRequest() {
 	)
 
 	s.Equal(http.StatusBadRequest, response.Code)
-	s.Contains(response.String(), "From address is required")
+	s.JSONEq(`{"errors":{"fromAddress":"From address is required"}}`, response.String())
 }
 
 func (s *HandlerAuthProviderSetSuite) Test_Set_IsAudited() {

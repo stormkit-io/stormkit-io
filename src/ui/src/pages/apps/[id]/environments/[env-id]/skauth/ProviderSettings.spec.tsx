@@ -282,5 +282,17 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/ProviderSettings.tsx", 
         ).toBeTruthy();
       });
     });
+
+    it("should display field validation errors on 400", async () => {
+      nock(apiDomain)
+        .post("/skauth")
+        .reply(400, { errors: { clientId: "Client ID is required" } });
+
+      fireEvent.click(wrapper.getByText("Save"));
+
+      await waitFor(() => {
+        expect(wrapper.getByText("Client ID is required")).toBeTruthy();
+      });
+    });
   });
 });
