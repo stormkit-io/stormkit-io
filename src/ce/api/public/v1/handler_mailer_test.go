@@ -231,7 +231,7 @@ func (s *HandlerMailerSuite) Test_Send_RequiresSubject() {
 	)
 
 	s.Equal(http.StatusBadRequest, response.Code)
-	s.Contains(response.String(), "Subject is a required field.")
+	s.JSONEq(`{"errors":{"subject":"Subject is a required field."}}`, response.String())
 }
 
 // Test_EmailsGet_OmitsBody is the guarantee that keeps magic-link tokens out of

@@ -5,16 +5,9 @@ import (
 	"strings"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
+	"github.com/stormkit-io/stormkit-io/src/lib/shttp/shttperr"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
-
-// SendValidationError is a user-facing validation failure on an outgoing
-// email. Handlers surface Message in the 400 response body.
-type SendValidationError struct {
-	Message string
-}
-
-func (e *SendValidationError) Error() string { return e.Message }
 
 // SendAndRecordParams carries the environment to send from and the message.
 type SendAndRecordParams struct {
@@ -30,16 +23,19 @@ type SendAndRecordParams struct {
 // is deliberate — it lets an app use the mailer log before an SMTP server is
 // configured — so callers that need to know delivery happened must consult the
 // returned flag rather than a nil error.
+//
+// On validation failure it returns a *shttperr.ValidationError, which
+// shttp.Error renders as a 400 with the field errors.
 func SendAndRecord(ctx context.Context, p SendAndRecordParams) (delivered bool, err error) {
 	env := p.Env
 	data := p.Data
 
 	if strings.TrimSpace(data.Body) == "" {
-		return false, &SendValidationError{Message: "Email body is a required field."}
+		return false, &shttperr.ValidationError{Errors: map[string]string{"body": "Email body is a required field."}}
 	}
 
 	if strings.TrimSpace(data.Subject) == "" {
-		return false, &SendValidationError{Message: "Subject is a required field."}
+		return false, &shttperr.ValidationError{Errors: map[string]string{"subject": "Subject is a required field."}}
 	}
 
 	from := data.From

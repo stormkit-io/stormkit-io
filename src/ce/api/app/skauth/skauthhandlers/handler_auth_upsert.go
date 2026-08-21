@@ -1,8 +1,6 @@
 package skauthhandlers
 
 import (
-	"errors"
-
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -37,13 +35,9 @@ func handlerAuthUpsert(req *app.RequestContext) *shttp.Response {
 		Data:  data,
 	})
 
+	// UpsertProvider reports a validation failure as a *shttperr.ValidationError,
+	// which shttp.Error renders as a 400 with the field errors.
 	if err != nil {
-		var verr *ProviderValidationError
-
-		if errors.As(err, &verr) {
-			return shttp.BadRequest(map[string]any{"error": verr.Message})
-		}
-
 		return shttp.Error(err)
 	}
 

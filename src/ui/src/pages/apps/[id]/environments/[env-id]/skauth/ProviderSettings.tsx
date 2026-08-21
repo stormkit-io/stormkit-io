@@ -131,11 +131,9 @@ export default function ProviderSettings({
               setRefreshToken(Date.now());
               onClose();
             })
-            .catch(res => {
+            .catch(async (res: Response) => {
               if (res.status === 400) {
-                res.json().then(({ error }: { error: string }) => {
-                  setError(error);
-                });
+                setError((await Api.errors(res)).join(" "));
               } else {
                 setError(
                   "Something went wrong while saving provider settings.",

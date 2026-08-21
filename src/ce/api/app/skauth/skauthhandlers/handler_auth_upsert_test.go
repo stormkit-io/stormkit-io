@@ -143,51 +143,67 @@ func (s *HandlerAuthUpsertSuite) Test_Update() {
 }
 
 func (s *HandlerAuthUpsertSuite) Test_InvalidRequests() {
-	type payload = map[string]any
-
 	envWithoutSchema := s.MockEnv(s.app, map[string]any{
 		"Name": "env_without_schema",
 	})
 
-	payloads := map[string]payload{
-		"Schema configuration is not set for this environment. Please configure it first.": {
-			"envId": envWithoutSchema.ID,
+	cases := []struct {
+		field   string
+		message string
+		payload map[string]any
+	}{
+		{
+			field:   "schema",
+			message: "Schema configuration is not set for this environment. Please configure it first.",
+			payload: map[string]any{
+				"envId": envWithoutSchema.ID,
+			},
 		},
-		"Client ID is required": {
-			"envId":        s.env.ID,
-			"providerName": "google",
-			"clientSecret": "test",
-			"status":       true,
+		{
+			field:   "clientId",
+			message: "Client ID is required",
+			payload: map[string]any{
+				"envId":        s.env.ID,
+				"providerName": "google",
+				"clientSecret": "test",
+				"status":       true,
+			},
 		},
-		"Client Secret is required": {
-			"envId":        s.env.ID,
-			"providerName": "google",
-			"clientId":     "test-client-id",
-			"status":       true,
+		{
+			field:   "clientSecret",
+			message: "Client Secret is required",
+			payload: map[string]any{
+				"envId":        s.env.ID,
+				"providerName": "google",
+				"clientId":     "test-client-id",
+				"status":       true,
+			},
 		},
-		"Invalid provider": {
-			"envId":        s.env.ID,
-			"providerName": "invalid-provider",
-			"clientId":     "test-client-id",
-			"clientSecret": "test",
+		{
+			field:   "providerName",
+			message: "Invalid provider",
+			payload: map[string]any{
+				"envId":        s.env.ID,
+				"providerName": "invalid-provider",
+				"clientId":     "test-client-id",
+				"clientSecret": "test",
+			},
 		},
 	}
 
-	for msg, payload := range payloads {
-		{
-			response := shttptest.RequestWithHeaders(
-				shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
-				shttp.MethodPost,
-				"/skauth",
-				payload,
-				map[string]string{
-					"Authorization": usertest.Authorization(s.usr.ID),
-				},
-			)
+	for _, tc := range cases {
+		response := shttptest.RequestWithHeaders(
+			shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+			shttp.MethodPost,
+			"/skauth",
+			tc.payload,
+			map[string]string{
+				"Authorization": usertest.Authorization(s.usr.ID),
+			},
+		)
 
-			s.Equal(http.StatusBadRequest, response.Code)
-			s.JSONEq(fmt.Sprintf(`{ "error": "%s" }`, msg), response.String())
-		}
+		s.Equal(http.StatusBadRequest, response.Code)
+		s.JSONEq(fmt.Sprintf(`{ "errors": { "%s": "%s" } }`, tc.field, tc.message), response.String())
 	}
 }
 

@@ -7,17 +7,10 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appcache"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
+	"github.com/stormkit-io/stormkit-io/src/lib/shttp/shttperr"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
-
-// ProviderValidationError is a user-facing validation failure on a provider
-// upsert. Handlers surface Message in the 400 response body.
-type ProviderValidationError struct {
-	Message string
-}
-
-func (e *ProviderValidationError) Error() string { return e.Message }
 
 // UpsertProviderParams carries everything UpsertProvider needs. Env is the
 // environment being configured; it is mutated when an auth config has to be
@@ -30,14 +23,13 @@ type UpsertProviderParams struct {
 
 // UpsertProvider validates and stores a single sign-in provider. It is shared
 // by the dashboard handler, the public API handler and the MCP tool. On
-// validation failure it returns a *ProviderValidationError.
+// validation failure it returns a *shttperr.ValidationError, which shttp.Error
+// renders as a 400 with the field errors.
 func UpsertProvider(ctx context.Context, p UpsertProviderParams) error {
 	env := p.Env
 
 	if env.SchemaConf == nil {
-		return &ProviderValidationError{
-			Message: "Schema configuration is not set for this environment. Please configure it first.",
-		}
+		return &shttperr.ValidationError{Errors: map[string]string{"schema": "Schema configuration is not set for this environment. Please configure it first."}}
 	}
 
 	if err := ensureAuthConf(ctx, env); err != nil {
@@ -136,7 +128,7 @@ func providerDataFor(p providerDataForParams) (skauth.ProviderData, error) {
 		}
 
 		if data.ProviderName == skauth.ProviderMagicLink && fromAddress == "" {
-			return skauth.ProviderData{}, &ProviderValidationError{Message: "From address is required"}
+			return skauth.ProviderData{}, &shttperr.ValidationError{Errors: map[string]string{"fromAddress": "From address is required"}}
 		}
 
 		return skauth.ProviderData{FromAddress: fromAddress}, nil
@@ -156,11 +148,11 @@ func providerDataFor(p providerDataForParams) (skauth.ProviderData, error) {
 	}
 
 	if data.ClientID == "" {
-		return skauth.ProviderData{}, &ProviderValidationError{Message: "Client ID is required"}
+		return skauth.ProviderData{}, &shttperr.ValidationError{Errors: map[string]string{"clientId": "Client ID is required"}}
 	}
 
 	if data.ClientSecret == "" {
-		return skauth.ProviderData{}, &ProviderValidationError{Message: "Client Secret is required"}
+		return skauth.ProviderData{}, &shttperr.ValidationError{Errors: map[string]string{"clientSecret": "Client Secret is required"}}
 	}
 
 	return skauth.ProviderData{
@@ -199,7 +191,7 @@ func saveProvider(ctx context.Context, p saveProviderParams) error {
 	}
 
 	if !provider.Supported() {
-		return &ProviderValidationError{Message: "Invalid provider"}
+		return &shttperr.ValidationError{Errors: map[string]string{"providerName": "Invalid provider"}}
 	}
 
 	return skauth.NewStore().SaveProvider(ctx, skauth.SaveProviderArgs{

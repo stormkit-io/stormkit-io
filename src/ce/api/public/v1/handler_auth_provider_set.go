@@ -1,8 +1,6 @@
 package publicapiv1
 
 import (
-	"errors"
-
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth/skauthhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -23,13 +21,9 @@ func handlerAuthProviderSet(req *RequestContext) *shttp.Response {
 		Data:  data,
 	})
 
+	// UpsertProvider reports a validation failure as a *shttperr.ValidationError,
+	// which shttp.Error renders as a 400 with the field errors.
 	if err != nil {
-		var verr *skauthhandlers.ProviderValidationError
-
-		if errors.As(err, &verr) {
-			return shttp.BadRequest(map[string]any{"error": verr.Message})
-		}
-
 		return shttp.Error(err)
 	}
 
