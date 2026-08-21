@@ -216,6 +216,46 @@ describe("~/pages/apps/[id]/environments/[env-id]/mailer/Mailer.tsx", () => {
     });
   });
 
+  it("should report a recorded but undelivered test email as an error", async () => {
+    createWrapper({
+      config: {
+        host: "smtp.example.org",
+        port: "587",
+        username: "joe@example.org",
+        password: "123",
+      },
+    });
+
+    await waitFor(() => {
+      expect(wrapper.getByDisplayValue("smtp.example.org")).toBeTruthy();
+    });
+
+    const scope = mockSendTestEmail({
+      appId: currentApp.id,
+      envId: currentEnv.id!,
+      from: "joe@example.org",
+      to: "joe@example.org",
+      delivered: false,
+    });
+
+    fireEvent.click(wrapper.getByText("Send test email"));
+
+    await waitFor(() => {
+      expect(wrapper.getByLabelText("From")).toBeTruthy();
+    });
+
+    fireEvent.click(wrapper.getByText("Send"));
+
+    await waitFor(() => {
+      expect(scope.isDone()).toBe(true);
+      expect(
+        wrapper.getByText(
+          "This environment has no SMTP configuration, so the email was recorded but never sent. Save a mailer configuration first.",
+        ),
+      ).toBeTruthy();
+    });
+  });
+
   it("should display help drawer with configuration guide", async () => {
     createWrapper({});
 

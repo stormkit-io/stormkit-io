@@ -9,8 +9,8 @@ import (
 )
 
 // ConfigUpdateRequest patches the mailer configuration of an environment. Nil
-// fields keep their stored value, which lets the dashboard, the public API and
-// the MCP tool share one payload shape.
+// fields keep their stored value, which lets the public API and the MCP tool
+// share one payload shape.
 type ConfigUpdateRequest struct {
 	Username *string `json:"username"`
 	Password *string `json:"password"`
@@ -19,8 +19,8 @@ type ConfigUpdateRequest struct {
 }
 
 // ApplyConfigUpdate validates data and merges its provided fields into conf in
-// place. It performs no I/O so it can be shared by the dashboard handler, the
-// public API handler and the MCP tool. On validation failure it returns a
+// place. It performs no I/O so it can be shared by the public API handler and
+// the MCP tool. On validation failure it returns a
 // *shttperr.ValidationError, which shttp.Error renders as a 400.
 //
 // An omitted, empty or placeholder password keeps the stored one: the password

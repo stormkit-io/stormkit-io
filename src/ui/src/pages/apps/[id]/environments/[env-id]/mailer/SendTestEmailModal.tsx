@@ -50,7 +50,7 @@ export default function SendTestEmailModal({
     setSuccess(undefined);
 
     api
-      .post("/mailer", {
+      .post<{ ok: boolean; delivered: boolean }>("/v1/mail", {
         // fetch treats the `body` argument as a json string so we
         // need to stringify the parameters to make this api call work.
         body: JSON.stringify({
@@ -62,12 +62,16 @@ export default function SendTestEmailModal({
           subject: "Test email subject",
         }),
       })
-      .then((res: { delivered?: boolean }) => {
-        setSuccess(
-          res?.delivered === false
-            ? "Email recorded, but not delivered: this environment has no SMTP configuration."
-            : "Test email sent to " + data.to
-        );
+      .then(({ delivered }) => {
+        // Only an explicit false means undelivered. Treating a missing flag as
+        // a failure would report a delivered email as unsent.
+        if (delivered === false) {
+          return setError(
+            "This environment has no SMTP configuration, so the email was recorded but never sent. Save a mailer configuration first."
+          );
+        }
+
+        setSuccess("Test email sent to " + data.to);
       })
       .catch(() => {
         setError("Something went wrong while sending test email.");

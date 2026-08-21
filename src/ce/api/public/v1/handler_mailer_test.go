@@ -104,7 +104,7 @@ func (s *HandlerMailerSuite) Test_ConfigSet_KeepsPasswordAndNeverEchoes() {
 	s.Equal("noreply@acme.com", stored.MailerConf.Username)
 }
 
-// Test_ConfigSet_ClearsPasswordWhenHostChanges mirrors the dashboard handler:
+// Test_ConfigSet_ClearsPasswordWhenHostChanges pins the credential-rebinding guard:
 // retaining a password the caller may never read is only safe while it keeps
 // pointing at the same account, so repointing the host requires a new one.
 func (s *HandlerMailerSuite) Test_ConfigSet_ClearsPasswordWhenHostChanges() {
@@ -356,6 +356,142 @@ func (s *HandlerMailerSuite) Test_Send_RecordsEvenWhenSendFails() {
 	emails, err := buildconf.MailerStore().Emails(context.Background(), env.ID)
 	s.Require().NoError(err)
 	s.Len(emails, 1, "a failed send is still recorded")
+}
+
+// Test_ConfigSet_InvalidPort covers the only validation rule on the mailer
+// config that no other suite exercises.
+func (s *HandlerMailerSuite) Test_ConfigSet_InvalidPort() {
+	env := s.configuredEnv()
+
+	for _, port := range []string{"not-a-port", "0", "99999"} {
+		response := shttptest.RequestWithHeaders(
+			s.handler(),
+			shttp.MethodPost,
+			"/v1/mailer/config",
+			map[string]string{
+				"appId":    s.app.ID.String(),
+				"envId":    env.ID.String(),
+				"smtpPort": port,
+			},
+			s.auth(),
+		)
+
+		s.Equal(http.StatusBadRequest, response.Code, port)
+		s.Contains(response.String(), "SMTP Port must be a number between 1 and 65535.", port)
+	}
+}
+
+// Test_ConfigSet_KeepsPasswordWhenBlank pins the dashboard's default save path:
+// the password field renders empty, so an untouched form posts "". Treating
+// that as a new value would wipe the stored credential on every save.
+func (s *HandlerMailerSuite) Test_ConfigSet_KeepsPasswordWhenBlank() {
+	env := s.configuredEnv()
+
+	response := shttptest.RequestWithHeaders(
+		s.handler(),
+		shttp.MethodPost,
+		"/v1/mailer/config",
+		map[string]string{
+			"appId":    s.app.ID.String(),
+			"envId":    env.ID.String(),
+			"smtpPort": "2525",
+			"password": "",
+		},
+		s.auth(),
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+
+	stored, err := buildconf.NewStore().EnvironmentByID(context.Background(), env.ID)
+	s.Require().NoError(err)
+	s.Equal("super-secret", stored.MailerConf.Password, "a blank password keeps the stored one")
+	s.Equal("2525", stored.MailerConf.Port)
+}
+
+// Test_ConfigGet_NoConfig covers an environment that never had a mailer - the
+// first thing the dashboard requests when the tab is opened.
+func (s *HandlerMailerSuite) Test_ConfigGet_NoConfig() {
+	env := s.MockEnv(s.app, nil)
+
+	response := shttptest.RequestWithHeaders(
+		s.handler(),
+		shttp.MethodGet,
+		fmt.Sprintf("/v1/mailer/config?appId=%s&envId=%s", s.app.ID, env.ID),
+		nil,
+		s.auth(),
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+	s.Contains(response.String(), `"config":null`)
+}
+
+// Test_Send_SplitsRecipients pins the semicolon-separated recipient list the
+// tool description advertises, including the surrounding whitespace a caller
+// naturally leaves in.
+func (s *HandlerMailerSuite) Test_Send_SplitsRecipients() {
+	env := s.configuredEnv()
+	sentTo := []string{}
+	sentAddr := ""
+
+	buildconf.SendMailFunc = func(addr string, _ smtp.Auth, _ string, to []string, _ []byte) error {
+		sentAddr, sentTo = addr, to
+		return nil
+	}
+
+	response := shttptest.RequestWithHeaders(
+		s.handler(),
+		shttp.MethodPost,
+		"/v1/mail",
+		map[string]string{
+			"appId":   s.app.ID.String(),
+			"envId":   env.ID.String(),
+			"to":      "joe@acme.com; jane@acme.com",
+			"subject": "Test",
+			"body":    "Hello",
+		},
+		s.auth(),
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+	s.Equal([]string{"joe@acme.com", "jane@acme.com"}, sentTo)
+	s.Equal("smtp.gmail.com:587", sentAddr)
+}
+
+// Test_Send_RecordsFields asserts the stored row field by field: a mapping
+// regression in SendAndRecord would still leave exactly one email behind, so a
+// length check cannot catch it. The blank From exercises the fallback to the
+// SMTP username.
+func (s *HandlerMailerSuite) Test_Send_RecordsFields() {
+	env := s.configuredEnv()
+
+	buildconf.SendMailFunc = func(_ string, _ smtp.Auth, _ string, _ []string, _ []byte) error {
+		return nil
+	}
+
+	response := shttptest.RequestWithHeaders(
+		s.handler(),
+		shttp.MethodPost,
+		"/v1/mail",
+		map[string]string{
+			"appId":   s.app.ID.String(),
+			"envId":   env.ID.String(),
+			"to":      "someone@acme.com",
+			"subject": "Test subject",
+			"body":    "Test body",
+		},
+		s.auth(),
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+
+	emails, err := buildconf.MailerStore().Emails(context.Background(), env.ID)
+	s.Require().NoError(err)
+	s.Require().Len(emails, 1)
+
+	s.Equal("someone@acme.com", emails[0].To)
+	s.Equal("noreply@acme.com", emails[0].From, "an omitted from falls back to the SMTP username")
+	s.Equal("Test subject", emails[0].Subject)
+	s.Equal("Test body", emails[0].Body)
 }
 
 func TestHandlerMailerSuite(t *testing.T) {

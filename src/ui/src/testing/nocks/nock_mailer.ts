@@ -24,7 +24,7 @@ export const mockFetchMailerConfig = ({
   response,
 }: MockFetchMailerConfigProps) => {
   return nock(endpoint)
-    .get(`/mailer/config?appId=${appId}&envId=${envId}`)
+    .get(`/v1/mailer/config?appId=${appId}&envId=${envId}`)
     .reply(status, response);
 };
 
@@ -50,7 +50,7 @@ export const mockSetMailerConfig = ({
   response = { ok: true },
 }: MockSetMailerConfigProps) => {
   return nock(endpoint)
-    .post(`/mailer/config`, {
+    .post(`/v1/mailer/config`, {
       appId,
       envId,
       smtpHost,
@@ -94,6 +94,7 @@ interface MockSendTestEmailProps {
   envId: string;
   from: string;
   to: string;
+  delivered?: boolean;
 }
 
 export const mockSendTestEmail = ({
@@ -101,10 +102,11 @@ export const mockSendTestEmail = ({
   envId,
   from,
   to,
+  delivered = true,
 }: MockSendTestEmailProps) => {
   return nock(endpoint)
     .post(
-      "/mailer",
+      "/v1/mail",
       JSON.stringify({
         appId,
         envId,
@@ -114,5 +116,5 @@ export const mockSendTestEmail = ({
         subject: "Test email subject",
       })
     )
-    .reply(200, { ok: true });
+    .reply(200, { ok: true, delivered });
 };

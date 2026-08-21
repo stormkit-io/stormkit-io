@@ -46,7 +46,7 @@ export const useFetchMailerConfig = ({
 
     api
       .fetch<{ config: MailerConfig }>(
-        `/mailer/config?appId=${appId}&envId=${envId}`,
+        `/v1/mailer/config?appId=${appId}&envId=${envId}`,
       )
       .then(({ config }) => {
         setConfig(config);

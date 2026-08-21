@@ -39,7 +39,7 @@ export default function TabMailer() {
     setSuccess(undefined);
 
     api
-      .post("/mailer/config", { appId: app.id, envId: env.id!, ...data })
+      .post("/v1/mailer/config", { appId: app.id, envId: env.id!, ...data })
       .then(() => {
         setSuccess("Mailer configuration saved successfully.");
         setRefreshToken(Date.now());
