@@ -249,6 +249,27 @@ export default function AuditMessage({ audit }: Props) {
         </AuditRow>
       );
 
+    case "UPDATE:MAILER":
+      return (
+        <AuditRow audit={audit} forceDiff>
+          {audit.diff.new.mailerPasswordChanged
+            ? "Updated mailer configuration (SMTP password changed)"
+            : "Updated mailer configuration"}{" "}
+          in <EnvLink audit={audit} /> environment
+        </AuditRow>
+      );
+
+    case "UPDATE:AUTHPROVIDER":
+      return (
+        <AuditRow audit={audit} forceDiff>
+          {audit.diff.new.authProviderStatus === false
+            ? "Disabled"
+            : "Updated"}{" "}
+          the {audit.diff.new.authProviderName || "sign-in"} provider in{" "}
+          <EnvLink audit={audit} /> environment
+        </AuditRow>
+      );
+
     case "CREATE:SCHEMA":
       return (
         <AuditRow audit={audit} forceDiff>

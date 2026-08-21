@@ -14,7 +14,7 @@ type MailerModelSuite struct {
 }
 
 func (s *MailerModelSuite) AfterTest(_, _ string) {
-	buildconf.SendMailFunc = smtp.SendMail
+	buildconf.SendMailFunc = buildconf.SendMailWithDeadline
 }
 
 // Test_MarshalJSON_MasksPassword makes masking the default rather than a

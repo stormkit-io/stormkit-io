@@ -42,7 +42,7 @@ func (s *WithSKAuthEmailSuite) BeforeTest(suiteName, _ string) {
 
 func (s *WithSKAuthEmailSuite) AfterTest(_, _ string) {
 	s.conn.CloseTx()
-	buildconf.SendMailFunc = smtp.SendMail
+	buildconf.SendMailFunc = buildconf.SendMailWithDeadline
 }
 
 func (s *WithSKAuthEmailSuite) hostFor(envID types.ID) *hosting.Host {
