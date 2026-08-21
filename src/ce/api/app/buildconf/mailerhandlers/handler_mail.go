@@ -44,9 +44,17 @@ func HandlerMail(req *app.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
+	// WithApp only asserts that an envId was provided, not that it exists, and
+	// the store returns (nil, nil) for an unknown id.
+	if env == nil {
+		return shttp.NotFound()
+	}
+
 	config := env.MailerConf
 	from := data.From
 
+	// An environment with no SMTP configuration records the email without
+	// sending it - see Test_NoConfig_StoresEmail.
 	if config != nil {
 		from = utils.GetString(data.From, config.Username)
 

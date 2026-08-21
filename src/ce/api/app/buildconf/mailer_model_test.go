@@ -1,6 +1,7 @@
 package buildconf_test
 
 import (
+	"encoding/json"
 	"net/smtp"
 	"testing"
 
@@ -14,6 +15,43 @@ type MailerModelSuite struct {
 
 func (s *MailerModelSuite) AfterTest(_, _ string) {
 	buildconf.SendMailFunc = smtp.SendMail
+}
+
+// Test_MarshalJSON_MasksPassword makes masking the default rather than a
+// convention: a MailerConf placed in a response cannot leak the credential
+// even when the caller never calls JSON.
+func (s *MailerModelSuite) Test_MarshalJSON_MasksPassword() {
+	mailer := &buildconf.MailerConf{
+		Host:     "smtp.gmail.com",
+		Port:     "587",
+		Username: "test-user",
+		Password: "super-secret",
+	}
+
+	serialized, err := json.Marshal(map[string]any{"config": mailer})
+	s.NoError(err)
+	s.NotContains(string(serialized), "super-secret")
+	s.Contains(string(serialized), buildconf.PasswordPlaceholder)
+}
+
+// Test_Bytes_KeepsRealPassword pins the other half: persistence must keep
+// writing the encrypted credential, not the placeholder MarshalJSON renders.
+func (s *MailerModelSuite) Test_Bytes_KeepsRealPassword() {
+	mailer := &buildconf.MailerConf{
+		Host:     "smtp.gmail.com",
+		Port:     "587",
+		Username: "test-user",
+		Password: "super-secret",
+	}
+
+	b, err := mailer.Bytes()
+	s.NoError(err)
+	s.NotContains(string(b), buildconf.PasswordPlaceholder)
+
+	restored := &buildconf.MailerConf{}
+	s.NoError(json.Unmarshal(b, restored))
+	s.Equal("super-secret", restored.Password)
+	s.Equal("test-user", restored.Username)
 }
 
 func (s *MailerModelSuite) Test_String_DefaultPort() {
