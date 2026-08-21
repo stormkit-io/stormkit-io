@@ -25,7 +25,7 @@ func authConfigEnabled() bool {
 func handlerAuthConfigGet(req *RequestContext) *shttp.Response {
 	return &shttp.Response{
 		Status: http.StatusOK,
-		Data:   authConfigJSON(req.Env.AuthConf),
+		Data:   skauthhandlers.AuthConfigJSON(req.Env.AuthConf),
 	}
 }
 
@@ -69,43 +69,6 @@ func handlerAuthConfigSet(req *RequestContext) *shttp.Response {
 
 	return &shttp.Response{
 		Status: http.StatusOK,
-		Data:   authConfigJSON(env.AuthConf),
+		Data:   skauthhandlers.AuthConfigJSON(env.AuthConf),
 	}
-}
-
-// authConfigJSON renders the non-secret Stormkit Auth configuration fields.
-func authConfigJSON(conf *buildconf.SKAuthConf) map[string]any {
-	out := map[string]any{
-		"status":             false,
-		"successUrl":         "",
-		"tokenTtl":           0,
-		"allowedOrigins":     []string{},
-		"oauthServerEnabled": false,
-		"oauthResourcePath":  "",
-		"oauthAllowLoopback": false,
-		"cookieDomain":       "",
-		"loginUrl":           "",
-	}
-
-	if conf == nil {
-		return out
-	}
-
-	out["status"] = conf.Status
-	out["successUrl"] = conf.SuccessURL
-	out["tokenTtl"] = conf.TTL
-	out["cookieDomain"] = conf.CookieDomain
-	out["loginUrl"] = conf.LoginURL
-
-	if conf.AllowedOrigins != nil {
-		out["allowedOrigins"] = conf.AllowedOrigins
-	}
-
-	if conf.OAuthServer != nil {
-		out["oauthServerEnabled"] = conf.OAuthServer.Enabled
-		out["oauthResourcePath"] = conf.OAuthServer.ResourcePath
-		out["oauthAllowLoopback"] = conf.OAuthServer.AllowLoopback
-	}
-
-	return out
 }
