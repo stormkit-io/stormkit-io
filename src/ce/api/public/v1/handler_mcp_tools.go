@@ -3,6 +3,7 @@ package publicapiv1
 import (
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
@@ -313,7 +314,7 @@ func mcpAllTools() []mcpToolDef {
 					"redirectsFile":      map[string]any{"type": "string", "description": "Path to a redirects file (relative to repo root)."},
 					"previewLinks":       map[string]any{"type": "boolean", "description": "Generate preview links for each deployment."},
 					"priorityPattern":    map[string]any{"type": "string", "description": "Regex matched against the commit message of auto-deploys; matching deployments are automatically routed to the priority queue. Leave empty to disable."},
-					"envVars":            map[string]any{"type": "object", "description": "Environment variables to set or update.", "additionalProperties": map[string]any{"type": "string"}},
+					"envVars":            map[string]any{"type": "object", "description": "Environment variables to set or update. Merged into the existing set: keys not listed here keep their current value, and a key set to an empty string is removed.", "additionalProperties": map[string]any{"type": "string"}},
 					"redirects": map[string]any{
 						"type":        "array",
 						"description": "Redirect / rewrite rules.",
@@ -1068,9 +1069,7 @@ func mcpUpdateEnvironment(req *RequestContextMCP, id any, args map[string]any) *
 	setBool("autoPublish", &update.AutoPublish)
 	setBool("previewLinks", &update.PreviewLinks)
 
-	if m := stringMapArg(args, "envVars"); m != nil {
-		update.EnvVars = m
-	}
+	update.EnvVars = mergeEnvVarsArg(req.Env.Data.Vars, args)
 
 	if r := parseRedirectsArg(args); r != nil {
 		update.Redirects = &r
@@ -1082,13 +1081,62 @@ func mcpUpdateEnvironment(req *RequestContextMCP, id any, args map[string]any) *
 		update.CacheDirs = &dirs
 	}
 
-	resp := req.setBody(id, update)
-
-	if resp != nil {
+	if resp := req.setBody(id, update); resp != nil {
 		return resp
 	}
 
-	return handlerEnvUpdate(req.RequestContext)
+	if resp := handlerEnvUpdate(req.RequestContext); resp.Status >= 400 {
+		return resp
+	}
+
+	// Report the resulting key set so a caller sees straight away which
+	// variables the environment ended up with.
+	return &shttp.Response{
+		Status: http.StatusOK,
+		Data:   map[string]any{"ok": true, "envVars": sortedKeys(req.Env.Data.Vars)},
+	}
+}
+
+// mergeEnvVarsArg merges the envVars argument of update_environment into the
+// environment's current variables, or returns nil when the caller did not pass
+// any. Values are masked everywhere they are read back, so a caller cannot
+// reconstruct what a wholesale replace would destroy — keys not listed keep
+// their value, and an empty value removes the key.
+func mergeEnvVarsArg(current map[string]string, args map[string]any) *map[string]string {
+	given := stringMapArg(args, "envVars")
+
+	if given == nil {
+		return nil
+	}
+
+	out := make(map[string]string, len(current)+len(given))
+
+	for k, v := range current {
+		out[k] = v
+	}
+
+	for k, v := range given {
+		if v == "" {
+			delete(out, k)
+			continue
+		}
+
+		out[k] = v
+	}
+
+	return &out
+}
+
+func sortedKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	sort.Strings(keys)
+
+	return keys
 }
 
 func mcpListDomains(req *RequestContextMCP, args map[string]any) *shttp.Response {

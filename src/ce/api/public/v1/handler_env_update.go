@@ -37,7 +37,7 @@ type EnvUpdateRequest struct {
 	ServerCmd          *string                 `json:"serverCmd,omitempty"`
 	StatusChecks       []buildconf.StatusCheck `json:"statusChecks,omitempty"`
 	PriorityPattern    *string                 `json:"priorityPattern,omitempty"`
-	EnvVars            map[string]string       `json:"envVars,omitempty"`
+	EnvVars            *map[string]string      `json:"envVars,omitempty"`
 	CacheDirs          *[]string               `json:"cacheDirs,omitempty"`
 }
 
@@ -164,7 +164,7 @@ func handlerEnvUpdate(req *RequestContext) *shttp.Response {
 	}
 
 	if data.EnvVars != nil {
-		env.Data.Vars = data.EnvVars
+		env.Data.Vars = *data.EnvVars
 	}
 
 	if data.CacheDirs != nil {
