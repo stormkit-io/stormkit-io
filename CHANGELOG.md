@@ -1,5 +1,42 @@
 # Changelog
 
+## v2026.08.13.2...v2026.08.21.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.08.13.2...v2026.08.21.1)
+
+### 🚀 Enhancements
+
+- Add public api for mailer and auth providers ([#450](https://github.com/stormkit-io/stormkit-io/pull/450))
+- Add mailer and auth provider mcp tools ([#451](https://github.com/stormkit-io/stormkit-io/pull/451))
+
+### 🩹 Fixes
+
+- Seo quick wins from search console data ([#434](https://github.com/stormkit-io/stormkit-io/pull/434))
+- Noindex llms.txt ([#439](https://github.com/stormkit-io/stormkit-io/pull/439))
+- Correct frontend-only positioning ([#441](https://github.com/stormkit-io/stormkit-io/pull/441))
+- Correct docs metadata and broken links ([#443](https://github.com/stormkit-io/stormkit-io/pull/443))
+- Stop returning the smtp password ([#448](https://github.com/stormkit-io/stormkit-io/pull/448))
+- Merge env vars in mcp update_environment ([#454](https://github.com/stormkit-io/stormkit-io/pull/454))
+
+### 💅 Refactors
+
+- Share skauth config and provider logic ([#449](https://github.com/stormkit-io/stormkit-io/pull/449))
+- Point the dashboard at the public mailer api ([#447](https://github.com/stormkit-io/stormkit-io/pull/447))
+- Use shttperr for validation errors ([#457](https://github.com/stormkit-io/stormkit-io/pull/457))
+
+### 📖 Documentation
+
+- Rewrite readme around what stormkit does ([#442](https://github.com/stormkit-io/stormkit-io/pull/442))
+
+### 🏡 Chore
+
+- Update changelog for v2026.08.13.1 ([#432](https://github.com/stormkit-io/stormkit-io/pull/432))
+- Remove unused www redirects.json ([#435](https://github.com/stormkit-io/stormkit-io/pull/435))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.08.10.1...v2026.08.13.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.08.10.1...v2026.08.13.1)
