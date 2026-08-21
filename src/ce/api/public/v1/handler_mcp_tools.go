@@ -314,9 +314,7 @@ func mcpAllTools() []mcpToolDef {
 					"redirectsFile":      map[string]any{"type": "string", "description": "Path to a redirects file (relative to repo root)."},
 					"previewLinks":       map[string]any{"type": "boolean", "description": "Generate preview links for each deployment."},
 					"priorityPattern":    map[string]any{"type": "string", "description": "Regex matched against the commit message of auto-deploys; matching deployments are automatically routed to the priority queue. Leave empty to disable."},
-					"envVars":            map[string]any{"type": "object", "description": "Environment variables to set or update. Merged into the existing set: keys not listed here keep their current value. Pass replaceEnvVars to overwrite the whole set instead.", "additionalProperties": map[string]any{"type": "string"}},
-					"replaceEnvVars":     map[string]any{"type": "boolean", "description": "Replace the entire variable set with envVars instead of merging, dropping every key not listed. Values cannot be read back through the API, so anything dropped is unrecoverable. Requires envVars."},
-					"unsetEnvVars":       map[string]any{"type": "array", "description": "Environment variable names to remove.", "items": map[string]any{"type": "string"}},
+					"envVars":            map[string]any{"type": "object", "description": "Environment variables to set or update. Merged into the existing set: keys not listed here keep their current value, and a key set to an empty string is removed.", "additionalProperties": map[string]any{"type": "string"}},
 					"redirects": map[string]any{
 						"type":        "array",
 						"description": "Redirect / rewrite rules.",
@@ -1071,13 +1069,7 @@ func mcpUpdateEnvironment(req *RequestContextMCP, id any, args map[string]any) *
 	setBool("autoPublish", &update.AutoPublish)
 	setBool("previewLinks", &update.PreviewLinks)
 
-	vars, resp := mergeEnvVarsArg(req.Env.Data.Vars, args)
-
-	if resp != nil {
-		return resp
-	}
-
-	update.EnvVars = vars
+	update.EnvVars = mergeEnvVarsArg(req.Env.Data.Vars, args)
 
 	if r := parseRedirectsArg(args); r != nil {
 		update.Redirects = &r
@@ -1097,53 +1089,42 @@ func mcpUpdateEnvironment(req *RequestContextMCP, id any, args map[string]any) *
 		return resp
 	}
 
-	// Report the resulting key set: values cannot be read back, so this is the
-	// caller's only way to see which variables the environment ends up with.
+	// Report the resulting key set so a caller sees straight away which
+	// variables the environment ended up with.
 	return &shttp.Response{
 		Status: http.StatusOK,
 		Data:   map[string]any{"ok": true, "envVars": sortedKeys(req.Env.Data.Vars)},
 	}
 }
 
-// mergeEnvVarsArg resolves the env-var arguments of update_environment into the
-// final variable set, or nil when the caller did not touch them. Values are
-// masked everywhere they are read back, so a caller cannot reconstruct what a
-// replace would destroy: the default is a merge, and dropping keys has to be
-// asked for explicitly through unsetEnvVars or replaceEnvVars.
-func mergeEnvVarsArg(current map[string]string, args map[string]any) (*map[string]string, *shttp.Response) {
+// mergeEnvVarsArg merges the envVars argument of update_environment into the
+// environment's current variables, or returns nil when the caller did not pass
+// any. Values are masked everywhere they are read back, so a caller cannot
+// reconstruct what a wholesale replace would destroy — keys not listed keep
+// their value, and an empty value removes the key.
+func mergeEnvVarsArg(current map[string]string, args map[string]any) *map[string]string {
 	given := stringMapArg(args, "envVars")
-	unset, hasUnset := stringArrayArg(args, "unsetEnvVars")
-	replace := boolArg(args, "replaceEnvVars")
 
 	if given == nil {
-		if replace {
-			return nil, shttp.BadRequest(map[string]any{
-				"errors": []string{"replaceEnvVars requires envVars; pass an empty object to clear every variable"},
-			})
-		}
-
-		if !hasUnset {
-			return nil, nil
-		}
+		return nil
 	}
 
 	out := make(map[string]string, len(current)+len(given))
 
-	if !replace {
-		for k, v := range current {
-			out[k] = v
-		}
-	}
-
-	for k, v := range given {
+	for k, v := range current {
 		out[k] = v
 	}
 
-	for _, k := range unset {
-		delete(out, k)
+	for k, v := range given {
+		if v == "" {
+			delete(out, k)
+			continue
+		}
+
+		out[k] = v
 	}
 
-	return &out, nil
+	return &out
 }
 
 func sortedKeys(m map[string]string) []string {

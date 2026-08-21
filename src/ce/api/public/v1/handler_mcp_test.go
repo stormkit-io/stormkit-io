@@ -935,7 +935,7 @@ func (s *HandlerMCPSuite) Test_UpdateEnvironment_WithEnvVars() {
 
 // Test_UpdateEnvironment_EnvVars_Merge verifies that envVars merges into the
 // existing set. Values cannot be read back, so a caller cannot reconstruct the
-// keys a replace would drop.
+// keys a wholesale replace would drop.
 func (s *HandlerMCPSuite) Test_UpdateEnvironment_EnvVars_Merge() {
 	usr := s.MockUser()
 	appl := s.MockApp(usr)
@@ -955,16 +955,36 @@ func (s *HandlerMCPSuite) Test_UpdateEnvironment_EnvVars_Merge() {
 	s.Equal(map[string]string{"NODE_ENV": "production", "API_KEY": "secret"}, updated.Data.Vars)
 }
 
-func (s *HandlerMCPSuite) Test_UpdateEnvironment_EnvVars_Replace() {
+func (s *HandlerMCPSuite) Test_UpdateEnvironment_EnvVars_Overwrite() {
 	usr := s.MockUser()
 	appl := s.MockApp(usr)
 	mockEnv := s.MockEnv(appl)
 	key := s.userKey(usr)
 
 	resp := s.post(key.Value, mcpToolCall(1, "update_environment", map[string]any{
-		"envId":          mockEnv.ID.String(),
-		"envVars":        map[string]any{"API_KEY": "secret"},
-		"replaceEnvVars": true,
+		"envId":   mockEnv.ID.String(),
+		"envVars": map[string]any{"NODE_ENV": "staging"},
+	}))
+
+	data := s.toolContent(s.rpcOK(resp))
+	s.Equal([]any{"NODE_ENV"}, data["envVars"])
+
+	updated, err := buildconf.NewStore().EnvironmentByID(context.Background(), mockEnv.ID)
+	s.Require().NoError(err)
+	s.Equal(map[string]string{"NODE_ENV": "staging"}, updated.Data.Vars)
+}
+
+// Test_UpdateEnvironment_EnvVars_EmptyValueUnsets verifies that an empty value
+// removes the key, the only way to drop a variable through the tool.
+func (s *HandlerMCPSuite) Test_UpdateEnvironment_EnvVars_EmptyValueUnsets() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl)
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "update_environment", map[string]any{
+		"envId":   mockEnv.ID.String(),
+		"envVars": map[string]any{"API_KEY": "secret", "NODE_ENV": ""},
 	}))
 
 	data := s.toolContent(s.rpcOK(resp))
@@ -975,36 +995,15 @@ func (s *HandlerMCPSuite) Test_UpdateEnvironment_EnvVars_Replace() {
 	s.Equal(map[string]string{"API_KEY": "secret"}, updated.Data.Vars)
 }
 
-func (s *HandlerMCPSuite) Test_UpdateEnvironment_EnvVars_Unset() {
+func (s *HandlerMCPSuite) Test_UpdateEnvironment_EnvVars_UnsetLastKey() {
 	usr := s.MockUser()
 	appl := s.MockApp(usr)
 	mockEnv := s.MockEnv(appl)
 	key := s.userKey(usr)
 
 	resp := s.post(key.Value, mcpToolCall(1, "update_environment", map[string]any{
-		"envId":        mockEnv.ID.String(),
-		"envVars":      map[string]any{"API_KEY": "secret"},
-		"unsetEnvVars": []any{"NODE_ENV"},
-	}))
-
-	data := s.toolContent(s.rpcOK(resp))
-	s.Equal([]any{"API_KEY"}, data["envVars"])
-
-	updated, err := buildconf.NewStore().EnvironmentByID(context.Background(), mockEnv.ID)
-	s.Require().NoError(err)
-	s.Equal(map[string]string{"API_KEY": "secret"}, updated.Data.Vars)
-}
-
-func (s *HandlerMCPSuite) Test_UpdateEnvironment_EnvVars_ClearAll() {
-	usr := s.MockUser()
-	appl := s.MockApp(usr)
-	mockEnv := s.MockEnv(appl)
-	key := s.userKey(usr)
-
-	resp := s.post(key.Value, mcpToolCall(1, "update_environment", map[string]any{
-		"envId":          mockEnv.ID.String(),
-		"envVars":        map[string]any{},
-		"replaceEnvVars": true,
+		"envId":   mockEnv.ID.String(),
+		"envVars": map[string]any{"NODE_ENV": ""},
 	}))
 
 	data := s.toolContent(s.rpcOK(resp))
@@ -1013,25 +1012,6 @@ func (s *HandlerMCPSuite) Test_UpdateEnvironment_EnvVars_ClearAll() {
 	updated, err := buildconf.NewStore().EnvironmentByID(context.Background(), mockEnv.ID)
 	s.Require().NoError(err)
 	s.Empty(updated.Data.Vars)
-}
-
-func (s *HandlerMCPSuite) Test_UpdateEnvironment_ReplaceEnvVars_RequiresEnvVars() {
-	usr := s.MockUser()
-	appl := s.MockApp(usr)
-	mockEnv := s.MockEnv(appl)
-	key := s.userKey(usr)
-
-	resp := s.post(key.Value, mcpToolCall(1, "update_environment", map[string]any{
-		"envId":          mockEnv.ID.String(),
-		"replaceEnvVars": true,
-	}))
-
-	result := s.rpcOK(resp)["result"].(map[string]any)
-	s.True(result["isError"].(bool))
-
-	updated, err := buildconf.NewStore().EnvironmentByID(context.Background(), mockEnv.ID)
-	s.Require().NoError(err)
-	s.Equal(map[string]string{"NODE_ENV": "production"}, updated.Data.Vars)
 }
 
 func (s *HandlerMCPSuite) Test_UpdateEnvironment_WithoutEnvVars_LeavesVarsUntouched() {

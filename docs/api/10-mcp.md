@@ -101,7 +101,7 @@ All tools return JSON. Errors are reported as MCP `isError` content while the tr
 | `create_app`         | Connect a git repository as a new Stormkit app.                  |
 | `list_apps`          | List apps the API key can access.                                |
 | `create_environment` | Create an environment for an app.                                |
-| `update_environment` | Update an environment's build config. `envVars` merges into the existing variables — pass `replaceEnvVars` to overwrite the whole set, `unsetEnvVars` to remove keys. Returns the resulting variable names. |
+| `update_environment` | Update an environment's build config. `envVars` merges into the existing variables — keys not passed keep their value, a key set to an empty string is removed. Returns the resulting variable names. |
 | `list_environments`  | List environments for an app (env-var values masked).            |
 
 ### Domains
