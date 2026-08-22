@@ -22,6 +22,7 @@ type Config struct {
 	BillingUserID    types.ID              `json:"billingUserId,string,omitempty"`
 	Domains          []string              `json:"domains"`
 	ErrorFile        string                `json:"errorFile,omitempty"`
+	Markdown         bool                  `json:"markdown,omitempty"`
 	StorageLocation  string                `json:"storageLocation,omitempty"`
 	FunctionLocation string                `json:"functionLocation,omitempty"`
 	APIPathPrefix    string                `json:"apiPathPrefix"`
