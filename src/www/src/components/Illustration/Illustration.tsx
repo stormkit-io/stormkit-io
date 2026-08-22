@@ -27,6 +27,7 @@ export default function Illustration() {
       <Box maxWidth="xl" sx={{ textAlign: 'center', mx: 'auto', px: 2, mb: 4, width: '100%' }}>
         <Typography
           variant="h4"
+          component="h2"
           color="text.secondary"
           sx={{ mt: { xs: 10, md: 25 }, fontSize: 16 }}
         >

@@ -75,6 +75,7 @@ export default function DeployNow() {
         </Typography>
         <Typography
           variant="h3"
+          component="p"
           sx={{
             fontSize: 18,
             textAlign: { md: 'center' },
@@ -118,6 +119,7 @@ export default function DeployNow() {
       </Box>
       <Typography
         variant="h3"
+        component="p"
         sx={{ fontSize: 18, textAlign: 'center', maxWidth: 800 }}
         color="text.secondary"
       >

@@ -46,6 +46,7 @@ export default function Hero() {
       </Typography>
       <Typography
         variant="h2"
+        component="p"
         sx={{
           mt: 2,
           fontSize: { xs: 15, md: 17 },

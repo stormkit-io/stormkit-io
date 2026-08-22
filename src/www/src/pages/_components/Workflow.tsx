@@ -17,6 +17,7 @@ interface Props {
 const Title = ({ children }: Props) => (
   <Typography
     variant="h3"
+    component="h2"
     sx={{
       fontWeight: 600,
       fontSize: { xs: 24, md: 28 },
