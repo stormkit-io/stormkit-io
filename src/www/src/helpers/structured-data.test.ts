@@ -95,13 +95,17 @@ describe('pageStructuredData', () => {
 })
 
 describe('organizationSchema', () => {
-  it('omits address rather than inventing one', () => {
-    const organization = organizationSchema()
+  it('publishes the registered postal address', () => {
+    const address = organizationSchema().address as Node
 
-    if ('address' in organization) {
-      const address = organization.address as Node
-      assert.equal(address['@type'], 'PostalAddress')
-    }
+    assert.deepEqual(address, {
+      '@type': 'PostalAddress',
+      streetAddress: 'Sepapaja tn 6',
+      postalCode: '15551',
+      addressLocality: 'Tallinn',
+      addressRegion: 'Harju maakond',
+      addressCountry: 'EE',
+    })
   })
 })
 
