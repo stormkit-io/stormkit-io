@@ -94,7 +94,13 @@ export default function FAQ() {
             }}
           >
             <Box sx={{ display: 'flex' }}>
-              <Box sx={{ flex: 1 }}>{f.question}</Box>
+              <Typography
+                variant="body1"
+                component="h3"
+                sx={{ flex: 1, fontSize: 'inherit', fontWeight: 'inherit' }}
+              >
+                {f.question}
+              </Typography>
               <ChevronRightIcon
                 sx={{
                   transform:
