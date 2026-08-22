@@ -18,6 +18,11 @@ const LINKS: { href: string; text: string; hint: string }[] = [
     text: 'API documentation',
     hint: 'Authenticate and call the REST API',
   },
+  {
+    href: '/openapi.json',
+    text: 'OpenAPI specification',
+    hint: 'Every API operation, machine-readable',
+  },
   { href: '/mcp', text: 'MCP server', hint: 'Drive Stormkit from an agent' },
   { href: '/sitemap.xml', text: 'Sitemap', hint: 'Every published page' },
   { href: '/llms.txt', text: 'llms.txt', hint: 'What Stormkit is, in one file' },
