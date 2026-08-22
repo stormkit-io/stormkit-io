@@ -170,7 +170,7 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 			uid := user.UIDFromBearer(token)
 
 			if uid == 0 {
-				return shttp.Forbidden()
+				return shttp.ForbiddenAPIKey()
 			}
 
 			usr, err := user.NewStore().UserByID(uid)
@@ -180,7 +180,7 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 			}
 
 			if usr == nil {
-				return shttp.Forbidden()
+				return shttp.ForbiddenAPIKey()
 			}
 
 			request.User = usr
@@ -198,7 +198,7 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 
 			// This is an invalid key. A key needs to have either an app ID, user ID or team ID.
 			if key == nil || (key.UserID == 0 && key.AppID == 0 && key.TeamID == 0) {
-				return shttp.Forbidden()
+				return shttp.ForbiddenAPIKey()
 			}
 
 			request.Token = key
@@ -207,7 +207,7 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 		switch options.MinimumScope {
 		case apikey.SCOPE_USER:
 			if request.Token.UserID == 0 {
-				return shttp.Forbidden()
+				return shttp.ForbiddenAPIKey()
 			}
 		case apikey.SCOPE_TEAM:
 			request.TeamID = request.Token.TeamID
@@ -221,7 +221,7 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 				isMember := team.NewStore().IsMember(req.Context(), request.Token.UserID, request.TeamID)
 
 				if !isMember {
-					return shttp.Forbidden()
+					return shttp.ForbiddenAPIKey()
 				}
 			}
 		case apikey.SCOPE_APP:
@@ -232,7 +232,7 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 			}
 
 			if appID == 0 {
-				return shttp.NotFound()
+				return shttp.NotFoundJSON("No application was addressed. Pass 'appId', or use an app-scoped API key.")
 			}
 
 			app, err := app.NewStore().AppByID(req.Context(), appID)
@@ -242,7 +242,7 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 			}
 
 			if app == nil {
-				return shttp.NotFound()
+				return shttp.NotFoundJSON("The application does not exist.")
 			}
 
 			request.App = app
@@ -252,13 +252,13 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 			if request.Token.AppID == 0 {
 				if request.Token.TeamID != 0 {
 					if app.TeamID != request.Token.TeamID {
-						return shttp.Forbidden()
+						return shttp.ForbiddenAPIKey()
 					}
 				} else if request.Token.UserID != 0 {
 					isMember := team.NewStore().IsMember(req.Context(), request.Token.UserID, app.TeamID)
 
 					if !isMember {
-						return shttp.Forbidden()
+						return shttp.ForbiddenAPIKey()
 					}
 				}
 			}
@@ -276,7 +276,7 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 			}
 
 			if env == nil {
-				return shttp.NotFound()
+				return shttp.NotFoundJSON("The environment does not exist. Pass a valid 'envId', or use an environment-scoped API key.")
 			}
 
 			app, err := app.NewStore().AppByID(req.Context(), env.AppID)
@@ -286,7 +286,7 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 			}
 
 			if app == nil {
-				return shttp.NotFound()
+				return shttp.NotFoundJSON("The application owning this environment does not exist.")
 			}
 
 			request.Env = env
@@ -296,10 +296,10 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 			// Validate membership if the key is not already tied to an environment.
 			if request.Token.EnvID == 0 {
 				if request.Token.AppID != 0 && request.Token.AppID != env.AppID {
-					return shttp.Forbidden()
+					return shttp.ForbiddenAPIKey()
 				} else if request.Token.TeamID != 0 {
 					if app.TeamID != request.Token.TeamID {
-						return shttp.Forbidden()
+						return shttp.ForbiddenAPIKey()
 					}
 
 					request.App = app
@@ -308,7 +308,7 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 					isMember := buildconf.NewStore().IsMember(req.Context(), env.ID, request.Token.UserID)
 
 					if !isMember {
-						return shttp.Forbidden()
+						return shttp.ForbiddenAPIKey()
 					}
 				}
 			}
