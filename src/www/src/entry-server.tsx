@@ -8,6 +8,11 @@ import { fileURLToPath } from 'node:url'
 import serverless from '@stormkit/serverless'
 import createRoutes from './routes'
 import { canonicalUrl } from './helpers/seo'
+import {
+  homeStructuredData,
+  pageStructuredData,
+  toScriptTag,
+} from './helpers/structured-data'
 import Context from './context'
 import App from './App'
 import createEmotionCache from './emotion-cache'
@@ -75,6 +80,18 @@ export const render: RenderFunction = async (url, seo) => {
   const title = tags.title.replace(/^["']|["']$/g, '')
   const canonical = canonicalUrl(url, tags.domain?.url)
 
+  // The homepage carries the full identity graph (company, product, site); every
+  // other page carries the company plus itself, so an agent landing deep in the
+  // docs still learns who publishes them.
+  const structuredData =
+    url === '/'
+      ? homeStructuredData()
+      : pageStructuredData({
+          url: canonical,
+          title,
+          description: tags.description,
+        })
+
   return {
     status: 200,
     content,
@@ -107,8 +124,10 @@ export const render: RenderFunction = async (url, seo) => {
       `<link rel="apple-touch-icon" href="/stormkit-logo.png"/>`,
       `<link rel="icon" type="image/svg+xml" href="/stormkit-logo.png" />`,
       `<link href="/src/index.css" rel="stylesheet" />`,
+      toScriptTag(structuredData),
       emotionCss,
     ]
+      .filter(Boolean)
       .join('\n')
       .trim(),
   }
