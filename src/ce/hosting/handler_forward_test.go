@@ -953,6 +953,128 @@ func (s *HandlerForwardSuite) Test_404() {
 	s.Equal([]byte("Not found"), res.Data.([]byte))
 }
 
+// A deployment with API functions but no server function serves those
+// functions under their prefix and nothing else. Forwarding an unmatched path
+// to the API function costs an invocation and answers with whatever the
+// function runtime emits for an unknown route — typically a bodyless 404 —
+// instead of the deployment's own error page.
+func (s *HandlerForwardSuite) Test_UnmatchedPathDoesNotReachApiFunction() {
+	s.mockClient.On("GetFile", integrations.GetFileArgs{
+		Location:     "aws:my-bucket/my-key-prefix",
+		FileName:     "/404.html",
+		DeploymentID: types.ID(1),
+	}).Return(&integrations.GetFileResult{
+		Content: []byte("Not found"),
+	}, nil)
+
+	host := &hosting.Host{
+		Name: "www.stormkit.io",
+		Config: &appconf.Config{
+			DeploymentID:    types.ID(1),
+			AppID:           types.ID(25),
+			EnvID:           types.ID(100),
+			StorageLocation: "aws:my-bucket/my-key-prefix",
+			APILocation:     "aws:my-api-function",
+			APIPathPrefix:   "/api",
+			StaticFiles: appconf.StaticFileConfig{
+				"/404.html": {FileName: "/404.html"},
+			},
+		},
+	}
+
+	res := hosting.HandlerForward(s.newRequest(host, "/no-such-page"))
+
+	s.Equal(http.StatusNotFound, res.Status)
+	s.Equal([]byte("Not found"), res.Data.([]byte))
+	s.mockClient.AssertNotCalled(s.T(), "Invoke")
+}
+
+// The prefix column is only defaulted against NULL, so an environment can
+// carry an empty one. That must not turn the API function back into a
+// catch-all for every unmatched path.
+func (s *HandlerForwardSuite) Test_EmptyApiPrefixDoesNotReachApiFunction() {
+	s.mockClient.On("GetFile", integrations.GetFileArgs{
+		Location:     "aws:my-bucket/my-key-prefix",
+		FileName:     "/404.html",
+		DeploymentID: types.ID(1),
+	}).Return(&integrations.GetFileResult{
+		Content: []byte("Not found"),
+	}, nil)
+
+	host := &hosting.Host{
+		Name: "www.stormkit.io",
+		Config: &appconf.Config{
+			DeploymentID:    types.ID(1),
+			AppID:           types.ID(25),
+			EnvID:           types.ID(100),
+			StorageLocation: "aws:my-bucket/my-key-prefix",
+			APILocation:     "aws:my-api-function",
+			APIPathPrefix:   "",
+			StaticFiles: appconf.StaticFileConfig{
+				"/404.html": {FileName: "/404.html"},
+			},
+		},
+	}
+
+	res := hosting.HandlerForward(s.newRequest(host, "/no-such-page"))
+
+	s.Equal(http.StatusNotFound, res.Status)
+	s.mockClient.AssertNotCalled(s.T(), "Invoke")
+}
+
+// A path under the prefix still reaches the API function, whatever its case.
+func (s *HandlerForwardSuite) Test_ApiPathReachesApiFunction() {
+	s.mockClient.On("Invoke", mock.Anything).Return(&integrations.InvokeResult{
+		StatusCode: http.StatusOK,
+		Body:       []byte(`{"ok":true}`),
+		Headers:    http.Header{"Content-Type": []string{"application/json"}},
+	}, nil)
+
+	host := &hosting.Host{
+		Name: "www.stormkit.io",
+		Config: &appconf.Config{
+			DeploymentID:    types.ID(1),
+			AppID:           types.ID(25),
+			EnvID:           types.ID(100),
+			StorageLocation: "aws:my-bucket/my-key-prefix",
+			APILocation:     "aws:my-api-function",
+			APIPathPrefix:   "/api",
+		},
+	}
+
+	res := hosting.HandlerForward(s.newRequest(host, "/API/users"))
+
+	s.Equal(http.StatusOK, res.Status)
+}
+
+// A deployment with a server function keeps serving every unmatched path from
+// it — this change must not turn server-rendered apps into 404s.
+func (s *HandlerForwardSuite) Test_ServerFunctionHandlesUnmatchedPaths() {
+	s.mockClient.On("Invoke", mock.Anything).Return(&integrations.InvokeResult{
+		StatusCode: http.StatusOK,
+		Body:       []byte("<h1>Rendered</h1>"),
+		Headers:    http.Header{"Content-Type": []string{"text/html; charset=utf-8"}},
+	}, nil)
+
+	host := &hosting.Host{
+		Name: "www.stormkit.io",
+		Config: &appconf.Config{
+			DeploymentID:     types.ID(1),
+			AppID:            types.ID(25),
+			EnvID:            types.ID(100),
+			StorageLocation:  "aws:my-bucket/my-key-prefix",
+			FunctionLocation: "aws:my-server-function",
+			APILocation:      "aws:my-api-function",
+			APIPathPrefix:    "/api",
+		},
+	}
+
+	res := hosting.HandlerForward(s.newRequest(host, "/some/ssr/route"))
+
+	s.Equal(http.StatusOK, res.Status)
+	s.Equal("<h1>Rendered</h1>", string(res.Data.([]byte)))
+}
+
 func (s *HandlerForwardSuite) Test_404_CustomErrorFile() {
 	s.mockClient.On("GetFile", integrations.GetFileArgs{
 		Location:     "aws:my-bucket/my-key-prefix",
