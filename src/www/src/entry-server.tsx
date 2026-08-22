@@ -7,7 +7,7 @@ import http from 'node:http'
 import { fileURLToPath } from 'node:url'
 import serverless from '@stormkit/serverless'
 import createRoutes from './routes'
-import { canonicalUrl } from './helpers/seo'
+import { canonicalUrl, markdownAlternate } from './helpers/seo'
 import {
   homeStructuredData,
   pageStructuredData,
@@ -79,6 +79,7 @@ export const render: RenderFunction = async (url, seo) => {
 
   const title = tags.title.replace(/^["']|["']$/g, '')
   const canonical = canonicalUrl(url, tags.domain?.url)
+  const markdownUrl = markdownAlternate(url)
 
   // The homepage carries the full identity graph (company, product, site); every
   // other page carries the company plus itself, so an agent landing deep in the
@@ -101,6 +102,12 @@ export const render: RenderFunction = async (url, seo) => {
       `<meta name="viewport" content="width=device-width, initial-scale=1" />`,
       `<meta name="description" content="${tags.description}" />`,
       `<link rel="canonical" href="${canonical}" />`,
+      // Announces the markdown representation of this page for clients that
+      // prefer it. The hosting layer serves the same file for
+      // `Accept: text/markdown` on the HTML URL.
+      markdownUrl
+        ? `<link rel="alternate" type="text/markdown" href="${markdownUrl}" />`
+        : '',
       `<meta property="og:title" content="${title}" />`,
       `<meta property="og:type" content="${tags.type}" />`,
       `<meta property="og:url" content="${canonical}" />`,

@@ -11,7 +11,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx src/vite-server.ts",
-    "build": "npm run build:openapi && npm run build:sitemap && npm run build:docs && npm run build:spa && npm run build:ssr && npm run build:ssg && rm -rf .stormkit/server && npm run build:api",
+    "build": "npm run build:markdown && npm run build:openapi && npm run build:sitemap && npm run build:docs && npm run build:spa && npm run build:ssr && npm run build:ssg && rm -rf .stormkit/server && npm run build:api",
     "build:docs": "DOCS=true tsx ./src/vite-server.ts",
     "build:spa": "rm -rf .stormkit && vite build -c vite.config.ts",
     "build:ssg": "SSG=true tsx ./src/vite-server.ts",
@@ -19,7 +19,8 @@
     "build:api": "rm -rf .stormkit/api && tsx vite.config.api.ts",
     "build:sitemap": "tsx ./scripts/generate-sitemap.ts",
     "build:openapi": "tsx ./scripts/copy-openapi.ts",
-    "test": "node --import tsx --test \"src/**/*.test.ts\""
+    "build:markdown": "tsx ./scripts/generate-markdown.ts",
+    "test": "node --import tsx --test \"src/**/*.test.ts\" \"scripts/**/*.test.ts\""
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
