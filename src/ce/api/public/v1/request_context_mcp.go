@@ -52,7 +52,7 @@ func (req *RequestContextMCP) withEnv(args map[string]any) *shttp.Response {
 	}
 
 	if !buildconf.NewStore().IsMember(req.Context(), env.ID, req.Token.UserID) {
-		return shttp.Forbidden()
+		return shttp.ForbiddenAPIKey()
 	}
 
 	req.Env = env
@@ -83,7 +83,7 @@ func (req *RequestContextMCP) withApp(args map[string]any) *shttp.Response {
 	}
 
 	if !team.NewStore().IsMember(req.Context(), req.Token.UserID, myApp.TeamID) {
-		return shttp.Forbidden()
+		return shttp.ForbiddenAPIKey()
 	}
 
 	req.App = myApp
@@ -121,7 +121,7 @@ func (req *RequestContextMCP) withTeamID(args map[string]any) *shttp.Response {
 	}
 
 	if !team.NewStore().IsMember(req.Context(), req.Token.UserID, teamID) {
-		return shttp.Forbidden()
+		return shttp.ForbiddenAPIKey()
 	}
 
 	req.TeamID = teamID

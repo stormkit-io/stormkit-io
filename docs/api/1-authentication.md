@@ -63,3 +63,28 @@ curl -X GET \
      -H 'Content-Type: application/json' \
      'https://api.stormkit.io/v1/redirects?appId=48961&envId=58181'
 ```
+
+## Error responses
+
+Every failing call answers with JSON:
+
+```json
+{
+  "error": "The API key is missing, invalid, or does not grant access to this resource.",
+  "code": "forbidden",
+  "docs": "https://www.stormkit.io/docs/api/authentication"
+}
+```
+
+| Field    | Description                                                                       |
+| -------- | --------------------------------------------------------------------------------- |
+| `error`  | Human-readable description of what went wrong.                                    |
+| `code`   | Stable, machine-readable identifier — branch on this, not on the message.         |
+| `docs`   | Present on authentication failures: the page explaining how to resolve them.      |
+| `errors` | Present on validation failures: a message per rejected field, keyed by field name. |
+
+Common codes: `forbidden` (missing, invalid or too narrowly scoped key),
+`unauthorized` (no credentials at all), `not-found` (the addressed resource does
+not exist or is not visible to the key), `unknown-endpoint` (no such path — check
+the OpenAPI document), `method-not-allowed` (wrong HTTP method for the path).
+
