@@ -60,11 +60,65 @@ func (r *Response) String() string {
 	return string(data)
 }
 
+// DocsAuthenticationURL documents how to obtain and send an API key. It is
+// attached to authentication errors so that a client — human or agent — can
+// resolve the failure without searching for the docs first.
+const DocsAuthenticationURL = "https://www.stormkit.io/docs/api/authentication"
+
+// APIErrorBody is the structured payload returned by failing API calls. Agents
+// cannot parse an HTML error page or an empty body, so every error carries a
+// human-readable message plus a stable machine-readable code.
+type APIErrorBody struct {
+	Error string `json:"error"`
+	Code  string `json:"code"`
+	Docs  string `json:"docs,omitempty"`
+}
+
+// APIErrorParams are the arguments of APIError.
+type APIErrorParams struct {
+	Status  int
+	Code    string
+	Message string
+	Docs    string
+}
+
+// APIError returns a response carrying a structured JSON error body.
+func APIError(p APIErrorParams) *Response {
+	return &Response{
+		Status: p.Status,
+		Data: APIErrorBody{
+			Error: p.Message,
+			Code:  p.Code,
+			Docs:  p.Docs,
+		},
+		Headers: http.Header{
+			"Content-Type": []string{"application/json"},
+		},
+	}
+}
+
 // NotFound returns a not found response.
 func NotFound() *Response {
 	return &Response{
 		Status: http.StatusNotFound,
 	}
+}
+
+// NotFoundJSON returns a 404 with a structured JSON body. Use it on API
+// endpoints; NotFound stays bodyless for the hosting layer, which serves the
+// deployment's own 404 page instead.
+func NotFoundJSON(message ...string) *Response {
+	msg := "The requested resource was not found."
+
+	if len(message) > 0 && message[0] != "" {
+		msg = message[0]
+	}
+
+	return APIError(APIErrorParams{
+		Status:  http.StatusNotFound,
+		Code:    "not-found",
+		Message: msg,
+	})
 }
 
 // BadRequest returns a bad request response.
@@ -126,22 +180,31 @@ func NoContent() *Response {
 	}
 }
 
-// NotAllowed returns a 401 response with user data set to false.
+// NotAllowed returns a 401 response with user data set to false. The ok/user
+// flags are kept for the dashboard, which branches on them; the error/code
+// fields are what non-browser clients read.
 func NotAllowed() *Response {
 	return &Response{
 		Status: http.StatusUnauthorized,
-		Data: map[string]bool{
-			"ok":   false,
-			"user": false,
+		Data: map[string]any{
+			"ok":    false,
+			"user":  false,
+			"error": "Authentication is required. Send your Stormkit API key in the Authorization header.",
+			"code":  "unauthorized",
+			"docs":  DocsAuthenticationURL,
 		},
 	}
 }
 
-// Forbidden returns a 403 response with empty data.
+// Forbidden returns a 403 response with a structured JSON body explaining that
+// the key is missing, invalid or too narrowly scoped.
 func Forbidden() *Response {
-	return &Response{
-		Status: http.StatusForbidden,
-	}
+	return APIError(APIErrorParams{
+		Status:  http.StatusForbidden,
+		Code:    "forbidden",
+		Message: "The API key is missing, invalid, or does not grant access to this resource.",
+		Docs:    DocsAuthenticationURL,
+	})
 }
 
 // Gone returns a 410 response with empty data.

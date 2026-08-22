@@ -30,6 +30,7 @@ import (
 
 func Get() *shttp.Router {
 	r := shttp.NewRouter()
+	r.WithJSONErrors()
 	r.RegisterMiddleware(WithCors)
 	r.RegisterMiddleware(WithTimeout)
 

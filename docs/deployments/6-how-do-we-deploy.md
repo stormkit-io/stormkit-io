@@ -73,6 +73,32 @@ In this case, the `serverless` wrapper is omitted because the API function has i
 
 All files under the `.stormkit/public` (or the configured output folder) will be deployed to our S3 bucket and served by our Load Balancer as static files.
 
+### Error pages
+
+A request that matches no static file and no function is answered with your
+deployment's error page: the file configured as `errorFile`, or `404.html`,
+`500.html` or `error.html` when none is configured. The status code is always a
+real `404` — never a `200` carrying your app shell.
+
+### Markdown representations
+
+Ship a `.md` file next to a page and Stormkit serves it as a second
+representation of the same URL. `/docs/getting-started.md` published alongside
+`/docs/getting-started.html` means:
+
+- `GET /docs/getting-started` with `Accept: text/markdown` answers with the
+  markdown, as `text/markdown; charset=utf-8`.
+- The same URL with a browser's `Accept` still answers with the HTML.
+- Both answers carry `Vary: Accept`, so a CDN caches the two variants
+  separately instead of serving one to the wrong client.
+- `q` values are honoured, and a client that accepts neither representation
+  gets a `406`.
+
+The homepage negotiates through `index.md`, and error pages through `404.md` or
+`error.md`. This is what [acceptmarkdown.com](https://acceptmarkdown.com)
+describes, and it is how an agent reads your documentation without scraping the
+rendered page.
+
 ## Example
 
 Check out and build our [React Starter Template](https://github.com/stormkit-io/monorepo-template-react) to see an example of the `.stormkit` subfolder.

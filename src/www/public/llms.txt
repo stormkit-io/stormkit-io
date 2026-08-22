@@ -109,6 +109,42 @@ Supports Ubuntu, Debian, Fedora, and macOS.
 - Transparent pricing with no hidden costs
 - Cost control through self-hosting on your preferred infrastructure
 
+## Developer resources
+
+Every resource below lives at a stable URL and needs no account to read.
+
+- Documentation: https://www.stormkit.io/docs/welcome/getting-started
+- Stormkit API authentication: https://www.stormkit.io/docs/api/authentication
+- Stormkit OpenAPI specification (OpenAPI 3.1, every REST operation): https://www.stormkit.io/openapi.json
+- Stormkit OpenAPI specification, served by the API itself: https://api.stormkit.io/v1/openapi.json
+- Stormkit MCP server (drive the platform from an agent): https://www.stormkit.io/mcp
+- Stormkit MCP endpoint: https://api.stormkit.io/v1/mcp
+- Stormkit self-hosting guide: https://www.stormkit.io/docs/self-hosting/getting-started
+- Stormkit Auth (end-user sign-in) documentation: https://www.stormkit.io/docs/features/authentication
+- OAuth server documentation: https://www.stormkit.io/docs/features/oauth-server
+- Redirects and path rewrites: https://www.stormkit.io/docs/features/redirects-and-path-rewrites
+- Custom headers: https://www.stormkit.io/docs/features/custom-headers
+- Periodic triggers (cron): https://www.stormkit.io/docs/features/periodic-triggers
+- Writing API endpoints: https://www.stormkit.io/docs/features/writing-api
+- Source code: https://github.com/stormkit-io/stormkit-io
+- Sitemap: https://www.stormkit.io/sitemap.xml
+
+### Markdown representations
+
+Every documentation, blog and tutorial page is published as markdown at the same
+URL plus a `.md` suffix, for example
+https://www.stormkit.io/docs/welcome/getting-started.md. The same pages answer
+`Accept: text/markdown` with the markdown representation and send
+`Vary: Accept`, per acceptmarkdown.com. The homepage markdown lives at
+https://www.stormkit.io/index.md.
+
+### Errors
+
+The REST API answers every failure with JSON: `error` (human-readable),
+`code` (stable machine-readable identifier) and, for authentication failures,
+`docs` (the page explaining how to fix it). Unknown endpoints answer 404 with
+code `unknown-endpoint`.
+
 ## Documentation
 
 Comprehensive documentation available covering:
@@ -135,4 +171,4 @@ Comprehensive documentation available covering:
 
 Stormkit empowers developers with the flexibility of self-hosting while providing enterprise-grade features for modern web application deployment.
 
-**Last updated:** 2025-08-05
+**Last updated:** 2026-08-22

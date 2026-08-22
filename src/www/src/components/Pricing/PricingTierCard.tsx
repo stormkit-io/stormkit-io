@@ -46,10 +46,10 @@ export default function PricingTierCard({ tier }: PricingTierCardProps) {
             sx={{ position: 'absolute', top: -12, right: 16 }}
           />
         )}
-        <Typography variant="h5" sx={{ fontWeight: 600, mb: 1 }}>
+        <Typography variant="h5" component="h3" sx={{ fontWeight: 600, mb: 1 }}>
           {tier.name}
         </Typography>
-        <Typography variant="h3" sx={{ fontWeight: 700, mb: 3 }}>
+        <Typography variant="h3" component="p" sx={{ fontWeight: 700, mb: 3 }}>
           ${tier.price}
           <Typography component="span" variant="body2" color="text.secondary">
             /month

@@ -1,0 +1,4438 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Stormkit API",
+    "version": "1.0.0",
+    "summary": "REST API for the Stormkit deployment platform.",
+    "description": "The Stormkit API lets you create applications and environments, trigger and publish deployments, read build, runtime and access logs, manage custom domains, redirects, snippets, periodic triggers and transactional email.\n\nEvery endpoint is authenticated with an API key sent in the `Authorization` header. Keys are scoped to a user, a team, an application or a single environment; each operation documents the minimum scope it accepts. See https://www.stormkit.io/docs/api/authentication for how to create one.\n\nStormkit also exposes the same capabilities to agents over MCP at `POST /v1/mcp`; see https://www.stormkit.io/mcp.",
+    "termsOfService": "https://www.stormkit.io/policies/terms",
+    "contact": {
+      "name": "Stormkit Support",
+      "email": "hello@stormkit.io",
+      "url": "https://www.stormkit.io/contact"
+    },
+    "license": {
+      "name": "Stormkit Terms of Service",
+      "url": "https://www.stormkit.io/policies/terms"
+    }
+  },
+  "externalDocs": {
+    "description": "Stormkit API documentation",
+    "url": "https://www.stormkit.io/docs/api/authentication"
+  },
+  "servers": [
+    {
+      "url": "https://api.stormkit.io",
+      "description": "Stormkit Cloud"
+    },
+    {
+      "url": "https://{host}",
+      "description": "Self-hosted Stormkit instance",
+      "variables": {
+        "host": {
+          "default": "api.stormkit.example.com",
+          "description": "API host name of your self-hosted Stormkit instance."
+        }
+      }
+    }
+  ],
+  "security": [
+    {
+      "ApiKeyAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Meta",
+      "description": "Machine-readable description of the API itself."
+    },
+    {
+      "name": "Apps",
+      "description": "Create and list applications."
+    },
+    {
+      "name": "Environments",
+      "description": "Environment configuration and environment variables."
+    },
+    {
+      "name": "Deployments",
+      "description": "Trigger, inspect, publish and delete deployments."
+    },
+    {
+      "name": "Logs",
+      "description": "Runtime and HTTP access logs."
+    },
+    {
+      "name": "Domains",
+      "description": "Custom domains and certificates."
+    },
+    {
+      "name": "Redirects",
+      "description": "Redirect and rewrite rules."
+    },
+    {
+      "name": "Snippets",
+      "description": "Code snippets injected into served HTML."
+    },
+    {
+      "name": "Triggers",
+      "description": "Periodic (cron) HTTP triggers."
+    },
+    {
+      "name": "Mailer",
+      "description": "Transactional email and SMTP configuration."
+    },
+    {
+      "name": "Volumes",
+      "description": "Persistent file storage."
+    },
+    {
+      "name": "Teams",
+      "description": "Teams the API key owner belongs to."
+    },
+    {
+      "name": "Auth",
+      "description": "Stormkit Auth (end-user sign-in) configuration. Self-hosted only."
+    },
+    {
+      "name": "Database",
+      "description": "Managed Postgres schema integration. Self-hosted only."
+    },
+    {
+      "name": "MCP",
+      "description": "Model Context Protocol endpoint for agents."
+    }
+  ],
+  "paths": {
+    "/v1/openapi.json": {
+      "get": {
+        "operationId": "getOpenApiSpec",
+        "summary": "Get the OpenAPI specification",
+        "description": "Return this OpenAPI 3.1 document describing every Stormkit API operation. No authentication is required, so an agent can discover the API surface before it holds a key.",
+        "tags": [
+          "Meta"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The OpenAPI document.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "An OpenAPI 3.1 document.",
+                  "properties": {
+                    "openapi": {
+                      "type": "string",
+                      "description": "OpenAPI specification version."
+                    },
+                    "info": {
+                      "type": "object",
+                      "description": "API metadata."
+                    },
+                    "paths": {
+                      "type": "object",
+                      "description": "The available operations, keyed by path."
+                    }
+                  },
+                  "required": [
+                    "openapi",
+                    "info",
+                    "paths"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/apps": {
+      "get": {
+        "operationId": "listApps",
+        "summary": "List applications",
+        "description": "Return a paginated list of applications belonging to a team. The page size is fixed at 20; when `hasNextPage` is true, request the next page with `from` increased by the number of apps returned. Requires a team-scoped or user-scoped API key.",
+        "tags": [
+          "Apps"
+        ],
+        "parameters": [
+          {
+            "name": "teamId",
+            "in": "query",
+            "required": true,
+            "description": "ID of the team to scope results to. The API key owner must be a member.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "description": "Pagination offset. Must be zero or greater.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "description": "Exact, case-insensitive match on the repository path, e.g. `github/acme/my-app`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "displayName",
+            "in": "query",
+            "required": false,
+            "description": "Exact, case-insensitive match on the application display name.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of applications.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "apps": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/App"
+                      }
+                    },
+                    "hasNextPage": {
+                      "type": "boolean",
+                      "description": "True when more applications exist beyond this page."
+                    }
+                  },
+                  "required": [
+                    "apps",
+                    "hasNextPage"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/app": {
+      "post": {
+        "operationId": "createApp",
+        "summary": "Create an application",
+        "description": "Create an application, optionally linked to a source-code repository. Omit `repo` to create a bare application that is deployed by uploading a zip file. Requires a team-scoped or user-scoped API key; with a user-scoped key, pass `teamId`.",
+        "tags": [
+          "Apps"
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "teamId": {
+                    "type": "string",
+                    "description": "ID of the team to create the application under. Required with a user-scoped key; ignored with a team-scoped key."
+                  },
+                  "repo": {
+                    "type": "string",
+                    "description": "Repository reference. Accepts `https://github.com/org/repo`, `github/org/repo` or `owner/repo`."
+                  },
+                  "provider": {
+                    "type": "string",
+                    "enum": [
+                      "github",
+                      "gitlab",
+                      "bitbucket"
+                    ],
+                    "description": "Source-code provider. Required when `repo` is a bare `owner/repo` path."
+                  },
+                  "displayName": {
+                    "type": "string",
+                    "description": "Human-readable application name. Alphanumeric characters, hyphens and underscores only, with no consecutive hyphens. Generated when omitted."
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The created application.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "app": {
+                      "$ref": "#/components/schemas/App"
+                    }
+                  },
+                  "required": [
+                    "app"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "get": {
+        "operationId": "getApp",
+        "summary": "Get an application",
+        "description": "Return a single application. With an app-scoped or environment-scoped API key the application is derived from the key; with a broader key, pass `appId`.",
+        "tags": [
+          "Apps"
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "query",
+            "required": false,
+            "description": "Application ID. Required unless the API key is already scoped to an application.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The application.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "app": {
+                      "$ref": "#/components/schemas/App"
+                    }
+                  },
+                  "required": [
+                    "app"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/app/{appId}": {
+      "get": {
+        "operationId": "getAppById",
+        "summary": "Get an application by ID",
+        "description": "Return a single application addressed by path. Equivalent to `getApp` with the `appId` query parameter.",
+        "tags": [
+          "Apps"
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "description": "Application ID.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The application.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "app": {
+                      "$ref": "#/components/schemas/App"
+                    }
+                  },
+                  "required": [
+                    "app"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/app/config": {
+      "get": {
+        "operationId": "getAppConfig",
+        "summary": "Get the published configuration of a host",
+        "description": "Return the build and runtime configuration Stormkit serves for a host name, including the published deployment. Answers 204 when the host has no published deployment.",
+        "tags": [
+          "Apps"
+        ],
+        "parameters": [
+          {
+            "name": "hostName",
+            "in": "query",
+            "required": true,
+            "description": "Host name to resolve, e.g. `www.example.com`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The configurations serving this host.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "configs": {
+                      "type": "array",
+                      "description": "One entry per deployment serving the host.",
+                      "items": {
+                        "type": "object",
+                        "description": "Resolved configuration of a published deployment."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "204": {
+            "description": "No published deployment serves this host."
+          }
+        }
+      }
+    },
+    "/v1/envs": {
+      "get": {
+        "operationId": "listEnvironments",
+        "summary": "List environments",
+        "description": "Return every environment configured for an application, up to 50.",
+        "tags": [
+          "Environments"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AppIdQueryOptional"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The environments of the application.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "environments": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Environment"
+                      }
+                    }
+                  },
+                  "required": [
+                    "environments"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/env": {
+      "post": {
+        "operationId": "createEnvironment",
+        "summary": "Create an environment",
+        "description": "Create an environment for an application. An environment holds its own branch, build configuration, environment variables and domains.",
+        "tags": [
+          "Environments"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "appId": {
+                        "type": "string",
+                        "description": "Application to create the environment under."
+                      },
+                      "name": {
+                        "type": "string",
+                        "description": "Environment name, e.g. `staging`."
+                      },
+                      "branch": {
+                        "type": "string",
+                        "description": "Default git branch deployed for this environment."
+                      }
+                    },
+                    "required": [
+                      "appId",
+                      "name",
+                      "branch"
+                    ]
+                  },
+                  {
+                    "$ref": "#/components/schemas/EnvironmentSettings"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The created environment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "env": {
+                      "$ref": "#/components/schemas/Environment"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateEnvironment",
+        "summary": "Update an environment",
+        "description": "Partially update an environment. Only the fields you send are changed. `envVars` is merged into the existing set: keys you omit keep their value, and a key set to an empty string is removed.",
+        "tags": [
+          "Environments"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "envId": {
+                        "type": "string",
+                        "description": "Environment to update."
+                      },
+                      "name": {
+                        "type": "string",
+                        "description": "New environment name."
+                      },
+                      "branch": {
+                        "type": "string",
+                        "description": "Default git branch."
+                      }
+                    },
+                    "required": [
+                      "envId"
+                    ]
+                  },
+                  {
+                    "$ref": "#/components/schemas/EnvironmentSettings"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The environment was updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteEnvironment",
+        "summary": "Delete an environment",
+        "description": "Delete an environment together with its deployments, domains and configuration. This cannot be undone.",
+        "tags": [
+          "Environments"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The environment was deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/env/pull": {
+      "get": {
+        "operationId": "pullEnvironmentVariables",
+        "summary": "Read environment variable values",
+        "description": "Return the decrypted environment variables of an environment. Values are masked everywhere else in the API, so this endpoint is admin-gated and every call is written to the audit log.",
+        "tags": [
+          "Environments"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The environment variables, keyed by name.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Environment variables, keyed by name.",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/deploy": {
+      "post": {
+        "operationId": "createDeployment",
+        "summary": "Trigger a deployment",
+        "description": "Queue a new deployment for an environment and return the created deployment, including its `id`. Poll `getDeployment` until `status` is `success` or `failed`.",
+        "tags": [
+          "Deployments"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "envId": {
+                    "type": "string",
+                    "description": "Environment to deploy."
+                  },
+                  "appId": {
+                    "type": "string",
+                    "description": "Application the environment belongs to. Optional when the key is app-scoped."
+                  },
+                  "branch": {
+                    "type": "string",
+                    "description": "Git branch to deploy. Defaults to the environment's configured branch."
+                  },
+                  "publish": {
+                    "type": "boolean",
+                    "description": "Publish the deployment automatically once the build succeeds."
+                  }
+                },
+                "required": [
+                  "envId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The queued deployment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deploy": {
+                      "$ref": "#/components/schemas/Deployment"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/deployments": {
+      "get": {
+        "operationId": "listDeployments",
+        "summary": "List deployments",
+        "description": "Return a paginated list of deployments for an environment, newest first. When `hasNextPage` is true, request the next page with `from` increased by the number of deployments returned.",
+        "tags": [
+          "Deployments"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "description": "Pagination offset.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "description": "Only return deployments built from this branch.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of deployments.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deploys": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Deployment"
+                      }
+                    },
+                    "hasNextPage": {
+                      "type": "boolean",
+                      "description": "True when more deployments exist beyond this page."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/deployments/{id}": {
+      "get": {
+        "operationId": "getDeployment",
+        "summary": "Get a deployment",
+        "description": "Return a single deployment with its status and metadata. Pass `logs=true` to include the build logs.",
+        "tags": [
+          "Deployments"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DeploymentIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          },
+          {
+            "name": "logs",
+            "in": "query",
+            "required": false,
+            "description": "Include build logs in the response.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The deployment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deploy": {
+                      "$ref": "#/components/schemas/Deployment"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteDeployment",
+        "summary": "Delete a deployment",
+        "description": "Delete a deployment and its build artifacts. A published deployment cannot be deleted; publish another one first.",
+        "tags": [
+          "Deployments"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DeploymentIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The deployment was deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/deployments/{id}/poll": {
+      "get": {
+        "operationId": "pollDeployment",
+        "summary": "Poll a deployment for progress",
+        "description": "Return the current status of a deployment in a form cheap enough to poll in a loop. Use it to wait for a build instead of re-reading the whole deployment.",
+        "tags": [
+          "Deployments"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DeploymentIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The current deployment status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "description": "Build status: `running`, `success` or `failed`."
+                    },
+                    "isRunning": {
+                      "type": "boolean",
+                      "description": "True while the build is still in progress."
+                    },
+                    "logs": {
+                      "type": "array",
+                      "description": "Build log entries produced so far.",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/deployments/{id}/runtime-logs": {
+      "get": {
+        "operationId": "listDeploymentRuntimeLogs",
+        "summary": "List runtime logs of a deployment",
+        "description": "Return runtime logs — server-side rendering and API function output — produced by a deployment. Paginate with `afterId`/`beforeId`, passing the `id` of the last entry you received.",
+        "tags": [
+          "Logs"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DeploymentIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "Sort order by log id.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "asc"
+            }
+          },
+          {
+            "name": "afterId",
+            "in": "query",
+            "required": false,
+            "description": "Return logs older than this log id. Use together with `sort=desc`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "beforeId",
+            "in": "query",
+            "required": false,
+            "description": "Return logs newer than this log id. Use together with `sort=asc`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Runtime log entries.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "logs": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/RuntimeLog"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/deployments/{id}/publish": {
+      "post": {
+        "operationId": "publishDeployment",
+        "summary": "Publish a deployment",
+        "description": "Make a successfully built deployment live on the environment's domains. Publishing replaces whatever was published before; the previous deployment stays available and can be published again to roll back.",
+        "tags": [
+          "Deployments"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DeploymentIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The deployment was published.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/deployments/{id}/prioritize": {
+      "post": {
+        "operationId": "prioritizeDeployment",
+        "summary": "Prioritize a queued deployment",
+        "description": "Move a deployment that is still waiting for a build worker to the front of the queue. Deployments already being built cannot be reordered.",
+        "tags": [
+          "Deployments"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DeploymentIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The deployment was moved to the front of the queue.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/deployments/{id}/restart": {
+      "post": {
+        "operationId": "restartDeployment",
+        "summary": "Restart a failed deployment",
+        "description": "Queue a failed deployment for another build with the same commit and configuration. Only deployments whose `status` is `failed` can be restarted.",
+        "tags": [
+          "Deployments"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DeploymentIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The deployment was queued again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/deployments/{id}/stop": {
+      "post": {
+        "operationId": "stopDeployment",
+        "summary": "Stop a running deployment",
+        "description": "Cancel a deployment that is queued or currently building.",
+        "tags": [
+          "Deployments"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DeploymentIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The deployment was stopped.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/access-logs": {
+      "get": {
+        "operationId": "listAccessLogs",
+        "summary": "List HTTP access logs",
+        "description": "Return raw HTTP access logs — one entry per request served — for an environment, newest first. Defaults to the last 24 hours. Paginate by passing `pagination.cursor` from the previous response back verbatim.",
+        "tags": [
+          "Logs"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "description": "Only return requests at or after this unix timestamp, in seconds. Defaults to 24 hours ago.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "description": "Only return requests at or before this unix timestamp, in seconds.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "domainId",
+            "in": "query",
+            "required": false,
+            "description": "Only return requests served for this domain.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "hostName",
+            "in": "query",
+            "required": false,
+            "description": "Only return requests for this host name.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "clientIp",
+            "in": "query",
+            "required": false,
+            "description": "Only return requests from this client IP.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "method",
+            "in": "query",
+            "required": false,
+            "description": "Only return requests with this HTTP method.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "GET",
+                "HEAD",
+                "POST",
+                "PUT",
+                "PATCH",
+                "DELETE",
+                "OPTIONS"
+              ]
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "description": "Only return requests whose path starts with this value.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Only return requests answered with this HTTP status code.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "isBot",
+            "in": "query",
+            "required": false,
+            "description": "Filter bot traffic in or out. Omit to return both.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "minDurationMs",
+            "in": "query",
+            "required": false,
+            "description": "Only return requests that took at least this many milliseconds to serve. Requests logged before durations were recorded are excluded.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque pagination cursor from the previous response.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "How many entries to return per page.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of access log entries.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "logs": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AccessLog"
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/CursorPagination"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/domains": {
+      "get": {
+        "operationId": "listDomains",
+        "summary": "List custom domains",
+        "description": "Return the custom domains attached to an environment, together with their verification state.",
+        "tags": [
+          "Domains"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          },
+          {
+            "name": "domainName",
+            "in": "query",
+            "required": false,
+            "description": "Only return the domain with this exact name.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "verified",
+            "in": "query",
+            "required": false,
+            "description": "Only return verified (`true`) or unverified (`false`) domains.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "description": "How many domains to return per page.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 250,
+              "default": 100
+            }
+          },
+          {
+            "name": "afterId",
+            "in": "query",
+            "required": false,
+            "description": "Return domains after this id. Pass `pagination.afterId` from the previous response.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of custom domains.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "domains": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Domain"
+                      }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "properties": {
+                        "hasNextPage": {
+                          "type": "boolean",
+                          "description": "True when more domains exist beyond this page."
+                        },
+                        "afterId": {
+                          "type": "string",
+                          "description": "Pass this back as `afterId` to fetch the next page."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createDomain",
+        "summary": "Attach a custom domain",
+        "description": "Attach a custom domain to an environment. The response contains the verification token to publish as a DNS TXT record before the domain can serve traffic.",
+        "tags": [
+          "Domains"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "envId": {
+                    "type": "string",
+                    "description": "Environment to attach the domain to."
+                  },
+                  "domain": {
+                    "type": "string",
+                    "description": "Domain name, e.g. `app.example.com`."
+                  }
+                },
+                "required": [
+                  "envId",
+                  "domain"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The attached domain.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "domain": {
+                      "$ref": "#/components/schemas/Domain"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateDomain",
+        "summary": "Update a custom domain",
+        "description": "Update a custom domain. Use it to re-run verification or to exclude the domain's traffic from analytics.",
+        "tags": [
+          "Domains"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "envId": {
+                    "type": "string",
+                    "description": "Environment the domain belongs to."
+                  },
+                  "domainId": {
+                    "type": "string",
+                    "description": "ID of the domain to update."
+                  },
+                  "analyticsExcluded": {
+                    "type": "boolean",
+                    "description": "Exclude requests served for this domain from analytics."
+                  }
+                },
+                "required": [
+                  "envId",
+                  "domainId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The domain was updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteDomain",
+        "summary": "Remove a custom domain",
+        "description": "Detach a custom domain from an environment. Traffic for that host stops being served immediately.",
+        "tags": [
+          "Domains"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          },
+          {
+            "name": "domainId",
+            "in": "query",
+            "required": false,
+            "description": "ID of the domain to remove. Either this or `id` is required.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "description": "Alias of `domainId`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The domain was removed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/domains/cert": {
+      "put": {
+        "operationId": "setDomainCertificate",
+        "summary": "Upload a custom TLS certificate",
+        "description": "Store a custom TLS certificate and private key for a domain instead of letting Stormkit obtain one automatically. Enterprise licence required.",
+        "tags": [
+          "Domains"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "envId": {
+                    "type": "string",
+                    "description": "Environment the domain belongs to."
+                  },
+                  "domainId": {
+                    "type": "string",
+                    "description": "ID of the domain the certificate belongs to."
+                  },
+                  "certValue": {
+                    "type": "string",
+                    "description": "PEM-encoded certificate chain."
+                  },
+                  "certKey": {
+                    "type": "string",
+                    "description": "PEM-encoded private key. Write-only; never returned."
+                  }
+                },
+                "required": [
+                  "domainId",
+                  "certValue",
+                  "certKey"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The certificate was stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteDomainCertificate",
+        "summary": "Remove a custom TLS certificate",
+        "description": "Delete the custom certificate of a domain. Stormkit falls back to automatically issued certificates. Enterprise licence required.",
+        "tags": [
+          "Domains"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          },
+          {
+            "name": "domainId",
+            "in": "query",
+            "required": false,
+            "description": "ID of the domain whose certificate is removed. Either this or `id` is required.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "description": "Alias of `domainId`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The certificate was removed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/redirects": {
+      "get": {
+        "operationId": "listRedirects",
+        "summary": "List redirect rules",
+        "description": "Return the redirect and rewrite rules configured for an environment, in the order they are evaluated.",
+        "tags": [
+          "Redirects"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The redirect rules.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "redirects": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Redirect"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "setRedirects",
+        "summary": "Replace redirect rules",
+        "description": "Replace the environment's redirect and rewrite rules with the list you send. Rules are evaluated top to bottom and the first match wins.",
+        "tags": [
+          "Redirects"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "envId": {
+                    "type": "string",
+                    "description": "Environment to configure."
+                  },
+                  "redirects": {
+                    "type": "array",
+                    "description": "The complete set of rules. An empty array removes every rule.",
+                    "items": {
+                      "$ref": "#/components/schemas/Redirect"
+                    }
+                  }
+                },
+                "required": [
+                  "envId",
+                  "redirects"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored rules.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "redirects": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Redirect"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/snippets": {
+      "get": {
+        "operationId": "listSnippets",
+        "summary": "List snippets",
+        "description": "Return the code snippets injected into HTML served by an environment.",
+        "tags": [
+          "Snippets"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          },
+          {
+            "name": "hosts",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated host names. Only snippets whose rules match one of them are returned.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "title",
+            "in": "query",
+            "required": false,
+            "description": "Only return snippets with this title.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "afterId",
+            "in": "query",
+            "required": false,
+            "description": "Return snippets after this id. Pass `pagination.afterId` from the previous response.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The snippets of the environment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "snippets": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Snippet"
+                      }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "properties": {
+                        "hasNextPage": {
+                          "type": "boolean",
+                          "description": "True when more snippets exist beyond this page."
+                        },
+                        "afterId": {
+                          "type": "string",
+                          "description": "Pass this back as `afterId` to fetch the next page."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createSnippet",
+        "summary": "Create a snippet",
+        "description": "Add one or more snippets that Stormkit injects into the `head` or `body` of HTML responses, optionally limited to matching hosts and paths.",
+        "tags": [
+          "Snippets"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "envId": {
+                    "type": "string",
+                    "description": "Environment to add the snippets to."
+                  },
+                  "snippets": {
+                    "type": "array",
+                    "description": "The snippets to add.",
+                    "items": {
+                      "$ref": "#/components/schemas/SnippetInput"
+                    }
+                  }
+                },
+                "required": [
+                  "snippets"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The snippet was created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateSnippet",
+        "summary": "Update a snippet",
+        "description": "Update an existing snippet. Send the complete snippet, including its `id`; the stored snippet is replaced by what you send.",
+        "tags": [
+          "Snippets"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "envId": {
+                    "type": "string",
+                    "description": "Environment the snippet belongs to."
+                  },
+                  "snippet": {
+                    "$ref": "#/components/schemas/Snippet"
+                  }
+                },
+                "required": [
+                  "snippet"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The snippet was updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteSnippet",
+        "summary": "Delete a snippet",
+        "description": "Remove one or more snippets from an environment. They stop being injected on the next request.",
+        "tags": [
+          "Snippets"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          },
+          {
+            "name": "ids",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated snippet ids to delete, e.g. `1501,5061`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "description": "A single snippet id to delete. Takes precedence over `ids`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The snippet was deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/triggers": {
+      "get": {
+        "operationId": "listTriggers",
+        "summary": "List periodic triggers",
+        "description": "Return the periodic (cron) triggers configured for an environment.",
+        "tags": [
+          "Triggers"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The triggers of the environment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "triggers": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Trigger"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/trigger": {
+      "post": {
+        "operationId": "createTrigger",
+        "summary": "Create a periodic trigger",
+        "description": "Create a trigger that sends an HTTP request to a URL on a cron schedule, evaluated in UTC.",
+        "tags": [
+          "Triggers"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "envId": {
+                        "type": "string",
+                        "description": "Environment to attach the trigger to."
+                      },
+                      "cron": {
+                        "type": "string",
+                        "description": "Cron expression evaluated in UTC, e.g. `*/5 * * * *`."
+                      },
+                      "url": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "http/https URL to call."
+                      }
+                    },
+                    "required": [
+                      "envId",
+                      "cron",
+                      "url"
+                    ]
+                  },
+                  {
+                    "$ref": "#/components/schemas/TriggerInput"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The created trigger.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "trigger": {
+                      "$ref": "#/components/schemas/Trigger"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateTrigger",
+        "summary": "Update a periodic trigger",
+        "description": "Partially update a trigger: only the fields you send are changed. To clear a field, send its empty value explicitly.",
+        "tags": [
+          "Triggers"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "envId": {
+                        "type": "string",
+                        "description": "Environment the trigger belongs to."
+                      },
+                      "triggerId": {
+                        "type": "string",
+                        "description": "ID of the trigger to update."
+                      },
+                      "cron": {
+                        "type": "string",
+                        "description": "Cron expression evaluated in UTC."
+                      },
+                      "url": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "http/https URL to call."
+                      }
+                    },
+                    "required": [
+                      "envId",
+                      "triggerId"
+                    ]
+                  },
+                  {
+                    "$ref": "#/components/schemas/TriggerInput"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated trigger.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "trigger": {
+                      "$ref": "#/components/schemas/Trigger"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteTrigger",
+        "summary": "Delete a periodic trigger",
+        "description": "Delete a trigger. Scheduled runs stop immediately; recorded execution logs are removed with it.",
+        "tags": [
+          "Triggers"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          },
+          {
+            "name": "triggerId",
+            "in": "query",
+            "required": true,
+            "description": "ID of the trigger to delete.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The trigger was deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/trigger/invoke": {
+      "post": {
+        "operationId": "invokeTrigger",
+        "summary": "Run a trigger now",
+        "description": "Run a trigger immediately, regardless of its schedule or status. The call is synchronous and returns the execution log, which is also stored alongside the scheduled runs.",
+        "tags": [
+          "Triggers"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "envId": {
+                    "type": "string",
+                    "description": "Environment the trigger belongs to."
+                  },
+                  "triggerId": {
+                    "type": "string",
+                    "description": "ID of the trigger to run."
+                  }
+                },
+                "required": [
+                  "envId",
+                  "triggerId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The execution log of the run.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "log": {
+                      "$ref": "#/components/schemas/TriggerLog"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/trigger/logs": {
+      "get": {
+        "operationId": "listTriggerLogs",
+        "summary": "List trigger executions",
+        "description": "Return the last 25 executions of a trigger — scheduled and manual — most recent first.",
+        "tags": [
+          "Triggers"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          },
+          {
+            "name": "triggerId",
+            "in": "query",
+            "required": true,
+            "description": "ID of the trigger to read logs for.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The recorded executions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "logs": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TriggerLog"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/mail": {
+      "post": {
+        "operationId": "sendEmail",
+        "summary": "Send an email",
+        "description": "Send a transactional email through the environment's SMTP configuration. An environment without a mailer still records the email without sending it, so check `delivered`, not only `ok`.",
+        "tags": [
+          "Mailer"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "to": {
+                    "type": "string",
+                    "description": "Recipient address. Separate multiple recipients with a semicolon."
+                  },
+                  "from": {
+                    "type": "string",
+                    "description": "Sender address. Defaults to the SMTP username when empty."
+                  },
+                  "subject": {
+                    "type": "string",
+                    "description": "Email subject."
+                  },
+                  "body": {
+                    "type": "string",
+                    "description": "Email body, rendered as HTML."
+                  }
+                },
+                "required": [
+                  "to",
+                  "subject",
+                  "body"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The email was accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "description": "True when the request was accepted and recorded."
+                    },
+                    "delivered": {
+                      "type": "boolean",
+                      "description": "False when the environment has no SMTP configuration, so nothing was handed to a mail server."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/mailer/config": {
+      "get": {
+        "operationId": "getMailerConfig",
+        "summary": "Get the SMTP configuration",
+        "description": "Return the SMTP configuration of an environment. The password is never returned: when one is stored, `password` holds the placeholder `****-****-****-****`; when no mailer is configured, `config` is null.",
+        "tags": [
+          "Mailer"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The SMTP configuration.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "config": {
+                      "description": "The stored configuration, or null when the environment has no mailer.",
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/MailerConfig"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "setMailerConfig",
+        "summary": "Update the SMTP configuration",
+        "description": "Update the SMTP configuration of an environment. Only the fields you send are changed. `password` is write-only: omit it to keep the stored one. Changing `smtpHost` or `username` clears the stored password, so those calls must carry a new one.",
+        "tags": [
+          "Mailer"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "envId": {
+                    "type": "string",
+                    "description": "Environment to configure."
+                  },
+                  "smtpHost": {
+                    "type": "string",
+                    "description": "SMTP server hostname, e.g. `smtp.example.com`."
+                  },
+                  "smtpPort": {
+                    "type": "string",
+                    "description": "SMTP server port. Defaults to 587 when empty."
+                  },
+                  "username": {
+                    "type": "string",
+                    "description": "SMTP username, usually the sending address."
+                  },
+                  "password": {
+                    "type": "string",
+                    "description": "SMTP password. Write-only and never returned."
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored configuration, with the password masked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "config": {
+                      "$ref": "#/components/schemas/MailerConfig"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/mailer/emails": {
+      "get": {
+        "operationId": "listEmails",
+        "summary": "List sent emails",
+        "description": "Return the last 100 emails recorded for an environment, newest first. Message bodies are never included and recipient addresses are masked, because the log holds magic-link emails and the app's end-user mailing list.",
+        "tags": [
+          "Mailer"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The recorded emails.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "emails": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Email"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/volumes": {
+      "post": {
+        "operationId": "uploadVolumeFiles",
+        "summary": "Upload files to a volume",
+        "description": "Upload one or more files to the environment's persistent volume. Files survive deployments and are served from the mounted volume path.",
+        "tags": [
+          "Volumes"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "envId": {
+                    "type": "string",
+                    "description": "Environment whose volume is written to."
+                  },
+                  "path": {
+                    "type": "string",
+                    "description": "Destination path inside the volume."
+                  },
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "File content."
+                  }
+                },
+                "required": [
+                  "envId",
+                  "file"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The files were stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "description": "The upload exceeded the maximum allowed request body size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/teams": {
+      "get": {
+        "operationId": "listTeams",
+        "summary": "List teams",
+        "description": "Return every team the API key owner belongs to. Community edition returns only the default team. Requires a user-scoped API key.",
+        "tags": [
+          "Teams"
+        ],
+        "responses": {
+          "200": {
+            "description": "The teams of the key owner.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "teams": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Team"
+                      }
+                    }
+                  },
+                  "required": [
+                    "teams"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createTeam",
+        "summary": "Create a team",
+        "description": "Create a team owned by the API key owner. Enterprise licence required.",
+        "tags": [
+          "Teams"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Display name of the team."
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The created team.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "team": {
+                      "$ref": "#/components/schemas/Team"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/mcp": {
+      "post": {
+        "operationId": "callMcpTool",
+        "summary": "Call the MCP endpoint",
+        "description": "JSON-RPC 2.0 endpoint implementing the Model Context Protocol. Use `initialize`, `tools/list` and `tools/call` to drive Stormkit from an agent. The same operations documented here are exposed as MCP tools. Requires a user-scoped API key.",
+        "tags": [
+          "MCP"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "A JSON-RPC 2.0 request.",
+                "properties": {
+                  "jsonrpc": {
+                    "type": "string",
+                    "const": "2.0",
+                    "description": "JSON-RPC protocol version."
+                  },
+                  "id": {
+                    "description": "Request id echoed back in the response.",
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "integer"
+                      }
+                    ]
+                  },
+                  "method": {
+                    "type": "string",
+                    "description": "MCP method, e.g. `initialize`, `tools/list` or `tools/call`."
+                  },
+                  "params": {
+                    "type": "object",
+                    "description": "Method parameters. For `tools/call`, `name` and `arguments`."
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A JSON-RPC 2.0 response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "jsonrpc": {
+                      "type": "string",
+                      "const": "2.0"
+                    },
+                    "id": {
+                      "description": "The id of the request this responds to.",
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "result": {
+                      "type": "object",
+                      "description": "Method result. Present when the call succeeded."
+                    },
+                    "error": {
+                      "type": "object",
+                      "description": "JSON-RPC error. Present when the call failed.",
+                      "properties": {
+                        "code": {
+                          "type": "integer",
+                          "description": "JSON-RPC error code."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Human-readable error message."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "get": {
+        "operationId": "openMcpStream",
+        "summary": "Open the MCP event stream",
+        "description": "Server-sent events stream used by MCP clients that negotiate the streamable HTTP transport. Requires a user-scoped API key.",
+        "tags": [
+          "MCP"
+        ],
+        "responses": {
+          "200": {
+            "description": "An `text/event-stream` connection carrying MCP messages.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "Server-sent event stream of JSON-RPC messages."
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/auth/config": {
+      "get": {
+        "operationId": "getAuthConfig",
+        "summary": "Get the Stormkit Auth configuration",
+        "description": "Return the end-user authentication configuration of an environment: session settings, allowed origins and OAuth-server settings. Secrets are never included. Available on self-hosted instances.",
+        "tags": [
+          "Auth"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The auth configuration.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "config": {
+                      "$ref": "#/components/schemas/AuthConfig"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "setAuthConfig",
+        "summary": "Update the Stormkit Auth configuration",
+        "description": "Update end-user authentication for an environment. Only the fields you send are changed. Available on self-hosted instances.",
+        "tags": [
+          "Auth"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "envId": {
+                        "type": "string",
+                        "description": "Environment to configure."
+                      }
+                    },
+                    "required": [
+                      "envId"
+                    ]
+                  },
+                  {
+                    "$ref": "#/components/schemas/AuthConfig"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The configuration was stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/auth/providers": {
+      "get": {
+        "operationId": "listAuthProviders",
+        "summary": "List sign-in providers",
+        "description": "Return the configured Stormkit Auth sign-in providers of an environment. Client secrets are never returned. Available on self-hosted instances.",
+        "tags": [
+          "Auth"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The configured providers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "providers": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AuthProvider"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "setAuthProvider",
+        "summary": "Configure a sign-in provider",
+        "description": "Enable or update a single sign-in provider. `magiclink` needs `fromAddress` and a configured mailer; `google` and `x` need `clientId` and `clientSecret`. Client secrets are write-only. Requires the database integration. Available on self-hosted instances.",
+        "tags": [
+          "Auth"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "envId": {
+                    "type": "string",
+                    "description": "Environment to configure."
+                  },
+                  "providerName": {
+                    "type": "string",
+                    "enum": [
+                      "magiclink",
+                      "email",
+                      "google",
+                      "x"
+                    ],
+                    "description": "Provider to configure."
+                  },
+                  "status": {
+                    "type": "boolean",
+                    "description": "Whether the provider is enabled. Omit to keep the current value."
+                  },
+                  "fromAddress": {
+                    "type": "string",
+                    "description": "Sender address for magic-link emails. Required for `magiclink`."
+                  },
+                  "clientId": {
+                    "type": "string",
+                    "description": "OAuth client ID. Required for OAuth providers."
+                  },
+                  "clientSecret": {
+                    "type": "string",
+                    "description": "OAuth client secret. Write-only; omit to keep the stored one."
+                  }
+                },
+                "required": [
+                  "envId",
+                  "providerName"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The provider was configured.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/schema": {
+      "get": {
+        "operationId": "getDatabaseSchema",
+        "summary": "Get the database integration",
+        "description": "Return the managed Postgres schema attached to an environment, including the connection details injected into the application. Available on self-hosted instances.",
+        "tags": [
+          "Database"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The database integration of the environment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schema": {
+                      "$ref": "#/components/schemas/DatabaseSchema"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "setDatabaseSchema",
+        "summary": "Enable the database integration",
+        "description": "Create the managed Postgres schema of an environment and store the generated credentials on it. The schema name is derived from the application and environment.",
+        "tags": [
+          "Database"
+        ],
+        "responses": {
+          "200": {
+            "description": "The credentials of the created schema.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schema": {
+                      "$ref": "#/components/schemas/DatabaseSchema"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "409": {
+            "description": "The environment already has a schema.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "deleteDatabaseSchema",
+        "summary": "Disable the database integration",
+        "description": "Detach the managed Postgres schema from an environment. Available on self-hosted instances.",
+        "tags": [
+          "Database"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The integration was disabled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/schema/configure": {
+      "post": {
+        "operationId": "configureDatabaseIntegration",
+        "summary": "Configure the database integration",
+        "description": "Control how the environment's managed schema is wired into the application: whether its connection details are injected as environment variables, and whether migrations run on deploy.",
+        "tags": [
+          "Database"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "envId": {
+                    "type": "string",
+                    "description": "Environment to configure."
+                  },
+                  "injectEnvVars": {
+                    "type": "boolean",
+                    "description": "Inject the schema's connection details as environment variables."
+                  },
+                  "migrationsEnabled": {
+                    "type": "boolean",
+                    "description": "Run migrations from the repository on every deployment."
+                  },
+                  "migrationsFolder": {
+                    "type": "string",
+                    "description": "Folder holding the migration files, relative to the repository root."
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The configuration was stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authorization",
+        "description": "A Stormkit API key, sent verbatim (no `Bearer` prefix). Keys are scoped to a user, a team, an application or a single environment. Create one in the dashboard: https://www.stormkit.io/docs/api/authentication"
+      }
+    },
+    "parameters": {
+      "EnvIdQueryOptional": {
+        "name": "envId",
+        "in": "query",
+        "required": false,
+        "description": "Environment ID. Required unless the API key is already scoped to an environment.",
+        "schema": {
+          "type": "string",
+          "pattern": "^[0-9]+$"
+        }
+      },
+      "AppIdQueryOptional": {
+        "name": "appId",
+        "in": "query",
+        "required": false,
+        "description": "Application ID. Required unless the API key is already scoped to an application.",
+        "schema": {
+          "type": "string",
+          "pattern": "^[0-9]+$"
+        }
+      },
+      "DeploymentIdPath": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "Deployment ID.",
+        "schema": {
+          "type": "string",
+          "pattern": "^[0-9]+$"
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "The request was malformed or a parameter failed validation.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": "'envId' is a required field.",
+              "code": "bad-request"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "No API key was provided.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": "Authentication is required. Send your Stormkit API key in the Authorization header.",
+              "code": "unauthorized",
+              "docs": "https://www.stormkit.io/docs/api/authentication"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "The API key is missing, invalid, or its scope is too narrow for this operation.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": "The API key is missing, invalid, or does not grant access to this resource.",
+              "code": "forbidden",
+              "docs": "https://www.stormkit.io/docs/api/authentication"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "The addressed resource does not exist or is not visible to this API key.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": "The requested resource was not found.",
+              "code": "not-found"
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "The request failed unexpectedly. Retry later; if it persists, contact support.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": "unexpected-error",
+              "code": "internal-error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "description": "Structured error payload returned by every failing API call.",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Human-readable description of what went wrong."
+          },
+          "code": {
+            "type": "string",
+            "description": "Stable, machine-readable error code, e.g. `forbidden` or `not-found`."
+          },
+          "docs": {
+            "type": "string",
+            "format": "uri",
+            "description": "Documentation page explaining how to resolve this class of error."
+          },
+          "errors": {
+            "type": "object",
+            "description": "Field-level validation messages, keyed by field name. Present on validation failures.",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "Ok": {
+        "type": "object",
+        "description": "Acknowledgement returned by operations that have no payload of their own.",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "True when the operation succeeded."
+          }
+        },
+        "required": [
+          "ok"
+        ]
+      },
+      "CursorPagination": {
+        "type": "object",
+        "description": "Cursor-based pagination metadata.",
+        "properties": {
+          "hasNextPage": {
+            "type": "boolean",
+            "description": "True when more entries exist beyond this page."
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Opaque cursor. Pass it back verbatim to fetch the next page."
+          }
+        }
+      },
+      "App": {
+        "type": "object",
+        "description": "A Stormkit application.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique application ID. Use it as `appId` elsewhere."
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Human-readable application name."
+          },
+          "repo": {
+            "type": "string",
+            "description": "Repository path, e.g. `github/acme/my-app`. Empty when `isBare` is true."
+          },
+          "isBare": {
+            "type": "boolean",
+            "description": "True when no repository is linked and deployments are uploaded as zip files."
+          },
+          "userId": {
+            "type": "string",
+            "description": "ID of the user who owns the application."
+          },
+          "teamId": {
+            "type": "string",
+            "description": "ID of the team the application belongs to."
+          },
+          "defaultEnvId": {
+            "type": "string",
+            "description": "ID of the default environment. Use it as `envId` elsewhere."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "Unix timestamp, in seconds, of when the application was created."
+          }
+        },
+        "required": [
+          "id",
+          "displayName"
+        ]
+      },
+      "EnvironmentSettings": {
+        "type": "object",
+        "description": "Build and runtime settings shared by environment create and update.",
+        "properties": {
+          "buildCmd": {
+            "type": "string",
+            "description": "Build command, e.g. `npm run build`."
+          },
+          "installCmd": {
+            "type": "string",
+            "description": "Install command, e.g. `npm install`."
+          },
+          "distFolder": {
+            "type": "string",
+            "description": "Client output directory, e.g. `dist`."
+          },
+          "workDir": {
+            "type": "string",
+            "description": "Working directory, relative to the repository root, where install and build run."
+          },
+          "serverCmd": {
+            "type": "string",
+            "description": "Command that starts the server process. Self-hosted only."
+          },
+          "apiFolder": {
+            "type": "string",
+            "description": "Path to the API / serverless functions folder."
+          },
+          "apiPathPrefix": {
+            "type": "string",
+            "description": "URL prefix routed to API functions. Defaults to `/api`."
+          },
+          "errorFile": {
+            "type": "string",
+            "description": "Custom error page served instead of `404.html`."
+          },
+          "headers": {
+            "type": "string",
+            "description": "Custom response headers in Netlify / Caddy format."
+          },
+          "headersFile": {
+            "type": "string",
+            "description": "Path to a headers file, relative to the repository root."
+          },
+          "redirectsFile": {
+            "type": "string",
+            "description": "Path to a redirects file, relative to the repository root."
+          },
+          "autoDeploy": {
+            "type": "boolean",
+            "description": "Deploy automatically on every push to the configured branch."
+          },
+          "autoDeployBranches": {
+            "type": "string",
+            "description": "Comma-separated branch patterns that trigger auto-deploy."
+          },
+          "autoDeployCommits": {
+            "type": "string",
+            "description": "Regular expression matched against commit messages to trigger auto-deploy."
+          },
+          "autoPublish": {
+            "type": "boolean",
+            "description": "Publish every successful deployment automatically."
+          },
+          "previewLinks": {
+            "type": "boolean",
+            "description": "Generate a preview link for each deployment."
+          },
+          "priorityPattern": {
+            "type": "string",
+            "description": "Regular expression matched against commit messages; matching auto-deploys go to the priority queue."
+          },
+          "envVars": {
+            "type": "object",
+            "description": "Environment variables injected at build and run time.",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "redirects": {
+            "type": "array",
+            "description": "Redirect and rewrite rules.",
+            "items": {
+              "$ref": "#/components/schemas/Redirect"
+            }
+          },
+          "statusChecks": {
+            "type": "array",
+            "description": "Commands run after a successful deployment to verify it.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Name of the check."
+                },
+                "cmd": {
+                  "type": "string",
+                  "description": "Command to run."
+                },
+                "description": {
+                  "type": "string",
+                  "description": "What the check verifies."
+                }
+              },
+              "required": [
+                "name",
+                "cmd"
+              ]
+            }
+          },
+          "cacheDirs": {
+            "type": "array",
+            "description": "Directories restored before install and snapshotted after a successful build, e.g. `.next/cache`. Pass an empty array to disable caching.",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "Environment": {
+        "type": "object",
+        "description": "An environment of an application: its branch, build configuration and URLs.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Environment ID. Use it as `envId` elsewhere."
+          },
+          "appId": {
+            "type": "string",
+            "description": "ID of the application the environment belongs to."
+          },
+          "env": {
+            "type": "string",
+            "description": "Environment name, e.g. `production`."
+          },
+          "name": {
+            "type": "string",
+            "description": "Environment name, e.g. `production`."
+          },
+          "branch": {
+            "type": "string",
+            "description": "Git branch deployed for this environment."
+          },
+          "preview": {
+            "type": "string",
+            "description": "URL where the published deployment of this environment is served."
+          },
+          "published": {
+            "type": "array",
+            "description": "Currently published deployments and their traffic share.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "deploymentId": {
+                  "type": "string",
+                  "description": "ID of the published deployment."
+                },
+                "percentage": {
+                  "type": "integer",
+                  "description": "Share of traffic served by this deployment."
+                }
+              }
+            }
+          },
+          "build": {
+            "type": "object",
+            "description": "Resolved build configuration of the environment."
+          },
+          "autoDeploy": {
+            "type": "boolean",
+            "description": "Whether pushes deploy automatically."
+          },
+          "autoPublish": {
+            "type": "boolean",
+            "description": "Whether successful deployments publish automatically."
+          },
+          "lastDeploy": {
+            "type": "object",
+            "description": "Summary of the most recent deployment."
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "Deployment": {
+        "type": "object",
+        "description": "A single build of an environment.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Deployment ID."
+          },
+          "appId": {
+            "type": "string",
+            "description": "Application the deployment belongs to."
+          },
+          "envId": {
+            "type": "string",
+            "description": "Environment the deployment belongs to."
+          },
+          "branch": {
+            "type": "string",
+            "description": "Git branch that was built."
+          },
+          "status": {
+            "type": "string",
+            "description": "Build status: `running`, `success` or `failed`."
+          },
+          "isRunning": {
+            "type": "boolean",
+            "description": "True while the build is in progress."
+          },
+          "isPublished": {
+            "type": "boolean",
+            "description": "True when this deployment currently serves traffic."
+          },
+          "percentage": {
+            "type": "integer",
+            "description": "Share of traffic served by this deployment."
+          },
+          "preview": {
+            "type": "string",
+            "description": "Preview URL of this specific deployment."
+          },
+          "commit": {
+            "type": "object",
+            "description": "The commit that was built.",
+            "properties": {
+              "author": {
+                "type": "string",
+                "description": "Commit author."
+              },
+              "message": {
+                "type": "string",
+                "description": "Commit message."
+              },
+              "sha": {
+                "type": "string",
+                "description": "Commit SHA."
+              }
+            }
+          },
+          "logs": {
+            "type": "array",
+            "description": "Build log entries. Included when requested.",
+            "items": {
+              "type": "object"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "Unix timestamp, in seconds, of when the deployment was created."
+          },
+          "stoppedAt": {
+            "type": "string",
+            "description": "Unix timestamp, in seconds, of when the build finished."
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "Domain": {
+        "type": "object",
+        "description": "A custom domain attached to an environment.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Domain ID."
+          },
+          "domainName": {
+            "type": "string",
+            "description": "The domain name, e.g. `app.example.com`."
+          },
+          "verified": {
+            "type": "boolean",
+            "description": "True once the DNS TXT record has been verified."
+          },
+          "token": {
+            "type": "string",
+            "description": "Verification token to publish as a DNS TXT record."
+          },
+          "customCert": {
+            "type": "boolean",
+            "description": "True when a custom TLS certificate is stored for this domain."
+          },
+          "lastPing": {
+            "type": "object",
+            "description": "Result of the most recent reachability check."
+          },
+          "analyticsExcluded": {
+            "type": "boolean",
+            "description": "True when requests for this domain are excluded from analytics."
+          }
+        },
+        "required": [
+          "id",
+          "domainName"
+        ]
+      },
+      "Redirect": {
+        "type": "object",
+        "description": "A redirect or rewrite rule.",
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "Path pattern to match, e.g. `/old/*`."
+          },
+          "to": {
+            "type": "string",
+            "description": "Destination path or absolute URL."
+          },
+          "status": {
+            "type": "integer",
+            "description": "HTTP status code to answer with. Omit for a rewrite."
+          },
+          "assets": {
+            "type": "boolean",
+            "description": "Apply the rule to asset requests as well."
+          },
+          "hosts": {
+            "type": "array",
+            "description": "Only apply the rule to these host names.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "headers": {
+            "type": "object",
+            "description": "Extra response headers set when the rule matches.",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ]
+      },
+      "SnippetInput": {
+        "type": "object",
+        "description": "Writable fields of a snippet.",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Name shown in the dashboard."
+          },
+          "content": {
+            "type": "string",
+            "description": "HTML injected into the response."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the snippet is injected."
+          },
+          "location": {
+            "type": "string",
+            "enum": [
+              "head",
+              "body"
+            ],
+            "description": "Where the snippet is injected."
+          },
+          "prepend": {
+            "type": "boolean",
+            "description": "Inject as the first child of the location instead of the last."
+          },
+          "interpolate": {
+            "type": "boolean",
+            "description": "Interpolate system variables such as `{{SK_REQUEST_ID}}` at request time. Unflagged snippets are injected verbatim."
+          },
+          "rules": {
+            "type": "object",
+            "description": "Conditions restricting where the snippet is injected.",
+            "properties": {
+              "hosts": {
+                "type": "array",
+                "description": "Only inject on these host names.",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "path": {
+                "type": "string",
+                "description": "Only inject on paths matching this regular expression."
+              }
+            }
+          }
+        },
+        "required": [
+          "title",
+          "content",
+          "location"
+        ]
+      },
+      "Snippet": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SnippetInput"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Snippet ID."
+              }
+            },
+            "required": [
+              "id"
+            ]
+          }
+        ]
+      },
+      "TriggerInput": {
+        "type": "object",
+        "description": "Writable fields of a periodic trigger.",
+        "properties": {
+          "status": {
+            "type": "boolean",
+            "description": "Whether the trigger is active. Inactive triggers are not scheduled."
+          },
+          "description": {
+            "type": "string",
+            "description": "One-line summary shown next to the trigger. Maximum 200 characters."
+          },
+          "documentation": {
+            "type": "string",
+            "description": "Markdown notes about the trigger. Displayed in the dashboard only."
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "GET",
+              "POST",
+              "HEAD",
+              "PATCH",
+              "DELETE"
+            ],
+            "description": "HTTP method used for the request. Defaults to GET."
+          },
+          "payload": {
+            "type": "string",
+            "description": "Request body, sent for non-GET methods."
+          },
+          "headers": {
+            "type": "object",
+            "description": "Request headers.",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "Trigger": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/TriggerInput"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Trigger ID."
+              },
+              "envId": {
+                "type": "string",
+                "description": "Environment the trigger belongs to."
+              },
+              "cron": {
+                "type": "string",
+                "description": "Cron expression, evaluated in UTC."
+              },
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "description": "URL called on each run."
+              },
+              "nextRunAt": {
+                "type": "string",
+                "description": "Unix timestamp, in seconds, of the next scheduled run."
+              }
+            },
+            "required": [
+              "id"
+            ]
+          }
+        ]
+      },
+      "TriggerLog": {
+        "type": "object",
+        "description": "One execution of a periodic trigger.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Log entry ID."
+          },
+          "triggerId": {
+            "type": "string",
+            "description": "Trigger that was executed."
+          },
+          "status": {
+            "type": "integer",
+            "description": "HTTP status code returned by the called URL."
+          },
+          "response": {
+            "type": "string",
+            "description": "Response body captured from the call, truncated."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "Unix timestamp, in seconds, of the execution."
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "MailerConfig": {
+        "type": "object",
+        "description": "SMTP configuration of an environment. The password is never returned.",
+        "properties": {
+          "host": {
+            "type": "string",
+            "description": "SMTP server hostname."
+          },
+          "port": {
+            "type": "string",
+            "description": "SMTP server port."
+          },
+          "username": {
+            "type": "string",
+            "description": "SMTP username."
+          },
+          "password": {
+            "type": "string",
+            "description": "Always the placeholder `****-****-****-****` when a password is stored."
+          }
+        }
+      },
+      "Email": {
+        "type": "object",
+        "description": "An email recorded by the mailer. Bodies are never stored in the log and recipients are masked.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Email ID."
+          },
+          "to": {
+            "type": "string",
+            "description": "Masked recipient address, e.g. `j***@example.com`."
+          },
+          "from": {
+            "type": "string",
+            "description": "Sender address."
+          },
+          "subject": {
+            "type": "string",
+            "description": "Email subject."
+          },
+          "delivered": {
+            "type": "boolean",
+            "description": "True when the message was handed to an SMTP server."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "Unix timestamp, in seconds, of when the email was recorded."
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "AccessLog": {
+        "type": "object",
+        "description": "One HTTP request served by an environment.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Log entry ID."
+          },
+          "ts": {
+            "type": "integer",
+            "description": "Unix timestamp, in seconds, of when the request was served."
+          },
+          "method": {
+            "type": "string",
+            "description": "HTTP method."
+          },
+          "path": {
+            "type": "string",
+            "description": "Requested path."
+          },
+          "status": {
+            "type": "integer",
+            "description": "HTTP status code returned."
+          },
+          "hostName": {
+            "type": "string",
+            "description": "Host name the request was served for."
+          },
+          "domainId": {
+            "type": "string",
+            "description": "ID of the matching custom domain, when any."
+          },
+          "clientIp": {
+            "type": "string",
+            "description": "IP address of the client."
+          },
+          "userAgent": {
+            "type": "string",
+            "description": "User agent of the client."
+          },
+          "referrer": {
+            "type": "string",
+            "description": "Referrer sent by the client."
+          },
+          "isBot": {
+            "type": "boolean",
+            "description": "True when the request was classified as bot traffic."
+          },
+          "durationMs": {
+            "type": "integer",
+            "description": "How long the request took to serve, in milliseconds."
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "RuntimeLog": {
+        "type": "object",
+        "description": "One runtime log line produced by server-side rendering or an API function.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Log entry ID. Use it as `afterId`/`beforeId` to paginate."
+          },
+          "deploymentId": {
+            "type": "string",
+            "description": "Deployment that produced the line."
+          },
+          "message": {
+            "type": "string",
+            "description": "The logged message."
+          },
+          "timestamp": {
+            "type": "integer",
+            "description": "Unix timestamp, in seconds, of when the line was produced."
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "Team": {
+        "type": "object",
+        "description": "A team owning applications.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Team ID. Use it as `teamId` elsewhere."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name of the team."
+          },
+          "slug": {
+            "type": "string",
+            "description": "URL-safe identifier of the team."
+          },
+          "isDefault": {
+            "type": "boolean",
+            "description": "True for the personal team created with the account."
+          },
+          "currentUserRole": {
+            "type": "string",
+            "description": "Role of the API key owner in this team, e.g. `owner`, `admin` or `developer`."
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "AuthConfig": {
+        "type": "object",
+        "description": "Stormkit Auth configuration of an environment. Secrets are never returned.",
+        "properties": {
+          "status": {
+            "type": "boolean",
+            "description": "Whether end-user authentication is enabled."
+          },
+          "allowedOrigins": {
+            "type": "array",
+            "description": "Origins allowed to start a sign-in flow.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sessionMaxAge": {
+            "type": "integer",
+            "description": "Session lifetime, in seconds."
+          },
+          "oauthServer": {
+            "type": "object",
+            "description": "Settings of the built-in OAuth authorization server."
+          }
+        }
+      },
+      "AuthProvider": {
+        "type": "object",
+        "description": "A configured sign-in provider. Client secrets are never returned.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": [
+              "magiclink",
+              "email",
+              "google",
+              "x"
+            ],
+            "description": "Provider name."
+          },
+          "status": {
+            "type": "boolean",
+            "description": "Whether the provider is enabled."
+          },
+          "clientId": {
+            "type": "string",
+            "description": "OAuth client ID, for OAuth providers."
+          },
+          "fromAddress": {
+            "type": "string",
+            "description": "Sender address used for magic-link emails."
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "DatabaseSchema": {
+        "type": "object",
+        "description": "The managed Postgres schema attached to an environment.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Schema name."
+          },
+          "status": {
+            "type": "boolean",
+            "description": "Whether the integration is enabled."
+          },
+          "host": {
+            "type": "string",
+            "description": "Database host name."
+          },
+          "database": {
+            "type": "string",
+            "description": "Database name."
+          }
+        }
+      }
+    }
+  }
+}

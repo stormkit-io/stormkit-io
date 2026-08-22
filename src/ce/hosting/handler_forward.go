@@ -149,6 +149,12 @@ type RequestServer struct {
 	logs      []integrations.Log
 	record    *analytics.Record
 	fnInvoked bool
+	// markdown is true when the response serves the markdown representation of
+	// a negotiable page.
+	markdown bool
+	// varyAccept is true when the requested URL has more than one
+	// representation, so caches must key on the Accept header.
+	varyAccept bool
 }
 
 func NewRequestServer(req *RequestContext) *RequestServer {
@@ -290,11 +296,53 @@ func (r *RequestServer) FileMeta() *FileMeta {
 }
 
 func (r *RequestServer) Handle() *shttp.Response {
-	if r.fileMeta = r.FileMeta(); r.fileMeta != nil {
+	r.fileMeta = r.FileMeta()
+
+	// Markdown negotiation runs before anything is served: a deployment that
+	// ships a .md twin of a page offers two representations of the same URL, and
+	// which one the client gets depends on its Accept header.
+	if twin := markdownTwin(r.req.URL().Path, r.req.Host.Config.StaticFiles); twin != "" {
+		accept := parseAccept(r.req.Header.Get("Accept"))
+
+		if accept.acceptsNothingWeServe() {
+			return r.NotAcceptable()
+		}
+
+		// Vary is set on both representations, not only the markdown one:
+		// without it a cache that stored the HTML variant would hand it to the
+		// next agent asking for markdown, and the other way round.
+		r.varyAccept = true
+
+		if accept.prefersMarkdown() {
+			file := r.req.Host.Config.StaticFiles[twin]
+
+			r.fileMeta = &FileMeta{Name: file.FileName, Headers: file.Headers}
+			r.markdown = true
+
+			return r.Static()
+		}
+	}
+
+	if r.fileMeta != nil {
 		return r.Static()
 	}
 
 	return r.Dynamic()
+}
+
+// NotAcceptable answers a request whose Accept header rules out every
+// representation of a negotiable resource, as RFC 9110 prescribes.
+func (r *RequestServer) NotAcceptable() *shttp.Response {
+	r.res = &shttp.Response{
+		Status: http.StatusNotAcceptable,
+		Data:   []byte("This resource is available as text/html and text/markdown.\n"),
+		Headers: http.Header{
+			"Content-Type": []string{"text/plain; charset=utf-8"},
+			"Vary":         []string{"Accept"},
+		},
+	}
+
+	return r.res
 }
 
 func (r *RequestServer) Static() *shttp.Response {
@@ -331,6 +379,14 @@ func (r *RequestServer) Static() *shttp.Response {
 	// If-None-Match headers is checked only if the check above is not performed
 	if noneMatchHeader := r.req.Header.Get("If-None-Match"); noneMatchHeader != "" && modifiedSinceHeader == "" {
 		notModified = headers.Get("ETag") == noneMatchHeader
+	}
+
+	if r.markdown {
+		headers.Set("Content-Type", MarkdownContentType)
+	}
+
+	if r.varyAccept {
+		headers.Set("Vary", "Accept")
 	}
 
 	if headers.Get("Cache-Control") == "" {
@@ -378,6 +434,15 @@ func (r *RequestServer) Dynamic() *shttp.Response {
 	arn := utils.GetString(cnf.FunctionLocation, cnf.APILocation)
 
 	if arn == "" {
+		return r.NotFound()
+	}
+
+	// A deployment without a server function serves its API functions under the
+	// configured prefix and nothing else. Forwarding unmatched paths to the API
+	// function anyway costs an invocation and answers with whatever the function
+	// runtime emits for an unknown route — typically a bodyless 404 — instead of
+	// the deployment's own error page.
+	if cnf.FunctionLocation == "" && cnf.APIPathPrefix != "" && !strings.HasPrefix(url.Path, cnf.APIPathPrefix) {
 		return r.NotFound()
 	}
 
@@ -538,6 +603,18 @@ func (r *RequestServer) NotFound() *shttp.Response {
 	cnf := r.req.Host.Config
 	customNotFound := ErrorFile(cnf)
 
+	// A deployment can ship a markdown error page next to the HTML one. Serving
+	// it lets an agent that hit a dead URL read where to go next instead of
+	// parsing a rendered page.
+	if markdownNotFound := MarkdownErrorFile(cnf); markdownNotFound != nil {
+		r.varyAccept = true
+
+		if parseAccept(r.req.Header.Get("Accept")).prefersMarkdown() {
+			customNotFound = markdownNotFound
+			r.markdown = true
+		}
+	}
+
 	if customNotFound == nil {
 		return r.NotFoundBuiltIn()
 	}
@@ -554,6 +631,14 @@ func (r *RequestServer) NotFound() *shttp.Response {
 
 	headers := shttp.HeadersFromMap(customNotFound.Headers)
 	headers.Set("Content-Type", file.ContentType)
+
+	if r.markdown {
+		headers.Set("Content-Type", MarkdownContentType)
+	}
+
+	if r.varyAccept {
+		headers.Set("Vary", "Accept")
+	}
 
 	r.res = &shttp.Response{
 		Status:  http.StatusNotFound,
@@ -975,6 +1060,32 @@ func ErrorFile(cnf *appconf.Config) *appconf.StaticFile {
 	}
 
 	return nil
+}
+
+// MarkdownErrorFile returns the markdown representation of the deployment's
+// error page, or nil when it ships none. It mirrors ErrorFile: the configured
+// error file first, then the conventional defaults.
+func MarkdownErrorFile(cnf *appconf.Config) *appconf.StaticFile {
+	lookup := []string{}
+
+	if cnf.ErrorFile != "" {
+		lookup = append(lookup, markdownName(cnf.ErrorFile))
+	}
+
+	lookup = append(lookup, "/404.md", "/error.md")
+
+	for _, v := range lookup {
+		if file := cnf.StaticFiles[v]; file != nil {
+			return file
+		}
+	}
+
+	return nil
+}
+
+// markdownName maps an error page file name onto its markdown twin.
+func markdownName(fileName string) string {
+	return strings.TrimSuffix(fileName, path.Ext(fileName)) + ".md"
 }
 
 // headersSize calculates the approximate memory size of HTTP headers.

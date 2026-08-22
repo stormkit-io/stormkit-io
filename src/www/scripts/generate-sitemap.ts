@@ -15,6 +15,7 @@ const PRIORITY: [RegExp, string, string][] = [
   [/^\/$/, '1.0', 'weekly'],
   [/^\/vs-/, '0.9', 'monthly'],
   [/^\/(enterprise|about-us|contact)$/, '0.8', 'monthly'],
+  [/^\/mcp$/, '0.9', 'monthly'],
   [/^\/docs/, '0.8', 'weekly'],
   [/^\/tutorials/, '0.7', 'monthly'],
   [/^\/blog/, '0.6', 'weekly'],

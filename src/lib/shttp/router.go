@@ -1,6 +1,7 @@
 package shttp
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -37,6 +38,37 @@ func (r *Router) RegisterMiddleware(handler func(h http.Handler) http.Handler) {
 	} else {
 		r.handler = handler(r.mux)
 	}
+}
+
+// WithJSONErrors makes unmatched routes answer with the same structured JSON
+// body as the handlers do. Without it gorilla/mux falls back to net/http, which
+// writes "404 page not found" as text/plain — unparseable for an API client.
+func (r *Router) WithJSONErrors() *Router {
+	r.mux.NotFoundHandler = jsonErrorHandler(APIErrorParams{
+		Status:  http.StatusNotFound,
+		Code:    "unknown-endpoint",
+		Message: "This endpoint does not exist. See the OpenAPI specification at /v1/openapi.json for the available endpoints.",
+		Docs:    DocsAuthenticationURL,
+	})
+
+	r.mux.MethodNotAllowedHandler = jsonErrorHandler(APIErrorParams{
+		Status:  http.StatusMethodNotAllowed,
+		Code:    "method-not-allowed",
+		Message: "This endpoint does not accept the used HTTP method. See the OpenAPI specification at /v1/openapi.json for the accepted methods.",
+		Docs:    DocsAuthenticationURL,
+	})
+
+	return r
+}
+
+func jsonErrorHandler(p APIErrorParams) http.Handler {
+	body, _ := json.Marshal(APIErrorBody{Error: p.Message, Code: p.Code, Docs: p.Docs})
+
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(p.Status)
+		_, _ = w.Write(body)
+	})
 }
 
 // WithContext enables the context handler.

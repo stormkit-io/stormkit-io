@@ -232,7 +232,7 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 			}
 
 			if appID == 0 {
-				return shttp.NotFound()
+				return shttp.NotFoundJSON("No application was addressed. Pass 'appId', or use an app-scoped API key.")
 			}
 
 			app, err := app.NewStore().AppByID(req.Context(), appID)
@@ -242,7 +242,7 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 			}
 
 			if app == nil {
-				return shttp.NotFound()
+				return shttp.NotFoundJSON("The application does not exist.")
 			}
 
 			request.App = app
@@ -276,7 +276,7 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 			}
 
 			if env == nil {
-				return shttp.NotFound()
+				return shttp.NotFoundJSON("The environment does not exist. Pass a valid 'envId', or use an environment-scoped API key.")
 			}
 
 			app, err := app.NewStore().AppByID(req.Context(), env.AppID)
@@ -286,7 +286,7 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 			}
 
 			if app == nil {
-				return shttp.NotFound()
+				return shttp.NotFoundJSON("The application owning this environment does not exist.")
 			}
 
 			request.Env = env
