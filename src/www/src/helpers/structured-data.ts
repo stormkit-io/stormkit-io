@@ -19,10 +19,15 @@ export const SAME_AS = [
 
 /**
  * The registered postal address of the company. Google reads `address` as part
- * of verifying that an organisation is real, so leaving it out costs the site
- * that signal — fill it in with the address on the company's legal filings.
+ * of verifying that an organisation is real.
  */
-export const POSTAL_ADDRESS: Record<string, string> | undefined = undefined
+export const POSTAL_ADDRESS: Record<string, string> = {
+  streetAddress: 'Sepapaja tn 6',
+  postalCode: '15551',
+  addressLocality: 'Tallinn',
+  addressRegion: 'Harju maakond',
+  addressCountry: 'EE',
+}
 
 const ORGANIZATION_ID = `${DEFAULT_ORIGIN}/#organization`
 
@@ -73,9 +78,7 @@ export function organizationSchema(): JsonLd {
     ],
   }
 
-  if (POSTAL_ADDRESS) {
-    organization.address = { '@type': 'PostalAddress', ...POSTAL_ADDRESS }
-  }
+  organization.address = { '@type': 'PostalAddress', ...POSTAL_ADDRESS }
 
   return organization
 }
