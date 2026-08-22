@@ -26,6 +26,16 @@ export const POSTAL_ADDRESS: Record<string, string> | undefined = undefined
 
 const ORGANIZATION_ID = `${DEFAULT_ORIGIN}/#organization`
 
+/**
+ * The published price of each plan, per user per month. Both pricing tables
+ * (self-hosted and Cloud) charge the same, so one list describes the product.
+ */
+export const PRICING_TIERS: { name: string; price: string }[] = [
+  { name: 'Free', price: '0' },
+  { name: 'Premium', price: '20' },
+  { name: 'Ultimate', price: '100' },
+]
+
 interface JsonLd {
   '@context'?: string
   '@type': string
@@ -85,22 +95,16 @@ export function softwareApplicationSchema(): JsonLd {
       'Self-hostable deployment platform for web applications: git-driven deployments, preview environments, a managed Postgres database, end-user authentication, a mailer, cron triggers, volumes and analytics — driveable over a REST API and an MCP server.',
     publisher: { '@id': ORGANIZATION_ID },
     sameAs: ['https://github.com/stormkit-io/stormkit-io'],
-    offers: [
-      {
-        '@type': 'Offer',
-        name: 'Self-hosted, single user',
-        price: '0',
-        priceCurrency: 'USD',
-        url: `${DEFAULT_ORIGIN}/#pricing`,
-      },
-      {
-        '@type': 'Offer',
-        name: 'Per user, per month',
-        price: '20',
-        priceCurrency: 'USD',
-        url: `${DEFAULT_ORIGIN}/#pricing`,
-      },
-    ],
+    // Mirrors the tiers rendered by components/Pricing/PricingSelfHosted.tsx and
+    // PricingCloud.tsx. Asserting a price the page contradicts is the one
+    // structured-data error that costs money, so these move together.
+    offers: PRICING_TIERS.map((tier) => ({
+      '@type': 'Offer',
+      name: tier.name,
+      price: tier.price,
+      priceCurrency: 'USD',
+      url: `${DEFAULT_ORIGIN}/#pricing`,
+    })),
   }
 }
 

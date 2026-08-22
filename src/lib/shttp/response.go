@@ -182,23 +182,35 @@ func NoContent() *Response {
 
 // NotAllowed returns a 401 response with user data set to false. The ok/user
 // flags are kept for the dashboard, which branches on them; the error/code
-// fields are what non-browser clients read.
+// fields are what non-browser clients read. Most callers authenticate a session
+// or a webhook, so the message names no particular credential.
 func NotAllowed() *Response {
 	return &Response{
 		Status: http.StatusUnauthorized,
 		Data: map[string]any{
 			"ok":    false,
 			"user":  false,
-			"error": "Authentication is required. Send your Stormkit API key in the Authorization header.",
+			"error": "Authentication is required.",
 			"code":  "unauthorized",
-			"docs":  DocsAuthenticationURL,
 		},
 	}
 }
 
-// Forbidden returns a 403 response with a structured JSON body explaining that
-// the key is missing, invalid or too narrowly scoped.
+// Forbidden returns a 403 with a structured JSON body. The message is
+// deliberately neutral: this helper also answers end users of a customer's app
+// and signed-in dashboard users, neither of whom holds an API key. Paths where
+// the credential really is an API key say so themselves — see ForbiddenAPIKey.
 func Forbidden() *Response {
+	return APIError(APIErrorParams{
+		Status:  http.StatusForbidden,
+		Code:    "forbidden",
+		Message: "You do not have access to this resource.",
+	})
+}
+
+// ForbiddenAPIKey returns a 403 for a request authenticated with a Stormkit API
+// key, naming the credential and where to read about it.
+func ForbiddenAPIKey() *Response {
 	return APIError(APIErrorParams{
 		Status:  http.StatusForbidden,
 		Code:    "forbidden",

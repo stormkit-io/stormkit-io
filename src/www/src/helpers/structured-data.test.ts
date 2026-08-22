@@ -7,6 +7,7 @@ import {
   softwareApplicationSchema,
   toScriptTag,
   SUPPORT_EMAIL,
+  PRICING_TIERS,
 } from './structured-data'
 import { DEFAULT_ORIGIN } from './seo'
 
@@ -100,6 +101,16 @@ describe('organizationSchema', () => {
 })
 
 describe('softwareApplicationSchema', () => {
+  it('offers every published pricing tier', () => {
+    const offers = softwareApplicationSchema().offers as Node[]
+
+    assert.deepEqual(
+      offers.map((offer) => offer.price),
+      PRICING_TIERS.map((tier) => tier.price)
+    )
+    assert.ok(offers.every((offer) => offer.priceCurrency === 'USD'))
+  })
+
   it('points at the install script and the docs', () => {
     const software = softwareApplicationSchema()
 

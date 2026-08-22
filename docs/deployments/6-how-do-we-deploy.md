@@ -82,22 +82,29 @@ real `404` — never a `200` carrying your app shell.
 
 ### Markdown representations
 
-Ship a `.md` file next to a page and Stormkit serves it as a second
-representation of the same URL. `/docs/getting-started.md` published alongside
-`/docs/getting-started.html` means:
+Set `markdown: true` on the environment and Stormkit serves any `.md` file in
+your output as a second representation of the page next to it.
+`/docs/getting-started.md` published alongside `/docs/getting-started.html`
+means:
 
 - `GET /docs/getting-started` with `Accept: text/markdown` answers with the
   markdown, as `text/markdown; charset=utf-8`.
-- The same URL with a browser's `Accept` still answers with the HTML.
-- Both answers carry `Vary: Accept`, so a CDN caches the two variants
-  separately instead of serving one to the wrong client.
-- `q` values are honoured, and a client that accepts neither representation
-  gets a `406`.
+- The same URL with a browser's `Accept` still answers with the HTML, and so
+  does a client that accepts neither — negotiation only ever adds a
+  representation, it never refuses a request that used to succeed.
+- `q` values are honoured, so `Accept: text/html;q=0.9, text/markdown;q=0.5`
+  still gets HTML.
+- Every answer carries `Vary: Accept`, so a CDN caches the two variants
+  separately instead of serving one to the wrong client, and both share the
+  page's cache policy.
 
 The homepage negotiates through `index.md`, and error pages through `404.md` or
 `error.md`. This is what [acceptmarkdown.com](https://acceptmarkdown.com)
 describes, and it is how an agent reads your documentation without scraping the
 rendered page.
+
+The setting defaults to off: a build that copies its markdown sources into the
+output keeps serving exactly what it served before until you turn it on.
 
 ## Example
 

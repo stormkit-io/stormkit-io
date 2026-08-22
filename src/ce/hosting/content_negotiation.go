@@ -92,15 +92,10 @@ func (p acceptPreference) prefersMarkdown() bool {
 	return markdown > 0 && markdown > p.qualityFor("text/html")
 }
 
-// acceptsNothingWeServe reports whether the client ruled out both
-// representations we can produce for a negotiable resource, which is the only
-// case where answering 406 is correct.
-func (p acceptPreference) acceptsNothingWeServe() bool {
-	if p.empty {
-		return false
-	}
-
-	return p.qualityFor("text/html") == 0 && p.qualityFor("text/markdown") == 0
+// markdownTwinParams are the arguments of markdownTwin.
+type markdownTwinParams struct {
+	RequestPath string
+	Files       appconf.StaticFileConfig
 }
 
 // markdownTwin returns the deployment file holding the markdown representation
@@ -109,24 +104,24 @@ func (p acceptPreference) acceptsNothingWeServe() bool {
 // Only files the build actually published are considered, so content
 // negotiation can never invent a URL: /docs/foo is negotiable exactly when the
 // deployment contains /docs/foo.md (or /docs/foo/index.md).
-func markdownTwin(requestPath string, files appconf.StaticFileConfig) string {
-	if len(files) == 0 {
+func markdownTwin(p markdownTwinParams) string {
+	clean := strings.ToLower(p.RequestPath)
+	ext := path.Ext(clean)
+
+	// Assets carry an extension of their own and can never have a twin. They are
+	// the bulk of the requests a deployment serves, so they leave before this
+	// function allocates anything.
+	if ext != "" && ext != ".md" && ext != ".html" {
 		return ""
-	}
-
-	clean := strings.ToLower(requestPath)
-
-	if clean == "" {
-		clean = "/"
 	}
 
 	trimmed := strings.TrimSuffix(clean, "/")
 	candidates := []string{}
 
-	switch {
-	case strings.HasSuffix(clean, ".md"):
+	switch ext {
+	case ".md":
 		candidates = append(candidates, clean)
-	case strings.HasSuffix(clean, ".html"):
+	case ".html":
 		candidates = append(candidates, strings.TrimSuffix(clean, ".html")+".md")
 	default:
 		if trimmed != "" {
@@ -137,7 +132,7 @@ func markdownTwin(requestPath string, files appconf.StaticFileConfig) string {
 	}
 
 	for _, candidate := range candidates {
-		if files[candidate] != nil {
+		if p.Files[candidate] != nil {
 			return candidate
 		}
 	}

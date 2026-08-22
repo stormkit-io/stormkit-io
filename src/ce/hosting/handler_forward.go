@@ -123,6 +123,13 @@ func (r *RequestServer) finalize(res *shttp.Response) *shttp.Response {
 	res = injectSnippets(r.req, res)
 	res = injectOAuthChallenge(r.req, res)
 
+	// Vary is stamped here, and not in the individual handlers, because every
+	// exit path has to carry it: the static twin, the server-rendered HTML, the
+	// deployment's 404 and the built-in one are all representations of a
+	// negotiable URL. It runs after injectHeaders so a custom header rule cannot
+	// drop the one header that keeps a cache from serving markdown to a browser.
+	res = r.applyVary(res)
+
 	if r.req.Host.Config.IsEnterprise {
 		contentType := strings.ToLower(res.Headers.Get("Content-Type"))
 
@@ -132,6 +139,57 @@ func (r *RequestServer) finalize(res *shttp.Response) *shttp.Response {
 	}
 
 	return res
+}
+
+// applyVary stamps Vary: Accept on a response for a URL that has more than one
+// representation, preserving any tokens the deployment already asked for.
+func (r *RequestServer) applyVary(res *shttp.Response) *shttp.Response {
+	if res == nil || !r.varyAccept {
+		return res
+	}
+
+	if res.Headers == nil {
+		res.Headers = http.Header{}
+	}
+
+	for _, token := range strings.Split(res.Headers.Get("Vary"), ",") {
+		if strings.EqualFold(strings.TrimSpace(token), "Accept") {
+			return res
+		}
+	}
+
+	if existing := res.Headers.Get("Vary"); existing != "" {
+		res.Headers.Set("Vary", existing+", Accept")
+	} else {
+		res.Headers.Set("Vary", "Accept")
+	}
+
+	return res
+}
+
+// markdownTwin returns the deployment file holding the markdown representation
+// of the requested path, or an empty string when the deployment does not
+// negotiate or ships no twin.
+func (r *RequestServer) markdownTwin() string {
+	if !r.req.Host.Config.Markdown {
+		return ""
+	}
+
+	return markdownTwin(markdownTwinParams{
+		RequestPath: r.req.URL().Path,
+		Files:       r.req.Host.Config.StaticFiles,
+	})
+}
+
+// isAPIPath reports whether a request path is routed to the API function. The
+// prefix defaults to /api: the column it comes from is only defaulted against
+// NULL, so an environment can still carry an empty one.
+func isAPIPath(requestPath, prefix string) bool {
+	if prefix == "" {
+		prefix = "/api"
+	}
+
+	return strings.HasPrefix(strings.ToLower(requestPath), strings.ToLower(prefix))
 }
 
 type FileMeta struct {
@@ -301,13 +359,18 @@ func (r *RequestServer) Handle() *shttp.Response {
 	// Markdown negotiation runs before anything is served: a deployment that
 	// ships a .md twin of a page offers two representations of the same URL, and
 	// which one the client gets depends on its Accept header.
-	if twin := markdownTwin(r.req.URL().Path, r.req.Host.Config.StaticFiles); twin != "" {
+	//
+	// It is opt-in. A build that happens to copy its markdown sources into the
+	// output must keep serving exactly what it served before, so a deployment
+	// only negotiates once it asks to.
+	if twin := r.markdownTwin(); twin != "" {
 		accept := parseAccept(r.req.Header.Get("Accept"))
 
-		if accept.acceptsNothingWeServe() {
-			return r.NotAcceptable()
-		}
-
+		// Negotiation only ever adds a representation. A client that accepts
+		// neither type still gets the HTML it would have got before, because
+		// refusing a request that used to succeed is a worse answer than serving
+		// the page.
+		//
 		// Vary is set on both representations, not only the markdown one:
 		// without it a cache that stored the HTML variant would hand it to the
 		// next agent asking for markdown, and the other way round.
@@ -328,21 +391,6 @@ func (r *RequestServer) Handle() *shttp.Response {
 	}
 
 	return r.Dynamic()
-}
-
-// NotAcceptable answers a request whose Accept header rules out every
-// representation of a negotiable resource, as RFC 9110 prescribes.
-func (r *RequestServer) NotAcceptable() *shttp.Response {
-	r.res = &shttp.Response{
-		Status: http.StatusNotAcceptable,
-		Data:   []byte("This resource is available as text/html and text/markdown.\n"),
-		Headers: http.Header{
-			"Content-Type": []string{"text/plain; charset=utf-8"},
-			"Vary":         []string{"Accept"},
-		},
-	}
-
-	return r.res
 }
 
 func (r *RequestServer) Static() *shttp.Response {
@@ -385,12 +433,12 @@ func (r *RequestServer) Static() *shttp.Response {
 		headers.Set("Content-Type", MarkdownContentType)
 	}
 
-	if r.varyAccept {
-		headers.Set("Vary", "Accept")
-	}
-
 	if headers.Get("Cache-Control") == "" {
-		if strings.HasPrefix(headers.Get("Content-Type"), "text/html") {
+		// A markdown twin stands in for the page at the same URL, so it takes the
+		// page's revalidation policy and not the asset one. Without this it is
+		// classified by its own content type, and one representation of a URL
+		// outlives the other by a day.
+		if r.markdown || strings.HasPrefix(headers.Get("Content-Type"), "text/html") {
 			headers.Add("Cache-Control", "no-cache, must-revalidate")
 		} else {
 			headers.Add("Cache-Control", "public, max-age=86400")
@@ -431,25 +479,22 @@ func (r *RequestServer) Static() *shttp.Response {
 func (r *RequestServer) Dynamic() *shttp.Response {
 	cnf := r.req.Host.Config
 	url := r.req.URL()
-	arn := utils.GetString(cnf.FunctionLocation, cnf.APILocation)
+
+	// The server function answers everything a static file did not; the API
+	// function answers only its own prefix. Stating it as one decision rather
+	// than a fallback plus a correction means a deployment with no server
+	// function cannot silently make the API function its catch-all: unmatched
+	// paths reach the deployment's own error page instead of costing an
+	// invocation and returning whatever the function runtime emits for an
+	// unknown route.
+	arn := cnf.FunctionLocation
+
+	if cnf.APILocation != "" && isAPIPath(url.Path, cnf.APIPathPrefix) {
+		arn = cnf.APILocation
+	}
 
 	if arn == "" {
 		return r.NotFound()
-	}
-
-	// A deployment without a server function serves its API functions under the
-	// configured prefix and nothing else. Forwarding unmatched paths to the API
-	// function anyway costs an invocation and answers with whatever the function
-	// runtime emits for an unknown route — typically a bodyless 404 — instead of
-	// the deployment's own error page.
-	if cnf.FunctionLocation == "" && cnf.APIPathPrefix != "" && !strings.HasPrefix(url.Path, cnf.APIPathPrefix) {
-		return r.NotFound()
-	}
-
-	// If the path prefix is set and the request URL matches the prefix,
-	// we need to route the request to the API location instead.
-	if cnf.APILocation != "" && cnf.APIPathPrefix != "" && strings.HasPrefix(url.Path, cnf.APIPathPrefix) {
-		arn = cnf.APILocation
 	}
 
 	// When snippets are configured we want the origin to hand back uncompressed
@@ -606,7 +651,7 @@ func (r *RequestServer) NotFound() *shttp.Response {
 	// A deployment can ship a markdown error page next to the HTML one. Serving
 	// it lets an agent that hit a dead URL read where to go next instead of
 	// parsing a rendered page.
-	if markdownNotFound := MarkdownErrorFile(cnf); markdownNotFound != nil {
+	if markdownNotFound := MarkdownErrorFile(cnf); cnf.Markdown && markdownNotFound != nil {
 		r.varyAccept = true
 
 		if parseAccept(r.req.Header.Get("Accept")).prefersMarkdown() {
@@ -634,10 +679,6 @@ func (r *RequestServer) NotFound() *shttp.Response {
 
 	if r.markdown {
 		headers.Set("Content-Type", MarkdownContentType)
-	}
-
-	if r.varyAccept {
-		headers.Set("Vary", "Accept")
 	}
 
 	r.res = &shttp.Response{
@@ -1062,30 +1103,21 @@ func ErrorFile(cnf *appconf.Config) *appconf.StaticFile {
 	return nil
 }
 
-// MarkdownErrorFile returns the markdown representation of the deployment's
-// error page, or nil when it ships none. It mirrors ErrorFile: the configured
-// error file first, then the conventional defaults.
+// MarkdownErrorFile returns the markdown error page of a deployment, or nil
+// when it ships none.
+//
+// Unlike ErrorFile this never derives a name from the configured errorFile. A
+// SPA points errorFile at its app shell (/index.html), whose markdown twin is
+// the homepage — serving that as the body of a 404 would tell an agent it had
+// landed on the homepage. A markdown error page is opted into by name.
 func MarkdownErrorFile(cnf *appconf.Config) *appconf.StaticFile {
-	lookup := []string{}
-
-	if cnf.ErrorFile != "" {
-		lookup = append(lookup, markdownName(cnf.ErrorFile))
-	}
-
-	lookup = append(lookup, "/404.md", "/error.md")
-
-	for _, v := range lookup {
-		if file := cnf.StaticFiles[v]; file != nil {
+	for _, name := range []string{"/404.md", "/500.md", "/error.md"} {
+		if file := cnf.StaticFiles[name]; file != nil {
 			return file
 		}
 	}
 
 	return nil
-}
-
-// markdownName maps an error page file name onto its markdown twin.
-func markdownName(fileName string) string {
-	return strings.TrimSuffix(fileName, path.Ext(fileName)) + ".md"
 }
 
 // headersSize calculates the approximate memory size of HTTP headers.

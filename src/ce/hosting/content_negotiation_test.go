@@ -17,6 +17,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/mocks"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -69,6 +70,7 @@ func (s *ContentNegotiationSuite) host() *hosting.Host {
 			AppID:           types.ID(25),
 			EnvID:           types.ID(100),
 			StorageLocation: "aws:my-bucket/my-key-prefix",
+			Markdown:        true,
 			StaticFiles: appconf.StaticFileConfig{
 				"/docs.html": {
 					FileName: "/docs.html",
@@ -127,6 +129,17 @@ func (s *ContentNegotiationSuite) Test_ServesMarkdownWhenRequested() {
 	s.Equal("text/markdown; charset=utf-8", res.Headers.Get("Content-Type"))
 	s.Equal("Accept", res.Headers.Get("Vary"))
 	s.Equal("# Docs\n", string(res.Data.([]byte)))
+}
+
+// Both representations of a URL must expire together. Classifying the markdown
+// twin by its own content type would file it under the asset policy and leave a
+// corrected page stale for a day.
+func (s *ContentNegotiationSuite) Test_MarkdownSharesThePageCachePolicy() {
+	s.mockFile("/docs.md", "# Docs\n")
+
+	res := s.request(s.host(), "/docs", "text/markdown")
+
+	s.Equal("no-cache, must-revalidate", res.Headers.Get("Cache-Control"))
 }
 
 func (s *ContentNegotiationSuite) Test_ServesHtmlToBrowsers() {
@@ -193,11 +206,19 @@ func (s *ContentNegotiationSuite) Test_PageWithoutTwinIsUnchanged() {
 	s.Empty(res.Headers.Get("Vary"))
 }
 
-func (s *ContentNegotiationSuite) Test_NotAcceptable() {
-	res := s.request(s.host(), "/docs", "application/pdf")
+// Negotiation never refuses a request. A client that accepts neither
+// representation gets the HTML it would have got before the page became
+// negotiable — uptime probes and JSON-only fetch wrappers keep working.
+func (s *ContentNegotiationSuite) Test_UnsupportedAcceptStillServesHtml() {
+	s.mockFile("/docs.html", "<h1>Docs</h1>")
 
-	s.Equal(http.StatusNotAcceptable, res.Status)
-	s.Equal("Accept", res.Headers.Get("Vary"))
+	for _, accept := range []string{"application/pdf", "application/json", "text/plain"} {
+		res := s.request(s.host(), "/docs", accept)
+
+		s.Equal(http.StatusOK, res.Status, "Accept: %s", accept)
+		s.True(strings.HasPrefix(res.Headers.Get("Content-Type"), "text/html"), "Accept: %s", accept)
+		s.Equal("Accept", res.Headers.Get("Vary"), "Accept: %s", accept)
+	}
 }
 
 // The 404 has a markdown representation too, so an agent that hits a dead URL
@@ -247,6 +268,135 @@ func (s *ContentNegotiationSuite) Test_UnmatchedPathDoesNotReachApiFunction() {
 	s.Equal(http.StatusNotFound, res.Status)
 	s.Equal("<h1>Not found</h1>", string(res.Data.([]byte)))
 	s.mockClient.AssertNotCalled(s.T(), "Invoke")
+}
+
+// Negotiation is opt-in: a build that merely happens to publish .md files keeps
+// serving exactly what it served before.
+func (s *ContentNegotiationSuite) Test_DisabledByDefault() {
+	host := s.host()
+	host.Config.Markdown = false
+
+	s.mockFile("/docs.html", "<h1>Docs</h1>")
+
+	res := s.request(host, "/docs", "text/markdown")
+
+	s.Equal(http.StatusOK, res.Status)
+	s.True(strings.HasPrefix(res.Headers.Get("Content-Type"), "text/html"))
+	s.Empty(res.Headers.Get("Vary"))
+}
+
+// The HTML representation is not always a static file. When it is server
+// rendered the response still has to carry Vary, or a cache keyed on the URL
+// alone hands that HTML to the next client asking for markdown.
+func (s *ContentNegotiationSuite) Test_VaryOnServerRenderedVariant() {
+	host := s.host()
+	host.Config.FunctionLocation = "aws:my-server-function"
+
+	delete(host.Config.StaticFiles, "/docs.html")
+
+	s.mockClient.On("Invoke", mock.Anything).Return(&integrations.InvokeResult{
+		StatusCode: http.StatusOK,
+		Body:       []byte("<h1>Docs</h1>"),
+		Headers:    http.Header{"Content-Type": []string{"text/html; charset=utf-8"}},
+	}, nil)
+
+	res := s.request(host, "/docs", "text/html")
+
+	s.Equal(http.StatusOK, res.Status)
+	s.Equal("Accept", res.Headers.Get("Vary"))
+}
+
+// A deployment shipping only a markdown error page still answers browsers with
+// the built-in 404 — which must carry Vary just the same.
+func (s *ContentNegotiationSuite) Test_VaryOnBuiltInNotFound() {
+	host := s.host()
+	host.Config.StaticFiles["/404.md"] = &appconf.StaticFile{FileName: "/404.md"}
+
+	res := s.request(host, "/no-such-page", "text/html")
+
+	s.Equal(http.StatusNotFound, res.Status)
+	s.Equal("Accept", res.Headers.Get("Vary"))
+}
+
+// A deployment that already varies on something keeps that token.
+func (s *ContentNegotiationSuite) Test_VaryPreservesExistingTokens() {
+	host := s.host()
+	host.Config.StaticFiles["/docs.md"].Headers = map[string]string{
+		"content-type": "text/markdown; charset=utf-8",
+		"vary":         "Accept-Encoding",
+	}
+
+	s.mockFile("/docs.md", "# Docs\n")
+
+	res := s.request(host, "/docs", "text/markdown")
+
+	s.Equal("Accept-Encoding, Accept", res.Headers.Get("Vary"))
+}
+
+// A SPA points errorFile at its app shell, whose markdown twin is the homepage.
+// That must never become the body of a 404.
+func (s *ContentNegotiationSuite) Test_MarkdownNotFoundIgnoresConfiguredErrorFile() {
+	host := s.host()
+	host.Config.ErrorFile = "/index.html"
+	host.Config.StaticFiles["/index.html"] = &appconf.StaticFile{FileName: "/index.html"}
+	host.Config.StaticFiles["/index.md"] = &appconf.StaticFile{FileName: "/index.md"}
+
+	s.mockFile("/index.html", "<div id=root></div>")
+
+	res := s.request(host, "/no-such-page", "text/markdown")
+
+	s.Equal(http.StatusNotFound, res.Status)
+	s.False(strings.HasPrefix(res.Headers.Get("Content-Type"), "text/markdown"),
+		"the homepage markdown must not be served as the 404 body")
+}
+
+func (s *ContentNegotiationSuite) Test_MarkdownNotFoundAcceptsFiveHundred() {
+	host := s.host()
+	host.Config.StaticFiles["/500.md"] = &appconf.StaticFile{FileName: "/500.md"}
+
+	s.mockFile("/500.md", "# Error\n")
+
+	res := s.request(host, "/no-such-page", "text/markdown")
+
+	s.Equal(http.StatusNotFound, res.Status)
+	s.Equal("text/markdown; charset=utf-8", res.Headers.Get("Content-Type"))
+}
+
+// The prefix column is only defaulted against NULL, so an environment can carry
+// an empty one. That must not turn the API function back into a catch-all.
+func (s *ContentNegotiationSuite) Test_EmptyApiPrefixStillFallsBackToTheErrorPage() {
+	host := s.host()
+	host.Config.APILocation = "aws:my-api-function"
+	host.Config.APIPathPrefix = ""
+	host.Config.StaticFiles["/404.html"] = &appconf.StaticFile{FileName: "/404.html"}
+
+	s.mockFile("/404.html", "<h1>Not found</h1>")
+
+	res := s.request(host, "/no-such-page", "text/html")
+
+	s.Equal(http.StatusNotFound, res.Status)
+	s.mockClient.AssertNotCalled(s.T(), "Invoke")
+}
+
+// A deployment with a server function keeps serving every unmatched path from
+// it — the routing change must not turn SSR apps into 404s.
+func (s *ContentNegotiationSuite) Test_ServerFunctionStillHandlesUnmatchedPaths() {
+	host := s.host()
+	host.Config.FunctionLocation = "aws:my-server-function"
+	host.Config.APILocation = "aws:my-api-function"
+	host.Config.APIPathPrefix = "/api"
+	host.Config.StaticFiles["/404.html"] = &appconf.StaticFile{FileName: "/404.html"}
+
+	s.mockClient.On("Invoke", mock.Anything).Return(&integrations.InvokeResult{
+		StatusCode: http.StatusOK,
+		Body:       []byte("<h1>Rendered</h1>"),
+		Headers:    http.Header{"Content-Type": []string{"text/html; charset=utf-8"}},
+	}, nil)
+
+	res := s.request(host, "/some/ssr/route", "text/html")
+
+	s.Equal(http.StatusOK, res.Status)
+	s.Equal("<h1>Rendered</h1>", string(res.Data.([]byte)))
 }
 
 func TestContentNegotiationSuite(t *testing.T) {

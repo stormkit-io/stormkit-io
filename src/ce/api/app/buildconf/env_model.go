@@ -361,6 +361,7 @@ type BuildConf struct {
 	APIPathPrefix   string               `json:"apiPathPrefix,omitempty"`   // Path prefix in the URL that will be used to call api functions, default: /api
 	RedirectsFile   string               `json:"redirectsFile,omitempty"`   // Path to the redirects file.
 	ErrorFile       string               `json:"errorFile,omitempty"`       // When specified, we'll load this file instead of the default 404.html or error.html
+	Markdown        null.Bool            `json:"markdown,omitempty"`        // Serve the .md twin of a page to clients that send Accept: text/markdown. Off unless enabled.
 	Headers         string               `json:"headers,omitempty"`         // Custom headers set from the UI.
 	HeadersFile     string               `json:"headersFile,omitempty"`     // Path to the headers file. The path is relative to working dir.
 	DistFolder      string               `json:"distFolder,omitempty"`      // DistFolder is the client dist folder.

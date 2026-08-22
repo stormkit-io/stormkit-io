@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp/shttptest"
 	"github.com/stretchr/testify/suite"
@@ -67,6 +68,12 @@ type OpenAPISuite struct {
 }
 
 func (s *OpenAPISuite) SetupTest() {
+	// The registered route set is edition-conditional, and sibling suites in this
+	// package leave the process-wide edition wherever they last set it. Pinning it
+	// here — as services_test.go does — keeps the parity checks from passing or
+	// failing on the order the test files happen to sort in.
+	config.SetIsSelfHosted(true)
+
 	s.Require().NoError(json.Unmarshal(publicapiv1.OpenAPISpec(), &s.doc))
 }
 

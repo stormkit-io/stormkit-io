@@ -67,8 +67,9 @@ func (s *RouterJSONErrorsSuite) Test_KnownEndpointIsUnaffected() {
 	s.Equal(http.StatusOK, res.Code)
 }
 
-// Forbidden is the most common API failure — an unauthenticated call — so it
-// carries the resolution hint rather than an empty body.
+// Forbidden answers API-key callers, end users of a customer's app and
+// signed-in dashboard users alike, so it carries a body without naming a
+// credential none of them may hold.
 func (s *RouterJSONErrorsSuite) Test_ForbiddenCarriesAJsonBody() {
 	res := shttp.Forbidden()
 
@@ -78,7 +79,29 @@ func (s *RouterJSONErrorsSuite) Test_ForbiddenCarriesAJsonBody() {
 	s.Equal(http.StatusForbidden, res.Status)
 	s.Equal("forbidden", body.Code)
 	s.NotEmpty(body.Error)
+	s.NotContains(body.Error, "API key")
+	s.Empty(body.Docs)
+}
+
+// The API-key variant is the one that may name the credential.
+func (s *RouterJSONErrorsSuite) Test_ForbiddenAPIKeyNamesTheCredential() {
+	body, ok := shttp.ForbiddenAPIKey().Data.(shttp.APIErrorBody)
+
+	s.Require().True(ok)
+	s.Equal("forbidden", body.Code)
+	s.Contains(body.Error, "API key")
 	s.Equal(shttp.DocsAuthenticationURL, body.Docs)
+}
+
+// NotAllowed answers admin logins and webhook callbacks, so it must not tell
+// the caller to send an API key.
+func (s *RouterJSONErrorsSuite) Test_NotAllowedDoesNotNameACredential() {
+	data, ok := shttp.NotAllowed().Data.(map[string]any)
+
+	s.Require().True(ok)
+	s.Equal(false, data["user"])
+	s.Equal("unauthorized", data["code"])
+	s.NotContains(data["error"].(string), "API key")
 }
 
 func (s *RouterJSONErrorsSuite) Test_NotFoundJSON() {
