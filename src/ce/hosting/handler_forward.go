@@ -134,6 +134,17 @@ func (r *RequestServer) finalize(res *shttp.Response) *shttp.Response {
 	return res
 }
 
+// isAPIPath reports whether a request path is routed to the API function. The
+// prefix defaults to /api: the column it comes from is only defaulted against
+// NULL, so an environment can still carry an empty one.
+func isAPIPath(requestPath, prefix string) bool {
+	if prefix == "" {
+		prefix = "/api"
+	}
+
+	return strings.HasPrefix(strings.ToLower(requestPath), strings.ToLower(prefix))
+}
+
 type FileMeta struct {
 	Name    string
 	Headers map[string]string
@@ -375,16 +386,22 @@ func (r *RequestServer) Static() *shttp.Response {
 func (r *RequestServer) Dynamic() *shttp.Response {
 	cnf := r.req.Host.Config
 	url := r.req.URL()
-	arn := utils.GetString(cnf.FunctionLocation, cnf.APILocation)
+
+	// The server function answers everything a static file did not; the API
+	// function answers only its own prefix. Stating it as one decision rather
+	// than a fallback plus a correction means a deployment with no server
+	// function cannot silently make the API function its catch-all: unmatched
+	// paths reach the deployment's own error page instead of costing an
+	// invocation and returning whatever the function runtime emits for an
+	// unknown route.
+	arn := cnf.FunctionLocation
+
+	if cnf.APILocation != "" && isAPIPath(url.Path, cnf.APIPathPrefix) {
+		arn = cnf.APILocation
+	}
 
 	if arn == "" {
 		return r.NotFound()
-	}
-
-	// If the path prefix is set and the request URL matches the prefix,
-	// we need to route the request to the API location instead.
-	if cnf.APILocation != "" && cnf.APIPathPrefix != "" && strings.HasPrefix(url.Path, cnf.APIPathPrefix) {
-		arn = cnf.APILocation
 	}
 
 	// When snippets are configured we want the origin to hand back uncompressed
