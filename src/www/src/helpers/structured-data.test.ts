@@ -58,8 +58,13 @@ describe('homeStructuredData', () => {
     const organization = nodeOf(homeStructuredData(), 'Organization')
     const sameAs = organization.sameAs as string[]
 
-    assert.ok(sameAs.includes('https://github.com/stormkit-io'))
-    assert.ok(sameAs.every((url) => url.startsWith('https://')))
+    assert.deepEqual(sameAs, [
+      'https://github.com/stormkit-io',
+      'https://x.com/stormkitio',
+      'https://www.linkedin.com/company/stormkit',
+      'https://www.youtube.com/@stormkit-io',
+      'https://discord.com/invite/6yQWhyY',
+    ])
   })
 
   it('ties the product and the site to the same organization node', () => {
