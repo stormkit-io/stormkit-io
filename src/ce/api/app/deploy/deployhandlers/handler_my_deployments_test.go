@@ -70,6 +70,7 @@ func (s *HandlerMyDeploymentsSuite) responseTemplate() (*template.Template, erro
 						"build": {
 							"buildCmd": "npm run build",
 							"distFolder": "build",
+							"markdown": null,
 							"previewLinks": null,
 							"statusChecks": [{
 								"cmd": "npm run e2e",

@@ -59,6 +59,7 @@ func (s *HandlerEnvGetSuite) Test_Success() {
 		   "build":{
 			  "distFolder":"build",
 			  "buildCmd":"npm run build",
+			  "markdown": null,
 			  "previewLinks": null,
 			  "vars":{
 				 "NODE_ENV":""
