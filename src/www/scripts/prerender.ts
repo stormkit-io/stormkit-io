@@ -33,6 +33,12 @@ const routes: Prerender[] = [
   { route: '/vs-vercel' },
   { route: '/vs-netlify' },
   {
+    route: '/mcp',
+    title: 'Stormkit MCP Server',
+    description:
+      'Drive Stormkit from an agent: the Stormkit MCP server exposes deployments, environments, logs, domains, mailer and auth as tools, backed by the Stormkit REST API.',
+  },
+  {
     route: '/policies/terms',
     title: 'Terms of Service',
     description: 'Read terms of service before using Stormkit',
