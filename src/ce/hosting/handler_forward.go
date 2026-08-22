@@ -123,6 +123,13 @@ func (r *RequestServer) finalize(res *shttp.Response) *shttp.Response {
 	res = injectSnippets(r.req, res)
 	res = injectOAuthChallenge(r.req, res)
 
+	// Vary is stamped here, and not in the individual handlers, because every
+	// exit path has to carry it: the static twin, the server-rendered HTML, the
+	// deployment's 404 and the built-in one are all representations of a
+	// negotiable URL. It runs after injectHeaders so a custom header rule cannot
+	// drop the one header that keeps a cache from serving markdown to a browser.
+	res = r.applyVary(res)
+
 	if r.req.Host.Config.IsEnterprise {
 		contentType := strings.ToLower(res.Headers.Get("Content-Type"))
 
@@ -132,6 +139,46 @@ func (r *RequestServer) finalize(res *shttp.Response) *shttp.Response {
 	}
 
 	return res
+}
+
+// applyVary stamps Vary: Accept on a response for a URL that has more than one
+// representation, preserving any tokens the deployment already asked for.
+func (r *RequestServer) applyVary(res *shttp.Response) *shttp.Response {
+	if res == nil || !r.varyAccept {
+		return res
+	}
+
+	if res.Headers == nil {
+		res.Headers = http.Header{}
+	}
+
+	for _, token := range strings.Split(res.Headers.Get("Vary"), ",") {
+		if strings.EqualFold(strings.TrimSpace(token), "Accept") {
+			return res
+		}
+	}
+
+	if existing := res.Headers.Get("Vary"); existing != "" {
+		res.Headers.Set("Vary", existing+", Accept")
+	} else {
+		res.Headers.Set("Vary", "Accept")
+	}
+
+	return res
+}
+
+// markdownTwin returns the deployment file holding the markdown representation
+// of the requested path, or an empty string when the deployment does not
+// negotiate or ships no twin.
+func (r *RequestServer) markdownTwin() string {
+	if !r.req.Host.Config.Markdown {
+		return ""
+	}
+
+	return markdownTwin(markdownTwinParams{
+		RequestPath: r.req.URL().Path,
+		Files:       r.req.Host.Config.StaticFiles,
+	})
 }
 
 // isAPIPath reports whether a request path is routed to the API function. The
@@ -160,6 +207,12 @@ type RequestServer struct {
 	logs      []integrations.Log
 	record    *analytics.Record
 	fnInvoked bool
+	// markdown is true when the response serves the markdown representation of
+	// a negotiable page.
+	markdown bool
+	// varyAccept is true when the requested URL has more than one
+	// representation, so caches must key on the Accept header.
+	varyAccept bool
 }
 
 func NewRequestServer(req *RequestContext) *RequestServer {
@@ -301,7 +354,39 @@ func (r *RequestServer) FileMeta() *FileMeta {
 }
 
 func (r *RequestServer) Handle() *shttp.Response {
-	if r.fileMeta = r.FileMeta(); r.fileMeta != nil {
+	r.fileMeta = r.FileMeta()
+
+	// Markdown negotiation runs before anything is served: a deployment that
+	// ships a .md twin of a page offers two representations of the same URL, and
+	// which one the client gets depends on its Accept header.
+	//
+	// It is opt-in. A build that happens to copy its markdown sources into the
+	// output must keep serving exactly what it served before, so a deployment
+	// only negotiates once it asks to.
+	if twin := r.markdownTwin(); twin != "" {
+		accept := parseAccept(r.req.Header.Get("Accept"))
+
+		// Negotiation only ever adds a representation. A client that accepts
+		// neither type still gets the HTML it would have got before, because
+		// refusing a request that used to succeed is a worse answer than serving
+		// the page.
+		//
+		// Vary is set on both representations, not only the markdown one:
+		// without it a cache that stored the HTML variant would hand it to the
+		// next agent asking for markdown, and the other way round.
+		r.varyAccept = true
+
+		if accept.prefersMarkdown() {
+			file := r.req.Host.Config.StaticFiles[twin]
+
+			r.fileMeta = &FileMeta{Name: file.FileName, Headers: file.Headers}
+			r.markdown = true
+
+			return r.Static()
+		}
+	}
+
+	if r.fileMeta != nil {
 		return r.Static()
 	}
 
@@ -344,8 +429,16 @@ func (r *RequestServer) Static() *shttp.Response {
 		notModified = headers.Get("ETag") == noneMatchHeader
 	}
 
+	if r.markdown {
+		headers.Set("Content-Type", MarkdownContentType)
+	}
+
 	if headers.Get("Cache-Control") == "" {
-		if strings.HasPrefix(headers.Get("Content-Type"), "text/html") {
+		// A markdown twin stands in for the page at the same URL, so it takes the
+		// page's revalidation policy and not the asset one. Without this it is
+		// classified by its own content type, and one representation of a URL
+		// outlives the other by a day.
+		if r.markdown || strings.HasPrefix(headers.Get("Content-Type"), "text/html") {
 			headers.Add("Cache-Control", "no-cache, must-revalidate")
 		} else {
 			headers.Add("Cache-Control", "public, max-age=86400")
@@ -555,6 +648,18 @@ func (r *RequestServer) NotFound() *shttp.Response {
 	cnf := r.req.Host.Config
 	customNotFound := ErrorFile(cnf)
 
+	// A deployment can ship a markdown error page next to the HTML one. Serving
+	// it lets an agent that hit a dead URL read where to go next instead of
+	// parsing a rendered page.
+	if markdownNotFound := MarkdownErrorFile(cnf); cnf.Markdown && markdownNotFound != nil {
+		r.varyAccept = true
+
+		if parseAccept(r.req.Header.Get("Accept")).prefersMarkdown() {
+			customNotFound = markdownNotFound
+			r.markdown = true
+		}
+	}
+
 	if customNotFound == nil {
 		return r.NotFoundBuiltIn()
 	}
@@ -571,6 +676,10 @@ func (r *RequestServer) NotFound() *shttp.Response {
 
 	headers := shttp.HeadersFromMap(customNotFound.Headers)
 	headers.Set("Content-Type", file.ContentType)
+
+	if r.markdown {
+		headers.Set("Content-Type", MarkdownContentType)
+	}
 
 	r.res = &shttp.Response{
 		Status:  http.StatusNotFound,
@@ -987,6 +1096,23 @@ func ErrorFile(cnf *appconf.Config) *appconf.StaticFile {
 		}
 
 		if file := cnf.StaticFiles[v]; file != nil {
+			return file
+		}
+	}
+
+	return nil
+}
+
+// MarkdownErrorFile returns the markdown error page of a deployment, or nil
+// when it ships none.
+//
+// Unlike ErrorFile this never derives a name from the configured errorFile. A
+// SPA points errorFile at its app shell (/index.html), whose markdown twin is
+// the homepage — serving that as the body of a 404 would tell an agent it had
+// landed on the homepage. A markdown error page is opted into by name.
+func MarkdownErrorFile(cnf *appconf.Config) *appconf.StaticFile {
+	for _, name := range []string{"/404.md", "/500.md", "/error.md"} {
+		if file := cnf.StaticFiles[name]; file != nil {
 			return file
 		}
 	}
