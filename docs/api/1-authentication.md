@@ -64,6 +64,21 @@ curl -X GET \
      'https://api.stormkit.io/v1/redirects?appId=48961&envId=58181'
 ```
 
+## OpenAPI specification
+
+The full API surface is published as an OpenAPI 3.1 document. Every operation
+carries a unique `operationId`, a description, typed parameters and response
+schemas, so it can be loaded straight into an API client or turned into
+function-calling tools for an agent.
+
+- `https://api.stormkit.io/v1/openapi.json` — served by the API itself, no
+  authentication required. On a self-hosted instance, use your own API host.
+- `https://www.stormkit.io/openapi.json` — the same document on the website.
+
+```bash
+curl -s 'https://api.stormkit.io/v1/openapi.json' | jq '.paths | keys'
+```
+
 ## Error responses
 
 Every failing call answers with JSON:

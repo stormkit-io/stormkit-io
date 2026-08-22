@@ -47,6 +47,7 @@ func (s *RouterJSONErrorsSuite) Test_UnknownEndpoint() {
 	body := s.errorBody(res.Body.Bytes())
 	s.Equal("unknown-endpoint", body.Code)
 	s.NotEmpty(body.Error)
+	s.Contains(body.Error, "/v1/openapi.json")
 }
 
 func (s *RouterJSONErrorsSuite) Test_MethodNotAllowed() {
