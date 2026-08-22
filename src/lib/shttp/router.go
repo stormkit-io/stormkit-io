@@ -47,14 +47,14 @@ func (r *Router) WithJSONErrors() *Router {
 	r.mux.NotFoundHandler = jsonErrorHandler(APIErrorParams{
 		Status:  http.StatusNotFound,
 		Code:    "unknown-endpoint",
-		Message: "This endpoint does not exist. See the API documentation for the available endpoints.",
+		Message: "This endpoint does not exist. See the OpenAPI specification at /v1/openapi.json for the available endpoints.",
 		Docs:    DocsAuthenticationURL,
 	})
 
 	r.mux.MethodNotAllowedHandler = jsonErrorHandler(APIErrorParams{
 		Status:  http.StatusMethodNotAllowed,
 		Code:    "method-not-allowed",
-		Message: "This endpoint does not accept the used HTTP method. See the API documentation for the accepted methods.",
+		Message: "This endpoint does not accept the used HTTP method. See the OpenAPI specification at /v1/openapi.json for the accepted methods.",
 		Docs:    DocsAuthenticationURL,
 	})
 

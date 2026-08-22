@@ -1,3 +1,6 @@
 search-docs.json
 .stormkit/
 .vite/
+
+# Copied from src/ce/api/public/v1/openapi.json by build:openapi.
+public/openapi.json

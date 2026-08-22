@@ -13,6 +13,11 @@ import (
 func Services(r *shttp.Router) *shttp.Service {
 	s := r.NewService()
 
+	// Unauthenticated on purpose: agents discover the API surface before they
+	// hold a key.
+	s.NewEndpoint("/v1/openapi.json").
+		Handler(shttp.MethodGet, "", handlerOpenAPI)
+
 	s.NewEndpoint("/v1/apps").
 		Handler(shttp.MethodGet, "", WithAPIKey(handlerAppList, &Opts{MinimumScope: apikey.SCOPE_TEAM}))
 
