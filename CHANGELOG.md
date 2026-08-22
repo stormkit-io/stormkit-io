@@ -1,5 +1,39 @@
 # Changelog
 
+## v2026.08.21.1...v2026.08.22.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.08.21.1...v2026.08.22.1)
+
+### 🚀 Enhancements
+
+- Point the 404 page at somewhere to go ([#465](https://github.com/stormkit-io/stormkit-io/pull/465))
+- Return structured json errors from the api ([#466](https://github.com/stormkit-io/stormkit-io/pull/466))
+- Publish an openapi specification for the api ([#467](https://github.com/stormkit-io/stormkit-io/pull/467))
+- Serve markdown representations of pages ([#469](https://github.com/stormkit-io/stormkit-io/pull/469))
+- Add json-ld structured data to the site ([#470](https://github.com/stormkit-io/stormkit-io/pull/470))
+- Publish a markdown twin of every page ([#471](https://github.com/stormkit-io/stormkit-io/pull/471))
+
+### 🩹 Fixes
+
+- Correct the homepage heading hierarchy ([#464](https://github.com/stormkit-io/stormkit-io/pull/464))
+- Serve the error page for unmatched paths ([#468](https://github.com/stormkit-io/stormkit-io/pull/468))
+
+### 📖 Documentation
+
+- List the agent-facing resources in llms.txt ([#472](https://github.com/stormkit-io/stormkit-io/pull/472))
+
+### 🏡 Chore
+
+- Update changelog for v2026.08.21.1 ([#458](https://github.com/stormkit-io/stormkit-io/pull/458))
+
+### ✅ Tests
+
+- Expect the markdown field in env config json ([#473](https://github.com/stormkit-io/stormkit-io/pull/473))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.08.13.2...v2026.08.21.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.08.13.2...v2026.08.21.1)
