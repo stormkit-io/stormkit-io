@@ -6,6 +6,7 @@ declare type StatusCheck = {
 
 declare type BuildConfig = {
   previewLinks?: boolean;
+  markdown?: boolean;
   apiFolder?: string; // The folder where serverless functions are located
   apiPathPrefix?: string; // The path prefix to match in the URL for serverless functions
   headers?: string;

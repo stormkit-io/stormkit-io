@@ -29,6 +29,7 @@ type EnvAddRequest struct {
 	Headers            string                  `json:"headers,omitempty"`
 	HeadersFile        string                  `json:"headersFile,omitempty"`
 	InstallCmd         string                  `json:"installCmd,omitempty"`
+	Markdown           null.Bool               `json:"markdown,omitempty"`
 	Name               string                  `json:"name"`
 	PreviewLinks       null.Bool               `json:"previewLinks,omitempty"`
 	Redirects          []redirects.Redirect    `json:"redirects,omitempty"`
@@ -64,6 +65,7 @@ func handlerEnvAdd(req *RequestContext) *shttp.Response {
 			BuildCmd:      data.BuildCmd,
 			InstallCmd:    data.InstallCmd,
 			PreviewLinks:  data.PreviewLinks,
+			Markdown:      data.Markdown,
 			ServerCmd:     data.ServerCmd,
 			Redirects:     data.Redirects,
 			Vars:          data.EnvVars,

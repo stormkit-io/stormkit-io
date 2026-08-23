@@ -78,7 +78,35 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabConfigRe
     );
 
     const scope = mockUpdateEnvironment({
-      payload: { redirectsFile: "/redirects.json", errorFile: "/index.html" },
+      payload: {
+        redirectsFile: "/redirects.json",
+        errorFile: "/index.html",
+        markdown: false,
+      },
+      status: 200,
+      response: {
+        ok: true,
+      },
+    });
+
+    fireEvent.click(wrapper.getByText("Save"));
+
+    await waitFor(() => {
+      expect(scope.isDone()).toBe(true);
+    });
+  });
+
+  it("should submit the markdown toggle", async () => {
+    createWrapper({});
+
+    fireEvent.click(wrapper.getByText("Markdown representations"));
+
+    const scope = mockUpdateEnvironment({
+      payload: {
+        redirectsFile: "",
+        errorFile: "",
+        markdown: true,
+      },
       status: 200,
       response: {
         ok: true,
@@ -110,6 +138,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabConfigRe
         redirects: [],
         redirectsFile: "/redirects.json",
         errorFile: "/index.html",
+        markdown: false,
       },
       status: 200,
       response: {

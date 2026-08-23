@@ -76,6 +76,7 @@ func (s *HandlerEnvUpdateSuite) Test_Success() {
 			"distFolder":   "dist",
 			"autoPublish":  true,
 			"previewLinks": true,
+			"markdown":     true,
 			"envVars": map[string]string{
 				"NODE_ENV": "staging",
 			},
@@ -97,6 +98,7 @@ func (s *HandlerEnvUpdateSuite) Test_Success() {
 	s.Equal("/dist", updated.Data.DistFolder)
 	s.True(updated.AutoPublish)
 	s.True(updated.Data.PreviewLinks.ValueOrZero())
+	s.True(updated.Data.Markdown.ValueOrZero())
 	s.Equal("staging", updated.Data.Vars["NODE_ENV"])
 
 	audits, err := audit.NewStore().SelectAudits(context.Background(), audit.AuditFilters{

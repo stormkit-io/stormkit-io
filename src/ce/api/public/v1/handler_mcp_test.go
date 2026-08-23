@@ -711,6 +711,28 @@ func (s *HandlerMCPSuite) Test_UpdateEnvironment_Success() {
 	s.True(ok)
 }
 
+// The markdown flag is what turns content negotiation on for a deployment, so
+// an agent has to be able to set it the same way it sets any other build
+// setting.
+func (s *HandlerMCPSuite) Test_UpdateEnvironment_SetsMarkdown() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl)
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "update_environment", map[string]any{
+		"envId":    mockEnv.ID.String(),
+		"markdown": true,
+	}))
+
+	s.rpcOK(resp)
+
+	updated, err := buildconf.NewStore().EnvironmentByID(context.Background(), mockEnv.ID)
+
+	s.Require().NoError(err)
+	s.True(updated.Data.Markdown.ValueOrZero())
+}
+
 func (s *HandlerMCPSuite) Test_UpdateEnvironment_Forbidden_NotMember() {
 	usr1 := s.MockUser()
 	usr2 := s.MockUser()
