@@ -1,5 +1,5 @@
 import { RenderResult, waitFor } from "@testing-library/react";
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { MemoryRouter } from "react-router";
 import { fireEvent, render } from "@testing-library/react";
 import { EnvironmentContext } from "~/pages/apps/[id]/environments/Environment.context";
@@ -101,6 +101,38 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/EnvironmentConfig.tsx",
       expect(
         wrapper.getByTestId("env-config-nav").getAttribute("data-selected"),
       ).toBe("#env-vars");
+    });
+  });
+
+  describe("scrolling to a section", () => {
+    let scrolledIds: Array<string>;
+
+    beforeEach(() => {
+      scrolledIds = [];
+      // jsdom does not implement scrollIntoView; capture the element it targets.
+      Element.prototype.scrollIntoView = vi.fn(function (this: Element) {
+        scrolledIds.push(this.id);
+      });
+    });
+
+    afterEach(() => {
+      // scrollIntoView is not implemented by jsdom, so remove the stand-in
+      // rather than vi.restoreAllMocks(), which would also strip the shared
+      // ResizeObserver mock other tests rely on.
+      delete (Element.prototype as unknown as Record<string, unknown>)
+        .scrollIntoView;
+    });
+
+    // The click path (navigate to #redirects, then scroll) cannot be exercised
+    // here because setup.tsx mocks useNavigate to a no-op, so the hash never
+    // changes. The hash-driven case below covers the same scroll code path:
+    // #redirects mounts the Redirects section and it is scrolled into view.
+    it("should scroll to Redirects when deep-linked via the hash", async () => {
+      createWrapper({ hash: "#redirects" });
+
+      await waitFor(() => {
+        expect(scrolledIds).toContain("redirects");
+      });
     });
   });
 

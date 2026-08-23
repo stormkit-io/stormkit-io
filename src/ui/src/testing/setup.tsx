@@ -48,13 +48,14 @@ interface RechartsProps {
   data: any;
 }
 
-window.ResizeObserver =
-  window.ResizeObserver ||
-  vi.fn().mockImplementation(() => ({
-    disconnect: vi.fn(),
-    observe: vi.fn(),
-    unobserve: vi.fn(),
-  }));
+// Assigned unconditionally: recent jsdom ships a ResizeObserver stub whose
+// observe() is missing, which breaks auto-sizing MUI inputs, so the working
+// mock must win over it rather than defer to it.
+window.ResizeObserver = vi.fn().mockImplementation(() => ({
+  disconnect: vi.fn(),
+  observe: vi.fn(),
+  unobserve: vi.fn(),
+}));
 
 vi.mock("recharts", async importOriginal => {
   const OriginalModule = await importOriginal<typeof import("recharts")>();
