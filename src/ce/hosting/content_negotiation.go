@@ -13,6 +13,16 @@ import (
 // registers text/markdown; the charset removes any doubt about the encoding.
 const MarkdownContentType = "text/markdown; charset=utf-8"
 
+// maxAcceptHeaderLen and maxAcceptEntries bound the work parseAccept will do on
+// a single request. A legitimate Accept header is well under a kilobyte with a
+// handful of entries; these ceilings sit far above any real client while
+// keeping a hostile 1MB header from turning one request into tens of
+// milliseconds of CPU and tens of megabytes of allocation on a shared edge.
+const (
+	maxAcceptHeaderLen = 4096
+	maxAcceptEntries   = 32
+)
+
 // acceptedType is one entry of a parsed Accept header.
 type acceptedType struct {
 	mime    string
@@ -34,7 +44,24 @@ type acceptPreference struct {
 func parseAccept(header string) acceptPreference {
 	pref := acceptPreference{empty: true}
 
-	for _, part := range strings.Split(header, ",") {
+	// An oversized header is treated as if none was sent: RFC 9110 says that
+	// means everything is acceptable, so the caller serves what it would have
+	// served anyway (HTML) rather than paying to parse an attacker-sized value.
+	if len(header) > maxAcceptHeaderLen {
+		return pref
+	}
+
+	// SplitN caps allocation and scanning at maxAcceptEntries: the raw split of
+	// a comma-heavy header is itself the expense, so it must be bounded before
+	// the loop, not inside it. The final chunk holds the unscanned remainder and
+	// is dropped.
+	parts := strings.SplitN(header, ",", maxAcceptEntries+1)
+
+	if len(parts) > maxAcceptEntries {
+		parts = parts[:maxAcceptEntries]
+	}
+
+	for _, part := range parts {
 		fields := strings.Split(strings.TrimSpace(part), ";")
 		mime := strings.ToLower(strings.TrimSpace(fields[0]))
 
