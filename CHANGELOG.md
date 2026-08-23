@@ -1,5 +1,27 @@
 # Changelog
 
+## v2026.08.22.1...v2026.08.23.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.08.22.1...v2026.08.23.1)
+
+### 🚀 Enhancements
+
+- Publish the company address in json-ld ([#474](https://github.com/stormkit-io/stormkit-io/pull/474))
+- Make the 404 page useful ([#476](https://github.com/stormkit-io/stormkit-io/pull/476))
+- Expose the markdown flag on environments ([#480](https://github.com/stormkit-io/stormkit-io/pull/480))
+
+### 🩹 Fixes
+
+- Prefer explicitly accepted type in negotiation ([#477](https://github.com/stormkit-io/stormkit-io/pull/477))
+
+### 🏡 Chore
+
+- Update changelog for v2026.08.22.1 ([#475](https://github.com/stormkit-io/stormkit-io/pull/475))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.08.21.1...v2026.08.22.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.08.21.1...v2026.08.22.1)
