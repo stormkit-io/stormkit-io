@@ -1,6 +1,7 @@
 package hosting
 
 import (
+	"math"
 	"path"
 	"strconv"
 	"strings"
@@ -50,8 +51,19 @@ func parseAccept(header string) acceptPreference {
 				continue
 			}
 
-			if q, err := strconv.ParseFloat(strings.TrimSpace(value), 64); err == nil {
-				entry.quality = q
+			// Clamped, and NaN dropped, because the q decides which file is
+			// served and the header is whatever the client sent. An out-of-range
+			// q used to be harmless — the old comparison took the highest q
+			// across every matching range, so an illegal one lifted both types
+			// equally — but a q now applies to one type and not the other, and
+			// `text/html, */*;q=5` would hand markdown to a client that named
+			// HTML at full weight.
+			//
+			// A q that does not parse at all keeps the default of 1 rather than
+			// dropping to 0: a browser sending a truncated `text/html;q=` must
+			// still get its page.
+			if q, err := strconv.ParseFloat(strings.TrimSpace(value), 64); err == nil && !math.IsNaN(q) {
+				entry.quality = math.Min(math.Max(q, 0), 1)
 			}
 		}
 
@@ -115,10 +127,6 @@ func (p acceptPreference) matchFor(mime string) acceptMatch {
 		}
 	}
 
-	if best.specificity < 0 {
-		return acceptMatch{specificity: -1}
-	}
-
 	return best
 }
 
@@ -129,10 +137,15 @@ func (p acceptPreference) matchFor(mime string) acceptMatch {
 // so `text/markdown, */*` — an agent asking for markdown but taking anything —
 // gets markdown, while a bare `*/*` from curl still gets the page. A tie at
 // equal specificity goes to HTML.
+//
+// Listing order is not a signal, per RFC 9110 §12.5.1, so `text/markdown,
+// text/html` is a tie and serves HTML. A client that wants markdown while
+// naming HTML too has to say so with a q-value.
 func (p acceptPreference) prefersMarkdown() bool {
 	markdown := p.matchFor("text/markdown")
 
-	if markdown.quality <= 0 || markdown.specificity < 0 {
+	// Covers "not matched" as well: an unmatched type carries a zero quality.
+	if markdown.quality <= 0 {
 		return false
 	}
 
@@ -142,6 +155,9 @@ func (p acceptPreference) prefersMarkdown() bool {
 		return markdown.quality > html.quality
 	}
 
+	// Reachable only with both qualities equal and markdown's above zero, so
+	// HTML matched too and its specificity is a real rank rather than the
+	// no-match sentinel.
 	return markdown.specificity > html.specificity
 }
 

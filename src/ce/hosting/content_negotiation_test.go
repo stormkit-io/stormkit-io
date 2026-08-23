@@ -233,6 +233,67 @@ func (s *ContentNegotiationSuite) Test_DownweightedHtmlLosesToWildcard() {
 	s.Equal("text/markdown; charset=utf-8", res.Headers.Get("Content-Type"))
 }
 
+// An out-of-range q must not decide which representation is served. The client
+// named text/html at full weight; an illegal q on a wildcard does not outrank
+// that.
+func (s *ContentNegotiationSuite) Test_OutOfRangeQualityIsClamped() {
+	s.mockFile("/docs.html", "<h1>Docs</h1>")
+
+	for _, accept := range []string{
+		"text/html, */*;q=5",
+		"*/*;q=5, text/html",
+		"text/html, */*;q=1e9",
+	} {
+		res := s.request(s.host(), "/docs", accept)
+
+		s.True(strings.HasPrefix(res.Headers.Get("Content-Type"), "text/html"), accept)
+	}
+}
+
+// The rule is "HTML below the wildcard loses", at any q — not just at the
+// extreme q=0.1 the downweighting test uses. Pinned at the boundary so a
+// future rewrite cannot quietly narrow it to the obvious case.
+func (s *ContentNegotiationSuite) Test_SlightlyDownweightedHtmlLosesToWildcard() {
+	s.mockFile("/docs.md", "# Docs\n")
+
+	res := s.request(s.host(), "/docs", "text/html;q=0.9, */*")
+
+	s.Equal(hosting.MarkdownContentType, res.Headers.Get("Content-Type"))
+}
+
+// The headers real clients actually send. None of them names markdown, and
+// every one of them must keep getting the page — this is the regression that
+// would matter if the precedence rules were ever reworked again.
+func (s *ContentNegotiationSuite) Test_RealWorldClientsKeepHtml() {
+	s.mockFile("/docs.html", "<h1>Docs</h1>")
+
+	for name, accept := range map[string]string{
+		"chrome": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+		"axios":  "application/json, text/plain, */*",
+		"java":   "text/html, image/gif, image/jpeg, *; q=.2, */*; q=.2",
+		"curl":   "*/*",
+	} {
+		res := s.request(s.host(), "/docs", accept)
+
+		s.True(strings.HasPrefix(res.Headers.Get("Content-Type"), "text/html"), name)
+	}
+}
+
+// The 404 path is the second caller of prefersMarkdown, and it has to read the
+// header the same way the page path does.
+func (s *ContentNegotiationSuite) Test_MarkdownNotFoundHonoursSpecificity() {
+	host := s.host()
+	host.Config.StaticFiles["/404.html"] = &appconf.StaticFile{FileName: "/404.html"}
+	host.Config.StaticFiles["/404.md"] = &appconf.StaticFile{FileName: "/404.md"}
+
+	s.mockFile("/404.md", "# Not found\n")
+
+	res := s.request(host, "/no-such-page", "text/markdown, */*")
+
+	s.Equal(http.StatusNotFound, res.Status)
+	s.Equal(hosting.MarkdownContentType, res.Headers.Get("Content-Type"))
+}
+
 // Explicitly requesting the .md URL serves markdown regardless of Accept.
 func (s *ContentNegotiationSuite) Test_DirectMarkdownUrl() {
 	s.mockFile("/docs.md", "# Docs\n")
