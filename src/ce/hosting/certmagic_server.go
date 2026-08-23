@@ -25,6 +25,13 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+// MaxRequestHeaderBytes caps the total size of request headers the edge will
+// accept, well below Go's 1MB DefaultMaxHeaderBytes. It bounds header-parsing
+// work on a shared multi-tenant edge and, since HTTP/2 derives
+// SETTINGS_MAX_HEADER_LIST_SIZE from the same value, applies over both
+// protocols.
+const MaxRequestHeaderBytes = 64 * 1024
+
 func storage(logger *zap.Logger) certmagic.Storage {
 	slog.Infof("using redis storage for certificates")
 
@@ -177,6 +184,7 @@ func httpsServe(cfg *certmagic.Config, handler http.Handler) error {
 		ReadTimeout:       5 * time.Second,
 		WriteTimeout:      5 * time.Second,
 		IdleTimeout:       5 * time.Second,
+		MaxHeaderBytes:    MaxRequestHeaderBytes,
 		BaseContext:       func(net.Listener) context.Context { return ctx },
 	}
 
@@ -192,6 +200,7 @@ func httpsServe(cfg *certmagic.Config, handler http.Handler) error {
 	httpsServer := &http.Server{
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       config.Get().HTTPTimeouts.IdleTimeout,
+		MaxHeaderBytes:    MaxRequestHeaderBytes,
 		Handler:           handler,
 		BaseContext:       func(net.Listener) context.Context { return ctx },
 	}

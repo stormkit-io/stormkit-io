@@ -66,7 +66,10 @@ func nonMagic(handler http.Handler, port string) {
 		ln = &proxyproto.Listener{Listener: ln}
 	}
 
-	srv := &http.Server{Handler: handler}
+	srv := &http.Server{
+		Handler:        handler,
+		MaxHeaderBytes: hosting.MaxRequestHeaderBytes,
+	}
 
 	log.Fatal(srv.Serve(ln))
 }

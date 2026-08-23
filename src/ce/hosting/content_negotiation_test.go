@@ -517,6 +517,20 @@ func (s *ContentNegotiationSuite) Test_MarkdownNotFoundAcceptsFiveHundred() {
 	s.Equal("text/markdown; charset=utf-8", res.Headers.Get("Content-Type"))
 }
 
+// An attacker-sized Accept header must not decide negotiation: it is ignored
+// (issue #478), so a markdown deployment falls back to serving HTML rather than
+// paying to parse a megabyte of media ranges.
+func (s *ContentNegotiationSuite) Test_OversizedAcceptFallsBackToHtml() {
+	s.mockFile("/docs.html", "<h1>Docs</h1>")
+
+	oversized := strings.Repeat("text/markdown,", (1<<20)/14)
+	res := s.request(s.host(), "/docs", oversized)
+
+	s.Equal(http.StatusOK, res.Status)
+	s.True(strings.HasPrefix(res.Headers.Get("Content-Type"), "text/html"),
+		"an oversized Accept must not be honored as a markdown preference")
+}
+
 func TestContentNegotiationSuite(t *testing.T) {
 	suite.Run(t, new(ContentNegotiationSuite))
 }
