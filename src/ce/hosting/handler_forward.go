@@ -404,8 +404,21 @@ func (r *RequestServer) Static() *shttp.Response {
 		Payload: r.req.Fields,
 	})
 
-	// Check If-Modified-Since header -- give this priority
-	if modifiedSinceHeader != "" && r.req.Host.Config.UpdatedAt.Valid {
+	// RFC 9110 §13.2.2: an entity tag validator takes precedence, and
+	// If-Modified-Since is evaluated only when the request carries none. The
+	// order matters here beyond conformance — the ETag is a per-file content
+	// hash, so it is the only validator that can tell the two representations
+	// of a negotiable URL apart. Last-Modified is the deployment timestamp and
+	// is identical for the page and its markdown twin.
+	if noneMatchHeader := r.req.Header.Get("If-None-Match"); noneMatchHeader != "" {
+		notModified = headers.Get("ETag") == noneMatchHeader
+	} else if modifiedSinceHeader != "" && r.req.Host.Config.UpdatedAt.Valid && !r.varyAccept {
+		// Skipped entirely on a negotiable URL: a bare If-Modified-Since cannot
+		// say which representation the client is holding, so honouring it would
+		// answer "your copy is current" to a client whose copy is the other
+		// representation — a cache that ignores Vary then serves markdown as the
+		// page. Answering with the full body costs a response these URLs already
+		// pay, since both representations are no-cache, must-revalidate.
 		modifiedSinceTime, err := time.Parse(http.TimeFormat, modifiedSinceHeader)
 
 		if err == nil {
@@ -420,13 +433,8 @@ func (r *RequestServer) Static() *shttp.Response {
 				time.UTC,
 			)
 
-			notModified = !lastModifiedTime.After(modifiedSinceTime) || lastModifiedTime.Equal(modifiedSinceTime)
+			notModified = !lastModifiedTime.After(modifiedSinceTime)
 		}
-	}
-
-	// If-None-Match headers is checked only if the check above is not performed
-	if noneMatchHeader := r.req.Header.Get("If-None-Match"); noneMatchHeader != "" && modifiedSinceHeader == "" {
-		notModified = headers.Get("ETag") == noneMatchHeader
 	}
 
 	if r.markdown {
