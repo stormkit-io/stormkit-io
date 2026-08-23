@@ -180,6 +180,7 @@ export interface EnvUpdatePayload {
   autoDeployBranches?: string;
   autoDeployCommits?: string;
   previewLinks?: boolean;
+  markdown?: boolean;
   priorityPattern?: string;
   buildCmd?: string;
   serverCmd?: string;

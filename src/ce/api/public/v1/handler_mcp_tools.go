@@ -251,6 +251,7 @@ func mcpAllTools() []mcpToolDef {
 					"autoDeployBranches": map[string]any{"type": "string", "description": "Comma-separated branch patterns that trigger auto-deploy."},
 					"autoDeployCommits":  map[string]any{"type": "string", "description": "Regex pattern for commit messages that trigger auto-deploy."},
 					"autoPublish":        map[string]any{"type": "boolean", "description": "Automatically publish every successful deployment."},
+					"markdown":           map[string]any{"type": "boolean", "description": "Serve the .md twin of a page to clients that send Accept: text/markdown. Off unless enabled."},
 					"previewLinks":       map[string]any{"type": "boolean", "description": "Generate preview links for each deployment."},
 					"envVars":            map[string]any{"type": "object", "description": "Environment variables injected at build and runtime.", "additionalProperties": map[string]any{"type": "string"}},
 					"redirects": map[string]any{
@@ -314,6 +315,7 @@ func mcpAllTools() []mcpToolDef {
 					"headers":            map[string]any{"type": "string", "description": "Custom response headers in Netlify / Caddy format."},
 					"headersFile":        map[string]any{"type": "string", "description": "Path to a headers file (relative to repo root)."},
 					"redirectsFile":      map[string]any{"type": "string", "description": "Path to a redirects file (relative to repo root)."},
+					"markdown":           map[string]any{"type": "boolean", "description": "Serve the .md twin of a page to clients that send Accept: text/markdown. Off unless enabled."},
 					"previewLinks":       map[string]any{"type": "boolean", "description": "Generate preview links for each deployment."},
 					"priorityPattern":    map[string]any{"type": "string", "description": "Regex matched against the commit message of auto-deploys; matching deployments are automatically routed to the priority queue. Leave empty to disable."},
 					"envVars":            map[string]any{"type": "object", "description": "Environment variables to set or update. Merged into the existing set: keys not listed here keep their current value, and a key set to an empty string is removed.", "additionalProperties": map[string]any{"type": "string"}},
@@ -1008,6 +1010,10 @@ func mcpCreateEnvironment(req *RequestContextMCP, id any, args map[string]any) *
 		body.AutoDeployCommits = null.StringFrom(v)
 	}
 
+	if raw, ok := args["markdown"].(bool); ok {
+		body.Markdown = null.BoolFrom(raw)
+	}
+
 	if raw, ok := args["previewLinks"].(bool); ok {
 		body.PreviewLinks = null.BoolFrom(raw)
 	}
@@ -1173,6 +1179,7 @@ func mcpUpdateEnvironment(req *RequestContextMCP, id any, args map[string]any) *
 	setString("priorityPattern", &update.PriorityPattern)
 	setBool("autoDeploy", &update.AutoDeploy)
 	setBool("autoPublish", &update.AutoPublish)
+	setBool("markdown", &update.Markdown)
 	setBool("previewLinks", &update.PreviewLinks)
 
 	update.EnvVars = mergeEnvVarsArg(req.Env.Data.Vars, args)

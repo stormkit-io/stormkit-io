@@ -82,10 +82,10 @@ real `404` — never a `200` carrying your app shell.
 
 ### Markdown representations
 
-Set `markdown: true` on the environment and Stormkit serves any `.md` file in
-your output as a second representation of the page next to it.
-`/docs/getting-started.md` published alongside `/docs/getting-started.html`
-means:
+Turn **Markdown representations** on under **Environment** > **Config** >
+**Redirects**, and Stormkit serves any `.md` file in your output as a second
+representation of the page next to it. `/docs/getting-started.md` published
+alongside `/docs/getting-started.html` means:
 
 - `GET /docs/getting-started` with `Accept: text/markdown` answers with the
   markdown, as `text/markdown; charset=utf-8`.
@@ -117,6 +117,10 @@ rendered page.
 
 The setting defaults to off: a build that copies its markdown sources into the
 output keeps serving exactly what it served before until you turn it on.
+
+It is also the `markdown` field on the [environment API](/docs/api/environments)
+and on the `create_environment` / `update_environment` MCP tools, so an agent can
+enable it on an environment it just created.
 
 ## Example
 

@@ -37,6 +37,7 @@ export default function TabConfigRedirects({
   const initialRedirects =
     JSON.stringify(env.build.redirects, null, 2) || defaultRedirects;
 
+  const [markdown, setMarkdown] = useState(env.build.markdown === true);
   const [showModal, setShowModal] = useState(false);
   const [showRedirects, setShowRedirects] = useState(hasRedirects);
   const [redirects, setRedirects] = useState(initialRedirects);
@@ -77,6 +78,7 @@ export default function TabConfigRedirects({
             redirects: build.redirects,
             redirectsFile: build.redirectsFile,
             errorFile: build.errorFile,
+            markdown,
           },
           setError,
           setLoading,
@@ -125,6 +127,30 @@ export default function TabConfigRedirects({
             "The error file displayed when Stormkit does not find a page. Default is 404.html."
           }
         />
+      </Box>
+      <Box sx={{ bgcolor: "container.paper", p: 1.75, pt: 1, mb: 4 }}>
+        <FormControlLabel
+          sx={{ pl: 0, ml: 0 }}
+          label="Markdown representations"
+          control={
+            <Switch
+              name="build.markdown"
+              color="secondary"
+              checked={markdown}
+              onChange={e => {
+                setMarkdown(e.target.checked);
+              }}
+            />
+          }
+          labelPlacement="start"
+        />
+        <Typography sx={{ color: "text.secondary" }}>
+          Turn on to serve any <Box component="code">.md</Box> file in your
+          output as a second representation of the page next to it. A client
+          that sends <Box component="code">Accept: text/markdown</Box> gets the
+          markdown, a browser still gets the HTML. Useful for letting agents
+          read your documentation without scraping the rendered page.
+        </Typography>
       </Box>
       <Box sx={{ bgcolor: "container.paper", p: 1.75, pt: 1, mb: 4 }}>
         <FormControlLabel

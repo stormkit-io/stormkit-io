@@ -100,6 +100,7 @@ Creates a new environment for an application.
 | `headers`            | string                  | No       | Inline custom HTTP response headers.                                                                        |
 | `headersFile`        | string                  | No       | Path to the custom HTTP headers file.                                                                       |
 | `installCmd`         | string                  | No       | Command to install dependencies.                                                                            |
+| `markdown`           | boolean                 | No       | Serve the `.md` twin of a page to clients sending `Accept: text/markdown`. Off unless enabled.               |
 | `previewLinks`       | boolean                 | No       | Whether Stormkit posts a preview URL on pull/merge requests.                                                |
 | `redirects`          | `Redirect[]`            | No       | Inline redirect/rewrite rules. See the Redirects API for the `Redirect` object shape.                       |
 | `redirectsFile`      | string                  | No       | Path to a file containing redirect/rewrite rules.                                                           |
@@ -180,6 +181,7 @@ All fields are **optional**. Only the fields you include will be updated.
 | `headers`            | string                  | Inline custom HTTP response headers.                                                                                                         |
 | `headersFile`        | string                  | Path to the custom HTTP headers file.                                                                                                        |
 | `installCmd`         | string                  | Command to install dependencies.                                                                                                             |
+| `markdown`           | boolean                 | Serve the `.md` twin of a page to clients sending `Accept: text/markdown`. Off unless enabled.                                                |
 | `previewLinks`       | boolean                 | Whether Stormkit posts a preview URL on pull/merge requests.                                                                                 |
 | `redirects`          | `Redirect[]`            | Inline redirect/rewrite rules. Replaces all existing inline rules. See the Redirects API for the `Redirect` object shape.                    |
 | `redirectsFile`      | string                  | Path to a file containing redirect/rewrite rules.                                                                                            |

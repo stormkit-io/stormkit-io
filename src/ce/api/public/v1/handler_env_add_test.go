@@ -94,6 +94,7 @@ func (s *HandlerEnvAddSuite) Test_Success() {
 			"errorFile":          "error.html",
 			"headersFile":        "headers.json",
 			"previewLinks":       true,
+			"markdown":           true,
 			"envVars": map[string]string{
 				"NODE_ENV": "production",
 				"API_URL":  "https://api.my-app.com",
@@ -127,6 +128,7 @@ func (s *HandlerEnvAddSuite) Test_Success() {
 	s.Equal("", env.AutoDeployCommits.ValueOrZero())
 	s.True(env.AutoDeploy)
 	s.True(env.Data.PreviewLinks.ValueOrZero())
+	s.True(env.Data.Markdown.ValueOrZero())
 	s.Equal("/functions", env.Data.APIFolder)
 	s.Equal("npm run build:prod", env.Data.BuildCmd)
 	s.Equal("npm run start", env.Data.ServerCmd)
