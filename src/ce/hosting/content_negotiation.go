@@ -62,34 +62,87 @@ func parseAccept(header string) acceptPreference {
 	return pref
 }
 
-// qualityFor returns the q-value the client assigned to a media type, honouring
-// the `type/*` and `*/*` wildcards. It returns 0 when the type is not accepted.
-func (p acceptPreference) qualityFor(mime string) float64 {
-	if p.empty {
+// acceptMatch is how a media type matched an Accept header: the q-value that
+// applies to it, and how specifically the client named it.
+type acceptMatch struct {
+	quality float64
+	// specificity is 2 for an exact `type/subtype`, 1 for `type/*`, 0 for
+	// `*/*`, and -1 when nothing matched.
+	specificity int
+}
+
+// specificityOf reports how precisely a media range names a media type, or -1
+// when the range does not cover it at all.
+func specificityOf(entry, mime, family string) int {
+	switch entry {
+	case mime:
+		return 2
+	case family + "/*":
 		return 1
+	case "*/*":
+		return 0
+	}
+
+	return -1
+}
+
+// matchFor returns the q-value a client assigned to a media type, taken from
+// the most specific range that covers it.
+//
+// Most specific and not the highest q across every matching range, per RFC 9110
+// §12.5.1: in `text/html;q=0.1, */*` the client downweighted HTML and the
+// wildcard does not undo that.
+func (p acceptPreference) matchFor(mime string) acceptMatch {
+	if p.empty {
+		return acceptMatch{quality: 1, specificity: 0}
 	}
 
 	family, _, _ := strings.Cut(mime, "/")
-	best := 0.0
+	best := acceptMatch{specificity: -1}
 
 	for _, entry := range p.types {
-		switch entry.mime {
-		case mime, family + "/*", "*/*":
-			if entry.quality > best {
-				best = entry.quality
-			}
+		specificity := specificityOf(entry.mime, mime, family)
+
+		if specificity < 0 {
+			continue
 		}
+
+		// A more specific range replaces a less specific one outright; among
+		// equally specific ranges the client's highest q wins.
+		if specificity > best.specificity ||
+			(specificity == best.specificity && entry.quality > best.quality) {
+			best = acceptMatch{quality: entry.quality, specificity: specificity}
+		}
+	}
+
+	if best.specificity < 0 {
+		return acceptMatch{specificity: -1}
 	}
 
 	return best
 }
 
 // prefersMarkdown reports whether the client would rather have markdown than
-// HTML. A tie goes to HTML, so a browser sending `*/*` keeps its page.
+// HTML.
+//
+// A tie on q-value goes to whichever type the client named more specifically,
+// so `text/markdown, */*` — an agent asking for markdown but taking anything —
+// gets markdown, while a bare `*/*` from curl still gets the page. A tie at
+// equal specificity goes to HTML.
 func (p acceptPreference) prefersMarkdown() bool {
-	markdown := p.qualityFor("text/markdown")
+	markdown := p.matchFor("text/markdown")
 
-	return markdown > 0 && markdown > p.qualityFor("text/html")
+	if markdown.quality <= 0 || markdown.specificity < 0 {
+		return false
+	}
+
+	html := p.matchFor("text/html")
+
+	if markdown.quality != html.quality {
+		return markdown.quality > html.quality
+	}
+
+	return markdown.specificity > html.specificity
 }
 
 // markdownTwinParams are the arguments of markdownTwin.

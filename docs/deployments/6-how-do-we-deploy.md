@@ -94,6 +94,10 @@ means:
   representation, it never refuses a request that used to succeed.
 - `q` values are honoured, so `Accept: text/html;q=0.9, text/markdown;q=0.5`
   still gets HTML.
+- `q` values are read from the most specific media range that matches, and a
+  type the client named explicitly beats one it only covered with a wildcard —
+  `Accept: text/markdown, */*` gets the markdown, a bare `Accept: */*` gets the
+  HTML.
 - Every answer carries `Vary: Accept`, so a CDN caches the two variants
   separately instead of serving one to the wrong client, and both share the
   page's cache policy.

@@ -184,6 +184,55 @@ func (s *ContentNegotiationSuite) Test_HonoursQValues() {
 	s.True(strings.HasPrefix(htmlPreferred.Headers.Get("Content-Type"), "text/html"))
 }
 
+// An agent that names markdown and then accepts anything gets markdown. The
+// wildcard says "anything is fine", not "HTML is equally wanted": comparing
+// q-values alone made the two tie, and the tie handed back the HTML the agent
+// had just said it did not want.
+func (s *ContentNegotiationSuite) Test_ExplicitMarkdownBeatsWildcard() {
+	s.mockFile("/docs.md", "# Docs\n")
+
+	for _, accept := range []string{
+		"text/markdown, */*",
+		"*/*, text/markdown",
+		"text/markdown, text/*",
+	} {
+		res := s.request(s.host(), "/docs", accept)
+
+		s.Equal("text/markdown; charset=utf-8", res.Headers.Get("Content-Type"), accept)
+	}
+}
+
+// The mirror image: naming HTML explicitly beats a wildcard that happens to
+// cover markdown, so a client asking for pages keeps getting them.
+func (s *ContentNegotiationSuite) Test_ExplicitHtmlBeatsWildcard() {
+	s.mockFile("/docs.html", "<h1>Docs</h1>")
+
+	res := s.request(s.host(), "/docs", "text/html, */*")
+
+	s.True(strings.HasPrefix(res.Headers.Get("Content-Type"), "text/html"))
+}
+
+// A q-value on the type itself still outranks specificity: the client named
+// markdown only to say it would rather not have it.
+func (s *ContentNegotiationSuite) Test_DownweightedMarkdownKeepsHtml() {
+	s.mockFile("/docs.html", "<h1>Docs</h1>")
+
+	res := s.request(s.host(), "/docs", "text/markdown;q=0.1, */*")
+
+	s.True(strings.HasPrefix(res.Headers.Get("Content-Type"), "text/html"))
+}
+
+// A wildcard does not undo a q-value the client put on HTML itself. RFC 9110
+// takes the q of the most specific matching range, so HTML here is 0.1 and the
+// markdown twin wins on 1.0.
+func (s *ContentNegotiationSuite) Test_DownweightedHtmlLosesToWildcard() {
+	s.mockFile("/docs.md", "# Docs\n")
+
+	res := s.request(s.host(), "/docs", "text/html;q=0.1, */*")
+
+	s.Equal("text/markdown; charset=utf-8", res.Headers.Get("Content-Type"))
+}
+
 // Explicitly requesting the .md URL serves markdown regardless of Accept.
 func (s *ContentNegotiationSuite) Test_DirectMarkdownUrl() {
 	s.mockFile("/docs.md", "# Docs\n")
