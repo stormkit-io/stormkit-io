@@ -94,6 +94,18 @@ means:
   representation, it never refuses a request that used to succeed.
 - `q` values are honoured, so `Accept: text/html;q=0.9, text/markdown;q=0.5`
   still gets HTML.
+- `q` values are read from the most specific media range that matches, and a
+  type the client named explicitly beats one it only covered with a wildcard —
+  `Accept: text/markdown, */*` gets the markdown, a bare `Accept: */*` gets the
+  HTML.
+- The converse follows: a `q` on `text/html` is read from the `text/html` range
+  alone, so a wildcard at a higher `q` outranks it and
+  `Accept: text/html;q=0.9, */*` gets the markdown even though it never named
+  markdown. A client that wants the page should name `text/html` at full weight,
+  which every browser and HTTP library already does.
+- Listing order carries no weight, so `Accept: text/markdown, text/html` is a tie
+  and gets the HTML. Say it with a `q` instead.
+- A `q` outside the `0`–`1` range is clamped into it.
 - Every answer carries `Vary: Accept`, so a CDN caches the two variants
   separately instead of serving one to the wrong client, and both share the
   page's cache policy.
