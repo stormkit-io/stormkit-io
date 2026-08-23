@@ -4,6 +4,7 @@ import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
 import EmptyList from "~/components/EmptyPage";
 import Error404 from "~/components/Errors/Error404";
+import Spinner from "~/components/Spinner";
 import { AppContext } from "~/pages/apps/[id]/App.context";
 import EnvironmentFormModal from "./_components/EnvironmentFormModal";
 
@@ -21,8 +22,17 @@ interface Props {
 
 export default function Provider({ children }: Props) {
   const { envId } = useParams();
-  const { app, environments } = useContext(AppContext);
+  const { app, environments, environmentsLoading } = useContext(AppContext);
   const [isModalOpen, toggleModal] = useState(false);
+
+  const environment = environments?.filter(e => e.id === envId)?.[0];
+
+  // While the first fetch is in flight there is nothing to decide yet, so wait
+  // instead of flashing the empty or not-found states. A later refresh keeps
+  // the environment on screen (environment stays resolved), so it never blanks.
+  if (environmentsLoading && !environment) {
+    return <Spinner primary pageCenter />;
+  }
 
   if (environments?.length === 0) {
     return (
@@ -53,8 +63,6 @@ export default function Provider({ children }: Props) {
       </EmptyList>
     );
   }
-
-  const environment = environments?.filter(e => e.id === envId)?.[0];
 
   if (!environment) {
     return <Error404 withLogo={false}>This environment is not found.</Error404>;

@@ -10,6 +10,10 @@ import { useFetchEnvironments } from "./environments/actions";
 export interface AppContextProps {
   app: App;
   environments: Array<Environment>;
+  // Optional so the many test wrappers that build their own context value need
+  // not set it; the real provider below always does. Absent reads as "not
+  // loading".
+  environmentsLoading?: boolean;
   setRefreshToken: (val: number) => void;
 }
 
@@ -63,6 +67,7 @@ export default function AppProvider({ children }: Props) {
       value={{
         app,
         environments: envs.environments,
+        environmentsLoading: envs.loading,
         setRefreshToken,
       }}
     >

@@ -22,7 +22,10 @@ export const useFetchEnvironments = ({
 }: FetchEnvironmentsProps): FetchEnvironmentsReturnValue => {
   const [environments, setEnvironments] = useState<Array<Environment>>([]);
   const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
+  // Defaults to true: whenever there is an app, an environments fetch is
+  // imminent, so the first render must already read as loading rather than
+  // briefly as "no environments".
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let unmounted = false;
