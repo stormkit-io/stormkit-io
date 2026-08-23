@@ -163,12 +163,24 @@ export default function EnvironmentConfig() {
   }, [hash, environment?.id]);
 
   useEffect(() => {
-    if (selectedItem) {
-      document
-        ?.querySelector(selectedItem)
-        ?.scrollIntoView?.({ behavior: "smooth" });
+    // selectedItem is set on click; hash covers deep links where nothing was
+    // clicked. Either way it names the section to scroll to.
+    const target = selectedItem || hash;
+
+    if (!target) {
+      return;
     }
-  }, [selectedItem]);
+
+    // Wait one frame before scrolling. Switching between tab groups remounts
+    // the whole panel in this same commit, so a synchronous scrollIntoView
+    // measures the not-yet-laid-out content and under-shoots -- most visibly
+    // for Redirects, the furthest section down. A rAF lets layout settle first.
+    const frame = requestAnimationFrame(() => {
+      document?.querySelector(target)?.scrollIntoView?.({ behavior: "smooth" });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [selectedItem, hash]);
 
   return (
     <Box
