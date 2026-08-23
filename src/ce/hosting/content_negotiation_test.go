@@ -16,6 +16,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"github.com/stormkit-io/stormkit-io/src/mocks"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
@@ -100,7 +101,9 @@ func (s *ContentNegotiationSuite) mockFile(fileName, content string) {
 	}, nil)
 }
 
-func (s *ContentNegotiationSuite) request(host *hosting.Host, path, accept string) *shttp.Response {
+// requestContext builds the request a test is about to serve, so a test that
+// needs more than an Accept header can add one before forwarding it.
+func (s *ContentNegotiationSuite) requestContext(host *hosting.Host, path, accept string) *hosting.RequestContext {
 	headers := make(http.Header)
 
 	if accept != "" {
@@ -116,6 +119,12 @@ func (s *ContentNegotiationSuite) request(host *hosting.Host, path, accept strin
 	}
 
 	req.OriginalPath = path
+
+	return req
+}
+
+func (s *ContentNegotiationSuite) request(host *hosting.Host, path, accept string) *shttp.Response {
+	req := s.requestContext(host, path, accept)
 
 	return hosting.HandlerForward(req)
 }
@@ -292,6 +301,60 @@ func (s *ContentNegotiationSuite) Test_MarkdownNotFoundHonoursSpecificity() {
 
 	s.Equal(http.StatusNotFound, res.Status)
 	s.Equal(hosting.MarkdownContentType, res.Headers.Get("Content-Type"))
+}
+
+// The regression behind issue #479: both representations of a negotiable URL
+// carry the deployment timestamp as Last-Modified, so a bare If-Modified-Since
+// cannot say which one the client is holding. Answering 304 to a browser that
+// replayed the markdown variant's date hands a Vary-ignoring cache a markdown
+// body to serve as the page.
+func (s *ContentNegotiationSuite) Test_ModifiedSinceIgnoredOnNegotiableUrl() {
+	s.mockFile("/docs.html", "<h1>Docs</h1>")
+
+	host := s.host()
+	host.Config.UpdatedAt = utils.NewUnix()
+	host.Config.UpdatedAt.Time = time.Unix(1700489144, 0).UTC()
+
+	req := s.requestContext(host, "/docs", "text/html,application/xhtml+xml,*/*;q=0.8")
+	req.Header.Add("If-Modified-Since", "Sat, 19 Dec 2023 11:25:44 GMT")
+
+	res := hosting.HandlerForward(req)
+
+	s.Equal(http.StatusOK, res.Status)
+	s.NotNil(res.Data)
+}
+
+// The entity tag is per file, so it does distinguish the representations and
+// still earns a 304. Losing revalidation entirely on these URLs would be a
+// worse trade than the one the test above makes.
+func (s *ContentNegotiationSuite) Test_ETagStillRevalidatesOnNegotiableUrl() {
+	host := s.host()
+	host.Config.StaticFiles["/docs.html"].Headers["etag"] = "html-etag"
+
+	req := s.requestContext(host, "/docs", "text/html,application/xhtml+xml,*/*;q=0.8")
+	req.Header.Add("If-None-Match", "html-etag")
+
+	res := hosting.HandlerForward(req)
+
+	s.Equal(http.StatusNotModified, res.Status)
+	s.Nil(res.Data)
+}
+
+// The markdown twin's entity tag must not satisfy a request for the page.
+func (s *ContentNegotiationSuite) Test_ETagDoesNotCrossRepresentations() {
+	s.mockFile("/docs.html", "<h1>Docs</h1>")
+
+	host := s.host()
+	host.Config.StaticFiles["/docs.html"].Headers["etag"] = "html-etag"
+	host.Config.StaticFiles["/docs.md"].Headers["etag"] = "markdown-etag"
+
+	req := s.requestContext(host, "/docs", "text/html,application/xhtml+xml,*/*;q=0.8")
+	req.Header.Add("If-None-Match", "markdown-etag")
+
+	res := hosting.HandlerForward(req)
+
+	s.Equal(http.StatusOK, res.Status)
+	s.NotNil(res.Data)
 }
 
 // Explicitly requesting the .md URL serves markdown regardless of Accept.

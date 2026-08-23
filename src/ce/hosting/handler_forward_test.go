@@ -916,10 +916,14 @@ func (s *HandlerForwardSuite) Test_CacheControl_ETag_WithIFModifiedSince() {
 
 	res := hosting.HandlerForward(req)
 
-	s.Equal(http.StatusOK, res.Status)
+	// The entity tag matches, so the answer is 304 even though the
+	// If-Modified-Since date is older than the deployment. RFC 9110 §13.2.2
+	// requires the weaker validator to be ignored whenever the request carries
+	// an entity tag, and this used to assert the opposite.
+	s.Equal(http.StatusNotModified, res.Status)
 	s.Equal("no-cache, must-revalidate", res.Headers.Get("Cache-Control"))
 	s.Equal("Mon, 20 Nov 2023 14:05:44 GMT", res.Headers.Get("Last-Modified"))
-	s.NotNil(res.Data)
+	s.Nil(res.Data)
 }
 
 func (s *HandlerForwardSuite) Test_404() {
