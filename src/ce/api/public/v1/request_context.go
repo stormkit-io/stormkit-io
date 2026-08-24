@@ -318,9 +318,6 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 					if app.TeamID != request.Token.TeamID {
 						return shttp.NotFoundJSON(msgEnvNotFound)
 					}
-
-					request.App = app
-					request.TeamID = app.TeamID
 				} else if request.Token.UserID != 0 {
 					isMember := buildconf.NewStore().IsMember(req.Context(), env.ID, request.Token.UserID)
 
