@@ -473,6 +473,21 @@ func (s *DeploymentModelSuite) Test_FailureSummary_TrimsToLastLines() {
 	s.NotContains(summary, "line 19")
 }
 
+func (s *DeploymentModelSuite) Test_FailureSummary_KeepsInteriorBlankLines() {
+	msg, err := json.Marshal("Error: build failed\n\n  at foo()\n\n  at bar()")
+	s.Require().NoError(err)
+
+	d := &deploy.Deployment{
+		ExitCode: null.IntFrom(deploy.ExitCodeFailed),
+		Logs: null.StringFrom(
+			`{"title":"npm run build","message":` + string(msg) + `,"status":"failed","startedAt":1,"finishedAt":2}`,
+		),
+	}
+
+	// Interior blank lines separating the trace are preserved verbatim.
+	s.Equal("Error: build failed\n\n  at foo()\n\n  at bar()", d.FailureSummary())
+}
+
 func (s *DeploymentModelSuite) Test_FailureSummary_FallsBackToError() {
 	d := &deploy.Deployment{
 		ExitCode: null.IntFrom(deploy.ExitCodeFailed),

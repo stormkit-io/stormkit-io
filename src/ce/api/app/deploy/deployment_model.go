@@ -112,6 +112,14 @@ type Deployment struct {
 	BuildConfig *buildconf.BuildConf `json:"-"` // ConfigCopy is the snapshot of the environment used during the deployment.
 	DisplayName string               `json:"-"` // DisplayName is the name of the app. It is injected to the deployment object.
 	IsRestart   bool                 `json:"-"`
+
+	// Parsed-log memoization. PrepareLogs is a full parse and both JSON and
+	// FailureSummary need the result; these cache it per log set for the
+	// lifetime of the in-memory deployment (invalidated by AddLogs).
+	buildLogEntries  []*Log
+	buildLogParsed   bool
+	statusLogEntries []*Log
+	statusLogParsed  bool
 }
 
 // PublishedInfo represents information on the publish details
@@ -383,15 +391,36 @@ func (d *Deployment) FailureSummary() string {
 		return ""
 	}
 
-	if s := failedStepMessage(d.PrepareLogs(d.Logs.ValueOrZero(), false)); s != "" {
+	if s := failedStepMessage(d.logEntries(false)); s != "" {
 		return lastLines(s, maxFailureSummaryLines)
 	}
 
-	if s := failedStepMessage(d.PrepareLogs(d.StatusChecks.ValueOrZero(), true)); s != "" {
+	if s := failedStepMessage(d.logEntries(true)); s != "" {
 		return lastLines(s, maxFailureSummaryLines)
 	}
 
 	return strings.TrimSpace(d.Error.ValueOrZero())
+}
+
+// logEntries returns the parsed log entries for the build (or status-check)
+// logs, parsing each set at most once. PrepareLogs is a full parse that both
+// JSON and FailureSummary would otherwise run on the same blob.
+func (d *Deployment) logEntries(isStatusChecks bool) []*Log {
+	if isStatusChecks {
+		if !d.statusLogParsed {
+			d.statusLogEntries = d.PrepareLogs(d.StatusChecks.ValueOrZero(), true)
+			d.statusLogParsed = true
+		}
+
+		return d.statusLogEntries
+	}
+
+	if !d.buildLogParsed {
+		d.buildLogEntries = d.PrepareLogs(d.Logs.ValueOrZero(), false)
+		d.buildLogParsed = true
+	}
+
+	return d.buildLogEntries
 }
 
 // failedStepMessage returns the message of the last failed step that carries
@@ -409,15 +438,28 @@ func failedStepMessage(logs []*Log) string {
 	return ""
 }
 
-// lastLines returns at most maxLines of the trailing, non-empty lines of s.
+// lastLines returns at most maxLines of the trailing lines of s. Leading and
+// trailing blank lines are trimmed, but interior blanks are kept so multi-line
+// errors and stack traces render as written.
 func lastLines(s string, maxLines int) string {
-	lines := []string{}
+	lines := strings.Split(s, "\n")
 
-	for _, line := range strings.Split(s, "\n") {
-		if strings.TrimSpace(line) != "" {
-			lines = append(lines, strings.TrimRight(line, "\r"))
-		}
+	for i, line := range lines {
+		lines[i] = strings.TrimRight(line, "\r")
 	}
+
+	// Drop leading and trailing blank lines without touching interior ones.
+	start := 0
+	for start < len(lines) && strings.TrimSpace(lines[start]) == "" {
+		start++
+	}
+
+	end := len(lines)
+	for end > start && strings.TrimSpace(lines[end-1]) == "" {
+		end--
+	}
+
+	lines = lines[start:end]
 
 	if len(lines) > maxLines {
 		lines = lines[len(lines)-maxLines:]
@@ -468,6 +510,7 @@ func (d *Deployment) AddLogs(logs []string) {
 	}
 
 	d.Logs = null.StringFrom(d.Logs.ValueOrZero() + "\n" + strings.Join(logs, "\n"))
+	d.buildLogParsed = false
 }
 
 // PrepareLogs prepares the deployment logs and returns an array of log objects.
@@ -737,8 +780,8 @@ func (d *Deployment) JSON(withLogs bool) map[string]any {
 	var statusChecksLogs []*Log
 
 	if withLogs {
-		deploymentLogs = d.PrepareLogs(d.Logs.ValueOrZero(), false)
-		statusChecksLogs = d.PrepareLogs(d.StatusChecks.ValueOrZero(), true)
+		deploymentLogs = d.logEntries(false)
+		statusChecksLogs = d.logEntries(true)
 	}
 
 	var stoppedAt any
@@ -757,9 +800,6 @@ func (d *Deployment) JSON(withLogs bool) map[string]any {
 		}
 	}
 
-	detailsURL := fmt.Sprintf("/apps/%s/environments/%s/deployments/%s", appID, envID, depID)
-	status := d.Status()
-
 	jsonMap := map[string]any{
 		"id":                 depID,
 		"appId":              appID,
@@ -772,13 +812,13 @@ func (d *Deployment) JSON(withLogs bool) map[string]any {
 		"createdAt":          d.CreatedAt.UnixStr(),
 		"stoppedAt":          stoppedAt,
 		"stoppedManually":    d.ExitCode.ValueOrZero() == -1,
-		"status":             status,
+		"status":             d.Status(),
 		"snapshot":           d.Snapshot(),
 		"error":              d.Error.ValueOrZero(),
 		"isAutoDeploy":       d.IsAutoDeploy,
 		"isAutoPublish":      d.ShouldPublish,
 		"previewUrl":         admin.MustConfig().PreviewURL(d.DisplayName, d.ID.String()),
-		"detailsUrl":         detailsURL,
+		"detailsUrl":         d.DetailsPath(),
 		"apiPathPrefix":      d.APIPathPrefix.ValueOrZero(),
 		"statusChecks":       statusChecksLogs,
 		"statusChecksPassed": d.StatusChecksPassed,
@@ -807,28 +847,12 @@ func (d *Deployment) JSON(withLogs bool) map[string]any {
 		jsonMap["statusChecks"] = nil
 	}
 
-	// On failure, surface the reason inline so a caller can triage without a
-	// second fetch, plus a link to the full logs for the rest of the detail.
-	if status == "failed" {
-		if summary := d.FailureSummary(); summary != "" {
-			jsonMap["failureSummary"] = summary
-		}
-
-		jsonMap["logsUrl"] = dashboardURL(detailsURL)
-	}
-
 	return jsonMap
 }
 
-// dashboardURL turns a relative dashboard path into a fully-qualified URL using
-// the instance's configured app domain, falling back to the relative path when
-// no domain is configured.
-func dashboardURL(path string) string {
-	if dc := admin.MustConfig().DomainConfig; dc != nil && dc.App != "" {
-		return strings.TrimRight(dc.App, "/") + path
-	}
-
-	return path
+// DetailsPath returns the dashboard path to this deployment's details page.
+func (d *Deployment) DetailsPath() string {
+	return fmt.Sprintf("/apps/%s/environments/%s/deployments/%s", d.AppID.String(), d.EnvID.String(), d.ID.String())
 }
 
 func calculateDuration(createdAt, stoppedAt utils.Unix) int64 {
