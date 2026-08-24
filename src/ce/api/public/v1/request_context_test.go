@@ -88,6 +88,43 @@ func (s *RequestContextSuite) Test_ForbiddenOrNotFound() {
 	}
 }
 
+// Test_NotOwnedIsIndistinguishableFromMissing guards against app/env
+// enumeration (issue #460): a resource the caller does not own must answer
+// exactly as one that does not exist, so the 404-vs-403 split cannot reveal
+// which IDs are live on the platform.
+func (s *RequestContextSuite) Test_NotOwnedIsIndistinguishableFromMissing() {
+	attacker := s.MockUser()
+	victim := s.MockUser()
+	victimApp := s.MockApp(victim)
+	victimEnv := s.MockEnv(victimApp)
+
+	attackerKey := s.MockAPIKey(nil, nil, map[string]any{
+		"UserID": attacker.ID,
+		"AppID":  types.ID(0),
+		"EnvID":  types.ID(0),
+	})
+
+	missingID := types.ID(999999999)
+
+	s.Run("SCOPE_APP", func() {
+		owned := s.invoke(http.MethodGet, fmt.Sprintf("/?appId=%d", victimApp.ID), "", "", attackerKey.Value, &publicapiv1.Opts{MinimumScope: apikey.SCOPE_APP})
+		missing := s.invoke(http.MethodGet, fmt.Sprintf("/?appId=%d", missingID), "", "", attackerKey.Value, &publicapiv1.Opts{MinimumScope: apikey.SCOPE_APP})
+
+		s.Equal(http.StatusNotFound, owned.Status, "another tenant's app must not answer 403")
+		s.Equal(missing.Status, owned.Status)
+		s.Equal(missing.Data, owned.Data)
+	})
+
+	s.Run("SCOPE_ENV", func() {
+		owned := s.invoke(http.MethodGet, fmt.Sprintf("/?envId=%d", victimEnv.ID), "", "", attackerKey.Value, &publicapiv1.Opts{MinimumScope: apikey.SCOPE_ENV})
+		missing := s.invoke(http.MethodGet, fmt.Sprintf("/?envId=%d", missingID), "", "", attackerKey.Value, &publicapiv1.Opts{MinimumScope: apikey.SCOPE_ENV})
+
+		s.Equal(http.StatusNotFound, owned.Status, "another tenant's env must not answer 403")
+		s.Equal(missing.Status, owned.Status)
+		s.Equal(missing.Data, owned.Data)
+	})
+}
+
 func (s *RequestContextSuite) Test_Success_WithTokenScope() {
 	usr := s.MockUser()
 	envKey := s.MockAPIKey(nil, nil)

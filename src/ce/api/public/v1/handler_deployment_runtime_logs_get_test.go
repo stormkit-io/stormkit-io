@@ -162,7 +162,7 @@ func (s *HandlerDeploymentRuntimeLogsGetSuite) Test_Forbidden_NotMember() {
 
 	response := s.request("", usertest.Authorization(other.ID))
 
-	s.Equal(http.StatusForbidden, response.Code)
+	s.Equal(http.StatusNotFound, response.Code)
 }
 
 func TestHandlerDeploymentRuntimeLogsGet(t *testing.T) {

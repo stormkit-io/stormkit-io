@@ -162,7 +162,7 @@ func (s *HandlerDeploymentPublishSuite) Test_Forbidden_NoAPIKey() {
 }
 
 // Test_Forbidden_UserNotMember verifies that a user-scoped key whose owner is not a member
-// of the environment team is rejected with 403.
+// of the environment team is answered with 404 (existence hidden).
 func (s *HandlerDeploymentPublishSuite) Test_Forbidden_UserNotMember() {
 	usr1 := s.MockUser()
 	appl := s.MockApp(usr1)
@@ -188,7 +188,7 @@ func (s *HandlerDeploymentPublishSuite) Test_Forbidden_UserNotMember() {
 		map[string]string{"Authorization": key.Value},
 	)
 
-	s.Equal(http.StatusForbidden, response.Code)
+	s.Equal(http.StatusNotFound, response.Code)
 }
 
 // Test_BadRequest_FailedDeployment verifies that attempting to publish a deployment

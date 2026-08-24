@@ -240,7 +240,7 @@ func (s *HandlerAccessLogsGetSuite) Test_Forbidden_NotMember() {
 
 	res := s.request("", usertest.Authorization(other.ID))
 
-	s.Equal(http.StatusForbidden, res.Code)
+	s.Equal(http.StatusNotFound, res.Code)
 }
 
 func TestHandlerAccessLogsGet(t *testing.T) {

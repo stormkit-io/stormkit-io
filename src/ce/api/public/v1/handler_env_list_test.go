@@ -114,7 +114,7 @@ func (s *HandlerEnvListSuite) Test_Forbidden_UserNotMember() {
 
 	// The app can be resolved from the appId query parameter; this is forbidden
 	// because the user-scoped key belongs to a user who is not a member of the app's team.
-	s.Equal(http.StatusForbidden, response.Code)
+	s.Equal(http.StatusNotFound, response.Code)
 }
 
 // Test_MasksEnvVarValues verifies that /v1/envs — the endpoint the dashboard

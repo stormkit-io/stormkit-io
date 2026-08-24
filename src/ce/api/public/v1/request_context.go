@@ -18,6 +18,14 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
+// A resource that exists but is not owned by the caller must answer exactly as
+// one that does not exist -- same status, same body -- so a valid key cannot
+// probe the existence of another tenant's app or env by the 403-vs-404 split.
+const (
+	msgAppNotFound = "The application does not exist."
+	msgEnvNotFound = "The environment does not exist. Pass a valid 'envId', or use an environment-scoped API key."
+)
+
 type RequestContext struct {
 	*shttp.RequestContext
 	Token  *apikey.Token
@@ -242,23 +250,26 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 			}
 
 			if app == nil {
-				return shttp.NotFoundJSON("The application does not exist.")
+				return shttp.NotFoundJSON(msgAppNotFound)
 			}
 
 			request.App = app
 			request.TeamID = app.TeamID
 
-			// Validate membership if the key is not already tied to an app.
+			// Validate membership if the key is not already tied to an app. A
+			// caller who does not own the app is answered as if it did not
+			// exist, so the 404-vs-403 difference cannot be used to enumerate
+			// other tenants' app IDs.
 			if request.Token.AppID == 0 {
 				if request.Token.TeamID != 0 {
 					if app.TeamID != request.Token.TeamID {
-						return shttp.ForbiddenAPIKey()
+						return shttp.NotFoundJSON(msgAppNotFound)
 					}
 				} else if request.Token.UserID != 0 {
 					isMember := team.NewStore().IsMember(req.Context(), request.Token.UserID, app.TeamID)
 
 					if !isMember {
-						return shttp.ForbiddenAPIKey()
+						return shttp.NotFoundJSON(msgAppNotFound)
 					}
 				}
 			}
@@ -276,7 +287,7 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 			}
 
 			if env == nil {
-				return shttp.NotFoundJSON("The environment does not exist. Pass a valid 'envId', or use an environment-scoped API key.")
+				return shttp.NotFoundJSON(msgEnvNotFound)
 			}
 
 			app, err := app.NewStore().AppByID(req.Context(), env.AppID)
@@ -286,20 +297,26 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 			}
 
 			if app == nil {
-				return shttp.NotFoundJSON("The application owning this environment does not exist.")
+				// An env whose owning app row is gone still must not be
+				// distinguishable from a missing env, so it answers with the
+				// same body rather than a message of its own.
+				return shttp.NotFoundJSON(msgEnvNotFound)
 			}
 
 			request.Env = env
 			request.App = app
 			request.TeamID = app.TeamID
 
-			// Validate membership if the key is not already tied to an environment.
+			// Validate membership if the key is not already tied to an
+			// environment. A caller who does not own the environment is answered
+			// as if it did not exist, so the 404-vs-403 difference cannot be
+			// used to enumerate other tenants' environment IDs.
 			if request.Token.EnvID == 0 {
 				if request.Token.AppID != 0 && request.Token.AppID != env.AppID {
-					return shttp.ForbiddenAPIKey()
+					return shttp.NotFoundJSON(msgEnvNotFound)
 				} else if request.Token.TeamID != 0 {
 					if app.TeamID != request.Token.TeamID {
-						return shttp.ForbiddenAPIKey()
+						return shttp.NotFoundJSON(msgEnvNotFound)
 					}
 
 					request.App = app
@@ -308,7 +325,7 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 					isMember := buildconf.NewStore().IsMember(req.Context(), env.ID, request.Token.UserID)
 
 					if !isMember {
-						return shttp.ForbiddenAPIKey()
+						return shttp.NotFoundJSON(msgEnvNotFound)
 					}
 				}
 			}

@@ -171,7 +171,7 @@ func (s *HandlerDeploymentListSuite) Test_Forbidden_UserNotMember() {
 	})
 
 	response := s.get(key.Value, fmt.Sprintf("envId=%d", env.ID))
-	s.Equal(http.StatusForbidden, response.Code)
+	s.Equal(http.StatusNotFound, response.Code)
 }
 
 func TestHandlerDeploymentList(t *testing.T) {
