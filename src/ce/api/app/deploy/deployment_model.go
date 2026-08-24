@@ -367,6 +367,65 @@ func (d *Deployment) Status() string {
 	return failed
 }
 
+// maxFailureSummaryLines caps the log tail surfaced inline on a failed
+// deployment, so the reason is available without fetching the full logs.
+const maxFailureSummaryLines = 20
+
+// FailureSummary returns a short, human-readable reason a deployment failed,
+// for callers that have the deployment object but not the full logs. It reads
+// the tail of the failed step's captured output -- where a build-command
+// failure surfaces -- preferring the build logs and falling back to the
+// status-check logs, then to any explicitly recorded error. It returns an
+// empty string for a deployment that did not fail. The logs must be loaded on
+// the deployment for a build-log summary to be produced.
+func (d *Deployment) FailureSummary() string {
+	if d.Status() != "failed" {
+		return ""
+	}
+
+	if s := failedStepMessage(d.PrepareLogs(d.Logs.ValueOrZero(), false)); s != "" {
+		return lastLines(s, maxFailureSummaryLines)
+	}
+
+	if s := failedStepMessage(d.PrepareLogs(d.StatusChecks.ValueOrZero(), true)); s != "" {
+		return lastLines(s, maxFailureSummaryLines)
+	}
+
+	return strings.TrimSpace(d.Error.ValueOrZero())
+}
+
+// failedStepMessage returns the message of the last failed step that carries
+// one, which for a build-command failure is the step whose output ends in the
+// error.
+func failedStepMessage(logs []*Log) string {
+	for i := len(logs) - 1; i >= 0; i-- {
+		if !logs[i].Status {
+			if msg := strings.TrimSpace(logs[i].Message); msg != "" {
+				return msg
+			}
+		}
+	}
+
+	return ""
+}
+
+// lastLines returns at most maxLines of the trailing, non-empty lines of s.
+func lastLines(s string, maxLines int) string {
+	lines := []string{}
+
+	for _, line := range strings.Split(s, "\n") {
+		if strings.TrimSpace(line) != "" {
+			lines = append(lines, strings.TrimRight(line, "\r"))
+		}
+	}
+
+	if len(lines) > maxLines {
+		lines = lines[len(lines)-maxLines:]
+	}
+
+	return strings.Join(lines, "\n")
+}
+
 // RepoCloneURL returns the fully qualified repository name to clone the repository.
 func (d *Deployment) RepoCloneURL() string {
 	pieces := strings.Split(d.CheckoutRepo, "/")
@@ -698,6 +757,9 @@ func (d *Deployment) JSON(withLogs bool) map[string]any {
 		}
 	}
 
+	detailsURL := fmt.Sprintf("/apps/%s/environments/%s/deployments/%s", appID, envID, depID)
+	status := d.Status()
+
 	jsonMap := map[string]any{
 		"id":                 depID,
 		"appId":              appID,
@@ -710,13 +772,13 @@ func (d *Deployment) JSON(withLogs bool) map[string]any {
 		"createdAt":          d.CreatedAt.UnixStr(),
 		"stoppedAt":          stoppedAt,
 		"stoppedManually":    d.ExitCode.ValueOrZero() == -1,
-		"status":             d.Status(),
+		"status":             status,
 		"snapshot":           d.Snapshot(),
 		"error":              d.Error.ValueOrZero(),
 		"isAutoDeploy":       d.IsAutoDeploy,
 		"isAutoPublish":      d.ShouldPublish,
 		"previewUrl":         admin.MustConfig().PreviewURL(d.DisplayName, d.ID.String()),
-		"detailsUrl":         fmt.Sprintf("/apps/%s/environments/%s/deployments/%s", appID, envID, depID),
+		"detailsUrl":         detailsURL,
 		"apiPathPrefix":      d.APIPathPrefix.ValueOrZero(),
 		"statusChecks":       statusChecksLogs,
 		"statusChecksPassed": d.StatusChecksPassed,
@@ -745,7 +807,28 @@ func (d *Deployment) JSON(withLogs bool) map[string]any {
 		jsonMap["statusChecks"] = nil
 	}
 
+	// On failure, surface the reason inline so a caller can triage without a
+	// second fetch, plus a link to the full logs for the rest of the detail.
+	if status == "failed" {
+		if summary := d.FailureSummary(); summary != "" {
+			jsonMap["failureSummary"] = summary
+		}
+
+		jsonMap["logsUrl"] = dashboardURL(detailsURL)
+	}
+
 	return jsonMap
+}
+
+// dashboardURL turns a relative dashboard path into a fully-qualified URL using
+// the instance's configured app domain, falling back to the relative path when
+// no domain is configured.
+func dashboardURL(path string) string {
+	if dc := admin.MustConfig().DomainConfig; dc != nil && dc.App != "" {
+		return strings.TrimRight(dc.App, "/") + path
+	}
+
+	return path
 }
 
 func calculateDuration(createdAt, stoppedAt utils.Unix) int64 {

@@ -17,10 +17,16 @@ func handlerDeploymentGet(req *RequestContext) *shttp.Response {
 
 	withLogs := req.Query().Get("logs") == "true"
 
+	// Always load the logs for this single deployment, even when the caller did
+	// not ask for the full array: a failed deployment derives its inline
+	// failureSummary from them. JSON(withLogs) still withholds the full array
+	// unless it was requested.
+	includeLogs := true
+
 	depl, err := deploy.NewStore().MyDeployment(req.Context(), &deploy.DeploymentsQueryFilters{
 		DeploymentID: id,
 		EnvID:        req.Env.ID,
-		IncludeLogs:  &withLogs,
+		IncludeLogs:  &includeLogs,
 	})
 
 	if err != nil {

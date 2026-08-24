@@ -66,6 +66,42 @@ func (s *HandlerDeploymentGetSuite) Test_Success() {
 	s.Equal(depl.Branch, got["branch"])
 }
 
+// Test_Failed_IncludesFailureSummaryAndLogsUrl verifies that a failed
+// deployment surfaces the failure reason inline (without ?logs=true) plus a
+// link to the full logs, and still withholds the full logs array.
+func (s *HandlerDeploymentGetSuite) Test_Failed_IncludesFailureSummaryAndLogsUrl() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	env := s.MockEnv(appl)
+	depl := s.MockDeployment(env, map[string]any{
+		"ExitCode": null.IntFrom(1),
+		"Logs": null.StringFrom(
+			`{"title":"npm run build","message":"> build\nError: Cannot find module 'x'\nnpm ERR! exit 1","status":"failed","startedAt":1,"finishedAt":2}`,
+		),
+	})
+	key := s.MockAPIKey(appl, env)
+
+	response := shttptest.RequestWithHeaders(
+		s.handler(),
+		shttp.MethodGet,
+		fmt.Sprintf("/v1/deployments/%d", depl.ID),
+		nil,
+		map[string]string{
+			"Authorization": key.Value,
+		},
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+
+	got := response.Map()["deployment"].(map[string]any)
+
+	s.Equal("failed", got["status"])
+	s.Contains(got["failureSummary"], "Error: Cannot find module 'x'")
+	s.NotEmpty(got["logsUrl"])
+	// The full logs array is still withheld unless explicitly requested.
+	s.Nil(got["logs"])
+}
+
 // Test_NotFound_UnknownID verifies that a non-existent deployment ID returns 404.
 func (s *HandlerDeploymentGetSuite) Test_NotFound_UnknownID() {
 	usr := s.MockUser()

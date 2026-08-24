@@ -3,6 +3,8 @@ package deploy_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -429,6 +431,61 @@ func (s *DeploymentModelSuite) Test_PopulateFromDeployCandidate() {
 	s.Equal("6543", dep.BuildConfig.Vars["POSTGRES_PORT"])
 	s.Equal("should_not_overwrite", dep.BuildConfig.Vars["DATABASE_URL"])
 	s.Equal("smtp://test-user:test-pwd@smtp.gmail.com:587", dep.BuildConfig.Vars["MAILER_URL"])
+}
+
+func (s *DeploymentModelSuite) Test_FailureSummary_FromFailedStep() {
+	d := &deploy.Deployment{
+		ExitCode: null.IntFrom(deploy.ExitCodeFailed),
+		Logs: null.StringFrom(
+			`{"title":"clone","message":"Cloning repository... done","status":"success","startedAt":1,"finishedAt":2}` + "\n" +
+				`{"title":"npm run build","message":"> build\nError: Cannot find module 'x'\nnpm ERR! exit 1","status":"failed","startedAt":2,"finishedAt":3}`,
+		),
+	}
+
+	summary := d.FailureSummary()
+
+	s.Contains(summary, "Error: Cannot find module 'x'")
+	s.Contains(summary, "npm ERR! exit 1")
+	// The summary is the failed step's output, not an earlier successful one.
+	s.NotContains(summary, "Cloning repository")
+}
+
+func (s *DeploymentModelSuite) Test_FailureSummary_TrimsToLastLines() {
+	lines := make([]string, 0, 40)
+	for i := range 40 {
+		lines = append(lines, fmt.Sprintf("line %d", i))
+	}
+
+	msg, err := json.Marshal(strings.Join(lines, "\n"))
+	s.Require().NoError(err)
+
+	d := &deploy.Deployment{
+		ExitCode: null.IntFrom(deploy.ExitCodeFailed),
+		Logs: null.StringFrom(
+			`{"title":"npm run build","message":` + string(msg) + `,"status":"failed","startedAt":1,"finishedAt":2}`,
+		),
+	}
+
+	summary := d.FailureSummary()
+
+	s.Equal(20, len(strings.Split(summary, "\n")), "summary is capped to the last 20 lines")
+	s.Contains(summary, "line 39")
+	s.NotContains(summary, "line 19")
+}
+
+func (s *DeploymentModelSuite) Test_FailureSummary_FallsBackToError() {
+	d := &deploy.Deployment{
+		ExitCode: null.IntFrom(deploy.ExitCodeFailed),
+		Error:    null.StringFrom("We could not detect an index.html"),
+	}
+
+	s.Equal("We could not detect an index.html", d.FailureSummary())
+}
+
+func (s *DeploymentModelSuite) Test_FailureSummary_EmptyOnSuccess() {
+	d := &deploy.Deployment{ExitCode: null.IntFrom(deploy.ExitCodeSuccess)}
+
+	s.Empty(d.FailureSummary())
 }
 
 func TestDeploymentModel(t *testing.T) {
