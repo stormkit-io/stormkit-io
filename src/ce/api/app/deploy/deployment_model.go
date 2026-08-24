@@ -112,6 +112,14 @@ type Deployment struct {
 	BuildConfig *buildconf.BuildConf `json:"-"` // ConfigCopy is the snapshot of the environment used during the deployment.
 	DisplayName string               `json:"-"` // DisplayName is the name of the app. It is injected to the deployment object.
 	IsRestart   bool                 `json:"-"`
+
+	// Parsed-log memoization. PrepareLogs is a full parse and both JSON and
+	// FailureSummary need the result; these cache it per log set for the
+	// lifetime of the in-memory deployment (invalidated by AddLogs).
+	buildLogEntries  []*Log
+	buildLogParsed   bool
+	statusLogEntries []*Log
+	statusLogParsed  bool
 }
 
 // PublishedInfo represents information on the publish details
@@ -367,6 +375,99 @@ func (d *Deployment) Status() string {
 	return failed
 }
 
+// maxFailureSummaryLines caps the log tail surfaced inline on a failed
+// deployment, so the reason is available without fetching the full logs.
+const maxFailureSummaryLines = 20
+
+// FailureSummary returns a short, human-readable reason a deployment failed,
+// for callers that have the deployment object but not the full logs. It reads
+// the tail of the failed step's captured output -- where a build-command
+// failure surfaces -- preferring the build logs and falling back to the
+// status-check logs, then to any explicitly recorded error. It returns an
+// empty string for a deployment that did not fail. The logs must be loaded on
+// the deployment for a build-log summary to be produced.
+func (d *Deployment) FailureSummary() string {
+	if d.Status() != "failed" {
+		return ""
+	}
+
+	if s := failedStepMessage(d.logEntries(false)); s != "" {
+		return lastLines(s, maxFailureSummaryLines)
+	}
+
+	if s := failedStepMessage(d.logEntries(true)); s != "" {
+		return lastLines(s, maxFailureSummaryLines)
+	}
+
+	return strings.TrimSpace(d.Error.ValueOrZero())
+}
+
+// logEntries returns the parsed log entries for the build (or status-check)
+// logs, parsing each set at most once. PrepareLogs is a full parse that both
+// JSON and FailureSummary would otherwise run on the same blob.
+func (d *Deployment) logEntries(isStatusChecks bool) []*Log {
+	if isStatusChecks {
+		if !d.statusLogParsed {
+			d.statusLogEntries = d.PrepareLogs(d.StatusChecks.ValueOrZero(), true)
+			d.statusLogParsed = true
+		}
+
+		return d.statusLogEntries
+	}
+
+	if !d.buildLogParsed {
+		d.buildLogEntries = d.PrepareLogs(d.Logs.ValueOrZero(), false)
+		d.buildLogParsed = true
+	}
+
+	return d.buildLogEntries
+}
+
+// failedStepMessage returns the message of the last failed step that carries
+// one, which for a build-command failure is the step whose output ends in the
+// error.
+func failedStepMessage(logs []*Log) string {
+	for i := len(logs) - 1; i >= 0; i-- {
+		if !logs[i].Status {
+			if msg := strings.TrimSpace(logs[i].Message); msg != "" {
+				return msg
+			}
+		}
+	}
+
+	return ""
+}
+
+// lastLines returns at most maxLines of the trailing lines of s. Leading and
+// trailing blank lines are trimmed, but interior blanks are kept so multi-line
+// errors and stack traces render as written.
+func lastLines(s string, maxLines int) string {
+	lines := strings.Split(s, "\n")
+
+	for i, line := range lines {
+		lines[i] = strings.TrimRight(line, "\r")
+	}
+
+	// Drop leading and trailing blank lines without touching interior ones.
+	start := 0
+	for start < len(lines) && strings.TrimSpace(lines[start]) == "" {
+		start++
+	}
+
+	end := len(lines)
+	for end > start && strings.TrimSpace(lines[end-1]) == "" {
+		end--
+	}
+
+	lines = lines[start:end]
+
+	if len(lines) > maxLines {
+		lines = lines[len(lines)-maxLines:]
+	}
+
+	return strings.Join(lines, "\n")
+}
+
 // RepoCloneURL returns the fully qualified repository name to clone the repository.
 func (d *Deployment) RepoCloneURL() string {
 	pieces := strings.Split(d.CheckoutRepo, "/")
@@ -409,6 +510,7 @@ func (d *Deployment) AddLogs(logs []string) {
 	}
 
 	d.Logs = null.StringFrom(d.Logs.ValueOrZero() + "\n" + strings.Join(logs, "\n"))
+	d.buildLogParsed = false
 }
 
 // PrepareLogs prepares the deployment logs and returns an array of log objects.
@@ -678,8 +780,8 @@ func (d *Deployment) JSON(withLogs bool) map[string]any {
 	var statusChecksLogs []*Log
 
 	if withLogs {
-		deploymentLogs = d.PrepareLogs(d.Logs.ValueOrZero(), false)
-		statusChecksLogs = d.PrepareLogs(d.StatusChecks.ValueOrZero(), true)
+		deploymentLogs = d.logEntries(false)
+		statusChecksLogs = d.logEntries(true)
 	}
 
 	var stoppedAt any
@@ -716,7 +818,7 @@ func (d *Deployment) JSON(withLogs bool) map[string]any {
 		"isAutoDeploy":       d.IsAutoDeploy,
 		"isAutoPublish":      d.ShouldPublish,
 		"previewUrl":         admin.MustConfig().PreviewURL(d.DisplayName, d.ID.String()),
-		"detailsUrl":         fmt.Sprintf("/apps/%s/environments/%s/deployments/%s", appID, envID, depID),
+		"detailsUrl":         d.DetailsPath(),
 		"apiPathPrefix":      d.APIPathPrefix.ValueOrZero(),
 		"statusChecks":       statusChecksLogs,
 		"statusChecksPassed": d.StatusChecksPassed,
@@ -746,6 +848,11 @@ func (d *Deployment) JSON(withLogs bool) map[string]any {
 	}
 
 	return jsonMap
+}
+
+// DetailsPath returns the dashboard path to this deployment's details page.
+func (d *Deployment) DetailsPath() string {
+	return fmt.Sprintf("/apps/%s/environments/%s/deployments/%s", d.AppID.String(), d.EnvID.String(), d.ID.String())
 }
 
 func calculateDuration(createdAt, stoppedAt utils.Unix) int64 {

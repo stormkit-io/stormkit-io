@@ -13,6 +13,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp/shttptest"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stretchr/testify/suite"
+	"gopkg.in/guregu/null.v3"
 )
 
 type HandlerDeploymentListSuite struct {
@@ -172,6 +173,36 @@ func (s *HandlerDeploymentListSuite) Test_Forbidden_UserNotMember() {
 
 	response := s.get(key.Value, fmt.Sprintf("envId=%d", env.ID))
 	s.Equal(http.StatusNotFound, response.Code)
+}
+
+// Test_Failed_OmitsFailureFields verifies that the failure enrichment
+// (failureSummary/logsUrl) is scoped to get_deployment and does not leak into
+// the list endpoint, which never loads logs.
+func (s *HandlerDeploymentListSuite) Test_Failed_OmitsFailureFields() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	env := s.MockEnv(appl)
+	s.MockDeployment(env, map[string]any{
+		"ExitCode": null.IntFrom(1),
+		"Logs": null.StringFrom(
+			`{"title":"npm run build","message":"Error: boom","status":"failed","startedAt":1,"finishedAt":2}`,
+		),
+	})
+	key := s.MockAPIKey(appl, env)
+
+	response := s.get(key.Value, "")
+
+	s.Equal(http.StatusOK, response.Code)
+
+	depls := response.Map()["deployments"].([]any)
+	s.Len(depls, 1)
+
+	item := depls[0].(map[string]any)
+	s.Equal("failed", item["status"])
+	_, hasSummary := item["failureSummary"]
+	s.False(hasSummary, "failureSummary must not appear on list items")
+	_, hasLogsURL := item["logsUrl"]
+	s.False(hasLogsURL, "logsUrl must not appear on list items")
 }
 
 func TestHandlerDeploymentList(t *testing.T) {

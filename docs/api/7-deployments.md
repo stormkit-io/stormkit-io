@@ -212,6 +212,8 @@ Returns the deployment object wrapped in a `deployment` key.
 | `branch`             | string       | Git branch that was deployed.                                                             |
 | `status`             | string       | Current status: `running`, `success`, `failed`, or `stopped`.                             |
 | `error`              | string       | Error message if the deployment failed. Empty string otherwise.                           |
+| `failureSummary`     | string       | Present only on a failed deployment: the tail of the failing step's output, so the reason is available without fetching the full logs. |
+| `logsUrl`            | string       | Present only on a failed deployment: link to the full logs for the rest of the detail.     |
 | `isAutoDeploy`       | boolean      | `true` when triggered automatically (e.g. via webhook).                                   |
 | `isAutoPublish`      | boolean      | Whether this deployment was configured to publish automatically on success.               |
 | `stoppedManually`    | boolean      | `true` when the deployment was stopped by a user action.                                  |

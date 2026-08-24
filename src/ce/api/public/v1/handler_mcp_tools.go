@@ -51,7 +51,7 @@ func mcpAllTools() []mcpToolDef {
 		},
 		{
 			Name:        "get_deployment",
-			Description: "Return metadata and status for a deployment. Poll until status is 'success' or 'failed'.",
+			Description: "Return metadata and status for a deployment. Poll until status is 'success' or 'failed'. On failure the response includes 'failureSummary' (the tail of the failing step's output) and 'logsUrl' for the full logs, so you can triage without fetching all logs.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
