@@ -297,7 +297,10 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 			}
 
 			if app == nil {
-				return shttp.NotFoundJSON("The application owning this environment does not exist.")
+				// An env whose owning app row is gone still must not be
+				// distinguishable from a missing env, so it answers with the
+				// same body rather than a message of its own.
+				return shttp.NotFoundJSON(msgEnvNotFound)
 			}
 
 			request.Env = env

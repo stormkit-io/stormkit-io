@@ -155,7 +155,7 @@ func (s *HandlerDeploymentRestartSuite) Test_Forbidden_UserNotMember() {
 		map[string]string{"Authorization": key.Value},
 	)
 
-	s.Equal(http.StatusForbidden, response.Code)
+	s.Equal(http.StatusNotFound, response.Code)
 }
 
 func (s *HandlerDeploymentRestartSuite) Test_Success() {

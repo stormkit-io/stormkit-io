@@ -284,7 +284,7 @@ func (s *HandlerMailerSuite) Test_Forbidden_ForNonMember() {
 		s.auth(),
 	)
 
-	s.Equal(http.StatusForbidden, response.Code)
+	s.Equal(http.StatusNotFound, response.Code)
 }
 
 // Test_ConfigSet_AuditsPasswordRotation covers the one mailer write that

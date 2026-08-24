@@ -151,7 +151,7 @@ func (s *HandlerDeploymentCreateSuite) Test_NotFound_Env() {
 }
 
 // Test_Forbidden_TeamTokenNotOwner verifies that a team-scoped token whose TeamID does not
-// match the application's TeamID is rejected with 403.
+// match the application's TeamID is answered with 404 (existence hidden).
 func (s *HandlerDeploymentCreateSuite) Test_Forbidden_TeamTokenNotOwner() {
 	usr1 := s.MockUser()
 	appl := s.MockApp(usr1)
@@ -179,12 +179,12 @@ func (s *HandlerDeploymentCreateSuite) Test_Forbidden_TeamTokenNotOwner() {
 		},
 	)
 
-	s.Equal(http.StatusForbidden, response.Code)
+	s.Equal(http.StatusNotFound, response.Code)
 	s.mockDeployer.AssertNotCalled(s.T(), "Deploy")
 }
 
 // Test_Forbidden_UserNotTeamMember verifies that a user-scoped token whose owner is not a
-// member of the application's team is rejected with 403.
+// member of the application's team is answered with 404 (existence hidden).
 func (s *HandlerDeploymentCreateSuite) Test_Forbidden_UserNotTeamMember() {
 	usr1 := s.MockUser()
 	appl := s.MockApp(usr1)
@@ -212,12 +212,12 @@ func (s *HandlerDeploymentCreateSuite) Test_Forbidden_UserNotTeamMember() {
 		},
 	)
 
-	s.Equal(http.StatusForbidden, response.Code)
+	s.Equal(http.StatusNotFound, response.Code)
 	s.mockDeployer.AssertNotCalled(s.T(), "Deploy")
 }
 
 // Test_Forbidden_AppTokenNotOwner verifies that an app-scoped token whose AppID does not
-// match the application derived from envId is rejected with 403.
+// match the application derived from envId is answered with 404 (existence hidden).
 func (s *HandlerDeploymentCreateSuite) Test_Forbidden_AppTokenNotOwner() {
 	usr := s.MockUser()
 	appl1 := s.MockApp(usr)
@@ -241,7 +241,7 @@ func (s *HandlerDeploymentCreateSuite) Test_Forbidden_AppTokenNotOwner() {
 		},
 	)
 
-	s.Equal(http.StatusForbidden, response.Code)
+	s.Equal(http.StatusNotFound, response.Code)
 	s.mockDeployer.AssertNotCalled(s.T(), "Deploy")
 }
 
