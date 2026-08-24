@@ -1,5 +1,31 @@
 # Changelog
 
+## v2026.08.23.2...v2026.08.24.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.08.23.2...v2026.08.24.1)
+
+### 🚀 Enhancements
+
+- Surface failure reason in deployment object ([#491](https://github.com/stormkit-io/stormkit-io/pull/491))
+
+### 🩹 Fixes
+
+- Bound accept header parsing on the edge ([#484](https://github.com/stormkit-io/stormkit-io/pull/484))
+- Environment page loading flash and config scroll ([#486](https://github.com/stormkit-io/stormkit-io/pull/486))
+- Hide resource existence from unowned callers ([#487](https://github.com/stormkit-io/stormkit-io/pull/487))
+
+### 💅 Refactors
+
+- Drop redundant env request assignment ([#490](https://github.com/stormkit-io/stormkit-io/pull/490))
+
+### 🏡 Chore
+
+- Update changelog for v2026.08.23.2 ([#483](https://github.com/stormkit-io/stormkit-io/pull/483))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.08.23.1...v2026.08.23.2
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.08.23.1...v2026.08.23.2)
