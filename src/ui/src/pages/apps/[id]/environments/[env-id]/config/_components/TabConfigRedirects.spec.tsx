@@ -29,7 +29,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabConfigRe
         app={currentApp}
         environment={currentEnv}
         setRefreshToken={setRefreshToken}
-      />
+      />,
     );
   };
 
@@ -39,16 +39,16 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabConfigRe
     expect(wrapper.getByText("Redirects")).toBeTruthy();
     expect(
       wrapper.getByText(
-        "Configure redirects and path rewrites for your application."
-      )
+        "Configure redirects and path rewrites for your application.",
+      ),
     ).toBeTruthy();
 
     const redirectsFileInput = wrapper.getByLabelText(
-      "Redirects file location"
+      "Redirects file location",
     ) as HTMLInputElement;
 
     const errorFileInput = wrapper.getByLabelText(
-      "Custom error file"
+      "Custom error file",
     ) as HTMLInputElement;
 
     expect(redirectsFileInput.value).toBe("");
@@ -69,12 +69,12 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabConfigRe
 
     await userEvent.type(
       wrapper.getByLabelText("Redirects file location"),
-      "/redirects.json"
+      "/redirects.json",
     );
 
     await userEvent.type(
       wrapper.getByLabelText("Custom error file"),
-      "/index.html"
+      "/index.html",
     );
 
     const scope = mockUpdateEnvironment({
@@ -82,6 +82,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabConfigRe
         redirectsFile: "/redirects.json",
         errorFile: "/index.html",
         markdown: false,
+        markdownConvert: false,
       },
       status: 200,
       response: {
@@ -106,6 +107,35 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabConfigRe
         redirectsFile: "",
         errorFile: "",
         markdown: true,
+        markdownConvert: false,
+      },
+      status: 200,
+      response: {
+        ok: true,
+      },
+    });
+
+    fireEvent.click(wrapper.getByText("Save"));
+
+    await waitFor(() => {
+      expect(scope.isDone()).toBe(true);
+    });
+  });
+
+  it("should reveal and submit the conversion toggle", async () => {
+    createWrapper({});
+
+    expect(wrapper.queryByText("Convert pages without a .md file")).toBeNull();
+
+    fireEvent.click(wrapper.getByText("Markdown representations"));
+    fireEvent.click(wrapper.getByText("Convert pages without a .md file"));
+
+    const scope = mockUpdateEnvironment({
+      payload: {
+        redirectsFile: "",
+        errorFile: "",
+        markdown: true,
+        markdownConvert: true,
       },
       status: 200,
       response: {
@@ -125,12 +155,12 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabConfigRe
 
     await userEvent.type(
       wrapper.getByLabelText("Redirects file location"),
-      "/redirects.json"
+      "/redirects.json",
     );
 
     await userEvent.type(
       wrapper.getByLabelText("Custom error file"),
-      "/index.html"
+      "/index.html",
     );
 
     const scope = mockUpdateEnvironment({
@@ -139,6 +169,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabConfigRe
         redirectsFile: "/redirects.json",
         errorFile: "/index.html",
         markdown: false,
+        markdownConvert: false,
       },
       status: 200,
       response: {

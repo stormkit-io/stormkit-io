@@ -368,6 +368,7 @@ func rowsToConfigs(rows *sql.Rows, err error) ([]*Config, error) {
 			cnf.ServerCmd = data.ServerCmd
 			cnf.ErrorFile = data.ErrorFile
 			cnf.Markdown = data.Markdown.ValueOrZero()
+			cnf.MarkdownConvert = data.MarkdownConvert.ValueOrZero()
 			cnf.EnvVariables = data.InterpolatedVars(
 				buildconf.InterpolatedVarsOpts{
 					DeploymentID: cnf.DeploymentID.String(),

@@ -23,6 +23,7 @@ type Config struct {
 	Domains          []string              `json:"domains"`
 	ErrorFile        string                `json:"errorFile,omitempty"`
 	Markdown         bool                  `json:"markdown,omitempty"`
+	MarkdownConvert  bool                  `json:"markdownConvert,omitempty"`
 	StorageLocation  string                `json:"storageLocation,omitempty"`
 	FunctionLocation string                `json:"functionLocation,omitempty"`
 	APIPathPrefix    string                `json:"apiPathPrefix"`
