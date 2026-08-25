@@ -15,6 +15,16 @@ interface VisitorsChartData {
   unique: number;
 }
 
+// toLocalDate formats a date as YYYY-MM-DD in the local timezone. The API keys
+// its buckets by the server's calendar date, so formatting in UTC (via
+// toISOString) would shift the whole series by a day for most timezones.
+const toLocalDate = (date: Date): string => {
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+
+  return `${date.getFullYear()}-${month}-${day}`;
+};
+
 export const useFetchVisitors = ({
   envId,
   refreshToken,
@@ -50,19 +60,24 @@ export const useFetchVisitors = ({
             });
           });
         } else {
-          const date = new Date();
+          // The daily aggregation job runs once a day, so today's bucket is
+          // never synced and the API omits it. Ending the window at yesterday
+          // keeps the chart from rendering a phantom zero for today. The API
+          // already returns span + 1 days, which fills the extra leading slot.
           const span = Number(ts.replace("d", ""));
-          date.setDate(date.getDate() - span); // Go back 7 or 30 days
+          const date = new Date();
+          date.setDate(date.getDate() - span);
 
           for (let i = 0; i < span; i++) {
-            // increment 1 by 1 until today
-            date.setDate(date.getDate() + 1);
-            const name = date.toISOString().split("T")[0];
+            const name = toLocalDate(date);
+
             VisitorsChartData.push({
               name,
               total: data[name]?.total || 0,
               unique: data[name]?.unique || 0,
             });
+
+            date.setDate(date.getDate() + 1);
           }
         }
 
