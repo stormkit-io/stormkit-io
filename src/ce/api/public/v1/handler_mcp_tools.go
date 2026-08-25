@@ -252,6 +252,7 @@ func mcpAllTools() []mcpToolDef {
 					"autoDeployCommits":  map[string]any{"type": "string", "description": "Regex pattern for commit messages that trigger auto-deploy."},
 					"autoPublish":        map[string]any{"type": "boolean", "description": "Automatically publish every successful deployment."},
 					"markdown":           map[string]any{"type": "boolean", "description": "Serve the .md twin of a page to clients that send Accept: text/markdown. Off unless enabled."},
+					"markdownConvert":    map[string]any{"type": "boolean", "description": "Convert a page's HTML to markdown when it ships no .md twin. Requires markdown. Off unless enabled."},
 					"previewLinks":       map[string]any{"type": "boolean", "description": "Generate preview links for each deployment."},
 					"envVars":            map[string]any{"type": "object", "description": "Environment variables injected at build and runtime.", "additionalProperties": map[string]any{"type": "string"}},
 					"redirects": map[string]any{
@@ -316,6 +317,7 @@ func mcpAllTools() []mcpToolDef {
 					"headersFile":        map[string]any{"type": "string", "description": "Path to a headers file (relative to repo root)."},
 					"redirectsFile":      map[string]any{"type": "string", "description": "Path to a redirects file (relative to repo root)."},
 					"markdown":           map[string]any{"type": "boolean", "description": "Serve the .md twin of a page to clients that send Accept: text/markdown. Off unless enabled."},
+					"markdownConvert":    map[string]any{"type": "boolean", "description": "Convert a page's HTML to markdown when it ships no .md twin. Requires markdown. Off unless enabled."},
 					"previewLinks":       map[string]any{"type": "boolean", "description": "Generate preview links for each deployment."},
 					"priorityPattern":    map[string]any{"type": "string", "description": "Regex matched against the commit message of auto-deploys; matching deployments are automatically routed to the priority queue. Leave empty to disable."},
 					"envVars":            map[string]any{"type": "object", "description": "Environment variables to set or update. Merged into the existing set: keys not listed here keep their current value, and a key set to an empty string is removed.", "additionalProperties": map[string]any{"type": "string"}},
@@ -1014,6 +1016,10 @@ func mcpCreateEnvironment(req *RequestContextMCP, id any, args map[string]any) *
 		body.Markdown = null.BoolFrom(raw)
 	}
 
+	if raw, ok := args["markdownConvert"].(bool); ok {
+		body.MarkdownConvert = null.BoolFrom(raw)
+	}
+
 	if raw, ok := args["previewLinks"].(bool); ok {
 		body.PreviewLinks = null.BoolFrom(raw)
 	}
@@ -1180,6 +1186,7 @@ func mcpUpdateEnvironment(req *RequestContextMCP, id any, args map[string]any) *
 	setBool("autoDeploy", &update.AutoDeploy)
 	setBool("autoPublish", &update.AutoPublish)
 	setBool("markdown", &update.Markdown)
+	setBool("markdownConvert", &update.MarkdownConvert)
 	setBool("previewLinks", &update.PreviewLinks)
 
 	update.EnvVars = mergeEnvVarsArg(req.Env.Data.Vars, args)

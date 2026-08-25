@@ -38,6 +38,9 @@ export default function TabConfigRedirects({
     JSON.stringify(env.build.redirects, null, 2) || defaultRedirects;
 
   const [markdown, setMarkdown] = useState(env.build.markdown === true);
+  const [markdownConvert, setMarkdownConvert] = useState(
+    env.build.markdownConvert === true,
+  );
   const [showModal, setShowModal] = useState(false);
   const [showRedirects, setShowRedirects] = useState(hasRedirects);
   const [redirects, setRedirects] = useState(initialRedirects);
@@ -79,6 +82,7 @@ export default function TabConfigRedirects({
             redirectsFile: build.redirectsFile,
             errorFile: build.errorFile,
             markdown,
+            markdownConvert: markdown && markdownConvert,
           },
           setError,
           setLoading,
@@ -151,6 +155,38 @@ export default function TabConfigRedirects({
           markdown, a browser still gets the HTML. Useful for letting agents
           read your documentation without scraping the rendered page.
         </Typography>
+        {markdown && (
+          <Box
+            sx={{
+              mt: 2,
+              pt: 2,
+              borderTop: "1px solid",
+              borderColor: "container.transparent",
+            }}
+          >
+            <FormControlLabel
+              sx={{ pl: 0, ml: 0 }}
+              label="Convert pages without a .md file"
+              control={
+                <Switch
+                  name="build.markdownConvert"
+                  color="secondary"
+                  checked={markdownConvert}
+                  onChange={e => {
+                    setMarkdownConvert(e.target.checked);
+                  }}
+                />
+              }
+              labelPlacement="start"
+            />
+            <Typography sx={{ color: "text.secondary" }}>
+              When a page ships no <Box component="code">.md</Box> file, convert
+              its HTML instead. A <Box component="code">.md</Box> file you
+              publish yourself is always used first. Pages that are rendered in
+              the browser have no content to convert and keep serving HTML.
+            </Typography>
+          </Box>
+        )}
       </Box>
       <Box sx={{ bgcolor: "container.paper", p: 1.75, pt: 1, mb: 4 }}>
         <FormControlLabel

@@ -195,6 +195,10 @@ func isAPIPath(requestPath, prefix string) bool {
 type FileMeta struct {
 	Name    string
 	Headers map[string]string
+	// Body is set when the response was built in memory and has no stored file
+	// behind it, as a converted markdown representation has. Name then still
+	// names the source page, which is what the headers were derived from.
+	Body []byte
 }
 
 type RequestServer struct {
@@ -329,11 +333,15 @@ func requestDuration(req *RequestContext) null.Int {
 }
 
 func (r *RequestServer) FileMeta() *FileMeta {
+	return r.staticFile(strings.ToLower(r.req.URL().Path))
+}
+
+// staticFile resolves a request path against the deployment's file manifest,
+// trying the path itself, its .html form, and its directory index in turn.
+func (r *RequestServer) staticFile(requestPath string) *FileMeta {
 	if len(r.req.Host.Config.StaticFiles) == 0 {
 		return nil
 	}
-
-	requestPath := strings.ToLower(r.req.URL().Path)
 
 	lookup := []string{
 		requestPath,
@@ -356,34 +364,8 @@ func (r *RequestServer) FileMeta() *FileMeta {
 func (r *RequestServer) Handle() *shttp.Response {
 	r.fileMeta = r.FileMeta()
 
-	// Markdown negotiation runs before anything is served: a deployment that
-	// ships a .md twin of a page offers two representations of the same URL, and
-	// which one the client gets depends on its Accept header.
-	//
-	// It is opt-in. A build that happens to copy its markdown sources into the
-	// output must keep serving exactly what it served before, so a deployment
-	// only negotiates once it asks to.
-	if twin := r.markdownTwin(); twin != "" {
-		accept := parseAccept(r.req.Header.Get("Accept"))
-
-		// Negotiation only ever adds a representation. A client that accepts
-		// neither type still gets the HTML it would have got before, because
-		// refusing a request that used to succeed is a worse answer than serving
-		// the page.
-		//
-		// Vary is set on both representations, not only the markdown one:
-		// without it a cache that stored the HTML variant would hand it to the
-		// next agent asking for markdown, and the other way round.
-		r.varyAccept = true
-
-		if accept.prefersMarkdown() {
-			file := r.req.Host.Config.StaticFiles[twin]
-
-			r.fileMeta = &FileMeta{Name: file.FileName, Headers: file.Headers}
-			r.markdown = true
-
-			return r.Static()
-		}
+	if res := r.negotiateMarkdown(); res != nil {
+		return res
 	}
 
 	if r.fileMeta != nil {
@@ -662,7 +644,7 @@ func (r *RequestServer) NotFound() *shttp.Response {
 	if markdownNotFound := MarkdownErrorFile(cnf); cnf.Markdown && markdownNotFound != nil {
 		r.varyAccept = true
 
-		if parseAccept(r.req.Header.Get("Accept")).prefersMarkdown() {
+		if r.acceptsMarkdown() {
 			customNotFound = markdownNotFound
 			r.markdown = true
 		}
@@ -699,6 +681,11 @@ func (r *RequestServer) NotFound() *shttp.Response {
 }
 
 func (r *RequestServer) fileContent(headers http.Header) ([]byte, error) {
+	// A converted page was built in memory and has no stored file behind it.
+	if r.fileMeta.Body != nil {
+		return r.fileMeta.Body, nil
+	}
+
 	shouldOptimize := strings.HasPrefix(headers.Get("Content-Type"), "image") && r.req.Query().Has("size")
 
 	// Check from cache if file exists

@@ -122,6 +122,31 @@ It is also the `markdown` field on the [environment API](/docs/api/environments)
 and on the `create_environment` / `update_environment` MCP tools, so an agent can
 enable it on an environment it just created.
 
+### Converting pages that ship no markdown
+
+Negotiation only covers pages whose build published a `.md` file next to them.
+**Convert pages without a .md file** is a second, separate setting that fills the
+gap: when a page has no twin, Stormkit converts the page's own HTML and serves
+that instead.
+
+- A `.md` file you publish yourself always wins. Conversion never overrides
+  authored markdown, and enabling `markdown` on its own changes nothing.
+- The whole page is converted, navigation included, rather than an article being
+  guessed at. Output is CommonMark: headings, lists, links, tables, images,
+  blockquotes and fenced code blocks all carry over, while `<script>`, `<style>`,
+  `<noscript>` and `<template>` are dropped.
+- Pages above a megabyte, and pages whose markdown would exceed two, are served
+  as HTML instead.
+- The converted page is also fetchable at its own `.md` URL, so a link to
+  `/docs/getting-started.md` resolves even though the build never published one.
+- Pages rendered in the browser have nothing to convert. A client-rendered
+  application publishes an empty shell, so its markdown is empty too — if that
+  is what your pages are, this setting is not for you. Pages produced by a
+  server function never reach the deployment's file list and keep serving HTML.
+- Conversion happens once per page and is cached for the life of the deployment.
+
+Both settings default to off.
+
 ## Example
 
 Check out and build our [React Starter Template](https://github.com/stormkit-io/monorepo-template-react) to see an example of the `.stormkit` subfolder.

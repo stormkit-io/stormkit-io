@@ -1,9 +1,10 @@
 module github.com/stormkit-io/stormkit-io
 
-go 1.25
+go 1.25.0
 
 require (
 	github.com/DATA-DOG/go-txdb v0.2.1
+	github.com/JohannesKaufmann/html-to-markdown/v2 v2.5.2
 	github.com/NYTimes/gziphandler v1.1.1
 	github.com/Pallinder/go-randomdata v1.2.0
 	github.com/adhocore/gronx v1.19.6
@@ -49,10 +50,10 @@ require (
 	github.com/stripe/stripe-go/v81 v81.4.0
 	github.com/xanzy/go-gitlab v0.115.0
 	go.uber.org/zap v1.27.0
-	golang.org/x/crypto v0.43.0
-	golang.org/x/net v0.46.0
+	golang.org/x/crypto v0.51.0
+	golang.org/x/net v0.55.0
 	golang.org/x/oauth2 v0.34.0
-	golang.org/x/sync v0.17.0
+	golang.org/x/sync v0.20.0
 	golang.org/x/time v0.14.0
 	gopkg.in/go-playground/webhooks.v5 v5.17.0
 	gopkg.in/guregu/null.v3 v3.5.0
@@ -60,6 +61,7 @@ require (
 
 require (
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
+	github.com/JohannesKaufmann/dom v0.3.1 // indirect
 	github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.5 // indirect
 	github.com/alibabacloud-go/debug v1.0.1 // indirect
 	github.com/alibabacloud-go/endpoint-util v1.1.1 // indirect
@@ -123,10 +125,10 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap/exp v0.3.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
-	golang.org/x/mod v0.29.0 // indirect
-	golang.org/x/sys v0.39.0 // indirect
-	golang.org/x/text v0.30.0 // indirect
-	golang.org/x/tools v0.38.0 // indirect
+	golang.org/x/mod v0.35.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
+	golang.org/x/tools v0.44.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
