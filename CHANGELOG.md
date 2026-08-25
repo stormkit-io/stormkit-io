@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.08.24.1...v2026.08.25.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.08.24.1...v2026.08.25.1)
+
+### 🚀 Enhancements
+
+- Convert html to markdown when no .md twin exists ([#494](https://github.com/stormkit-io/stormkit-io/pull/494))
+
+### 🏡 Chore
+
+- Update changelog for v2026.08.24.1 ([#492](https://github.com/stormkit-io/stormkit-io/pull/492))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.08.23.2...v2026.08.24.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.08.23.2...v2026.08.24.1)
