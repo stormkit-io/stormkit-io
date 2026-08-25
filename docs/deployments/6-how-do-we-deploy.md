@@ -132,10 +132,13 @@ that instead.
 - A `.md` file you publish yourself always wins. Conversion never overrides
   authored markdown, and enabling `markdown` on its own changes nothing.
 - The whole page is converted, navigation included, rather than an article being
-  guessed at. Headings, lists, links, tables, images, blockquotes and fenced code
-  blocks carry over, and `<script>`, `<style>`, `<noscript>` and hidden elements
-  are dropped. Links and image sources are rewritten to absolute URLs so they
-  still work once the markdown is passed somewhere else.
+  guessed at. Output is CommonMark: headings, lists, links, tables, images,
+  blockquotes and fenced code blocks all carry over, while `<script>`, `<style>`,
+  `<noscript>`, `<template>` and hidden elements are dropped. Relative links and
+  image sources are rewritten to root-relative ones so they still resolve once
+  the markdown is read elsewhere.
+- Pages above a megabyte, and pages whose markdown would exceed two, are served
+  as HTML instead.
 - The converted page is also fetchable at its own `.md` URL, so a link to
   `/docs/getting-started.md` resolves even though the build never published one.
 - Pages rendered in the browser have no content to convert. A client-rendered

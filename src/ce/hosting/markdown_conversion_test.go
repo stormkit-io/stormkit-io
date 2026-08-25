@@ -44,7 +44,7 @@ type MarkdownConversionSuite struct {
 func (s *MarkdownConversionSuite) BeforeTest(_, _ string) {
 	// Conversions are cached by deployment, and every test in this suite uses
 	// the same deployment ID, so the cache has to go between them.
-	for _, name := range []string{"/docs.html", "/shell.html", "/pricing.html"} {
+	for _, name := range []string{"/docs.html", "/shell.html", "/pricing.html", "/gzipped.html"} {
 		rediscache.Client().Del(context.Background(), fmt.Sprintf("md:%s:%s", types.ID(1).String(), name))
 	}
 
@@ -86,6 +86,14 @@ func (s *MarkdownConversionSuite) host(convert bool) *hosting.Host {
 				"/shell.html": {
 					FileName: "/shell.html",
 					Headers:  map[string]string{"content-type": "text/html; charset=utf-8"},
+				},
+				"/gzipped.html": {
+					FileName: "/gzipped.html",
+					Headers: map[string]string{
+						"content-type":     "text/html; charset=utf-8",
+						"content-encoding": "gzip",
+						"cache-control":    "public, max-age=60",
+					},
 				},
 			},
 		},
@@ -147,7 +155,7 @@ func (s *MarkdownConversionSuite) Test_ConvertsPageWhenNoTwinExists() {
 
 	s.Contains(body, "# Deploying")
 	s.Contains(body, "```bash")
-	s.Contains(body, "[Pricing](https://www.stormkit.io/pricing)")
+	s.Contains(body, "[Pricing](/pricing)")
 	s.NotContains(body, "tracking")
 }
 
@@ -181,7 +189,11 @@ func (s *MarkdownConversionSuite) Test_ConversionDisabledServesHtml() {
 func (s *MarkdownConversionSuite) Test_BrowserStillGetsHtml() {
 	s.mockFile("/docs.html", page, "text/html; charset=utf-8")
 
-	res := s.request(s.host(true), "/docs", "text/html,application/xhtml+xml,*/*;q=0.8")
+	host := s.host(true)
+
+	s.request(host, "/docs", "text/markdown")
+
+	res := s.request(host, "/docs", "text/html,application/xhtml+xml,*/*;q=0.8")
 
 	s.Equal(http.StatusOK, res.Status)
 	s.True(strings.HasPrefix(res.Headers.Get("Content-Type"), "text/html"))
@@ -265,6 +277,53 @@ func (s *MarkdownConversionSuite) Test_MarkdownSharesThePageCachePolicy() {
 	res := s.request(s.host(true), "/docs", "text/markdown")
 
 	s.Equal("no-cache, must-revalidate", res.Headers.Get("Cache-Control"))
+}
+
+// A build that publishes pre-compressed HTML marks it Content-Encoding: gzip.
+// The converted markdown is not gzipped, so carrying that header over would
+// produce a response no client can decode.
+func (s *MarkdownConversionSuite) Test_DoesNotCarryContentEncoding() {
+	s.mockFile("/gzipped.html", page, "text/html; charset=utf-8")
+
+	res := s.request(s.host(true), "/gzipped", "text/markdown")
+
+	s.Equal(http.StatusOK, res.Status)
+	s.Equal("text/markdown; charset=utf-8", res.Headers.Get("Content-Type"))
+	s.Empty(res.Headers.Get("Content-Encoding"))
+	s.Equal("public, max-age=60", res.Headers.Get("Cache-Control"))
+}
+
+// A deployment whose pages all decline to convert has one representation per
+// URL, so advertising Vary would fragment caches and cost every page its
+// If-Modified-Since handling for nothing.
+func (s *MarkdownConversionSuite) Test_NoVaryOnPagesThatCannotConvert() {
+	s.mockFile("/shell.html", shell, "text/html; charset=utf-8")
+
+	host := s.host(true)
+
+	// Record the refusal first, so the browser request below is answered from
+	// what the cache knows rather than by chance.
+	s.request(host, "/shell", "text/markdown")
+
+	res := s.request(host, "/shell", "text/html,application/xhtml+xml,*/*;q=0.8")
+
+	s.Equal(http.StatusOK, res.Status)
+	s.Empty(res.Headers.Get("Vary"))
+}
+
+// Once a page is known to have a markdown representation, the HTML answer has
+// to say so.
+func (s *MarkdownConversionSuite) Test_VaryOnPagesThatDoConvert() {
+	s.mockFile("/docs.html", page, "text/html; charset=utf-8")
+
+	host := s.host(true)
+
+	s.request(host, "/docs", "text/markdown")
+
+	res := s.request(host, "/docs", "text/html,application/xhtml+xml,*/*;q=0.8")
+
+	s.Equal(http.StatusOK, res.Status)
+	s.Equal("Accept", res.Headers.Get("Vary"))
 }
 
 func TestMarkdownConversionSuite(t *testing.T) {

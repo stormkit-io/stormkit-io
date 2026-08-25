@@ -3734,6 +3734,10 @@
             "type": "boolean",
             "description": "Serve the .md twin of a page to clients that send Accept: text/markdown. Off unless enabled."
           },
+          "markdownConvert": {
+            "type": "boolean",
+            "description": "Convert a page's HTML to markdown when it ships no .md twin. Requires markdown. Off unless enabled."
+          },
           "previewLinks": {
             "type": "boolean",
             "description": "Generate a preview link for each deployment."

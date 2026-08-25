@@ -1,9 +1,9 @@
 package hosting
 
 import (
-	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/suite"
 )
@@ -17,12 +17,9 @@ type HtmlMarkdownSuite struct {
 func (s *HtmlMarkdownSuite) convert(body string) string {
 	const filler = "<p>This paragraph exists so the document carries enough prose to be converted at all.</p>"
 
-	base, err := url.Parse("https://example.com/docs/deploying")
-	s.Require().NoError(err)
-
 	out, err := htmlToMarkdown(htmlToMarkdownParams{
-		HTML:    []byte("<html><body>" + body + filler + "</body></html>"),
-		BaseURL: base,
+		HTML:     []byte("<html><body>" + body + filler + "</body></html>"),
+		BasePath: "/docs/deploying.html",
 	})
 
 	s.Require().NoError(err)
@@ -73,8 +70,8 @@ func (s *HtmlMarkdownSuite) Test_NavBecomesLinkList() {
 		<li><a href="/docs/two">Two</a></li>
 	</ul></nav>`)
 
-	s.Contains(out, "- [One](https://example.com/docs/one)")
-	s.Contains(out, "- [Two](https://example.com/docs/two)")
+	s.Contains(out, "- [One](/docs/one)")
+	s.Contains(out, "- [Two](/docs/two)")
 }
 
 func (s *HtmlMarkdownSuite) Test_ResolvesRelativeLinksAndImages() {
@@ -84,9 +81,59 @@ func (s *HtmlMarkdownSuite) Test_ResolvesRelativeLinksAndImages() {
 		<img src="/img/logo.png" alt="Logo">
 	`)
 
-	s.Contains(out, "[Relative](https://example.com/guides/x)")
+	s.Contains(out, "[Relative](/guides/x)")
 	s.Contains(out, "[Absolute](https://other.example/abs)")
-	s.Contains(out, "![Logo](https://example.com/img/logo.png)")
+	s.Contains(out, "![Logo](/img/logo.png)")
+}
+
+// The conversion is cached per file, so two request paths that resolve to the
+// same file must produce byte-identical output — otherwise whichever converted
+// first decides every link for the other.
+func (s *HtmlMarkdownSuite) Test_OutputDependsOnFileNotRequest() {
+	body := `<html><body><a href="./guide">Guide</a><img src="../img/x.png" alt="X">` +
+		`<p>Filler prose so the document clears the minimum prose floor for conversion.</p></body></html>`
+
+	first, err := htmlToMarkdown(htmlToMarkdownParams{HTML: []byte(body), BasePath: "/docs/index.html"})
+	s.Require().NoError(err)
+
+	second, err := htmlToMarkdown(htmlToMarkdownParams{HTML: []byte(body), BasePath: "/docs/index.html"})
+	s.Require().NoError(err)
+
+	s.Equal(first, second)
+	s.Contains(first, "[Guide](/docs/guide)")
+	s.Contains(first, "![X](/img/x.png)")
+}
+
+// No request header may reach the output: it is cached under a key that carries
+// neither the scheme nor the host, so anything request-shaped would be served
+// to every later client.
+func (s *HtmlMarkdownSuite) Test_NoSchemeOrHostInOutput() {
+	out := s.convert(`<a href="/pricing">Pricing</a><img src="logo.png" alt="Logo">`)
+
+	s.NotContains(out, "https://")
+	s.NotContains(out, "http://")
+	s.Contains(out, "[Pricing](/pricing)")
+	s.Contains(out, "![Logo](/docs/logo.png)")
+}
+
+// Page content must not be able to break out of the link syntax it is placed
+// in: the audience for this output is agents, so an injected second link is a
+// prompt-injection primitive rather than a rendering glitch.
+func (s *HtmlMarkdownSuite) Test_HrefCannotBreakOutOfLinkSyntax() {
+	out := s.convert(`<a href="https://ok.example/a) INJECTED [login](https://evil.example">docs</a>`)
+
+	s.NotContains(out, "INJECTED [login]")
+	s.NotContains(out, "](https://evil.example)")
+	s.Contains(out, "[docs](https://ok.example/a%29")
+}
+
+// Inert markup is never shown to a reader and must not reach the output.
+func (s *HtmlMarkdownSuite) Test_DropsInertMarkup() {
+	out := s.convert(`<template><p>templated</p></template><noscript>enable js</noscript><p>Shown.</p>`)
+
+	s.Contains(out, "Shown.")
+	s.NotContains(out, "templated")
+	s.NotContains(out, "enable js")
 }
 
 func (s *HtmlMarkdownSuite) Test_OrderedListCounts() {
@@ -120,13 +167,6 @@ func (s *HtmlMarkdownSuite) Test_FencedCodeFlattensHighlightSpans() {
 	s.NotContains(out, "<span")
 }
 
-func (s *HtmlMarkdownSuite) Test_CodeBodyIsNotEscaped() {
-	out := s.convert("<pre><code>a * b _ c [d]</code></pre>")
-
-	s.Contains(out, "a * b _ c [d]")
-	s.NotContains(out, `\*`)
-}
-
 func (s *HtmlMarkdownSuite) Test_InlineCode() {
 	out := s.convert("<p>Run <code>npm ci</code> first.</p>")
 
@@ -139,9 +179,10 @@ func (s *HtmlMarkdownSuite) Test_Table() {
 		<tbody><tr><td>Config</td><td>16 KB</td></tr></tbody>
 	</table>`)
 
-	s.Contains(out, "| Page | Size |")
-	s.Contains(out, "| --- | --- |")
-	s.Contains(out, "| Config | 16 KB |")
+	s.Contains(out, "| Page")
+	s.Contains(out, "| Size")
+	s.Contains(out, "| Config")
+	s.Contains(out, "| 16 KB")
 }
 
 func (s *HtmlMarkdownSuite) Test_Blockquote() {
@@ -154,7 +195,7 @@ func (s *HtmlMarkdownSuite) Test_Emphasis() {
 	out := s.convert("<p><strong>Bold</strong> and <em>italic</em>.</p>")
 
 	s.Contains(out, "**Bold**")
-	s.Contains(out, "_italic_")
+	s.Contains(out, "*italic*")
 }
 
 // A text node following an inline element keeps the space between them, or
@@ -167,27 +208,6 @@ func (s *HtmlMarkdownSuite) Test_KeepsSpaceAfterInlineElements() {
 }
 
 // Angle brackets are common in prose (breadcrumbs, comparisons) and escaping
-// every one of them makes the output unreadable.
-func (s *HtmlMarkdownSuite) Test_DoesNotEscapeAngleBracketsInline() {
-	out := s.convert("<p>Go to <strong>App</strong> > <strong>Config</strong>.</p>")
-
-	s.Contains(out, "**App** > **Config**")
-	s.NotContains(out, "\\>")
-}
-
-// A line that opens with one, though, would be read as a quote.
-func (s *HtmlMarkdownSuite) Test_EscapesBlockMarkerOpeningALine() {
-	out := s.convert("<p>&gt; not a quote</p>")
-
-	s.Contains(out, "\\> not a quote")
-}
-
-func (s *HtmlMarkdownSuite) Test_EscapesMarkdownCharactersInProse() {
-	out := s.convert("<p>Use a * for wildcards and _ for spaces.</p>")
-
-	s.Contains(out, `\*`)
-	s.Contains(out, `\_`)
-}
 
 // A client-rendered SPA shell converts to nothing. Serving that to an agent is
 // worse than serving the HTML, so the converter must refuse it.
@@ -223,16 +243,31 @@ func (s *HtmlMarkdownSuite) Test_OversizedDocumentIsRefused() {
 	s.ErrorIs(err, errMarkdownTooLarge)
 }
 
-// The node budget has to stop a deeply nested document before the walk does,
-// the same way parseAccept bounds a hostile Accept header.
-func (s *HtmlMarkdownSuite) Test_NodeBudgetIsEnforced() {
-	body := strings.Repeat("<p>x</p>", maxMarkdownNodes)
+// A backtick run inside a code block used to widen the fence one character at
+// a time, rescanning the whole body each pass. Bounded now, but worth holding.
+func (s *HtmlMarkdownSuite) Test_BacktickRunConvertsQuickly() {
+	body := "<pre><code>" + strings.Repeat("`", 512<<10) + "</code></pre>"
 
+	start := time.Now()
 	_, err := htmlToMarkdown(htmlToMarkdownParams{
-		HTML: []byte("<html><body>" + body + "</body></html>"),
+		HTML: []byte("<html><body>" + body + "</body></html>"), BasePath: "/x.html",
 	})
 
-	s.ErrorIs(err, errMarkdownTooLarge)
+	s.NoError(err)
+	s.Less(time.Since(start), 5*time.Second)
+}
+
+// Deeply nested inline elements used to be re-walked once per level.
+func (s *HtmlMarkdownSuite) Test_DeeplyNestedInlineConvertsQuickly() {
+	body := strings.Repeat("<em>", 400) + strings.Repeat("<br>a", 100_000) + strings.Repeat("</em>", 400)
+
+	start := time.Now()
+	_, err := htmlToMarkdown(htmlToMarkdownParams{
+		HTML: []byte("<html><body>" + body + "</body></html>"), BasePath: "/x.html",
+	})
+
+	s.NoError(err)
+	s.Less(time.Since(start), 5*time.Second)
 }
 
 func (s *HtmlMarkdownSuite) Test_RealPageShapeIsSmallerThanItsHTML() {

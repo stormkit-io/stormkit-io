@@ -1016,6 +1016,10 @@ func mcpCreateEnvironment(req *RequestContextMCP, id any, args map[string]any) *
 		body.Markdown = null.BoolFrom(raw)
 	}
 
+	if raw, ok := args["markdownConvert"].(bool); ok {
+		body.MarkdownConvert = null.BoolFrom(raw)
+	}
+
 	if raw, ok := args["previewLinks"].(bool); ok {
 		body.PreviewLinks = null.BoolFrom(raw)
 	}
@@ -1182,6 +1186,7 @@ func mcpUpdateEnvironment(req *RequestContextMCP, id any, args map[string]any) *
 	setBool("autoDeploy", &update.AutoDeploy)
 	setBool("autoPublish", &update.AutoPublish)
 	setBool("markdown", &update.Markdown)
+	setBool("markdownConvert", &update.MarkdownConvert)
 	setBool("previewLinks", &update.PreviewLinks)
 
 	update.EnvVars = mergeEnvVarsArg(req.Env.Data.Vars, args)

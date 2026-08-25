@@ -71,12 +71,13 @@ func (s *HandlerEnvUpdateSuite) Test_Success() {
 		shttp.MethodPut,
 		fmt.Sprintf("/v1/env?envId=%s", env.ID),
 		map[string]any{
-			"branch":       "release",
-			"buildCmd":     "npm run build:prod",
-			"distFolder":   "dist",
-			"autoPublish":  true,
-			"previewLinks": true,
-			"markdown":     true,
+			"branch":          "release",
+			"buildCmd":        "npm run build:prod",
+			"distFolder":      "dist",
+			"autoPublish":     true,
+			"previewLinks":    true,
+			"markdown":        true,
+			"markdownConvert": true,
 			"envVars": map[string]string{
 				"NODE_ENV": "staging",
 			},
@@ -99,6 +100,7 @@ func (s *HandlerEnvUpdateSuite) Test_Success() {
 	s.True(updated.AutoPublish)
 	s.True(updated.Data.PreviewLinks.ValueOrZero())
 	s.True(updated.Data.Markdown.ValueOrZero())
+	s.True(updated.Data.MarkdownConvert.ValueOrZero())
 	s.Equal("staging", updated.Data.Vars["NODE_ENV"])
 
 	audits, err := audit.NewStore().SelectAudits(context.Background(), audit.AuditFilters{

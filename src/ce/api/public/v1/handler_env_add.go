@@ -30,6 +30,7 @@ type EnvAddRequest struct {
 	HeadersFile        string                  `json:"headersFile,omitempty"`
 	InstallCmd         string                  `json:"installCmd,omitempty"`
 	Markdown           null.Bool               `json:"markdown,omitempty"`
+	MarkdownConvert    null.Bool               `json:"markdownConvert,omitempty"`
 	Name               string                  `json:"name"`
 	PreviewLinks       null.Bool               `json:"previewLinks,omitempty"`
 	Redirects          []redirects.Redirect    `json:"redirects,omitempty"`
@@ -54,23 +55,24 @@ func handlerEnvAdd(req *RequestContext) *shttp.Response {
 
 	cnf := &buildconf.Env{
 		Data: &buildconf.BuildConf{
-			APIFolder:     utils.TrimPath(data.APIFolder),
-			APIPathPrefix: utils.TrimPath(data.APIPathPrefix),
-			DistFolder:    utils.TrimPath(data.DistFolder),
-			WorkDir:       utils.TrimPath(data.WorkDir),
-			ErrorFile:     utils.TrimPath(data.ErrorFile),
-			HeadersFile:   utils.TrimPath(data.HeadersFile),
-			RedirectsFile: utils.TrimPath(data.RedirectsFile),
-			Headers:       data.Headers,
-			BuildCmd:      data.BuildCmd,
-			InstallCmd:    data.InstallCmd,
-			PreviewLinks:  data.PreviewLinks,
-			Markdown:      data.Markdown,
-			ServerCmd:     data.ServerCmd,
-			Redirects:     data.Redirects,
-			Vars:          data.EnvVars,
-			StatusChecks:  data.StatusChecks,
-			CacheDirs:     buildconf.NormalizeCacheDirs(data.CacheDirs),
+			APIFolder:       utils.TrimPath(data.APIFolder),
+			APIPathPrefix:   utils.TrimPath(data.APIPathPrefix),
+			DistFolder:      utils.TrimPath(data.DistFolder),
+			WorkDir:         utils.TrimPath(data.WorkDir),
+			ErrorFile:       utils.TrimPath(data.ErrorFile),
+			HeadersFile:     utils.TrimPath(data.HeadersFile),
+			RedirectsFile:   utils.TrimPath(data.RedirectsFile),
+			Headers:         data.Headers,
+			BuildCmd:        data.BuildCmd,
+			InstallCmd:      data.InstallCmd,
+			PreviewLinks:    data.PreviewLinks,
+			Markdown:        data.Markdown,
+			MarkdownConvert: data.MarkdownConvert,
+			ServerCmd:       data.ServerCmd,
+			Redirects:       data.Redirects,
+			Vars:            data.EnvVars,
+			StatusChecks:    data.StatusChecks,
+			CacheDirs:       buildconf.NormalizeCacheDirs(data.CacheDirs),
 		},
 		Name:        data.Name,
 		AppID:       req.App.ID,

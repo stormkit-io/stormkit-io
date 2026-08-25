@@ -32,6 +32,7 @@ type EnvUpdateRequest struct {
 	HeadersFile        *string                 `json:"headersFile,omitempty"`
 	InstallCmd         *string                 `json:"installCmd,omitempty"`
 	Markdown           *bool                   `json:"markdown,omitempty"`
+	MarkdownConvert    *bool                   `json:"markdownConvert,omitempty"`
 	PreviewLinks       *bool                   `json:"previewLinks,omitempty"`
 	Redirects          *[]redirects.Redirect   `json:"redirects,omitempty"`
 	RedirectsFile      *string                 `json:"redirectsFile,omitempty"`
@@ -130,6 +131,10 @@ func handlerEnvUpdate(req *RequestContext) *shttp.Response {
 
 	if data.Markdown != nil {
 		env.Data.Markdown = null.BoolFrom(*data.Markdown)
+	}
+
+	if data.MarkdownConvert != nil {
+		env.Data.MarkdownConvert = null.BoolFrom(*data.MarkdownConvert)
 	}
 
 	if data.PreviewLinks != nil {
