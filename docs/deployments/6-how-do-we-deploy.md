@@ -134,17 +134,15 @@ that instead.
 - The whole page is converted, navigation included, rather than an article being
   guessed at. Output is CommonMark: headings, lists, links, tables, images,
   blockquotes and fenced code blocks all carry over, while `<script>`, `<style>`,
-  `<noscript>`, `<template>` and hidden elements are dropped. Relative links and
-  image sources are rewritten to root-relative ones so they still resolve once
-  the markdown is read elsewhere.
+  `<noscript>` and `<template>` are dropped.
 - Pages above a megabyte, and pages whose markdown would exceed two, are served
   as HTML instead.
 - The converted page is also fetchable at its own `.md` URL, so a link to
   `/docs/getting-started.md` resolves even though the build never published one.
-- Pages rendered in the browser have no content to convert. A client-rendered
-  application publishes an empty shell, so conversion declines and the client
-  keeps getting the HTML rather than an empty document. The same applies to pages
-  produced by a server function, which never reach the deployment's file list.
+- Pages rendered in the browser have nothing to convert. A client-rendered
+  application publishes an empty shell, so its markdown is empty too — if that
+  is what your pages are, this setting is not for you. Pages produced by a
+  server function never reach the deployment's file list and keep serving HTML.
 - Conversion happens once per page and is cached for the life of the deployment.
 
 Both settings default to off.

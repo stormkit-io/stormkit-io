@@ -213,22 +213,55 @@ func (s *MarkdownConversionSuite) Test_DirectMarkdownURLIsServed() {
 	s.Contains(string(res.Data.([]byte)), "# Deploying")
 }
 
+// A .md URL names one representation, so it is answered the same way whatever
+// the client accepts, and must not claim to vary.
+func (s *MarkdownConversionSuite) Test_AuthoredMarkdownURLIsServedDirectly() {
+	s.mockFile("/docs.md", "# Authored\n", "text/markdown; charset=utf-8")
+
+	host := s.hostWithTwin()
+
+	for _, accept := range []string{"", "text/html,application/xhtml+xml,*/*;q=0.8", "text/markdown"} {
+		res := s.request(host, "/docs.md", accept)
+
+		s.Equal(http.StatusOK, res.Status)
+		s.Equal("# Authored\n", string(res.Data.([]byte)))
+		s.Empty(res.Headers.Get("Vary"), "accept=%q", accept)
+	}
+}
+
+// The page it sits beside is only converted when the build published no .md of
+// its own.
+func (s *MarkdownConversionSuite) Test_AuthoredMarkdownURLBeatsConversion() {
+	s.mockFile("/docs.md", "# Authored\n", "text/markdown; charset=utf-8")
+
+	res := s.request(s.hostWithTwin(), "/docs.md", "text/markdown")
+
+	s.Equal("# Authored\n", string(res.Data.([]byte)))
+	s.mockClient.AssertNotCalled(s.T(), "GetFile", integrations.GetFileArgs{
+		Location:     "aws:my-bucket/my-key-prefix",
+		FileName:     "/docs.html",
+		DeploymentID: types.ID(1),
+	})
+}
+
 func (s *MarkdownConversionSuite) Test_DirectMarkdownURLIsNotFoundWhenConversionDisabled() {
 	res := s.request(s.host(false), "/docs.md", "")
 
 	s.Equal(http.StatusNotFound, res.Status)
 }
 
-// A shell converts to nothing, and nothing is worse than the page it came
-// from, so the page is what the client gets.
-func (s *MarkdownConversionSuite) Test_EmptyShellFallsBackToHtml() {
+// A client-rendered shell has no content until JavaScript runs, so it converts
+// to an empty document. Conversion is opt-in: a deployment that enables it and
+// gets nothing back has learned something true about its pages, which is a
+// better answer than quietly serving the HTML instead.
+func (s *MarkdownConversionSuite) Test_EmptyShellConvertsToNothing() {
 	s.mockFile("/shell.html", shell, "text/html; charset=utf-8")
 
 	res := s.request(s.host(true), "/shell", "text/markdown")
 
 	s.Equal(http.StatusOK, res.Status)
-	s.True(strings.HasPrefix(res.Headers.Get("Content-Type"), "text/html"))
-	s.Contains(string(res.Data.([]byte)), "id=\"root\"")
+	s.Equal("text/markdown; charset=utf-8", res.Headers.Get("Content-Type"))
+	s.Empty(string(res.Data.([]byte)))
 }
 
 // The second request must not re-read or re-parse the page.
@@ -244,9 +277,9 @@ func (s *MarkdownConversionSuite) Test_ConversionIsCached() {
 	s.mockClient.AssertNumberOfCalls(s.T(), "GetFile", 1)
 }
 
-// A page that cannot convert is remembered as such, or every request for it
-// pays to re-parse a document that will never produce anything.
-func (s *MarkdownConversionSuite) Test_RefusalIsCached() {
+// An empty conversion is a result like any other, so it is cached and the page
+// is not re-parsed on the next request.
+func (s *MarkdownConversionSuite) Test_EmptyConversionIsCached() {
 	s.mockFile("/shell.html", shell, "text/html; charset=utf-8")
 
 	host := s.host(true)
@@ -254,9 +287,7 @@ func (s *MarkdownConversionSuite) Test_RefusalIsCached() {
 	s.request(host, "/shell", "text/markdown")
 	s.request(host, "/shell", "text/markdown")
 
-	// One read for the failed conversion, then one per request to serve the
-	// HTML itself — the conversion is not retried.
-	s.mockClient.AssertNumberOfCalls(s.T(), "GetFile", 3)
+	s.mockClient.AssertNumberOfCalls(s.T(), "GetFile", 1)
 }
 
 // The two representations of a URL must not validate against each other: a
@@ -293,34 +324,13 @@ func (s *MarkdownConversionSuite) Test_DoesNotCarryContentEncoding() {
 	s.Equal("public, max-age=60", res.Headers.Get("Cache-Control"))
 }
 
-// A deployment whose pages all decline to convert has one representation per
-// URL, so advertising Vary would fragment caches and cost every page its
-// If-Modified-Since handling for nothing.
-func (s *MarkdownConversionSuite) Test_NoVaryOnPagesThatCannotConvert() {
-	s.mockFile("/shell.html", shell, "text/html; charset=utf-8")
-
-	host := s.host(true)
-
-	// Record the refusal first, so the browser request below is answered from
-	// what the cache knows rather than by chance.
-	s.request(host, "/shell", "text/markdown")
-
-	res := s.request(host, "/shell", "text/html,application/xhtml+xml,*/*;q=0.8")
-
-	s.Equal(http.StatusOK, res.Status)
-	s.Empty(res.Headers.Get("Vary"))
-}
-
-// Once a page is known to have a markdown representation, the HTML answer has
-// to say so.
-func (s *MarkdownConversionSuite) Test_VaryOnPagesThatDoConvert() {
+// Every HTML page in a converting deployment has a markdown representation, so
+// the HTML answer says so on the first request — a cache must never be able to
+// store the page unkeyed and then hand it to an agent asking for markdown.
+func (s *MarkdownConversionSuite) Test_VaryIsSetBeforeAnythingIsConverted() {
 	s.mockFile("/docs.html", page, "text/html; charset=utf-8")
 
-	host := s.host(true)
-
-	s.request(host, "/docs", "text/markdown")
-
-	res := s.request(host, "/docs", "text/html,application/xhtml+xml,*/*;q=0.8")
+	res := s.request(s.host(true), "/docs", "text/html,application/xhtml+xml,*/*;q=0.8")
 
 	s.Equal(http.StatusOK, res.Status)
 	s.Equal("Accept", res.Headers.Get("Vary"))

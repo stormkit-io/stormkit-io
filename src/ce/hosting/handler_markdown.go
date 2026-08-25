@@ -1,6 +1,7 @@
 package hosting
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path"
@@ -32,6 +33,14 @@ func (r *RequestServer) negotiateMarkdown() *shttp.Response {
 		return nil
 	}
 
+	// A URL ending in .md names the markdown representation rather than asking
+	// for one, so it is answered without consulting Accept and without Vary:
+	// it has a single representation, whether the build published it or this
+	// request converted it.
+	if path.Ext(strings.ToLower(r.req.URL().Path)) == ".md" {
+		return r.serveAddressedMarkdown()
+	}
+
 	// A deployment that ships a .md twin offers two representations of the same
 	// URL, and which one the client gets depends on its Accept header.
 	//
@@ -45,7 +54,7 @@ func (r *RequestServer) negotiateMarkdown() *shttp.Response {
 		// neither type still gets the HTML it would have got before, because
 		// refusing a request that used to succeed is a worse answer than
 		// serving the page.
-		if !parseAccept(r.req.Header.Get("Accept")).prefersMarkdown() {
+		if !r.acceptsMarkdown() {
 			return nil
 		}
 
@@ -61,91 +70,88 @@ func (r *RequestServer) negotiateMarkdown() *shttp.Response {
 		return nil
 	}
 
-	source, addressed := r.convertibleSource()
+	source := r.fileMeta
 
-	if source == nil {
+	if !isHTMLFile(source) {
 		return nil
 	}
 
-	// A URL that ends in .md names the markdown representation outright, so it
-	// is not negotiable and carries no Vary. Every other path is the page, and
-	// only an Accept header moves it off HTML.
-	if !addressed && !parseAccept(r.req.Header.Get("Accept")).prefersMarkdown() {
-		// The page still needs Vary if a markdown representation of it exists,
-		// but only if one does: a deployment whose pages all decline — every
-		// client-rendered app — would otherwise advertise a second
-		// representation it never has, and Static() drops If-Modified-Since
-		// handling on any URL carrying Vary.
-		//
-		// Converting here to find out would spend a parse on every browser
-		// request, so this asks only what the cache already knows. The first
-		// markdown request records the answer, and pages carry Vary from then
-		// on.
-		r.varyAccept = r.hasConvertedMarkdown(source)
+	// Every HTML page in a converting deployment has a markdown representation,
+	// so the URL is negotiable whether or not this request wants one.
+	r.varyAccept = true
 
+	if !r.acceptsMarkdown() {
 		return nil
 	}
 
-	content := r.convertedMarkdown(source)
+	return r.serveConvertedMarkdown(source)
+}
 
-	// Conversion declined — an empty shell, an oversized document, unreadable
-	// storage. Returning nil serves the HTML for a page request, and falls
-	// through to the deployment's 404 for a bare .md URL the build never
-	// shipped.
-	if content == nil {
+// acceptsMarkdown reports whether the client would rather have markdown than
+// the page. Every path that offers a markdown representation asks through
+// here, so the rule lives in one place.
+func (r *RequestServer) acceptsMarkdown() bool {
+	return parseAccept(r.req.Header.Get("Accept")).prefersMarkdown()
+}
+
+// serveConvertedMarkdown serves the markdown converted from an HTML page, or
+// returns nil when the page could not be converted at all — an unreadable
+// file, or one over the size caps. The caller then falls back to the HTML for
+// a page request, or to the deployment's 404 for a bare .md URL.
+func (r *RequestServer) serveConvertedMarkdown(source *FileMeta) *shttp.Response {
+	content, ok := r.convertedMarkdown(source)
+
+	if !ok {
 		return nil
 	}
 
-	if !addressed {
-		r.varyAccept = true
-	}
-
-	r.fileMeta = markdownFileMeta(source)
+	r.fileMeta = markdownFileMeta(source, content)
 	r.markdown = true
-	r.markdownBody = content
 
 	return r.Static()
 }
 
-// convertibleSource returns the HTML file whose markdown representation the
-// request is asking for, and whether the URL addressed that representation
-// directly rather than negotiating for it.
+// serveAddressedMarkdown answers a URL that names the markdown representation
+// directly, returning nil to let the caller serve the request as it otherwise
+// would.
 //
-// Only static HTML converts. A page rendered by a server function is produced
-// per request and never reaches the manifest, so there is nothing here to
-// convert — those deployments keep serving HTML until they ship a twin.
-func (r *RequestServer) convertibleSource() (*FileMeta, bool) {
+// The file the build published wins, exactly as it does when negotiating. It is
+// already resolved by then, so this only has to leave it alone. Converting the
+// page it sits beside is the fallback, and only when the environment asked for
+// conversion at all.
+func (r *RequestServer) serveAddressedMarkdown() *shttp.Response {
+	// A .md the build published needs nothing from here: the static handler
+	// resolved it like any other file and serves it as itself.
+	if r.fileMeta != nil {
+		return nil
+	}
+
+	if !r.req.Host.Config.MarkdownConvert {
+		return nil
+	}
+
 	requestPath := strings.ToLower(r.req.URL().Path)
+	source := r.staticFile(strings.TrimSuffix(requestPath, ".md"))
 
-	// The .md form of a page is fetchable in its own right once conversion is
-	// enabled: enabling it is a request for that representation to exist, and
-	// an agent handed a link to it must be able to follow it.
-	if path.Ext(requestPath) == ".md" {
-		source := r.staticFile(strings.TrimSuffix(requestPath, ".md"))
-
-		if isHTMLFile(source) {
-			return source, true
-		}
-
-		return nil, false
+	if !isHTMLFile(source) {
+		return nil
 	}
 
-	if isHTMLFile(r.fileMeta) {
-		return r.fileMeta, false
-	}
-
-	return nil, false
+	return r.serveConvertedMarkdown(source)
 }
 
 // convertedMarkdown returns the markdown for an HTML file, converting it on a
-// cache miss. A nil return means the page has no markdown representation worth
-// serving and the caller should fall back.
-func (r *RequestServer) convertedMarkdown(source *FileMeta) []byte {
+// cache miss. ok is false when the page could not be converted — an unreadable
+// file, or one over the size caps — and the caller should fall back.
+//
+// An empty result is a conversion, not a failure: a page with no content in it
+// converts to nothing, and that is served as itself.
+func (r *RequestServer) convertedMarkdown(source *FileMeta) (content []byte, ok bool) {
 	key := r.markdownCacheKey(source)
 	ctx := r.req.Context()
 
-	if cached, known := r.cachedMarkdown(key); known {
-		return cached
+	if cached, found := r.cachedMarkdown(key); found {
+		return cached, true
 	}
 
 	file, err := r.client.GetFile(integrations.GetFileArgs{
@@ -155,59 +161,48 @@ func (r *RequestServer) convertedMarkdown(source *FileMeta) []byte {
 	})
 
 	if err != nil || file == nil {
-		return nil
+		return nil, false
 	}
 
-	converted, err := htmlToMarkdown(htmlToMarkdownParams{
-		HTML:     file.Content,
-		BasePath: source.Name,
-	})
+	converted, err := htmlToMarkdown(file.Content)
 
 	if err != nil {
 		slog.Infof("could not convert %s to markdown: %s", source.Name, err.Error())
+
+		return nil, false
 	}
 
-	if writeErr := r.cache.Set(ctx, key, converted, markdownCacheTTL).Err(); writeErr != nil {
+	content = []byte(converted)
+
+	if content == nil {
+		content = []byte{}
+	}
+
+	if writeErr := r.cache.Set(ctx, key, content, markdownCacheTTL).Err(); writeErr != nil && !errors.Is(writeErr, context.Canceled) {
 		slog.Errorf("error caching converted markdown: %s", writeErr.Error())
 	}
 
-	if converted == "" {
-		return nil
-	}
-
-	return []byte(converted)
+	return content, true
 }
 
-// cachedMarkdown reports what the cache knows about a page: its markdown, or
-// nil for a page recorded as not worth converting. known is false when the
-// cache holds no answer yet.
-//
-// An empty cached value is that recorded refusal, kept so a shell that cannot
-// convert is not re-parsed on every request.
-func (r *RequestServer) cachedMarkdown(key string) (content []byte, known bool) {
-	cached, err := r.cache.Get(r.req.Context(), key).Result()
+// cachedMarkdown returns the markdown a previous request converted. found is
+// false when the cache holds no answer yet.
+func (r *RequestServer) cachedMarkdown(key string) (content []byte, found bool) {
+	cached, err := r.cache.Get(r.req.Context(), key).Bytes()
 
 	if err != nil {
-		if !errors.Is(err, redis.Nil) {
+		if !errors.Is(err, redis.Nil) && !errors.Is(err, context.Canceled) {
 			slog.Errorf("error reading converted markdown from cache: %s", err.Error())
 		}
 
 		return nil, false
 	}
 
-	if cached == "" {
-		return nil, true
+	if cached == nil {
+		cached = []byte{}
 	}
 
-	return []byte(cached), true
-}
-
-// hasConvertedMarkdown reports whether the cache already holds a markdown
-// representation of a page, without producing one.
-func (r *RequestServer) hasConvertedMarkdown(source *FileMeta) bool {
-	content, known := r.cachedMarkdown(r.markdownCacheKey(source))
-
-	return known && content != nil
+	return cached, true
 }
 
 // markdownCacheKey identifies a converted page. The deployment ID makes it
@@ -222,22 +217,25 @@ func (r *RequestServer) markdownCacheKey(source *FileMeta) string {
 // The ETag is derived from the source page's rather than reused: the two
 // representations of a URL must not validate against each other, or a client
 // holding one is told its copy of the other is current.
-func markdownFileMeta(source *FileMeta) *FileMeta {
+func markdownFileMeta(source *FileMeta, content []byte) *FileMeta {
+	original := shttp.HeadersFromMap(source.Headers)
 	headers := map[string]string{}
 
-	for key, value := range source.Headers {
-		if !carriedToMarkdown[strings.ToLower(strings.TrimSpace(key))] {
+	for _, key := range carriedToMarkdown {
+		value := original.Get(key)
+
+		if value == "" {
 			continue
 		}
 
-		if strings.EqualFold(key, "ETag") {
+		if key == "ETag" {
 			value = markdownETag(value)
 		}
 
 		headers[key] = value
 	}
 
-	return &FileMeta{Name: source.Name, Headers: headers}
+	return &FileMeta{Name: source.Name, Headers: headers, Body: content}
 }
 
 // carriedToMarkdown are the manifest headers that still describe the response
@@ -248,21 +246,17 @@ func markdownFileMeta(source *FileMeta) *FileMeta {
 // sets when it publishes pre-compressed output — would describe the page and
 // not the markdown, and a Content-Encoding that does not match the body is a
 // response no client can read.
-var carriedToMarkdown = map[string]bool{
-	"cache-control": true,
-	"etag":          true,
-	"last-modified": true,
-}
+var carriedToMarkdown = []string{"Cache-Control", "ETag", "Last-Modified"}
 
 // markdownETag turns a page's entity tag into a distinct one for its markdown
 // representation, preserving weakness and quoting.
 func markdownETag(tag string) string {
-	if tag == "" {
-		return ""
+	if unquoted, ok := strings.CutSuffix(tag, `"`); ok {
+		return unquoted + `-md"`
 	}
 
-	if strings.HasSuffix(tag, `"`) {
-		return strings.TrimSuffix(tag, `"`) + `-md"`
+	if tag == "" {
+		return ""
 	}
 
 	return tag + "-md"
@@ -275,10 +269,8 @@ func isHTMLFile(meta *FileMeta) bool {
 		return false
 	}
 
-	for key, value := range meta.Headers {
-		if strings.EqualFold(key, "Content-Type") {
-			return strings.HasPrefix(strings.ToLower(strings.TrimSpace(value)), "text/html")
-		}
+	if contentType := shttp.HeadersFromMap(meta.Headers).Get("Content-Type"); contentType != "" {
+		return strings.HasPrefix(strings.ToLower(strings.TrimSpace(contentType)), "text/html")
 	}
 
 	// A manifest entry without a content type is classified by its name, the

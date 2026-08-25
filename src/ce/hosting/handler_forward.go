@@ -195,6 +195,10 @@ func isAPIPath(requestPath, prefix string) bool {
 type FileMeta struct {
 	Name    string
 	Headers map[string]string
+	// Body is set when the response was built in memory and has no stored file
+	// behind it, as a converted markdown representation has. Name then still
+	// names the source page, which is what the headers were derived from.
+	Body []byte
 }
 
 type RequestServer struct {
@@ -210,9 +214,6 @@ type RequestServer struct {
 	// markdown is true when the response serves the markdown representation of
 	// a negotiable page.
 	markdown bool
-	// markdownBody holds a markdown representation converted from the page's
-	// HTML, which has no file of its own for fileContent to read.
-	markdownBody []byte
 	// varyAccept is true when the requested URL has more than one
 	// representation, so caches must key on the Accept header.
 	varyAccept bool
@@ -643,7 +644,7 @@ func (r *RequestServer) NotFound() *shttp.Response {
 	if markdownNotFound := MarkdownErrorFile(cnf); cnf.Markdown && markdownNotFound != nil {
 		r.varyAccept = true
 
-		if parseAccept(r.req.Header.Get("Accept")).prefersMarkdown() {
+		if r.acceptsMarkdown() {
 			customNotFound = markdownNotFound
 			r.markdown = true
 		}
@@ -681,8 +682,8 @@ func (r *RequestServer) NotFound() *shttp.Response {
 
 func (r *RequestServer) fileContent(headers http.Header) ([]byte, error) {
 	// A converted page was built in memory and has no stored file behind it.
-	if r.markdownBody != nil {
-		return r.markdownBody, nil
+	if r.fileMeta.Body != nil {
+		return r.fileMeta.Body, nil
 	}
 
 	shouldOptimize := strings.HasPrefix(headers.Get("Content-Type"), "image") && r.req.Query().Has("size")
