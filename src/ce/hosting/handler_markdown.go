@@ -270,7 +270,7 @@ func isHTMLFile(meta *FileMeta) bool {
 	}
 
 	if contentType := shttp.HeadersFromMap(meta.Headers).Get("Content-Type"); contentType != "" {
-		return strings.HasPrefix(strings.ToLower(strings.TrimSpace(contentType)), "text/html")
+		return isHTMLContentType(contentType)
 	}
 
 	// A manifest entry without a content type is classified by its name, the
