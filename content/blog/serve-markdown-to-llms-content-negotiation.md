@@ -120,8 +120,14 @@ The lesson is not that content negotiation is dangerous. It is that the header y
 
 ## How it works on Stormkit
 
-We built this into Stormkit because we kept hitting the drift problem on our own docs. It is opt-in per environment. When you enable it, a page is negotiable exactly when the deployment already contains its markdown twin — `/docs/deploying.md` next to `/docs/deploying` — so negotiation can never invent a URL that does not exist. A client asking for `text/markdown` gets the markdown, a browser gets the HTML, and both responses carry `Vary: Accept` so caches never cross the wires. Ties fall back to HTML, because a client that names both without a preference is a browser, not an agent.
+We built this into Stormkit because we kept hitting the drift problem on our own docs. It is opt-in per environment. With that toggle alone, a page is negotiable exactly when the deployment already contains its markdown twin — `/docs/deploying.md` next to `/docs/deploying` — so negotiation can never invent a URL that does not exist. A client asking for `text/markdown` gets the markdown, a browser gets the HTML, and both responses carry `Vary: Accept` so caches never cross the wires. Ties fall back to HTML, because a client that names both without a preference is a browser, not an agent.
 
-The whole thing is one toggle and shipping the `.md` files your build already produces — which is the requirement worth stating plainly: if your pipeline does not emit markdown alongside the HTML, this gives you nothing until it does. What you get for it is that those files stop being a second interface. No sidecar index, no per-tool convention — the same URL, answering whoever asks in the format they asked for.
+The whole thing is one toggle and shipping the `.md` files your build already produces. What you get for it is that those files stop being a second interface. No sidecar index, no per-tool convention — the same URL, answering whoever asks in the format they asked for.
+
+That leaves the obvious gap: a site whose pipeline does not emit markdown gets nothing from any of this until it does. So there is a second toggle for that case. **Convert pages without a .md file** converts the page's own HTML on request, which means a site that was never built to produce markdown can serve it anyway. A twin you publish yourself always wins — conversion only ever fills a gap — and a page that renders in the browser has no prose to convert, so it keeps serving HTML rather than an empty document. Converted pages are cached per deployment, so each one is computed once and can never describe a page that has since changed.
+
+Here is the whole setup, end to end, in under a minute:
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/CTBF5u3LDjw" title="Serve Markdown to AI agents from any site — Stormkit content negotiation" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
 
 That is all content negotiation ever promised. It just took a new kind of client to make us use it.
