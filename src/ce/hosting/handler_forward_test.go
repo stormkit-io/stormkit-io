@@ -3,6 +3,7 @@ package hosting_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -1397,6 +1398,74 @@ func (s *HandlerForwardSuite) Test_AuthWall_AlreadyLoggedIn() {
 	s.Equal(http.StatusNotFound, res.Status)
 	s.Equal("text/html; charset=utf-8", res.Headers.Get("Content-Type"))
 	s.Contains(data, "Whoops! We've got nothing under this link.")
+}
+
+// A proxy timeout must be distinguishable from an application crash: the
+// upstream is usually still running and the fix is a configuration change
+// (issue #421).
+func (s *HandlerForwardSuite) Test_ProxyTimeout_ServesADistinctError() {
+	timeoutErr := &shttp.ProxyTimeoutError{
+		Target: "http://localhost:3000/slow",
+		After:  30 * time.Second,
+	}
+
+	s.mockClient.On("Invoke", mock.Anything).Return(nil, timeoutErr)
+
+	host := &hosting.Host{
+		Name: "www.stormkit.io",
+		Config: &appconf.Config{
+			DeploymentID:     types.ID(1),
+			AppID:            types.ID(25),
+			EnvID:            types.ID(100),
+			StorageLocation:  "aws:my-bucket/my-key-prefix",
+			FunctionLocation: "aws:my-server-function",
+		},
+	}
+
+	res := hosting.HandlerForward(s.newRequest(host, "/slow"))
+
+	s.Equal(http.StatusGatewayTimeout, res.Status)
+	s.Equal("proxy-timeout", res.Headers.Get("X-Stormkit-Error"))
+
+	body, ok := res.Data.([]byte)
+	s.Require().True(ok)
+
+	page := string(body)
+
+	s.Contains(page, "Upstream timed out")
+	s.Contains(page, shttp.ProxyTimeoutEnvVar)
+	s.Contains(page, "30s")
+	s.NotContains(page, "Whoops! We got something wrong.")
+}
+
+// Every other upstream failure keeps the crash page and its 500.
+func (s *HandlerForwardSuite) Test_NonTimeoutErrorKeepsTheGenericPage() {
+	s.mockClient.On("Invoke", mock.Anything).Return(nil, errors.New("boom"))
+
+	host := &hosting.Host{
+		Name: "www.stormkit.io",
+		Config: &appconf.Config{
+			DeploymentID:     types.ID(1),
+			AppID:            types.ID(25),
+			EnvID:            types.ID(100),
+			StorageLocation:  "aws:my-bucket/my-key-prefix",
+			FunctionLocation: "aws:my-server-function",
+		},
+	}
+
+	res := hosting.HandlerForward(s.newRequest(host, "/boom"))
+
+	s.Equal(http.StatusInternalServerError, res.Status)
+	s.Empty(res.Headers.Get("X-Stormkit-Error"))
+
+	body, ok := res.Data.([]byte)
+	s.Require().True(ok)
+
+	page := string(body)
+
+	s.Contains(page, "Whoops! We got something wrong.")
+	s.Contains(page, "boom")
+	s.NotContains(page, shttp.ProxyTimeoutEnvVar)
 }
 
 func TestHandlerForward(t *testing.T) {

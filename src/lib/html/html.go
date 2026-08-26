@@ -205,6 +205,25 @@ var Templates = map[string]string{
 		{{ end }}
 	</footer>`,
 
+	"timeout": `
+	<h1>Upstream timed out.</h1>
+	<h3>Your application did not start sending response headers before the proxy gave up.<br />The process is often still running and finishes the work afterwards, so this is usually a timeout rather than a crash.</h3>
+	<div class="container wrapper">
+		<div>
+			<h3 class="text-left mb-1">What happened</h3>
+			<div class="code mb-3">{{ .error_msg }}</div>
+			<h3 class="text-left mb-1">How to fix it</h3>
+			<div class="code mb-3">Set {{ .timeout_env_var }} to a value above the time this endpoint needs, then redeploy. The current value is {{ .timeout }}.</div>
+		</div>
+	</div>
+	<footer>
+		{{ if .runtime_logs_url }}
+		You can view additional logs under your <a href="{{ .runtime_logs_url }}" class="secondary">runtime logs</a>.
+		{{ else }}
+		You can view additional logs under your application runtime logs.
+		{{ end }}
+	</footer>`,
+
 	"login": `
 	<form method="POST" action="{{ .api_host }}/auth-wall/login" class="container">
 		<input type="hidden" name="token" value="{{ .token }}" />

@@ -5,6 +5,7 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -569,19 +570,47 @@ func (r *RequestServer) Error(requestErr error) *shttp.Response {
 	})
 
 	cnf := r.req.Host.Config
+	runtimeLogsURL := admin.MustConfig().RuntimeLogsURL(cnf.AppID, cnf.EnvID, cnf.DeploymentID)
+
+	status := http.StatusInternalServerError
+	pageTitle := "Stormkit - Error"
+	pageContent := html.Templates["error"]
+	contentData := map[string]any{
+		"error_msg":        requestErr.Error(),
+		"runtime_logs_url": runtimeLogsURL,
+	}
+
+	// A proxy timeout is not an application crash: the upstream process is
+	// usually alive and still working when the proxy gives up, and the fix is a
+	// configuration change. Answering 500 with the generic page made that
+	// indistinguishable from a crash and took manual investigation to trace
+	// back to the timeout (issue #421).
+	var timeoutErr *shttp.ProxyTimeoutError
+
+	if errors.As(requestErr, &timeoutErr) {
+		status = http.StatusGatewayTimeout
+		pageTitle = "Stormkit - Upstream Timeout"
+		pageContent = html.Templates["timeout"]
+		contentData["timeout"] = timeoutErr.After.String()
+		contentData["timeout_env_var"] = shttp.ProxyTimeoutEnvVar
+	}
+
 	r.res = &shttp.Response{
-		Status: http.StatusInternalServerError,
+		Status: status,
 		Headers: shttp.HeadersFromMap(map[string]string{
 			"Content-Type": "text/html",
 		}),
 		Data: html.MustRender(html.RenderArgs{
-			PageTitle:   "Stormkit - Error",
-			PageContent: html.Templates["error"],
-			ContentData: map[string]any{
-				"error_msg":        requestErr.Error(),
-				"runtime_logs_url": admin.MustConfig().RuntimeLogsURL(cnf.AppID, cnf.EnvID, cnf.DeploymentID),
-			},
+			PageTitle:   pageTitle,
+			PageContent: pageContent,
+			ContentData: contentData,
 		}),
+	}
+
+	if timeoutErr != nil {
+		// Machine-readable even when the deployment's own error page replaces the
+		// body below, so the reason survives a custom 500 page.
+		r.res.Headers.Set("X-Stormkit-Error", "proxy-timeout")
 	}
 
 	customErrorFile := ErrorFile(cnf)

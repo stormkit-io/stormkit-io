@@ -279,6 +279,26 @@ func Proxy(req *RequestContext, args ProxyArgs) *Response {
 		}
 	}
 
+	if isTimeout(err) {
+		timeoutErr := &ProxyTimeoutError{
+			Target:  args.Target,
+			After:   config.Get().HTTPTimeouts.ProxyTimeout,
+			Wrapped: err,
+		}
+
+		// Logged here rather than left to the caller: the upstream is usually
+		// still alive and working, so nothing else in the request path has a
+		// reason to record that the proxy gave up.
+		slog.Errorf("proxy timeout after %s waiting for response headers from %s (%s)",
+			timeoutErr.After, args.Target, ProxyTimeoutEnvVar)
+
+		return &Response{
+			Status: http.StatusGatewayTimeout,
+			Data:   timeoutErr.Error(),
+			Error:  timeoutErr,
+		}
+	}
+
 	return &Response{
 		Status: http.StatusInternalServerError,
 		Data:   err.Error(),
