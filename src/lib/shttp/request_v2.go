@@ -241,6 +241,11 @@ func Proxy(req *RequestContext, args ProxyArgs) *Response {
 		}
 	}
 
+	// Read once, before the request, so the deadline reported on failure is the
+	// one NewRequestV2 seeded the client with rather than whatever the global
+	// config happens to say by the time the request fails.
+	timeout := config.Get().HTTPTimeouts.ProxyTimeout
+
 	client := NewRequestV2(req.Method, args.Target).Headers(headers)
 
 	if args.FollowRedirects != nil && !*args.FollowRedirects {
@@ -251,6 +256,7 @@ func Proxy(req *RequestContext, args ProxyArgs) *Response {
 		client.Stream(req.Body, req.ContentLength)
 	}
 
+	start := time.Now()
 	response, err := client.Do()
 
 	if err == nil {
@@ -279,18 +285,25 @@ func Proxy(req *RequestContext, args ProxyArgs) *Response {
 		}
 	}
 
-	if isTimeout(err) {
+	// Only a configured proxy deadline is reported as one. isTimeout also matches
+	// dial, TLS-handshake and DNS timeouts, which STORMKIT_HTTP_PROXY_TIMEOUT does
+	// not govern — and with the deadline disabled (`0`, which the runtime docs
+	// offer for long requests) it cannot have fired at all. Naming the knob for
+	// those would be the same misdirection this error exists to remove, so they
+	// keep the transport error and its 500.
+	if timeout > 0 && isTimeout(err) {
 		timeoutErr := &ProxyTimeoutError{
 			Target:  args.Target,
-			After:   config.Get().HTTPTimeouts.ProxyTimeout,
+			After:   time.Since(start).Round(time.Second),
+			Limit:   timeout,
 			Wrapped: err,
 		}
 
 		// Logged here rather than left to the caller: the upstream is usually
 		// still alive and working, so nothing else in the request path has a
 		// reason to record that the proxy gave up.
-		slog.Errorf("proxy timeout after %s waiting for response headers from %s (%s)",
-			timeoutErr.After, args.Target, ProxyTimeoutEnvVar)
+		slog.Errorf("proxy timeout after %s waiting for response headers from %s (%s=%s)",
+			timeoutErr.After, timeoutErr.Target, ProxyTimeoutEnvVar, timeoutErr.Limit)
 
 		return &Response{
 			Status: http.StatusGatewayTimeout,

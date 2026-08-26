@@ -54,7 +54,7 @@ func (s *ProxyTimeoutSuite) Test_SlowUpstreamYieldsGatewayTimeout() {
 	var timeoutErr *shttp.ProxyTimeoutError
 
 	s.Require().True(errors.As(res.Error, &timeoutErr), "expected a ProxyTimeoutError, got %v", res.Error)
-	s.Equal(100*time.Millisecond, timeoutErr.After)
+	s.Equal(100*time.Millisecond, timeoutErr.Limit, "the reported deadline must be the one that was enforced")
 	s.Equal(upstream.URL, timeoutErr.Target)
 	s.True(timeoutErr.Timeout())
 
@@ -115,6 +115,51 @@ func (s *ProxyTimeoutSuite) Test_HealthyUpstreamIsUnaffected() {
 	s.Equal(http.StatusOK, res.Status)
 	s.Nil(res.Error)
 	s.Equal([]byte("ok"), res.Data)
+}
+
+func (s *ProxyTimeoutSuite) Test_TargetIsNotRenderedIntoTheBody() {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		time.Sleep(500 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	defer upstream.Close()
+
+	res := s.proxy(upstream.URL)
+
+	// The body reaches a deployment's visitors; the upstream is an internal
+	// host:port and must stay in the logs.
+	body, _ := res.Data.(string)
+	s.NotContains(body, upstream.URL)
+}
+
+func (s *ProxyTimeoutSuite) Test_DisabledDeadlineStillFailsAsAServerError() {
+	// `0` disables the deadline, and the runtime docs offer it for long
+	// requests. Nothing under that setting may be reported as a proxy timeout.
+	//
+	// This covers the connection failure only. The case the `timeout > 0` guard
+	// in Proxy exists for — a dial or TLS-handshake timeout, which isTimeout
+	// also matches but STORMKIT_HTTP_PROXY_TIMEOUT does not govern — needs a
+	// blackholed route and the transport's own 30s dialer deadline, so it is not
+	// reproducible cheaply here.
+	config.Get().HTTPTimeouts.ProxyTimeout = 0
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	target := upstream.URL
+	upstream.Close()
+
+	res := s.proxy(target)
+
+	var timeoutErr *shttp.ProxyTimeoutError
+
+	s.False(errors.As(res.Error, &timeoutErr))
+	s.Equal(http.StatusInternalServerError, res.Status)
+
+	body, _ := res.Data.(string)
+	s.False(strings.Contains(body, "0s"), "must never tell the operator the deadline was 0s")
 }
 
 func TestProxyTimeoutSuite(t *testing.T) {

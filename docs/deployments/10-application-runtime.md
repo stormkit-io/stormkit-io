@@ -43,10 +43,14 @@ may take to start sending response headers. This is the only request deadline on
 self-hosted instance — the 15 second function timeout is a Stormkit Cloud limit and does
 not apply here. Raise it, or set it to `0`, if a request legitimately needs longer.
 
-When the deadline is hit, Stormkit answers `504 Gateway Timeout` with a page that names
-`STORMKIT_HTTP_PROXY_TIMEOUT` and marks the response with `X-Stormkit-Error: proxy-timeout`.
-Your server is usually still running and finishes the work afterwards — a 504 here means the
-proxy stopped waiting, not that the process crashed.
+When the deadline is hit, Stormkit answers `504 Gateway Timeout` and marks the response with
+`X-Stormkit-Error: proxy-timeout`. Your server is usually still running and finishes the work
+afterwards — a 504 here means the proxy stopped waiting, not that the process crashed.
+
+Requests served by your application get a page naming `STORMKIT_HTTP_PROXY_TIMEOUT`; if the
+deployment ships its own error page that page is served instead, and the header is how you
+tell a timeout from a crash. Note the variable belongs to the Stormkit instance's own process
+environment — setting it in an application's environment variables has no effect.
 
 The runtime is not Go-specific — any process that listens on `PORT` works, including a
 Node/Express or Fastify server. Go is used in the examples below because compiling a

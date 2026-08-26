@@ -19,18 +19,28 @@ const ProxyTimeoutEnvVar = "STORMKIT_HTTP_PROXY_TIMEOUT"
 // and the fix is a configuration change rather than a code change. Callers
 // match on it with errors.As to answer 504 and name the knob.
 type ProxyTimeoutError struct {
-	Target  string
-	After   time.Duration
+	// Target is the upstream that was being proxied. It is an internal
+	// host:port, so it belongs in logs and never in a rendered page.
+	Target string
+	// After is how long the proxy actually waited before giving up.
+	After time.Duration
+	// Limit is the configured deadline that fired.
+	Limit   time.Duration
 	Wrapped error
 }
 
+// Error states what happened and nothing else. The remedy belongs to whoever
+// renders this — the hosting error page already spells it out, and repeating it
+// here printed the same advice twice on the same page.
+//
+// Target is deliberately left out: this string is rendered into a page served
+// to a deployment's visitors, and the target is an internal host:port.
 func (e *ProxyTimeoutError) Error() string {
-	return fmt.Sprintf(
-		"upstream did not send response headers within %s (%s). The server may still be processing the request — raise %s if this endpoint is expected to take longer.",
-		e.After, ProxyTimeoutEnvVar, ProxyTimeoutEnvVar,
-	)
+	return fmt.Sprintf("upstream did not send response headers within %s (%s)", e.Limit, ProxyTimeoutEnvVar)
 }
 
+// Unwrap exposes the transport error, so a caller can still inspect the
+// underlying *url.Error or net.Error.
 func (e *ProxyTimeoutError) Unwrap() error {
 	return e.Wrapped
 }

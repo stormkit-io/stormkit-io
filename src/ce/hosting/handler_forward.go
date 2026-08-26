@@ -591,7 +591,7 @@ func (r *RequestServer) Error(requestErr error) *shttp.Response {
 		status = http.StatusGatewayTimeout
 		pageTitle = "Stormkit - Upstream Timeout"
 		pageContent = html.Templates["timeout"]
-		contentData["timeout"] = timeoutErr.After.String()
+		contentData["timeout"] = timeoutErr.Limit.String()
 		contentData["timeout_env_var"] = shttp.ProxyTimeoutEnvVar
 	}
 
@@ -608,8 +608,6 @@ func (r *RequestServer) Error(requestErr error) *shttp.Response {
 	}
 
 	if timeoutErr != nil {
-		// Machine-readable even when the deployment's own error page replaces the
-		// body below, so the reason survives a custom 500 page.
 		r.res.Headers.Set("X-Stormkit-Error", "proxy-timeout")
 	}
 
@@ -632,6 +630,13 @@ func (r *RequestServer) Error(requestErr error) *shttp.Response {
 	r.res.Data = file.Content
 	r.res.Headers = shttp.HeadersFromMap(customErrorFile.Headers)
 	r.res.Headers.Set("Content-Type", file.ContentType)
+
+	if timeoutErr != nil {
+		// Re-applied because the line above replaces the header map wholesale. A
+		// deployment's own error page keeps the body, but the reason the request
+		// failed has to stay machine-readable.
+		r.res.Headers.Set("X-Stormkit-Error", "proxy-timeout")
+	}
 
 	return r.res
 }

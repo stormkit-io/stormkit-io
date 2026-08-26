@@ -213,7 +213,7 @@ var Templates = map[string]string{
 			<h3 class="text-left mb-1">What happened</h3>
 			<div class="code mb-3">{{ .error_msg }}</div>
 			<h3 class="text-left mb-1">How to fix it</h3>
-			<div class="code mb-3">Set {{ .timeout_env_var }} to a value above the time this endpoint needs, then redeploy. The current value is {{ .timeout }}.</div>
+			<div class="code mb-3">{{ .timeout_env_var }} is currently {{ .timeout }}. Raise it on the Stormkit instance itself — its process environment, not this application's environment variables — and restart the instance.</div>
 		</div>
 	</div>
 	<footer>

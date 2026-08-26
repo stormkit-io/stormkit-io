@@ -1406,7 +1406,8 @@ func (s *HandlerForwardSuite) Test_AuthWall_AlreadyLoggedIn() {
 func (s *HandlerForwardSuite) Test_ProxyTimeout_ServesADistinctError() {
 	timeoutErr := &shttp.ProxyTimeoutError{
 		Target: "http://localhost:3000/slow",
-		After:  30 * time.Second,
+		After:  31 * time.Second,
+		Limit:  30 * time.Second,
 	}
 
 	s.mockClient.On("Invoke", mock.Anything).Return(nil, timeoutErr)
@@ -1435,6 +1436,7 @@ func (s *HandlerForwardSuite) Test_ProxyTimeout_ServesADistinctError() {
 	s.Contains(page, "Upstream timed out")
 	s.Contains(page, shttp.ProxyTimeoutEnvVar)
 	s.Contains(page, "30s")
+	s.Contains(page, "not this application's environment variables")
 	s.NotContains(page, "Whoops! We got something wrong.")
 }
 
@@ -1466,6 +1468,45 @@ func (s *HandlerForwardSuite) Test_NonTimeoutErrorKeepsTheGenericPage() {
 	s.Contains(page, "Whoops! We got something wrong.")
 	s.Contains(page, "boom")
 	s.NotContains(page, shttp.ProxyTimeoutEnvVar)
+}
+
+// A deployment's own error page keeps the body, but the machine-readable reason
+// has to survive the header map being replaced along with it.
+func (s *HandlerForwardSuite) Test_ProxyTimeout_HeaderSurvivesCustomErrorPage() {
+	s.mockClient.On("GetFile", integrations.GetFileArgs{
+		Location:     "aws:my-bucket/my-key-prefix",
+		FileName:     "/custom-error.html",
+		DeploymentID: types.ID(1),
+	}).Return(&integrations.GetFileResult{
+		Content: []byte("Our own error page"),
+	}, nil)
+
+	s.mockClient.On("Invoke", mock.Anything).Return(nil, &shttp.ProxyTimeoutError{
+		Target: "http://localhost:3000/slow",
+		After:  31 * time.Second,
+		Limit:  30 * time.Second,
+	})
+
+	host := &hosting.Host{
+		Name: "www.stormkit.io",
+		Config: &appconf.Config{
+			DeploymentID:     types.ID(1),
+			AppID:            types.ID(25),
+			EnvID:            types.ID(100),
+			StorageLocation:  "aws:my-bucket/my-key-prefix",
+			FunctionLocation: "aws:my-server-function",
+			ErrorFile:        "/custom-error.html",
+			StaticFiles: appconf.StaticFileConfig{
+				"/custom-error.html": {FileName: "/custom-error.html"},
+			},
+		},
+	}
+
+	res := hosting.HandlerForward(s.newRequest(host, "/slow"))
+
+	s.Equal(http.StatusGatewayTimeout, res.Status)
+	s.Equal([]byte("Our own error page"), res.Data.([]byte))
+	s.Equal("proxy-timeout", res.Headers.Get("X-Stormkit-Error"))
 }
 
 func TestHandlerForward(t *testing.T) {
