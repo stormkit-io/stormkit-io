@@ -808,6 +808,102 @@ func (s *HandlerForwardSuite) Test_Analytics() {
 	}, hosting.AnalyticsRecord(req, res))
 }
 
+// htmlCaseHost builds a deployment whose manifest spells the page's content
+// type unconventionally. Custom header rules pass values through verbatim (see
+// deploy.ParseHeaders), so this is a shape a real build can publish.
+func (s *HandlerForwardSuite) htmlCaseHost(contentType string) *hosting.Host {
+	return &hosting.Host{
+		Name: "www.stormkit.io",
+		Config: &appconf.Config{
+			IsEnterprise:    true,
+			DeploymentID:    types.ID(1),
+			AppID:           types.ID(25),
+			EnvID:           types.ID(100),
+			DomainID:        types.ID(501),
+			StorageLocation: "aws:my-bucket/my-key-prefix",
+			StaticFiles: appconf.StaticFileConfig{
+				"/some/url/index.html": {
+					FileName: "/some/url/index.html",
+					Headers:  map[string]string{"content-type": contentType},
+				},
+			},
+		},
+	}
+}
+
+func (s *HandlerForwardSuite) Test_CacheControl_UnusuallyCasedHTMLGetsThePagePolicy() {
+	s.mockClient.On("GetFile", integrations.GetFileArgs{
+		Location:     "aws:my-bucket/my-key-prefix",
+		FileName:     "/some/url/index.html",
+		DeploymentID: types.ID(1),
+	}).Return(&integrations.GetFileResult{
+		Content: []byte("<html><head></head><body></body></html>"),
+	}, nil)
+
+	res := hosting.HandlerForward(s.newRequest(s.htmlCaseHost("Text/HTML; charset=utf-8"), "/some/url"))
+
+	s.Equal(http.StatusOK, res.Status)
+	// Without the shared content-type test this page silently fell into the
+	// 24 hour asset policy (issue #495).
+	s.Equal("no-cache, must-revalidate", res.Headers.Get("Cache-Control"))
+}
+
+func (s *HandlerForwardSuite) Test_CacheControl_NonHTMLKeepsTheAssetPolicy() {
+	s.mockClient.On("GetFile", integrations.GetFileArgs{
+		Location:     "aws:my-bucket/my-key-prefix",
+		FileName:     "/some/url/index.html",
+		DeploymentID: types.ID(1),
+	}).Return(&integrations.GetFileResult{
+		Content: []byte("{}"),
+	}, nil)
+
+	res := hosting.HandlerForward(s.newRequest(s.htmlCaseHost("application/json"), "/some/url"))
+
+	s.Equal(http.StatusOK, res.Status)
+	s.Equal("public, max-age=86400", res.Headers.Get("Cache-Control"))
+}
+
+func (s *HandlerForwardSuite) Test_Analytics_RecordsUnusuallyCasedHTML() {
+	s.mockClient.On("GetFile", integrations.GetFileArgs{
+		Location:     "aws:my-bucket/my-key-prefix",
+		FileName:     "/some/url/index.html",
+		DeploymentID: types.ID(1),
+	}).Return(&integrations.GetFileResult{
+		Content: []byte("<html><head></head><body></body></html>"),
+	}, nil)
+
+	records := make(chan *analytics.Record, 1)
+
+	hosting.WaitArtifacts()
+	hosting.ResetBatcher(pool.New(
+		pool.WithSize(1),
+		pool.WithFlushInterval(time.Hour),
+		pool.WithFlusher(pool.FlusherFunc(func(items []any) {
+			for _, item := range items {
+				if rec, ok := item.(*jobs.HostingRecord); ok {
+					records <- rec.Analytics
+				}
+			}
+		})),
+	))
+
+	header := http.Header{}
+	header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+
+	hosting.HandlerForward(s.newRequest(s.htmlCaseHost("Text/HTML; charset=utf-8"), "/some/url", header))
+	hosting.WaitArtifacts()
+
+	select {
+	case record := <-records:
+		// The page view used to be dropped because the gate compared the raw
+		// header against a lowercase prefix (issue #495).
+		s.Require().NotNil(record)
+		s.Equal("/some/url", record.RequestPath)
+	case <-time.After(5 * time.Second):
+		s.Fail("expected a hosting record to be flushed")
+	}
+}
+
 func (s *HandlerForwardSuite) Test_CacheControl_LastModified() {
 	updatedAt := utils.NewUnix()
 	updatedAt.Time = time.Unix(1700489144, 0).UTC()

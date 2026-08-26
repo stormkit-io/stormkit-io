@@ -131,9 +131,7 @@ func (r *RequestServer) finalize(res *shttp.Response) *shttp.Response {
 	res = r.applyVary(res)
 
 	if r.req.Host.Config.IsEnterprise {
-		contentType := strings.ToLower(res.Headers.Get("Content-Type"))
-
-		if strings.HasPrefix(contentType, "text/html") {
+		if isHTMLContentType(res.Headers.Get("Content-Type")) {
 			r.record = analyticsRecord(r.req, res)
 		}
 	}
@@ -428,7 +426,7 @@ func (r *RequestServer) Static() *shttp.Response {
 		// page's revalidation policy and not the asset one. Without this it is
 		// classified by its own content type, and one representation of a URL
 		// outlives the other by a day.
-		if r.markdown || strings.HasPrefix(headers.Get("Content-Type"), "text/html") {
+		if r.markdown || isHTMLContentType(headers.Get("Content-Type")) {
 			headers.Add("Cache-Control", "no-cache, must-revalidate")
 		} else {
 			headers.Add("Cache-Control", "public, max-age=86400")
@@ -800,7 +798,7 @@ func (r *RequestServer) OptimizeImage(content []byte) ([]byte, error) {
 func shouldInject(_ *RequestContext, res *shttp.Response) bool {
 	// We only inject snippets into HTML responses. Encoding is handled by
 	// injectSnippets, which decompresses gzip/deflate bodies before injecting.
-	if res == nil || !strings.HasPrefix(res.Headers.Get("Content-Type"), "text/html") {
+	if res == nil || !isHTMLContentType(res.Headers.Get("Content-Type")) {
 		return false
 	}
 

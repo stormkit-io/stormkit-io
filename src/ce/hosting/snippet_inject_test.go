@@ -151,6 +151,23 @@ func (s *SnippetInjectSuite) Test_SkipsNonHTML() {
 	s.Equal(`{"ok":true}`, out.Data)
 }
 
+func (s *SnippetInjectSuite) Test_InjectsIntoUnusuallyCasedHTML() {
+	// A custom header rule passes the deployment's spelling through verbatim, so
+	// a page can arrive as `Text/HTML`. Media types are case-insensitive, and
+	// snippet injection must not silently skip such a page (issue #495).
+	res := &shttp.Response{
+		Status:  http.StatusOK,
+		Headers: http.Header{"Content-Type": []string{"Text/HTML; charset=utf-8"}},
+		Data:    []byte(sampleHTML),
+	}
+
+	out := hosting.InjectSnippets(s.request(snippetHost(headAppendSnippet()), "/"), res)
+
+	body, ok := out.Data.(string)
+	s.Require().True(ok)
+	s.Contains(body, "<!--sk-head--></head>")
+}
+
 func TestSnippetInjectSuite(t *testing.T) {
 	suite.Run(t, &SnippetInjectSuite{})
 }
