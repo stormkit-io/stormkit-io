@@ -1,5 +1,26 @@
 # Changelog
 
+## v2026.08.25.1...v2026.08.27.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.08.25.1...v2026.08.27.1)
+
+### 🩹 Fixes
+
+- Drop phantom today bucket in visitors chart ([#497](https://github.com/stormkit-io/stormkit-io/pull/497))
+- Report upload errors in the deploy step ([#500](https://github.com/stormkit-io/stormkit-io/pull/500))
+
+### 💅 Refactors
+
+- Unify the text/html content-type check ([#498](https://github.com/stormkit-io/stormkit-io/pull/498))
+
+### 🏡 Chore
+
+- Update changelog for v2026.08.25.1 ([#496](https://github.com/stormkit-io/stormkit-io/pull/496))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.08.24.1...v2026.08.25.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.08.24.1...v2026.08.25.1)
