@@ -1,6 +1,7 @@
 package runner_test
 
 import (
+	"errors"
 	"os"
 	"path"
 	"strings"
@@ -61,6 +62,8 @@ func (s *UploaderSuite) BeforeTest(_, _ string) {
 }
 
 func (s *UploaderSuite) AfterTest(_, _ string) {
+	runner.Stat = os.Stat
+
 	if strings.Contains(s.config.RootDir, os.TempDir()) {
 		s.config.RemoveAll()
 	}
@@ -117,10 +120,50 @@ func (s *UploaderSuite) Test_UploadLimits_StormkitCloud() {
 		ClientZip: path.Join(s.config.RootDir, "dist", "sk-client.zip"),
 	})
 
-	msg := "Deployment size is larger than allowed.\nFor client-side applications, the limit is 50MB and for serverless applications 100MB."
+	msg := "Deployment size is larger than allowed.\n" +
+		"The client bundle is 51.0MB while the limit is 50.0MB.\n" +
+		"For client-side applications, the limit is 50MB and for serverless applications 100MB."
 
 	s.Error(err)
 	s.Equal(msg, err.Error())
+	s.Nil(result)
+}
+
+func (s *UploaderSuite) Test_UploadLimits_NamesTheOversizedBundle() {
+	config.SetIsStormkitCloud(true)
+
+	serverZip := path.Join(s.config.RootDir, "dist", "sk-server.zip")
+
+	runner.Stat = func(name string) (os.FileInfo, error) {
+		if name == serverZip {
+			return MockFileInfo{size: 120 << 20}, nil
+		}
+
+		return MockFileInfo{size: 1 << 20}, nil
+	}
+
+	result, err := runner.NewUploader(s.config.Uploader).Upload(runner.UploadArgs{
+		ClientZip: path.Join(s.config.RootDir, "dist", "sk-client.zip"),
+		ServerZip: serverZip,
+	})
+
+	s.Error(err)
+	s.Contains(err.Error(), "The server bundle is 120.0MB while the limit is 100.0MB.")
+	s.Nil(result)
+}
+
+func (s *UploaderSuite) Test_UploadLimits_StatError() {
+	config.SetIsStormkitCloud(true)
+
+	runner.Stat = func(name string) (os.FileInfo, error) {
+		return nil, errors.New("permission denied")
+	}
+
+	result, err := runner.NewUploader(s.config.Uploader).Upload(runner.UploadArgs{
+		ClientZip: path.Join(s.config.RootDir, "dist", "sk-client.zip"),
+	})
+
+	s.EqualError(err, "cannot check the size of the client bundle: permission denied")
 	s.Nil(result)
 }
 
