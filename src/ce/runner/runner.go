@@ -333,6 +333,7 @@ func Run(opts RunnerOpts) *RunResult {
 
 	var artifacts *Artifacts
 	var miseOutput []string
+	var uploadErr error
 
 	if err := repo.Checkout(ctx); err != nil {
 		return &RunResult{opts: opts, err: err}
@@ -460,10 +461,15 @@ func Run(opts RunnerOpts) *RunResult {
 		if err != nil {
 			slog.Errorf("upload failed: %v", err)
 			manifest.Success = false
+
+			// The error has to travel back to the reporter, otherwise the
+			// deploy step is rendered as failed with an empty message and
+			// the user has no way of telling what went wrong.
+			uploadErr = err
 		}
 	}
 
-	return &RunResult{opts: opts, result: result, manifest: manifest}
+	return &RunResult{opts: opts, result: result, manifest: manifest, err: uploadErr}
 }
 
 // GetRuntimeStringForLambdas returns the runtime string for the uploader based on

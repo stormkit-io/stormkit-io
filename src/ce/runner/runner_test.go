@@ -2,9 +2,13 @@ package runner_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deployservice"
@@ -116,6 +120,84 @@ func (s *RunnerSuite) Test_AllProcess() {
 	b, err := json.Marshal(payload)
 	s.NoError(err)
 	s.NoError(runner.Start(string(b), ""))
+}
+
+// A failing upload must reach the reporter: the deploy step is otherwise
+// rendered as failed with an empty message and the user cannot tell why.
+func (s *RunnerSuite) Test_UploadError_IsReported() {
+	payloads := []map[string]any{}
+	mux := sync.Mutex{}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		payload := map[string]any{}
+
+		s.NoError(json.NewDecoder(r.Body).Decode(&payload))
+
+		mux.Lock()
+		payloads = append(payloads, payload)
+		mux.Unlock()
+
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	defer server.Close()
+
+	s.mockRepo.On("Checkout", mock.Anything).Return(nil)
+	s.mockRepo.On("CommitInfo").Return(map[string]string{})
+	s.mockInstaller.On("InstallRuntimeDependencies", mock.Anything).Return([]string{"node@24.10"}, nil)
+	s.mockInstaller.On("RuntimeVersion", mock.Anything).Return(nil)
+	s.mockInstaller.On("Install", mock.Anything).Return(nil)
+	s.mockBuilder.On("ExecCommands", mock.Anything).Return(nil)
+	s.mockBuilder.On("BuildApiIfNecessary", mock.Anything).Return(false, nil)
+	s.mockBundler.On("Bundle", mock.Anything).Return(&runner.Artifacts{}, nil)
+	s.mockBundler.On("ParseRedirects", mock.Anything).Return(nil)
+	s.mockBundler.On("ParseHeaders", mock.Anything).Return(nil)
+	s.mockBundler.On("Zip", mock.Anything).Return(nil)
+	s.mockUploader.On("Upload", mock.Anything).
+		Return(nil, errors.New("Deployment size is larger than allowed."))
+
+	msg := &deployservice.DeploymentMessage{
+		Client: deployservice.ClientConfig{
+			Repo:        "https://github.com/stormkit-dev/e2e-npm",
+			AccessToken: "some-token",
+		},
+		Build: deployservice.BuildConfig{
+			Branch: "main",
+			AppID:  "2501",
+			EnvID:  "51191",
+		},
+	}
+
+	encryptedMsg, err := msg.Encrypt()
+
+	s.NoError(err)
+
+	b, err := json.Marshal(runner.Payload{
+		DeploymentID:  "1234",
+		DeploymentMsg: encryptedMsg,
+		RootDir:       s.config.RootDir,
+		BaseURL:       server.URL,
+	})
+
+	s.NoError(err)
+	s.NoError(runner.Start(string(b), ""))
+
+	exit := map[string]any{}
+	logs := ""
+
+	for _, payload := range payloads {
+		if outcome, ok := payload["outcome"]; ok && outcome != nil {
+			exit = payload
+		}
+
+		if l, ok := payload["logs"].(string); ok {
+			logs += l
+		}
+	}
+
+	s.Equal("failure", exit["outcome"])
+	s.Equal("Deployment size is larger than allowed.", exit["error"])
+	s.Contains(logs, "Deployment size is larger than allowed.")
 }
 
 func TestRunnerSuite(t *testing.T) {

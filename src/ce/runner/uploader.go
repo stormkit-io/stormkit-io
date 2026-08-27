@@ -1,13 +1,12 @@
 package runner
 
 import (
-	"errors"
+	"fmt"
 	"os"
 	"strings"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/integrations"
-	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
@@ -53,35 +52,54 @@ func NewUploader(opts *config.RunnerConfig) RunnerUploaderInterface {
 	}
 }
 
-func (u *Uploader) isDeploymentSizeWithinLimits(args UploadArgs) bool {
-	zips := map[string]int64{}
-	zips[args.ClientZip] = 50<<20 + 1024  // 50MB
-	zips[args.ServerZip] = 100<<20 + 1024 // 100MB
-	zips[args.ApiZip] = 100<<20 + 1024    // 100 MB
+type bundleSizeLimit struct {
+	name    string
+	zipFile string
+	maxSize int64
+}
 
-	for zipFile, maxSize := range zips {
-		if zipFile == "" {
+// checkDeploymentSize returns an error naming the bundle that busts its size
+// limit, together with the actual size, so that the failure is actionable in
+// the deployment logs.
+func (u *Uploader) checkDeploymentSize(args UploadArgs) error {
+	limits := []bundleSizeLimit{
+		{name: "client", zipFile: args.ClientZip, maxSize: 50<<20 + 1024},  // 50MB
+		{name: "server", zipFile: args.ServerZip, maxSize: 100<<20 + 1024}, // 100MB
+		{name: "api", zipFile: args.ApiZip, maxSize: 100<<20 + 1024},       // 100MB
+	}
+
+	for _, limit := range limits {
+		if limit.zipFile == "" {
 			continue
 		}
 
-		info, err := Stat(zipFile)
+		info, err := Stat(limit.zipFile)
 
 		if err != nil {
-			slog.Errorf("cannot check file info: %s", err.Error())
-			return false
+			return fmt.Errorf("cannot check the size of the %s bundle: %w", limit.name, err)
 		}
 
+		// no file to upload
 		if info == nil {
-			// no file to upload
 			continue
 		}
 
-		if info.Size() > maxSize {
-			return false
+		if info.Size() > limit.maxSize {
+			//lint:ignore ST1005 This message is being consumed by the frontend
+			return fmt.Errorf(
+				"Deployment size is larger than allowed.\n"+
+					"The %s bundle is %s while the limit is %s.\n"+
+					"For client-side applications, the limit is 50MB and for serverless applications 100MB.",
+				limit.name, megabytes(info.Size()), megabytes(limit.maxSize),
+			)
 		}
 	}
 
-	return true
+	return nil
+}
+
+func megabytes(b int64) string {
+	return fmt.Sprintf("%.1fMB", float64(b)/(1<<20))
 }
 
 func (u *Uploader) Upload(args UploadArgs) (*integrations.UploadResult, error) {
@@ -114,13 +132,10 @@ func (u *Uploader) Upload(args UploadArgs) (*integrations.UploadResult, error) {
 		args.Runtime = config.NodeRuntime18
 	}
 
-	if config.IsStormkitCloud() && !u.isDeploymentSizeWithinLimits(args) {
-		msg := "Deployment size is larger than allowed.\n" +
-			"For client-side applications, the limit is 50MB and " +
-			"for serverless applications 100MB."
-
-		//lint:ignore ST1005 This message is being consumed by the frontend
-		return nil, errors.New(msg)
+	if config.IsStormkitCloud() {
+		if err := u.checkDeploymentSize(args); err != nil {
+			return nil, err
+		}
 	}
 
 	return integrations.
