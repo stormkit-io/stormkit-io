@@ -76,9 +76,19 @@ body {
 }
 
 #blog-content {
-  line-height: 1.85;
+  line-height: 1.8;
   letter-spacing: normal;
-  font-size: 1rem;
+  font-size: 1.0625rem;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+/* The opening paragraph carries the reader in from the hero, so it is set a
+   step larger and lighter than the body that follows. */
+#blog-content > p:first-of-type {
+  font-size: 1.175rem;
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 2rem;
 }
 
 #blog-content > *:first-child {
@@ -99,17 +109,33 @@ body {
 }
 
 #blog-content h2 {
-  font-size: 1.35rem;
+  position: relative;
+  font-size: 1.6rem;
   font-weight: 600;
-  line-height: 1.35;
-  letter-spacing: -0.01em;
-  margin: 3.5rem 0 1.25rem;
-  padding-bottom: 0.6rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: #fff;
+  margin: 4rem 0 1.5rem;
+  scroll-margin-top: 90px;
+  text-wrap: balance;
+}
+
+/* A short accent rule above each section reads as a chapter break without the
+   heavy full-width divider a border-bottom draws across the column. */
+#blog-content h2::before {
+  content: '';
+  display: block;
+  width: 2.5rem;
+  height: 2px;
+  margin-bottom: 1.25rem;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #e2ae5a, rgba(239, 71, 111, 0.6));
 }
 
 #blog-content h3 {
-  font-size: 1.1rem;
+  scroll-margin-top: 90px;
+  color: #fff;
+  font-size: 1.15rem;
   font-weight: 600;
   line-height: 1.4;
   margin: 2.5rem 0 0.75rem;
@@ -138,11 +164,18 @@ body {
 }
 
 #blog-content blockquote {
-  margin: 2rem 0;
-  padding: 0.25rem 0 0.25rem 1.25rem;
-  border-left: 3px solid rgba(226, 174, 90, 0.5);
-  color: rgba(255, 255, 255, 0.75);
-  font-style: normal;
+  margin: 2.5rem 0;
+  padding: 1.25rem 1.5rem;
+  border: 0;
+  border-left: 2px solid #e2ae5a;
+  border-radius: 0 0.5rem 0.5rem 0;
+  background: linear-gradient(
+    90deg,
+    rgba(226, 174, 90, 0.07),
+    rgba(226, 174, 90, 0)
+  );
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 1.05rem;
 }
 
 #blog-content blockquote p:last-child {
@@ -194,12 +227,16 @@ body {
   width: 100%;
   margin: 2rem 0;
   font-size: 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 0.625rem;
+  overflow: hidden;
 }
 
 #blog-content table th {
   padding: 0.75rem 1rem;
   background-color: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 0;
+  border-bottom: 1px solid rgba(226, 174, 90, 0.25);
   text-align: left;
   font-weight: 600;
   font-size: 0.75rem;
@@ -210,7 +247,8 @@ body {
 
 #blog-content table td {
   background-color: rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   padding: 0.75rem 1rem;
   vertical-align: top;
 }
@@ -248,14 +286,68 @@ body {
 }
 
 #blog-content pre {
+  position: relative;
   max-width: 100%;
   overflow-x: auto;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   line-height: 1.7;
-  margin: 1.75rem 0;
-  padding: 1rem 1.25rem;
+  margin: 2rem 0;
+  padding: 1.75rem 1.25rem 1.25rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 0.5rem;
+  border-radius: 0.625rem;
+  background-color: rgba(0, 0, 0, 0.32);
+}
+
+/* Prism stamps the language onto the <pre> as language-*. Naming it in the
+   corner tells the reader what they are looking at before they parse it.
+   Done in CSS rather than JS so it survives server-side rendering; a language
+   without a rule below simply shows no label. */
+#blog-content pre[class*='language-']::before {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.875rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.28);
+}
+
+#blog-content pre.language-go::before {
+  content: 'Go';
+}
+#blog-content pre.language-bash::before {
+  content: 'Shell';
+}
+#blog-content pre.language-json::before {
+  content: 'JSON';
+}
+#blog-content pre.language-yaml::before {
+  content: 'YAML';
+}
+#blog-content pre.language-typescript::before {
+  content: 'TypeScript';
+}
+#blog-content pre.language-javascript::before {
+  content: 'JavaScript';
+}
+#blog-content pre.language-sql::before {
+  content: 'SQL';
+}
+#blog-content pre.language-docker::before {
+  content: 'Dockerfile';
+}
+#blog-content pre.language-diff::before {
+  content: 'Diff';
+}
+#blog-content pre.language-regex::before {
+  content: 'Regex';
+}
+#blog-content pre.language-markup::before {
+  content: 'HTML';
+}
+#blog-content pre.language-css::before {
+  content: 'CSS';
 }
 
 #blog-content pre code {
