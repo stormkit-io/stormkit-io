@@ -80,6 +80,21 @@ The bandwidth difference is not marginal. Two pages from our own docs, gzipped, 
 
 Roughly 11x and 5x — and that is the document alone, before the JavaScript bundles a browser then pulls down and a text client never needs.
 
+For an agent, though, bandwidth is the wrong thing to measure — and measuring it actually hides the cost that matters. Gzip is very good at HTML, because HTML is repetitive: the same tags, the same class names, the same nav on every page. It compresses 130 KB down to 16 KB. But the model does not read the compressed bytes. It reads the uncompressed document, and it pays per token for the privilege. Compression flatters the wire and does nothing for the context window.
+
+Here are the same two pages measured that way, as fetched over the wire today and counted with `o200k_base`:
+
+| Page | HTML | Markdown |
+| --- | --- | --- |
+| `/docs/deployments/configuration` | 43,096 tokens | 811 tokens |
+| `/docs/api/deployments` | 62,315 tokens | 6,218 tokens |
+
+53x and 10x — considerably worse than the 11x and 5x that gzip suggested.
+
+That first number deserves an asterisk, because a competent agent will not feed raw HTML to a model. Strip every `<script>` and `<style>` first and the HTML drops to 20,826 and 34,057 tokens, which is still 26x and 5.5x. The gap narrows; it does not close. What survives stripping is the markup itself — the div soup, the class attributes, the nav repeated on every page in the docs — and that is the part no preprocessing gets rid of, because it is structurally interleaved with the prose you wanted.
+
+Two of those numbers are worth sitting with. A page whose actual content is 811 tokens costs 43,096 to fetch as HTML: 98% of what the agent pays for is not the answer it came for. And a 62,000-token page is a quarter of a 256k context window spent on one documentation page — which is not a bandwidth bill, it is the reason the agent forgot what you asked it three files ago.
+
 One caveat worth stating plainly, because it gets muddled in this discussion: this is a routing mechanism, not an accessibility feature. Screen readers are not HTTP clients — they sit on top of a browser and read the accessibility tree, so they never issue a request of their own and cannot ask for markdown. And they would not want to. Landmarks, ARIA roles, `lang`, heading hierarchy, table header scoping — the semantics assistive technology depends on live in HTML and mostly do not survive a conversion to markdown. Serving markdown to clients that ask for it does not reduce your obligation to write good HTML by one line.
 
 ## "Isn't this cloaking?"
