@@ -76,8 +76,6 @@ The same two pages, fetched today and counted with `o200k_base`:
 
 Sit with the first row. A page whose content is 811 tokens costs 43,096 to fetch as HTML: 98% of what the agent pays for is not the answer it came for.
 
-One caveat worth stating plainly, because it gets muddled in this discussion: this is a routing mechanism, not an accessibility feature. Screen readers are not HTTP clients — they sit on top of a browser and read the accessibility tree, so they never issue a request of their own and cannot ask for markdown. And they would not want to. Landmarks, ARIA roles, `lang`, heading hierarchy, table header scoping — the semantics assistive technology depends on live in HTML and mostly do not survive a conversion to markdown. Serving markdown to clients that ask for it does not reduce your obligation to write good HTML by one line.
-
 ## "Isn't this cloaking?"
 
 If you have followed this topic you have seen the pushback. In February 2026 Google's John Mueller [called serving markdown to LLM crawlers "a stupid idea"](https://www.searchenginejournal.com/googles-mueller-calls-markdown-for-bots-idea-a-stupid-idea/566598/), and Microsoft's Fabrice Canel [warned that dedicated bot pages are cloaking](https://searchengineland.com/google-bing-dont-recommend-seperate-markdown-pages-for-llms-468365) and that search engines will crawl both versions to check they match. Mueller's reasoning: LLMs have parsed HTML since day one, so why serve a page no user ever sees?
