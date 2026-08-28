@@ -21,37 +21,29 @@ Two years on, the evidence is not kind. [Ahrefs analyzed 137,210 domains](https:
 
 Google's John Mueller [put it bluntly on Reddit](https://www.searchenginejournal.com/google-says-llms-txt-comparable-to-keywords-meta-tag/544804/) as early as April 2025: "AFAIK none of the AI services have said they're using LLMs.TXT... To me, it's comparable to the keywords meta tag" — a signal search engines abandoned precisely because a site describing itself is too easy to game. No major AI provider has committed to reading the file since. The crawlers that were supposed to consume it are, overwhelmingly, still fetching your HTML.
 
-That is the empirical case. The structural case matters more, because it explains *why* it went that way.
+That is the empirical case. The structural one explains why it went that way.
 
-The single-file flavour is the worst of it: `/llms.txt` is a hand-curated index, authored once and maintained by hand forever. Authored artifacts rot. In practice it drifts from the site it describes, because it is the copy humans never look at, and six months later the agent is reading a description of a feature you removed.
-
-And there is a discovery problem stacked on the freshness one. A client that lands on `https://yoursite.com/docs/deploying` has no reliable way to know an agent-friendly twin exists somewhere else. Does it guess `.md`? Fetch `/llms.txt` and parse it for a mapping? Every tool invents its own convention, and the page author has to know all of them.
+`/llms.txt` is a hand-curated index, authored once and maintained by hand forever — and authored artifacts rot. It is the copy humans never look at, so it drifts, and six months later the agent is reading a description of a feature you removed. Stacked on top of that is discovery: a client landing on `https://yoursite.com/docs/deploying` has no reliable way to know an agent-friendly twin exists somewhere else. Does it guess `.md`? Fetch `/llms.txt` and parse it for a mapping? Every tool invents its own convention, and the page author has to know all of them.
 
 ## HTTP already solved this in 1999
 
 The web has always served more than one representation of the same thing. That is what the `Accept` header is for. The client says what formats it can use, the server picks the best match, and the URL never changes. This is content negotiation, and it has been in the spec since HTTP/1.1.
 
-An agent that wants markdown says so:
+An agent that wants markdown says so; a browser asks for what it always asks for:
 
 ```
 GET /docs/deploying HTTP/1.1
 Accept: text/markdown
-```
 
-A browser asks for what it always asks for:
-
-```
 GET /docs/deploying HTTP/1.1
 Accept: text/html
 ```
 
 Same URL. One canonical resource, two representations, and the client picks. No sidecar index to discover, no per-tool convention — just the header the client was already sending anyway. `text/markdown` is a real registered media type (RFC 7763); this is not a hack, it is the mechanism working as designed.
 
-It is worth being precise about what this does and does not remove, because it is easy to oversell. The markdown still has to exist. In our implementation it is a real file in the deployment, and it is reachable on its own at `/docs/deploying.md` if you ask for it directly. Content negotiation does not abolish the second file.
+It is easy to oversell this, so be precise about what it removes. The markdown still has to exist — in our implementation it is a real file in the deployment, reachable at `/docs/deploying.md` if you ask for it directly. What negotiation abolishes is not the second file but the second *interface*: that file stops being an address anyone has to discover, guess, or agree on a convention for.
 
-What it abolishes is the second *interface*. That file stops being an address anyone has to discover, guess, or agree on a convention for. Clients ask for the page they already know about and state the format they want, and every one of them does it the same way.
-
-Drift, meanwhile, is solved by your build rather than by any header. If the `.md` is generated from the same source that renders the HTML — the normal case for a docs site, where markdown is the source and HTML is the artifact — the two cannot disagree. If you hand-write both, they will drift, and no amount of content negotiation will save you. So the honest claim is narrower than "no second tree": the second tree should be build output, never something a human maintains.
+Drift is solved by your build, not by any header. If the `.md` is generated from the same source that renders the HTML — the normal case, where markdown is the source and HTML is the artifact — the two cannot disagree. Hand-write both and they will drift, and no header will save you. So the honest claim is narrower than "no second tree": the second tree should be build output, never something a human maintains.
 
 This is not theoretical any more. When Checkly [tested seven coding agents](https://www.checklyhq.com/blog/state-of-ai-agent-content-negotation/) in February 2026, Claude Code, Cursor, and OpenCode all sent `Accept: text/markdown` when fetching documentation. Codex, Gemini CLI, Copilot, and Windsurf did not — they asked for HTML or sent a generic `*/*`. Three out of seven is not a mandate, but it is three more than were doing it a year ago, and the direction is one-way.
 
@@ -67,33 +59,22 @@ So llms.txt is not reinventing one existing standard. It is reinventing two. Sit
 
 Here is where I would go further than most posts on this topic: content negotiation for text is not an agent optimization. It is how the web should have been serving content all along, and agents are simply the first client population large enough to force the issue.
 
-Look at reader mode. Safari and Firefox both ship a feature whose entire job is to strip a page back to its content — and they implement it by downloading the whole page, then *guessing*, running heuristics to work out which DOM subtree is the article. That is a hack made necessary by the absence of a way to just ask. A browser in reader mode should send `Accept: text/markdown` and be done.
+The same is true for anything that wants content rather than chrome: text browsers, reader modes, RSS and newsletter extractors, e-ink readers, archival tools, anything on a metered connection.
 
-The same is true for anything that wants content rather than chrome: text browsers, RSS and newsletter extractors, e-ink readers, archival tools, anything on a metered connection.
+The saving is not marginal. Gzipped, `/docs/deployments/configuration` goes over the wire as 16.1 KB of HTML against 1.5 KB of markdown — and that is the document alone, before the JavaScript a browser then pulls down and a text client never needs.
 
-The bandwidth difference is not marginal. Two pages from our own docs, gzipped, as served today:
+For an agent, though, bandwidth is the wrong thing to measure, and measuring it hides the cost that matters. Gzip is very good at HTML precisely because HTML is repetitive: the same tags, the same class names, the same nav on every page. It squeezes that page from 130 KB to 16 KB. But the model never sees the compressed bytes. It reads the uncompressed document and pays per token. Compression flatters the wire and does nothing for the context window.
 
-| Page | HTML | Markdown |
-| --- | --- | --- |
-| `/docs/deployments/configuration` | 16.1 KB | 1.5 KB |
-| `/docs/api/deployments` | 24.8 KB | 5.2 KB |
-
-Roughly 11x and 5x — and that is the document alone, before the JavaScript bundles a browser then pulls down and a text client never needs.
-
-For an agent, though, bandwidth is the wrong thing to measure — and measuring it actually hides the cost that matters. Gzip is very good at HTML, because HTML is repetitive: the same tags, the same class names, the same nav on every page. It compresses 130 KB down to 16 KB. But the model does not read the compressed bytes. It reads the uncompressed document, and it pays per token for the privilege. Compression flatters the wire and does nothing for the context window.
-
-Here are the same two pages measured that way, as fetched over the wire today and counted with `o200k_base`:
+The same two pages, fetched today and counted with `o200k_base`:
 
 | Page | HTML | Markdown |
 | --- | --- | --- |
 | `/docs/deployments/configuration` | 43,096 tokens | 811 tokens |
 | `/docs/api/deployments` | 62,315 tokens | 6,218 tokens |
 
-53x and 10x — considerably worse than the 11x and 5x that gzip suggested.
+53x and 10x, against the 11x and 5x gzip suggested. Strip every `<script>` and `<style>` first, as any competent agent will, and the HTML drops to 20,826 and 34,057 — still 26x and 5.5x. What survives stripping is the markup itself, interleaved with the prose you wanted, and no preprocessing gets rid of that.
 
-That first number deserves an asterisk, because a competent agent will not feed raw HTML to a model. Strip every `<script>` and `<style>` first and the HTML drops to 20,826 and 34,057 tokens, which is still 26x and 5.5x. The gap narrows; it does not close. What survives stripping is the markup itself — the div soup, the class attributes, the nav repeated on every page in the docs — and that is the part no preprocessing gets rid of, because it is structurally interleaved with the prose you wanted.
-
-Two of those numbers are worth sitting with. A page whose actual content is 811 tokens costs 43,096 to fetch as HTML: 98% of what the agent pays for is not the answer it came for. And a 62,000-token page is a quarter of a 256k context window spent on one documentation page — which is not a bandwidth bill, it is the reason the agent forgot what you asked it three files ago.
+Sit with the first row. A page whose content is 811 tokens costs 43,096 to fetch as HTML: 98% of what the agent pays for is not the answer it came for.
 
 One caveat worth stating plainly, because it gets muddled in this discussion: this is a routing mechanism, not an accessibility feature. Screen readers are not HTTP clients — they sit on top of a browser and read the accessibility tree, so they never issue a request of their own and cannot ask for markdown. And they would not want to. Landmarks, ARIA roles, `lang`, heading hierarchy, table header scoping — the semantics assistive technology depends on live in HTML and mostly do not survive a conversion to markdown. Serving markdown to clients that ask for it does not reduce your obligation to write good HTML by one line.
 
@@ -121,25 +102,21 @@ Vary: Accept
 
 ## When Accept becomes an attack
 
-Here is the part I did not see coming, and the reason I am a little more humble about "just use the header."
+Here is the part I did not see coming, and the reason I am less glib about "just use the header."
 
-When you negotiate on `Accept`, you have to parse `Accept`. And `Accept` is attacker-controlled input. A real header from Chrome looks like `text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8` — four entries, a couple of quality values, parsed in microseconds. Nothing about it suggests danger.
+To negotiate on `Accept`, you have to parse `Accept` — and `Accept` is attacker-controlled input. A real header from Chrome looks like `text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8`: four entries, parsed in microseconds. Nothing about it suggests danger. But nothing in HTTP caps how big it can be either, and the default ceiling in most servers is around a megabyte. Our parser split on every comma and gave each entry its own sub-parse — perfectly reasonable for four entries. Fed a megabyte of nothing but commas, it did a million allocations and burned tens of milliseconds of CPU per request before serving anything.
 
-But nothing in HTTP caps how big that header can be. The default ceiling in most servers is around a megabyte. Our parser split the header on every comma and gave each entry its own sub-parse — perfectly reasonable for four entries. Fed a one-megabyte header that is nothing but a million commas, the same code did a million allocations and burned tens of milliseconds of CPU, per request, before serving anything.
+Now combine that with the header we just called mandatory. `Vary: Accept` puts an attacker-controlled value into the CDN cache key, so appending a junk quality value — `;q=0.900001`, `;q=0.900002` — guarantees a miss on every request and sends 100% of a flood straight to origin. On a shared edge, that is one tenant's crafted header degrading every tenant on the node. The header that makes negotiation correct is the header that makes the amplification reliable.
 
-Now combine that with the header we just told you is mandatory. `Vary: Accept` puts an attacker-controlled value into the CDN cache key. So an attacker can append a junk quality value — `;q=0.900001`, `;q=0.900002`, and so on — and guarantee a cache miss on every single request, sending 100% of a flood straight to origin. On a shared, multi-tenant edge, that is one tenant's crafted header degrading every tenant on the node. The `Vary` header that makes negotiation correct is the same header that makes this amplification reliable.
+The fix is boring, which is how you want security fixes. Cap the header length well below the default, cap the entries parsed, and bound the split *before* it allocates rather than after. An oversized header is treated as if no preference was sent — which per the spec means "anything is acceptable," so the client still gets a valid page.
 
-The fix is boring, which is how you want security fixes to be. Cap the header length well below the default (a legitimate `Accept` header is a few hundred bytes), cap the number of entries parsed (real ones have fewer than a dozen), and bound the split *before* it allocates rather than after. An oversized header is treated as if no preference was sent at all — which, per the spec, means "anything is acceptable," so the client still gets a valid page. We also set an explicit maximum header size on the edge, below the language default, which additionally caps the HTTP/2 header-list size that derives from it.
-
-The lesson is not that content negotiation is dangerous. It is that the header you negotiate on is untrusted input on a hot path, and it deserves the same bounds you would put on any other request field. llms.txt sidesteps this only by accident, and trades it for the freshness and discovery problems above.
+The lesson is not that content negotiation is dangerous. It is that the header you negotiate on is untrusted input on a hot path, and deserves the bounds you would put on any other request field. llms.txt sidesteps this only by accident, and trades it for the freshness and discovery problems above.
 
 ## How it works on Stormkit
 
-We built this into Stormkit because we kept hitting the drift problem on our own docs. It is opt-in per environment. With that toggle alone, a page is negotiable exactly when the deployment already contains its markdown twin — `/docs/deploying.md` next to `/docs/deploying` — so negotiation can never invent a URL that does not exist. A client asking for `text/markdown` gets the markdown, a browser gets the HTML, and both responses carry `Vary: Accept` so caches never cross the wires. Ties fall back to HTML, because a client that names both without a preference is a browser, not an agent.
+We built this into Stormkit because we kept hitting the drift problem on our own docs. It is opt-in per environment. With the toggle on, a page is negotiable exactly when the deployment already contains its markdown twin — `/docs/deploying.md` next to `/docs/deploying` — so negotiation can never invent a URL that does not exist. Markdown to whoever asks for it, HTML to browsers, `Vary: Accept` on both so caches never cross the wires. Ties fall back to HTML, because a client that names both without a preference is a browser, not an agent.
 
-The whole thing is one toggle and shipping the `.md` files your build already produces. What you get for it is that those files stop being a second interface. No sidecar index, no per-tool convention — the same URL, answering whoever asks in the format they asked for.
-
-That leaves the obvious gap: a site whose pipeline does not emit markdown gets nothing from any of this until it does. So there is a second toggle for that case. **Convert pages without a .md file** converts the page's own HTML on request, which means a site that was never built to produce markdown can serve it anyway. A twin you publish yourself always wins — conversion only ever fills a gap — and a page that renders in the browser has no prose to convert, so it keeps serving HTML rather than an empty document. Converted pages are cached per deployment, so each one is computed once and can never describe a page that has since changed.
+That leaves the obvious gap: a site whose pipeline does not emit markdown gets nothing until it does. So there is a second toggle, **Convert pages without a .md file**, which converts the page's own HTML on request. A twin you publish yourself always wins — conversion only fills a gap — and a page that renders in the browser has no prose to convert, so it keeps serving HTML rather than an empty document. Converted pages are cached per deployment, computed once, and can never describe a page that has since changed.
 
 Here is the whole setup, end to end, in under a minute:
 
