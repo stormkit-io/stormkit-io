@@ -43,7 +43,7 @@ Same URL. One canonical resource, two representations, and the client picks. No 
 
 It is easy to oversell this, so be precise about what it removes. The markdown still has to exist — in our implementation it is a real file in the deployment, reachable at `/docs/deploying.md` if you ask for it directly. What negotiation abolishes is not the second file but the second *interface*: that file stops being an address anyone has to discover, guess, or agree on a convention for.
 
-Drift is solved by your build, not by any header. If the `.md` is generated from the same source that renders the HTML — the normal case, where markdown is the source and HTML is the artifact — the two cannot disagree. Hand-write both and they will drift, and no header will save you. So the honest claim is narrower than "no second tree": the second tree should be build output, never something a human maintains.
+Drift is solved by your build, not by any header. If the `.md` is generated from the same source that renders the HTML, the two cannot disagree. Hand-write both and they will drift, and no header will save you. So the honest claim is narrower than "no second tree": the second tree should be build output, never something a human maintains.
 
 This is not theoretical any more. When Checkly [tested seven coding agents](https://www.checklyhq.com/blog/state-of-ai-agent-content-negotation/) in February 2026, Claude Code, Cursor, and OpenCode all sent `Accept: text/markdown` when fetching documentation. Codex, Gemini CLI, Copilot, and Windsurf did not — they asked for HTML or sent a generic `*/*`. Three out of seven is not a mandate, but it is three more than were doing it a year ago, and the direction is one-way.
 
