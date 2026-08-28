@@ -76,12 +76,22 @@ body {
 }
 
 #blog-content {
-  line-height: 2;
+  line-height: 1.85;
   letter-spacing: normal;
+  font-size: 1rem;
+}
+
+#blog-content > *:first-child {
+  margin-top: 0;
+}
+
+#blog-content p {
+  margin: 0 0 1.5rem;
 }
 
 #blog-content strong {
   color: #cbc2b4;
+  font-weight: 600;
 }
 
 #blog-content h1 {
@@ -89,7 +99,60 @@ body {
 }
 
 #blog-content h2 {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 1.35rem;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  margin: 3.5rem 0 1.25rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+#blog-content h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 2.5rem 0 0.75rem;
+}
+
+#blog-content h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 2rem 0 0.5rem;
+  color: #cbc2b4;
+}
+
+#blog-content ul,
+#blog-content ol {
+  margin: 0 0 1.5rem;
+  padding-left: 1.35rem;
+}
+
+#blog-content li {
+  margin-bottom: 0.5rem;
+  padding-left: 0.25rem;
+}
+
+#blog-content li::marker {
+  color: rgba(226, 174, 90, 0.7);
+}
+
+#blog-content blockquote {
+  margin: 2rem 0;
+  padding: 0.25rem 0 0.25rem 1.25rem;
+  border-left: 3px solid rgba(226, 174, 90, 0.5);
+  color: rgba(255, 255, 255, 0.75);
+  font-style: normal;
+}
+
+#blog-content blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+#blog-content hr {
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin: 3rem 0;
 }
 
 #blog-content img {
@@ -112,40 +175,48 @@ body {
     0px 3px 4px 0px rgba(0, 0, 0, 0.14), 0px 1px 8px 0px rgba(0, 0, 0, 0.12);
 }
 
-#blog-content table th {
-  padding: 1rem;
+/* Video embeds are authored with the width/height attributes YouTube's share
+   dialog produces. Overriding both with an aspect ratio makes them fill the
+   column and scale on narrow screens, so a post never has to hand-tune them. */
+#blog-content iframe {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  margin: 2rem 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.5rem;
   background-color: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.025);
-}
-
-#blog-content table td {
-  background-color: rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.025);
-  padding: 1rem;
-}
-
-#blog-content table td:first-of-type {
-  width: 1%;
-  white-space: nowrap;
 }
 
 #blog-content table {
   border-collapse: collapse;
   width: 100%;
-  margin-top: 2rem;
-  margin-bottom: 2rem;
+  margin: 2rem 0;
+  font-size: 0.9rem;
 }
 
 #blog-content table th {
-  padding: 1rem;
+  padding: 0.75rem 1rem;
   background-color: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
 }
 
 #blog-content table td {
   background-color: rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.025);
-  padding: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 0.75rem 1rem;
+  vertical-align: top;
+}
+
+#blog-content table tr:hover td {
+  background-color: rgba(255, 255, 255, 0.02);
 }
 
 #blog-content table td:first-of-type {
@@ -156,17 +227,42 @@ body {
 #blog-content a {
   color: #e2ae5a;
   text-decoration: none;
+  border-bottom: 1px solid rgba(226, 174, 90, 0.3);
 }
 
 #blog-content a:hover {
-  text-decoration: underline;
+  border-bottom-color: #e2ae5a;
 }
 
-#blog-content code,
+/* Inline code sits inside running prose, so it gets a chip. The descendant
+   rules below opt code blocks back out — a <code> inside a <pre> is the block
+   itself and Prism paints it. */
+#blog-content code {
+  background-color: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 0.25rem;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.85em;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
 #blog-content pre {
-  max-width: calc(100vw - 2rem);
+  max-width: 100%;
   overflow-x: auto;
   font-size: 0.8rem;
+  line-height: 1.7;
+  margin: 1.75rem 0;
+  padding: 1rem 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.5rem;
+}
+
+#blog-content pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: inherit;
 }
 
 #blog-content li code {

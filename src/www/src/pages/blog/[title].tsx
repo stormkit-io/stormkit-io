@@ -94,7 +94,7 @@ export default function BlogContent() {
                   overflow: 'auto',
                   display: 'block',
                 },
-                '& iframe, & video': {
+                '& video': {
                   maxWidth: '100%',
                   height: 'auto',
                 },
