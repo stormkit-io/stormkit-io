@@ -13,6 +13,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -31,6 +32,8 @@ func (s *HandleAppInsertSuite) BeforeTest(suiteName, _ string) {
 	s.conn = databasetest.InitTx(suiteName)
 	s.Factory = factory.New(s.conn)
 	admin.SetMockLicense()
+	// Local-repo provider is dev-only; the suite asserts it is offered.
+	config.SetIsStormkitCloud(false)
 }
 
 func (s *HandleAppInsertSuite) AfterTest(_, _ string) {
@@ -186,7 +189,7 @@ func (s *HandleAppInsertSuite) Test_InvalidRepoProvider() {
 		},
 	)
 
-	expected := `{"errors":{"provider":"The provider can only be github, gitlab or bitbucket."}}`
+	expected := `{"errors":{"provider":"The provider can only be github, gitlab, bitbucket or local."}}`
 	s.Equal(http.StatusBadRequest, response.Code)
 	s.Equal(expected, response.String())
 

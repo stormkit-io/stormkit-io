@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -14,6 +15,8 @@ type ValidatorsSuite struct {
 
 func (s *ValidatorsSuite) SetupTest() {
 	s.v = &publicapiv1.Validators{}
+	// Ensure local repos are accepted by NormalizeRepo (dev-only feature).
+	config.SetIsStormkitCloud(false)
 }
 
 func (s *ValidatorsSuite) Test_ToInt_Empty_ReturnsZero() {
@@ -96,6 +99,26 @@ func (s *ValidatorsSuite) Test_NormalizeRepo_InvalidPrefix() {
 
 func (s *ValidatorsSuite) Test_NormalizeRepo_NoSlash() {
 	_, ok := s.v.NormalizeRepo("myrepo")
+	s.False(ok)
+}
+
+func (s *ValidatorsSuite) Test_NormalizeRepo_FileURL() {
+	normalized, ok := s.v.NormalizeRepo("file:///srv/repos/foo")
+	s.True(ok)
+	s.Equal("local/srv/repos/foo", normalized)
+}
+
+func (s *ValidatorsSuite) Test_NormalizeRepo_LocalPrefix() {
+	normalized, ok := s.v.NormalizeRepo("local/srv/repos/foo")
+	s.True(ok)
+	s.Equal("local/srv/repos/foo", normalized)
+}
+
+func (s *ValidatorsSuite) Test_NormalizeRepo_FileURL_RejectedOutsideDev() {
+	config.SetIsStormkitCloud(true)
+	defer config.SetIsStormkitCloud(false)
+
+	_, ok := s.v.NormalizeRepo("file:///srv/repos/foo")
 	s.False(ok)
 }
 

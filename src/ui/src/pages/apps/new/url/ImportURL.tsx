@@ -30,19 +30,29 @@ export default function ImportURL() {
 
     try {
       const parsed = new URL(importUrl);
-      repoName = parsed.pathname.replace(/^\/+/, "").replace(".git", "");
-      provider = parsed.hostname.includes("github")
-        ? "github"
-        : parsed.hostname.includes("gitlab")
-          ? "gitlab"
-          : parsed.hostname.includes("bitbucket")
-            ? "bitbucket"
-            : undefined;
+
+      if (parsed.protocol === "file:") {
+        const path = parsed.pathname.replace(/^\/+/, "").replace(/\/$/, "");
+
+        if (path) {
+          provider = "local";
+          repoName = path;
+        }
+      } else {
+        repoName = parsed.pathname.replace(/^\/+/, "").replace(".git", "");
+        provider = parsed.hostname.includes("github")
+          ? "github"
+          : parsed.hostname.includes("gitlab")
+            ? "gitlab"
+            : parsed.hostname.includes("bitbucket")
+              ? "bitbucket"
+              : undefined;
+      }
     } catch {}
 
     if (!provider || !repoName) {
       return setError(
-        "Make sure to import the repository from one these providers: GitLab, GitHub, Bitbucket.",
+        "Make sure to import the repository from one these providers: GitLab, GitHub, Bitbucket, or a local file:// path.",
       );
     }
 
@@ -50,7 +60,7 @@ export default function ImportURL() {
     setError(undefined);
 
     insertRepo({
-      provider: "github",
+      provider,
       repo: repoName,
       teamId: team?.id,
     })
@@ -80,7 +90,7 @@ export default function ImportURL() {
           color="info"
           variant="filled"
           label="Where can we find the repository?"
-          placeholder="https://github.com/stormkit-io/marketplace-feedback-form"
+          placeholder="https://github.com/stormkit-io/marketplace-feedback-form or file:///path/to/repo"
           fullWidth
           autoComplete="off"
           value={importUrl}

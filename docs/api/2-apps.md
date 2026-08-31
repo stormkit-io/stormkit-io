@@ -24,8 +24,8 @@ Creates a new application and links it to a source-code repository.
 | Field         | Type   | Required | Description                                                                                                                                                       |
 | ------------- | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `teamId`      | string | No       | ID of the team to create the application under. Required when using a user-level API key; ignored when using a team-level key (the team is derived from the key). |
-| `repo`        | string | No       | Repository path in `owner/slug` format (e.g. `acme/my-app`). Omit to create a bare application.                                                                   |
-| `provider`    | string | No       | Source-code provider. One of `github`, `gitlab`, `bitbucket`. Required when `repo` is set.                                                                        |
+| `repo`        | string | No       | Repository reference. Accepts a full URL (e.g. `https://github.com/acme/my-app`, `file:///srv/repos/my-app`), a Stormkit-style path (e.g. `github/acme/my-app`, `local/srv/repos/my-app`), or a bare `owner/slug` (paired with `provider`). Omit to create a bare application. |
+| `provider`    | string | No       | Source-code provider. One of `github`, `gitlab`, `bitbucket`, `local`. Only required when `repo` is a bare `owner/slug` — when `repo` is a full URL or carries a provider prefix, this field is ignored. |
 | `displayName` | string | No       | Human-readable application name. Must contain only alphanumeric characters, hyphens, and underscores, with no consecutive hyphens. Auto-generated when omitted.   |
 
 ### Response — 200 OK
@@ -40,7 +40,7 @@ Creates a new application and links it to a source-code repository.
 | -------------- | ------- | ----------------------------------------------------------------------------------- |
 | `id`           | string  | Unique application ID.                                                              |
 | `displayName`  | string  | Human-readable name of the application.                                             |
-| `repo`         | string  | Repository path (e.g. `github/acme/my-app`). Empty when `isBare` is `true`.         |
+| `repo`         | string  | Repository reference (e.g. `github/acme/my-app`, or `file:///srv/repos/my-app` for local repos). Empty when `isBare` is `true`. |
 | `isBare`       | boolean | `true` when no repository is linked.                                                |
 | `userId`       | string  | ID of the user who owns the application.                                            |
 | `teamId`       | string  | ID of the team the application belongs to.                                          |
@@ -58,7 +58,25 @@ Creates a new application and links it to a source-code repository.
 ### Examples
 
 ```bash
-# Create an app linked to a GitHub repository
+# Create an app linked to a GitHub repository (full URL — provider derived)
+curl -X POST \
+     -H 'Authorization: <team_api_key>' \
+     -H 'Content-Type: application/json' \
+     -d '{"repo":"https://github.com/acme/my-app"}' \
+     'https://api.stormkit.io/v1/app'
+```
+
+```bash
+# Create an app from a local repository on the deployment host
+curl -X POST \
+     -H 'Authorization: <team_api_key>' \
+     -H 'Content-Type: application/json' \
+     -d '{"repo":"file:///srv/repos/my-app"}' \
+     'https://api.stormkit.io/v1/app'
+```
+
+```bash
+# Bare owner/slug — provider must be supplied explicitly
 curl -X POST \
      -H 'Authorization: <team_api_key>' \
      -H 'Content-Type: application/json' \
@@ -96,6 +114,7 @@ curl -X POST \
 - After creating the app, use `GET /v1/app` with the returned `id` to poll for the `defaultEnvId` once the first environment has been provisioned.
 - For **GitHub**, the GitHub App must be installed on the target account/organisation before deployments can access the repository. If the repository does not appear when deploying, go to **Home → Create New App → Import From GitHub → Connect more repositories** to grant Stormkit access to additional repos.
 - For **GitLab** and **Bitbucket**, an OAuth token for the account must be connected via the Stormkit UI before deployments can clone the repository.
+- For **local** repositories (`file://`), the absolute path must exist on the **deployment host**'s filesystem and be readable by the Stormkit runner. No OAuth or credentials are required. Intended for self-hosted and development setups.
 
 ---
 
@@ -113,7 +132,7 @@ Returns a paginated list of applications belonging to the authenticated user.
 | ------------- | ------ | -------- | ------- | ----------------------------------------------------------------------------- |
 | `teamId`      | number | **Yes**  | —       | ID of the team to scope results to. The API key owner must be a member.       |
 | `from`        | number | No       | `0`     | Pagination offset. Must be ≥ 0.                                               |
-| `repo`        | string | No       | —       | Exact case-insensitive match on the repository path (e.g. `github/org/repo`). |
+| `repo`        | string | No       | —       | Exact case-insensitive match on the repository path. Accepts the same forms as `POST /v1/app` — e.g. `github/org/repo`, `https://github.com/org/repo`, or `file:///abs/path` for local repos. |
 | `displayName` | string | No       | —       | Exact case-insensitive match on the application display name.                 |
 
 > `repo` and `displayName` can be combined and are applied as AND conditions.
@@ -131,7 +150,7 @@ Returns a paginated list of applications belonging to the authenticated user.
 | -------------- | ------- | ----------------------------------------------------------------------------------- |
 | `id`           | string  | Unique application ID. Use this as `appId` in other endpoints.                      |
 | `displayName`  | string  | Human-readable name of the application.                                             |
-| `repo`         | string  | Repository path (e.g. `github/org/repo`). Empty when `isBare` is `true`.            |
+| `repo`         | string  | Repository reference (e.g. `github/org/repo`, or `file:///abs/path` for local repos). Empty when `isBare` is `true`. |
 | `isBare`       | boolean | `true` when no repository is linked.                                                |
 | `userId`       | string  | ID of the user who owns the application.                                            |
 | `teamId`       | string  | ID of the team the application belongs to.                                          |
@@ -225,7 +244,7 @@ Returns a single application. This is also an alias for `GET /v1/app` with an ap
 | -------------- | ------- | ----------------------------------------------------------------------------------- |
 | `id`           | string  | Unique application ID.                                                              |
 | `displayName`  | string  | Human-readable name of the application.                                             |
-| `repo`         | string  | Repository path (e.g. `github/org/repo`). Empty when `isBare` is `true`.            |
+| `repo`         | string  | Repository reference (e.g. `github/org/repo`, or `file:///abs/path` for local repos). Empty when `isBare` is `true`. |
 | `isBare`       | boolean | `true` when no repository is linked.                                                |
 | `userId`       | string  | ID of the user who owns the application.                                            |
 | `teamId`       | string  | ID of the team the application belongs to.                                          |

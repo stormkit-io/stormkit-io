@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
 type Validators struct{}
@@ -33,6 +36,18 @@ func (v *Validators) ToInt(raw, paramName string) (int, error) {
 func (v *Validators) NormalizeRepo(repo string) (string, bool) {
 	if repo == "" {
 		return "", true
+	}
+
+	// Accept `file://` URLs and stormkit-style references uniformly:
+	// derive the canonical "<provider>/<path>" storage form. Only enabled
+	// in development — `local` repos are a dev convenience and must not be
+	// reachable on Cloud or self-hosted deployments.
+	if config.IsDevelopment() {
+		if provider, slug := utils.ParseRepoWithProvider(repo); provider != "" && slug != "" {
+			if provider == "local" {
+				return provider + "/" + slug, true
+			}
+		}
 	}
 
 	normalized := strings.ToLower(repo)

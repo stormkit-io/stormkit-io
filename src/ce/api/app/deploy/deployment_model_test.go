@@ -83,6 +83,9 @@ func (s *DeploymentModelSuite) Test_RepoCloneURL() {
 
 	d.CheckoutRepo = "github/stormkit-js/test.github.io"
 	s.Equal("https://github.com/stormkit-js/test.github.io.git", d.RepoCloneURL())
+
+	d.CheckoutRepo = "local/srv/repos/foo"
+	s.Equal("file:///srv/repos/foo", d.RepoCloneURL())
 }
 
 func (s *DeploymentModelSuite) Test_DeploymentLogs_StillRunningButLogsFinished() {

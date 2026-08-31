@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/bitbucket"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/github"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/gitlab"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/local"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/model"
@@ -100,21 +100,6 @@ type MyApp struct {
 	*App
 }
 
-// MyAppJSON is a wrapper around myapp to avoid recursion.
-type MyAppJSON MyApp
-
-// MarshalJSON implements the marshaler interface.
-func (ma MyApp) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		MyAppJSON
-		Endpoint   string `json:"endpoint"`
-		AutoDeploy string `json:"autoDeploy,omitempty"`
-	}{
-		MyAppJSON:  MyAppJSON(ma),
-		AutoDeploy: ma.AutoDeploy.ValueOrZero(),
-	})
-}
-
 // New creates a new app instance.
 func New(uid types.ID) *App {
 	secret, _ := utils.Encrypt([]byte(utils.RandomToken(32)))
@@ -158,11 +143,20 @@ func (a *App) PrivateKey(ctx context.Context) *utils.PrivateKey {
 
 // JSON returns a map that is ready to be sent to the frontend.
 func (a *App) JSON() map[string]any {
+	repo := a.Repo
+
+	// Local repos are stored as "local/<path>" internally; expose them
+	// as their `file://` URL form on the API so callers see a value they
+	// can round-trip back into POST /v1/app.
+	if a.IsLocal() {
+		repo = local.CloneURL(a.Repo)
+	}
+
 	return map[string]any{
 		"id":           a.ID.String(),
 		"userId":       a.UserID.String(),
 		"teamId":       a.TeamID.String(),
-		"repo":         a.Repo,
+		"repo":         repo,
 		"isBare":       a.Repo == "",
 		"displayName":  a.DisplayName,
 		"defaultEnvId": a.DefaultEnvID.String(),
@@ -175,6 +169,11 @@ func (a *App) IsGithub() bool {
 	return strings.HasPrefix(a.Repo, "github")
 }
 
+// IsLocal returns true if the application repository is a local file:// path.
+func (a *App) IsLocal() bool {
+	return local.IsLocal(a.Repo)
+}
+
 // DefaultBranch returns the default branch of the repository.
 func (a *App) DefaultBranch() (db string) {
 	if a.defaultBranch != "" {
@@ -182,6 +181,11 @@ func (a *App) DefaultBranch() (db string) {
 	}
 
 	var err error
+
+	if a.IsLocal() {
+		db, _ = local.DefaultBranch(a.Repo)
+		return db
+	}
 
 	if strings.HasPrefix(a.Repo, "github/") {
 		db, err = github.DefaultBranch(a.Repo)
@@ -213,6 +217,11 @@ func (a *App) GitCreds(ctx context.Context) (string, error) {
 	// TODO: mock these
 	if config.IsTest() {
 		return "some-token", nil
+	}
+
+	// Local file:// repos need no credentials.
+	if a.IsLocal() {
+		return "", nil
 	}
 
 	// For bitbucket we're gonna use the access key
@@ -292,8 +301,11 @@ func (a *App) Validate() *shttperr.ValidationError {
 		isBitbucket := strings.HasPrefix(a.Repo, "bitbucket/")
 		isGithub := strings.HasPrefix(a.Repo, "github/")
 		isGitlab := strings.HasPrefix(a.Repo, "gitlab/")
+		isLocal := local.IsLocal(a.Repo)
 
-		if !isBitbucket && !isGithub && !isGitlab {
+		if isLocal && !config.IsDevelopment() {
+			err.SetError("repo", ErrRepoInvalidProvider.Error())
+		} else if !isBitbucket && !isGithub && !isGitlab && !isLocal {
 			err.SetError("repo", ErrRepoInvalidProvider.Error())
 		}
 	}
@@ -362,8 +374,12 @@ func Validate(a *App) []string {
 			rest = strings.TrimPrefix(a.Repo, "gitlab/")
 		case strings.HasPrefix(a.Repo, "bitbucket/"):
 			rest = strings.TrimPrefix(a.Repo, "bitbucket/")
+		case a.IsLocal():
+			if local.Path(a.Repo) == "/" {
+				errs = append(errs, "Repo is invalid. Local repo path is empty.")
+			}
 		default:
-			errs = append(errs, "Provider is not supported. Supported providers are Github, Bitbucket and Gitlab.")
+			errs = append(errs, "Provider is not supported. Supported providers are Github, Bitbucket, Gitlab and Local.")
 		}
 
 		if rest != "" {
