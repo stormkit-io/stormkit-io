@@ -36,16 +36,16 @@ func (s *Store) RemoveOldLogs(ctx context.Context) error {
 	return err
 }
 
-// RemoveOldAnalyticsParams configures a single batched deletion of raw
-// analytics rows older than the retention window.
-type RemoveOldAnalyticsParams struct {
+// RemoveOldRowsParams configures a single batched deletion of rows older than
+// the retention window.
+type RemoveOldRowsParams struct {
 	RetentionDays int
 	BatchSize     int
 }
 
 // RemoveOldAnalytics deletes up to BatchSize raw analytics rows older than
 // RetentionDays and returns the number of rows removed.
-func (s *Store) RemoveOldAnalytics(ctx context.Context, p RemoveOldAnalyticsParams) (int64, error) {
+func (s *Store) RemoveOldAnalytics(ctx context.Context, p RemoveOldRowsParams) (int64, error) {
 	res, err := s.Exec(ctx, stmt.removeOldAnalytics, p.RetentionDays, p.BatchSize)
 
 	if err != nil {
@@ -57,8 +57,20 @@ func (s *Store) RemoveOldAnalytics(ctx context.Context, p RemoveOldAnalyticsPara
 
 // RemoveOldAnalyticsEvents deletes up to BatchSize raw custom-event rows older
 // than RetentionDays and returns the number of rows removed.
-func (s *Store) RemoveOldAnalyticsEvents(ctx context.Context, p RemoveOldAnalyticsParams) (int64, error) {
+func (s *Store) RemoveOldAnalyticsEvents(ctx context.Context, p RemoveOldRowsParams) (int64, error) {
 	res, err := s.Exec(ctx, stmt.removeOldAnalyticsEvents, p.RetentionDays, p.BatchSize)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return res.RowsAffected()
+}
+
+// RemoveOldTriggerLogs deletes up to BatchSize function trigger log rows older
+// than RetentionDays and returns the number of rows removed.
+func (s *Store) RemoveOldTriggerLogs(ctx context.Context, p RemoveOldRowsParams) (int64, error) {
+	res, err := s.Exec(ctx, stmt.removeOldTriggerLogs, p.RetentionDays, p.BatchSize)
 
 	if err != nil {
 		return 0, err
