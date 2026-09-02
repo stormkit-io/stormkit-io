@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/nixstore"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils/nixstore/nixstoretest"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/sys"
 	"github.com/stormkit-io/stormkit-io/src/mocks"
 	"github.com/stretchr/testify/suite"
@@ -25,7 +26,7 @@ func (s *NixStoreSuite) BeforeTest(_, _ string) {
 	s.mockCommand = &mocks.CommandInterface{}
 	sys.DefaultCommand = s.mockCommand
 	nixstore.DefaultPath = s.T().TempDir()
-	s.restore = nixstore.SetLookPath(true)
+	s.restore = nixstoretest.StubLookPath(true)
 }
 
 func (s *NixStoreSuite) AfterTest(_, _ string) {
@@ -40,7 +41,7 @@ func (s *NixStoreSuite) Test_Available() {
 
 func (s *NixStoreSuite) Test_Available_WithoutNixBinary() {
 	s.restore()
-	s.restore = nixstore.SetLookPath(false)
+	s.restore = nixstoretest.StubLookPath(false)
 
 	s.False(nixstore.Available())
 }
@@ -96,7 +97,7 @@ func (s *NixStoreSuite) Test_CollectGarbage_DefaultsRetention() {
 // images that never install it.
 func (s *NixStoreSuite) Test_CollectGarbage_WithoutNix() {
 	s.restore()
-	s.restore = nixstore.SetLookPath(false)
+	s.restore = nixstoretest.StubLookPath(false)
 
 	s.NoError(nixstore.CollectGarbage(context.Background(), nixstore.CollectGarbageParams{}))
 	s.mockCommand.AssertNotCalled(s.T(), "Run")

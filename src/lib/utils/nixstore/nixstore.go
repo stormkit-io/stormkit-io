@@ -17,8 +17,9 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/sys"
 )
 
-// lookPath is a variable so tests can simulate a container with or without Nix.
-var lookPath = exec.LookPath
+// LookPath resolves a binary on PATH. It is a variable so tests, in this
+// package and in callers, can simulate a container with or without Nix.
+var LookPath = exec.LookPath
 
 // DefaultPath is where the Nix store lives inside Stormkit containers.
 // It is a variable so tests can point it at a temporary directory.
@@ -45,7 +46,7 @@ func Available() bool {
 		return false
 	}
 
-	_, err := lookPath("nix-collect-garbage")
+	_, err := LookPath("nix-collect-garbage")
 
 	return err == nil
 }
