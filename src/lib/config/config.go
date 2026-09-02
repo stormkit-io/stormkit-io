@@ -36,6 +36,11 @@ const (
 
 	// Deployer services
 	DeployerServiceLocal = "local"
+
+	// MaxRepoSizeEnvVar overrides the runner's checkout size cap, in megabytes.
+	// It lives here rather than in the runner package so the deployer can
+	// forward it without importing the runner, which imports the deployer.
+	MaxRepoSizeEnvVar = "STORMKIT_MAX_REPO_SIZE_MB"
 )
 
 // Allowed environments

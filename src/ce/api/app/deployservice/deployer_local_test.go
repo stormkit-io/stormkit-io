@@ -27,6 +27,11 @@ type DeployerLocalSuite struct {
 }
 
 func (s *DeployerLocalSuite) SetupTest() {
+	// runService forwards this when it is set, which would break the exact
+	// Env match below on a host that exports it.
+	s.T().Setenv(config.MaxRepoSizeEnvVar, "")
+	s.NoError(os.Unsetenv(config.MaxRepoSizeEnvVar))
+
 	s.conn = databasetest.InitTx("deployer_local_suite")
 	s.mockDeploymentID = "13051616"
 	s.mockExecutable = "mock/path"

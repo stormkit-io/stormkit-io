@@ -101,18 +101,26 @@ func (ls *localService) runService(args SendPayloadArgs) error {
 		},
 	})
 
+	// The runner reads its checkout cap from the environment, so it has to
+	// survive the whitelist below rather than be stripped with everything else.
+	var env []string
+
+	if v := os.Getenv(config.MaxRepoSizeEnvVar); v != "" {
+		env = append(env, fmt.Sprintf("%s=%s", config.MaxRepoSizeEnvVar, v))
+	}
+
 	cmd := sys.Command(context.Background(), sys.CommandOpts{
 		Name:   ls.executable,
 		Args:   []string{"--payload", string(msg)},
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
-		Env: []string{
+		Env: append(env, []string{
 			fmt.Sprintf("PATH=%s", os.Getenv("PATH")),
 			fmt.Sprintf("HOME=%s", os.Getenv("HOME")),
 			fmt.Sprintf("STORMKIT_DEPLOYER_DIR=%s", deployerDir),
 			fmt.Sprintf("STORMKIT_DEPLOYER_SERVICE=%s", config.DeployerServiceLocal),
 			fmt.Sprintf("STORMKIT_APP_SECRET=%s", config.AppSecret()),
-		},
+		}...),
 	})
 
 	return cmd.Run()
