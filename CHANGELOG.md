@@ -1,5 +1,26 @@
 # Changelog
 
+## v2026.08.27.1...v2026.09.02.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.08.27.1...v2026.09.02.1)
+
+### 🚀 Enhancements
+
+- Cap cloud repo checkouts at 1gb ([#503](https://github.com/stormkit-io/stormkit-io/pull/503))
+
+### 📖 Documentation
+
+- Why we joined the content negotiation camp ([#485](https://github.com/stormkit-io/stormkit-io/pull/485))
+- Token cost table and blog design refresh ([#502](https://github.com/stormkit-io/stormkit-io/pull/502))
+
+### 🏡 Chore
+
+- Update changelog for v2026.08.27.1 ([#501](https://github.com/stormkit-io/stormkit-io/pull/501))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.08.25.1...v2026.08.27.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.08.25.1...v2026.08.27.1)
