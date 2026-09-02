@@ -104,7 +104,6 @@ func (s *RepoSuite) Test_Checkout_Github() {
 			"--depth", "1",
 			"--progress",
 			"--single-branch",
-			"--no-checkout",
 			"--branch", "main",
 			s.config.Repo.Dir,
 		},
@@ -112,17 +111,7 @@ func (s *RepoSuite) Test_Checkout_Github() {
 		Dir:    s.config.WorkDir,
 		Stderr: s.config.Reporter.File(),
 		Stdout: s.config.Reporter.File(),
-	}).Return(s.mockCmd).Once()
-
-	// The working tree is populated separately now that the clone skips it.
-	s.mockCmd.On("SetOpts", sys.CommandOpts{
-		Name:   "git",
-		Args:   []string{"checkout", "-f", "HEAD"},
-		Dir:    s.config.Repo.Dir,
-		Env:    runner.PrepareEnvVars(map[string]string{"SK_BRANCH_NAME": "main"}),
-		Stderr: s.config.Reporter.File(),
-		Stdout: s.config.Reporter.File(),
-	}).Return(s.mockCmd).Once()
+	}).Return(s.mockCmd)
 
 	s.mockCmd.On("Run").Return(nil, nil)
 

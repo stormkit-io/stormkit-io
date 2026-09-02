@@ -175,6 +175,16 @@ func (a *App) IsGithub() bool {
 	return strings.HasPrefix(a.Repo, "github")
 }
 
+// IsGitlab returns true if the application repository is hosted on GitLab.
+func (a *App) IsGitlab() bool {
+	return strings.HasPrefix(a.Repo, "gitlab")
+}
+
+// IsBitbucket returns true if the application repository is hosted on Bitbucket.
+func (a *App) IsBitbucket() bool {
+	return strings.HasPrefix(a.Repo, "bitbucket")
+}
+
 // DefaultBranch returns the default branch of the repository.
 func (a *App) DefaultBranch() (db string) {
 	if a.defaultBranch != "" {
