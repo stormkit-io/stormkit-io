@@ -230,3 +230,37 @@ func githubAppToken() (string, error) {
 
 	return token.SignedString(key)
 }
+
+// RepoSize returns the size of the repository in bytes, as reported by GitHub.
+// The number covers the git repository only: it is the packed, full-history
+// size and excludes release assets and LFS objects.
+func RepoSize(repo string) (int64, error) {
+	client, err := NewApp(repo)
+
+	if err != nil {
+		return 0, err
+	}
+
+	owner, name := oauth.ParseRepo(repo)
+	ghClient := github.NewClient(nil)
+
+	// A public repository deploys without the app installed, in which case
+	// NewApp yields nothing and the anonymous client can still read the size.
+	if client != nil {
+		owner, name = client.Owner, client.Repo
+		ghClient = client.Client
+	}
+
+	ghRepo, res, err := ghClient.Repositories.Get(context.Background(), owner, name)
+
+	if res != nil && res.StatusCode == http.StatusNotFound {
+		return 0, oauth.ErrRepoNotFound
+	}
+
+	if err != nil || ghRepo == nil {
+		return 0, err
+	}
+
+	// GitHub reports kilobytes.
+	return int64(ghRepo.GetSize()) * 1024, nil
+}

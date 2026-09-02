@@ -4,6 +4,7 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -36,6 +37,10 @@ const (
 
 	// Deployer services
 	DeployerServiceLocal = "local"
+
+	// MaxRepoSizeEnvVar overrides the largest repository a deployment accepts,
+	// in megabytes.
+	MaxRepoSizeEnvVar = "STORMKIT_MAX_REPO_SIZE_MB"
 )
 
 // Allowed environments
@@ -564,6 +569,18 @@ func IsStormkitCloud() bool {
 
 func IsProduction() bool {
 	return IsStormkitCloud() || IsSelfHosted()
+}
+
+// MaxRepoSizeMB returns the configured repository size cap in megabytes, or 0
+// when the instance is left on the default.
+func MaxRepoSizeMB() int64 {
+	mb, err := strconv.ParseInt(os.Getenv(MaxRepoSizeEnvVar), 10, 64)
+
+	if err != nil || mb <= 0 {
+		return 0
+	}
+
+	return mb
 }
 
 // IsTest returns true when the caller file has a `test` in its name.

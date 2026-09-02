@@ -72,6 +72,13 @@ func (dd *DefaultDeployer) Deploy(ctx context.Context, a *app.App, d *deploy.Dep
 		cacheEnabled = tier == config.PackagePremium || tier == config.PackageUltimate
 	}
 
+	// Rejected here rather than on the build host: the provider already knows
+	// how large the repository is, so an oversized one never occupies a
+	// runner, a slot in the queue, or any bandwidth.
+	if err := (repoSizeChecker{app: a}).check(); err != nil {
+		return err
+	}
+
 	// Get git credentials
 	gitCreds, err := a.GitCreds(ctx)
 
