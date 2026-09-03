@@ -21,6 +21,7 @@ func RegisterListeners() {
 		rediscache.EventInvalidateAdminCache:   invalidateAdminCache,
 		rediscache.EventRuntimesInstall:        admin.InstallDependencies,
 		rediscache.EventMiseUpdate:             mise.AutoUpdate,
+		rediscache.EventDiskCleanup:            admin.CollectNixGarbage,
 	}
 
 	for event, handler := range handlers {

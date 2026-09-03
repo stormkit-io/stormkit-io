@@ -58,11 +58,16 @@ func CollectNixGarbage(ctx context.Context, _ ...string) {
 	})
 }
 
-// StartDiskMaintenance periodically garbage collects the Nix store of the
-// container it runs in. Both hosting and workerserver mount their own /nix
-// volume, and neither can clean up the other's, so each starts its own loop
-// rather than this being a leader-elected workerserver job.
+// StartDiskMaintenance starts this container's disk background work and
+// returns immediately. Both hosting and workerserver mount their own /nix
+// volume, and neither can clean up or measure the other's, so each runs its
+// own loops rather than this being a leader-elected workerserver job.
 func StartDiskMaintenance(ctx context.Context) {
+	go reportDiskUsageLoop(ctx)
+	go collectNixGarbageLoop(ctx)
+}
+
+func collectNixGarbageLoop(ctx context.Context) {
 	if !nixstore.Available() {
 		return
 	}
@@ -81,6 +86,21 @@ func StartDiskMaintenance(ctx context.Context) {
 
 	for {
 		CollectNixGarbage(ctx)
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func reportDiskUsageLoop(ctx context.Context) {
+	ticker := time.NewTicker(diskReportInterval)
+	defer ticker.Stop()
+
+	for {
+		ReportDiskUsage(ctx)
 
 		select {
 		case <-ctx.Done():

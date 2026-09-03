@@ -33,10 +33,12 @@ const (
 	EventInvalidateHostingCache = "cache_invalidate"
 	EventMiseUpdate             = "mise_update"
 	EventRuntimesInstall        = "runtimes_install"
+	EventDiskCleanup            = "disk_cleanup"
 )
 
 const (
 	KEY_RUNTIMES_STATUS = "runtimes_status"
+	KEY_DISK_USAGE      = "disk_usage"
 )
 
 const (

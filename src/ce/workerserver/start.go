@@ -65,6 +65,7 @@ func Server(serverOpts ...ServerOpts) (*asynq.Server, *asynq.ServeMux) {
 		rediscache.EventMiseUpdate:           mise.AutoUpdate,
 		rediscache.EventInvalidateAdminCache: admin.ResetCache,
 		rediscache.EventRuntimesInstall:      admin.InstallDependencies,
+		rediscache.EventDiskCleanup:          admin.CollectNixGarbage,
 	}
 
 	for event, handler := range handlers {
