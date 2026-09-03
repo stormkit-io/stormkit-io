@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.09.02.1...v2026.09.03.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.02.1...v2026.09.03.1)
+
+### 🚀 Enhancements
+
+- Keep the nix store from growing without bound ([#510](https://github.com/stormkit-io/stormkit-io/pull/510))
+
+### 🏡 Chore
+
+- Update changelog for v2026.09.02.1 ([#505](https://github.com/stormkit-io/stormkit-io/pull/505))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.08.27.1...v2026.09.02.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.08.27.1...v2026.09.02.1)
