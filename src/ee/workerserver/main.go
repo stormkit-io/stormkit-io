@@ -32,6 +32,7 @@ func main() {
 	if conn := database.Connection(); conn != nil {
 		migrations.Up(conn, database.Config)
 		go admin.InstallDependencies(context.Background())
+		go admin.StartDiskMaintenance(context.Background())
 	}
 
 	slog.Infof("deployer service: %s", conf.Deployer.Service)
