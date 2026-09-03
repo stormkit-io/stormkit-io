@@ -19,8 +19,10 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/shutdown"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
+	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/file"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils/nixstore"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/sys"
 	"go.uber.org/zap"
 )
@@ -206,18 +208,63 @@ func hasNixFlake(workDir string) bool {
 	return file.Exists(path.Join(workDir, "flake.nix"))
 }
 
+// BuildServerCommandParams describes the service whose command is being built.
+type BuildServerCommandParams struct {
+	Command string
+	WorkDir string
+	AppID   types.ID
+	EnvID   types.ID
+}
+
 // BuildServerCommand wraps command with nix develop when flake.nix is present in workDir,
 // so that all nix-provided libraries are available at runtime.
-func (pm *ProcessManager) BuildServerCommand(command, workDir string) string {
-	if hasNixFlake(workDir) {
-		// Quote the command so it is passed as a single argument to sh -c.
-		// Without quoting, shlex splits multi-word commands (e.g. "node build")
-		// into separate nix --command args, causing sh to run only the first word.
-		quoted := "'" + strings.ReplaceAll(command, "'", `'\''`) + "'"
-		return `nix --extra-experimental-features "nix-command flakes" develop --command sh -c ` + quoted
+//
+// The dev shell is entered through this environment's profile, which roots its
+// packages. A service is killed once it goes idle, and without a root its
+// closure would be collected while it is down: the next request would then wait
+// for the whole toolchain to download again before the server could start.
+func (pm *ProcessManager) BuildServerCommand(p BuildServerCommandParams) string {
+	if !hasNixFlake(p.WorkDir) {
+		return p.Command
 	}
 
-	return command
+	develop := `nix --extra-experimental-features "nix-command flakes" develop`
+
+	if profile := serviceProfile(p.AppID, p.EnvID); profile != "" {
+		develop += ` --profile "` + profile + `"`
+	}
+
+	// Quote the command so it is passed as a single argument to sh -c.
+	// Without quoting, shlex splits multi-word commands (e.g. "node build")
+	// into separate nix --command args, causing sh to run only the first word.
+	quoted := "'" + strings.ReplaceAll(p.Command, "'", `'\''`) + "'"
+
+	return develop + ` --command sh -c ` + quoted
+}
+
+// serviceProfile returns the profile rooting this environment's dev shell, or
+// an empty string when it cannot be created. An unrooted shell still runs; it
+// just risks a cold start after the next collection.
+func serviceProfile(appID, envID types.ID) string {
+	if !nixstore.Available() {
+		return ""
+	}
+
+	profile := nixstore.ProfilePath(nixstore.ProfileParams{
+		AppID: appID.String(),
+		EnvID: envID.String(),
+	})
+
+	if profile == "" {
+		return ""
+	}
+
+	if err := nixstore.EnsureProfilesDir(); err != nil {
+		slog.Errorf("could not create nix profiles directory: %v", err)
+		return ""
+	}
+
+	return profile
 }
 
 // Start starts a new service with the given arguments and working directory.
@@ -299,7 +346,12 @@ func (pm *ProcessManager) Start(ctx context.Context, args *InvokeArgs, workDir s
 		}
 
 		s.cmd = sys.Command(ctx, sys.CommandOpts{
-			String:      pm.BuildServerCommand(args.Command, workDir),
+			String: pm.BuildServerCommand(BuildServerCommandParams{
+				Command: args.Command,
+				WorkDir: workDir,
+				AppID:   args.AppID,
+				EnvID:   args.EnvID,
+			}),
 			Dir:         workDir,
 			Env:         vars,
 			Stdout:      outfile,

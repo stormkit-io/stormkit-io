@@ -101,6 +101,7 @@ func main() {
 		migrations.Up(conn, database.Config)
 		admin.InstallDependencies(context.Background())
 		bootstrap.FromEnv(context.Background())
+		go admin.StartDiskMaintenance(context.Background())
 	}
 
 	// Register redis listeners

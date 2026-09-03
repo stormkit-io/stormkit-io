@@ -9,7 +9,9 @@ import (
 	"strings"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
+	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/mise"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils/nixstore"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/sys"
 )
 
@@ -77,6 +79,8 @@ type Installer struct {
 	runtime            string // The runtime that is going to be used to build the project
 	envVars            map[string]string
 	autoInstall        bool
+	appID              string
+	envID              string
 }
 
 // For testing purposes
@@ -101,6 +105,8 @@ func NewInstaller(opts RunnerOpts) InstallerInterface {
 		isBun:              opts.Repo.IsBun,
 		runtime:            opts.Repo.Runtime,
 		autoInstall:        opts.AutoInstall,
+		appID:              opts.Build.AppID,
+		envID:              opts.Build.EnvID,
 	}
 
 	return p
@@ -143,18 +149,61 @@ func (p Installer) RuntimeVersion(ctx context.Context) error {
 	}).Run()
 }
 
+// flakeProfile returns the profile that should root this environment's dev
+// shell, or an empty string when the store cannot be rooted. Building into a
+// profile is what keeps the packages alive between deployments: without one
+// they are unreferenced the moment the build exits, and the next garbage
+// collection takes them.
+func (p *Installer) flakeProfile() string {
+	if !nixstore.Available() {
+		return ""
+	}
+
+	profile := nixstore.ProfilePath(nixstore.ProfileParams{AppID: p.appID, EnvID: p.envID})
+
+	if profile == "" {
+		return ""
+	}
+
+	if err := nixstore.EnsureProfilesDir(); err != nil {
+		slog.Errorf("could not create nix profiles directory: %v", err)
+		return ""
+	}
+
+	return profile
+}
+
 // installFlake pre-builds the nix dev shell so its packages are in the store
 // before the build command runs. The build command itself is wrapped by the
 // builder using `nix develop --command` to get the full shell environment.
 func (p *Installer) installFlake(ctx context.Context, flakeDir string) error {
-	return sys.Command(ctx, sys.CommandOpts{
+	develop := `nix --extra-experimental-features "nix-command flakes" develop`
+	profile := p.flakeProfile()
+
+	if profile != "" {
+		develop += ` --profile "` + profile + `"`
+	}
+
+	err := sys.Command(ctx, sys.CommandOpts{
 		Name:   "sh",
-		Args:   []string{"-c", `nix --extra-experimental-features "nix-command flakes" develop --command true`},
+		Args:   []string{"-c", develop + " --command true"},
 		Dir:    flakeDir,
 		Env:    PrepareEnvVars(p.envVars),
 		Stdout: p.reporter.File(),
 		Stderr: p.reporter.File(),
 	}).Run()
+
+	if err != nil || profile == "" {
+		return err
+	}
+
+	// A profile keeps its previous generations, each rooting the toolchain of
+	// an older deployment. Pruning is not worth failing a successful build for.
+	if err := nixstore.PruneGenerations(ctx, nixstore.PruneGenerationsParams{ProfilePath: profile}); err != nil {
+		slog.Errorf("could not prune nix profile generations: %v", err)
+	}
+
+	return nil
 }
 
 // InstallRuntimeDependencies installs runtime dependencies using mise and flake.nix (if present).
