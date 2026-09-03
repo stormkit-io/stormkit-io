@@ -48,6 +48,7 @@ func (s *HandlerSystemSettingsSuite) Test_Get_Success() {
 	s.Equal(http.StatusOK, resp.Code)
 	s.NoError(json.Unmarshal(resp.Byte(), &data))
 	s.Equal(float64(30), data["artifactRetentionDays"])
+	s.Equal(float64(7), data["nixRetentionDays"])
 }
 
 func (s *HandlerSystemSettingsSuite) Test_Get_Unauthorized_NonAdmin() {

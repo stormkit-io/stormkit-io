@@ -19,6 +19,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/mise"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils/nixstore"
 	"go.uber.org/zap"
 )
 
@@ -76,6 +77,7 @@ type SystemConfig struct {
 	AutoInstall           bool     `json:"autoInstall"`           // Whether to install runtimes automatically or not. Default is true.
 	Runtimes              []string `json:"runtimes"`              // The list of runtimes to install in format <name>@<version>
 	ArtifactRetentionDays int      `json:"artifactRetentionDays"` // Number of days to retain deployment artifacts. Default is 30.
+	NixRetentionDays      int      `json:"nixRetentionDays"`      // Number of days to retain Nix store generations. Default is 7.
 }
 
 type ProxyRule struct {
@@ -604,6 +606,7 @@ func defaultSystemConfig() *SystemConfig {
 		AutoInstall:           true,
 		Runtimes:              []string{},
 		ArtifactRetentionDays: 30,
+		NixRetentionDays:      nixstore.DefaultRetentionDays,
 	}
 
 	// Backwards compatibility: if the NODE_VERSION environment variable is set, we assume
