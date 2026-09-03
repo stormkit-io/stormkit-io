@@ -329,6 +329,12 @@ func Run(opts RunnerOpts) *RunResult {
 
 	slog.Infof("reporting back to %s", opts.Reporter.CallbackURL)
 
+	preflight := diskPreflight{dir: opts.RootDir, reporter: opts.Reporter}
+
+	if err := preflight.check(ctx); err != nil {
+		return &RunResult{opts: opts, err: err}
+	}
+
 	repo := NewRepo(opts)
 
 	var artifacts *Artifacts
