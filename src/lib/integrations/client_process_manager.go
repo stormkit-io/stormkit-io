@@ -68,6 +68,7 @@ type Service struct {
 	mu           sync.Mutex
 	cmd          *exec.Cmd
 	spawnedAt    time.Time // When the process was started; zero until then
+	killedAt     time.Time // When the process was signalled; zero until then
 	killed       bool      // Whether the service has been killed
 	started      bool      // Whether the service has been started
 	reaped       bool      // Whether cmd.Wait has returned for this process
@@ -114,16 +115,12 @@ func (s *Service) nixWrapped() bool {
 }
 
 func (s *Service) Kill() {
-	s.pm.servicesMux.Lock()
-	delete(s.pm.services, s.arn)
-	s.pm.servicesMux.Unlock()
+	s.pm.unregister(s)
 
-	s.pm.portMux.Lock()
-	delete(s.pm.customPortMap, s.port)
-	s.pm.portMux.Unlock()
-
-	s.pm.forget(s)
-
+	// Deliberately still tracked as spawned: the process has only been asked
+	// to stop. It is forgotten once cmd.Wait confirms it is gone, so that a
+	// server which ignores SIGTERM stays visible to ReapOrphans, which
+	// escalates.
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -141,6 +138,13 @@ func (s *Service) Kill() {
 	// reads this under the same lock and gives up when it is set, so a Kill
 	// that lands before the spawn cannot leave a process nobody owns.
 	s.killed = true
+	s.killedAt = time.Now()
+
+	// Nothing was ever spawned, so nothing will be: drop it now, since no
+	// cmd.Wait will run to do it later.
+	if s.cmd == nil {
+		s.pm.forget(s)
+	}
 
 	// The process either has not been spawned yet - in which case the start
 	// goroutine will see killed and never spawn it - or it has already been
@@ -262,6 +266,29 @@ func NewProcessManager() *ProcessManager {
 	return pm
 }
 
+// unregister removes a service from the lookup maps, but only where the maps
+// still point at that exact service. Deleting by ARN and port alone would
+// unregister a live replacement: killing an orphan would evict the healthy
+// service that took its place, which the next sweep would then reap for being
+// unregistered.
+func (pm *ProcessManager) unregister(s *Service) {
+	pm.servicesMux.Lock()
+
+	if pm.services[s.arn] == s {
+		delete(pm.services, s.arn)
+	}
+
+	pm.servicesMux.Unlock()
+
+	pm.portMux.Lock()
+
+	if pm.customPortMap[s.port] == s {
+		delete(pm.customPortMap, s.port)
+	}
+
+	pm.portMux.Unlock()
+}
+
 // track records a service as owning a live process.
 func (pm *ProcessManager) track(s *Service) {
 	pm.spawnedMux.Lock()
@@ -290,6 +317,11 @@ func (pm *ProcessManager) reapOrphansPeriodically() {
 // request or by the idle timer again. Services spawned within grace are left
 // alone, since Invoke registers a service shortly after starting it.
 //
+// It also escalates: a service that was asked to stop more than grace ago and
+// whose process has still not been reaped gets a SIGKILL. Without that, a
+// server that ignores SIGTERM keeps its port for as long as the host lives,
+// which is the failure this whole mechanism exists to prevent.
+//
 // Nothing should end up here: it is the backstop for a service escaping its
 // registration, and for a deployment whose folder is deleted underneath a
 // server that is still running. Each reap is logged as an error because it
@@ -308,12 +340,24 @@ func (pm *ProcessManager) ReapOrphans(grace time.Duration) int {
 
 	for _, s := range candidates {
 		s.mu.Lock()
-		young := s.spawnedAt.IsZero() || time.Since(s.spawnedAt) < grace
-		dead := s.killed || s.reaped
+		spawning := s.spawnedAt.IsZero() || time.Since(s.spawnedAt) < grace
+		killed := s.killed
+		lingering := killed && !s.reaped && !s.killedAt.IsZero() && time.Since(s.killedAt) >= grace
 		pid := s.pid()
+
+		if lingering {
+			slog.Errorf("service ignored the termination signal, force killing, arn: %s, pid: %d", s.arn, pid)
+			s.forceKillProcessGroup()
+		}
+
 		s.mu.Unlock()
 
-		if young || dead {
+		if lingering {
+			reaped++
+			continue
+		}
+
+		if spawning || killed {
 			continue
 		}
 
@@ -608,6 +652,15 @@ func (pm *ProcessManager) startOnce(args *InvokeArgs, workDir string) (*Service,
 	pm.services[args.ARN] = service
 	pm.servicesMux.Unlock()
 
+	// The start goroutine kills the service itself when the command fails to
+	// spawn, and it can do so before we get here. Re-check after registering:
+	// a Kill that ran first leaves nothing to unregister itself, and the entry
+	// would sit in the map handing out warm-up pages until the request after
+	// next evicted it.
+	if service.isKilled() {
+		pm.unregister(service)
+	}
+
 	// Unreachable while the ARN lock is held, kept so that a future caller
 	// that registers a service without it cannot silently leak the one it
 	// replaces.
@@ -827,6 +880,13 @@ func (pm *ProcessManager) waitForPort(port int, timeout time.Duration) error {
 // the request exactly once. Separating port-readiness polling from the HTTP send ensures
 // the streaming body is never consumed on a failed connection attempt.
 func (pm *ProcessManager) requestWithRetry(args InvokeArgs, service *Service) (*InvokeResult, error) {
+	// The service can be killed between the readiness check in Invoke and
+	// this call - by the idle timer, by a replacement, or by the reaper - in
+	// which case there is nothing left to forward the request to.
+	if service == nil {
+		return nil, fmt.Errorf("service %q is no longer running", args.ARN)
+	}
+
 	if err := pm.waitForPort(service.port, 30*time.Second); err != nil {
 		return nil, err
 	}

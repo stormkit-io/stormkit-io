@@ -15,10 +15,22 @@ func init() {
 	})
 }
 
-// killProcessGroup kills the process group associated with the service.
-// On Unix systems, this uses process group IDs (PGID) to kill all child processes.
+// killProcessGroup asks the process group associated with the service to
+// terminate. On Unix systems, this uses process group IDs (PGID) to reach all
+// child processes.
 func (s *Service) killProcessGroup() {
-	if s.cmd.Process == nil {
+	s.signalProcessGroup(syscall.SIGTERM)
+}
+
+// forceKillProcessGroup terminates the process group without giving it a
+// chance to shut down. It is the escalation for a server that ignores, or
+// never finishes handling, the SIGTERM sent by killProcessGroup.
+func (s *Service) forceKillProcessGroup() {
+	s.signalProcessGroup(syscall.SIGKILL)
+}
+
+func (s *Service) signalProcessGroup(sig syscall.Signal) {
+	if s.cmd == nil || s.cmd.Process == nil {
 		return
 	}
 
@@ -26,8 +38,8 @@ func (s *Service) killProcessGroup() {
 
 	// Stop children processes
 	if err == nil {
-		if err := syscall.Kill(-pgid, syscall.SIGTERM); err != nil {
-			slog.Errorf("error while killing process group: %s", err.Error())
+		if err := syscall.Kill(-pgid, sig); err != nil {
+			slog.Errorf("error while signalling process group: %s", err.Error())
 		}
 	}
 }
