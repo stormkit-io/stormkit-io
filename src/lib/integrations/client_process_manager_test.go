@@ -16,7 +16,10 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/html"
 	"github.com/stormkit-io/stormkit-io/src/lib/integrations"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
+	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils/nixstore"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils/nixstore/nixstoretest"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -541,7 +544,11 @@ func (s *ProcessManagerSuite) Test_Invoke_FailedStart_EvictsService() {
 }
 
 func (s *ProcessManagerSuite) Test_BuildServerCommand_WithoutFlake() {
-	cmd := s.pm.BuildServerCommand("node index.js", s.tmpdir)
+	cmd := s.pm.BuildServerCommand(integrations.BuildServerCommandParams{
+		Command: "node index.js",
+		WorkDir: s.tmpdir,
+	})
+
 	s.Equal("node index.js", cmd)
 }
 
@@ -551,7 +558,11 @@ func (s *ProcessManagerSuite) Test_BuildServerCommand_WithFlake() {
 
 	defer os.Remove(flakePath)
 
-	cmd := s.pm.BuildServerCommand("node index.js", s.tmpdir)
+	cmd := s.pm.BuildServerCommand(integrations.BuildServerCommandParams{
+		Command: "node index.js",
+		WorkDir: s.tmpdir,
+	})
+
 	s.Equal(`nix --extra-experimental-features "nix-command flakes" develop --command sh -c 'node index.js'`, cmd)
 }
 
@@ -768,6 +779,36 @@ func (s *ProcessManagerSuite) Test_ReapOrphans_ForceKillsServiceThatIgnoresSigte
 
 	s.GreaterOrEqual(s.pm.ReapOrphans(0), 1)
 	s.waitUntilGone([]int{pid})
+}
+
+// A service that goes idle is killed, so its packages survive a collection only
+// while a profile roots them.
+func (s *ProcessManagerSuite) Test_BuildServerCommand_RootsTheEnvironment() {
+	flakePath := path.Join(s.tmpdir, "flake.nix")
+	s.NoError(os.WriteFile(flakePath, []byte("{}"), 0664))
+
+	defer os.Remove(flakePath)
+
+	originalStore, originalProfiles := nixstore.DefaultPath, nixstore.ProfilesDir
+	nixstore.DefaultPath = s.T().TempDir()
+	nixstore.ProfilesDir = path.Join(s.T().TempDir(), "stormkit")
+	restore := nixstoretest.StubLookPath(true)
+
+	defer func() {
+		nixstore.DefaultPath, nixstore.ProfilesDir = originalStore, originalProfiles
+		restore()
+	}()
+
+	cmd := s.pm.BuildServerCommand(integrations.BuildServerCommandParams{
+		Command: "node index.js",
+		WorkDir: s.tmpdir,
+		AppID:   types.ID(42),
+		EnvID:   types.ID(7),
+	})
+
+	s.Contains(cmd, `--profile "`+path.Join(nixstore.ProfilesDir, "app-42-env-7")+`"`)
+	s.Contains(cmd, `--command sh -c 'node index.js'`)
+	s.DirExists(nixstore.ProfilesDir)
 }
 
 func TestProcessManager(t *testing.T) {

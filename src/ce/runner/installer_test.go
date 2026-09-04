@@ -13,8 +13,11 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/mise"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils/nixstore"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils/nixstore/nixstoretest"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/sys"
 	"github.com/stormkit-io/stormkit-io/src/mocks"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -486,6 +489,72 @@ func (s *InstallerSuite) Test_InstallingRuntimeDeps_WithFlake() {
 	installed, err := p.InstallRuntimeDependencies(ctx)
 	s.NoError(err)
 	s.Equal([]string{"go@1.24"}, installed)
+}
+
+// A flake build must land in this environment's profile. Without that root its
+// packages are unreferenced the moment the build exits, and the next collection
+// deletes them, so the following deployment downloads the toolchain again.
+func (s *InstallerSuite) Test_InstallFlake_BuildsIntoTheEnvironmentProfile() {
+	ctx := context.Background()
+	workDir := s.config.Repo.Dir
+	stdout := s.config.Reporter.File()
+
+	s.NoError(os.WriteFile(path.Join(workDir, "flake.nix"), []byte("{}"), 0776))
+	s.NoError(os.WriteFile(path.Join(workDir, "mise.toml"), []byte(`[tools]\ngo = "1.24"`), 0776))
+
+	originalStore, originalProfiles := nixstore.DefaultPath, nixstore.ProfilesDir
+	nixstore.DefaultPath = s.T().TempDir()
+	nixstore.ProfilesDir = path.Join(s.T().TempDir(), "stormkit")
+	restore := nixstoretest.StubLookPath(true)
+
+	defer func() {
+		nixstore.DefaultPath, nixstore.ProfilesDir = originalStore, originalProfiles
+		restore()
+	}()
+
+	s.mockMise.On("InstallMise", ctx).Return(nil).Once()
+	s.mockMise.On("InstallLocal", ctx, mise.LocalOpts{Dir: workDir, Stdout: stdout, Stderr: stdout}).Return(nil).Once()
+	s.mockMise.On("ListLocal", ctx, mise.LocalOpts{Dir: workDir}).Return([]string{"go@1.24"}, nil).Once()
+	s.mockMise.On("BinPaths", ctx).Return(map[string]string{}, nil).Once()
+
+	s.config.Build.AppID = "12"
+	s.config.Build.EnvID = "34"
+	s.config.Repo.Runtime = "go"
+
+	profile := path.Join(nixstore.ProfilesDir, "app-12-env-34")
+
+	var opts []sys.CommandOpts
+
+	s.mockCmd.On("SetOpts", mock.Anything).Return(s.mockCmd).Run(func(args mock.Arguments) {
+		opts = append(opts, args.Get(0).(sys.CommandOpts))
+	})
+
+	s.mockCmd.On("Run").Return(nil, nil)
+	s.mockCmd.On("CombinedOutput").Return([]byte(""), nil)
+
+	_, err := runner.NewInstaller(s.config).InstallRuntimeDependencies(ctx)
+
+	s.NoError(err)
+
+	var develop, prune *sys.CommandOpts
+
+	for i, opt := range opts {
+		if opt.Name == "sh" && strings.Contains(strings.Join(opt.Args, " "), "nix ") {
+			develop = &opts[i]
+		}
+
+		if opt.Name == "nix-env" {
+			prune = &opts[i]
+		}
+	}
+
+	s.Require().NotNil(develop, "expected the dev shell to be built")
+	s.Contains(develop.Args[1], `--profile "`+profile+`"`)
+
+	// Every deploy adds a generation, and each one roots the toolchain it was
+	// built with; only the newest may survive.
+	s.Require().NotNil(prune, "expected older generations to be pruned")
+	s.Equal([]string{"--profile", profile, "--delete-generations", "+1"}, prune.Args)
 }
 
 func TestInstallerSuite(t *testing.T) {
