@@ -31,6 +31,12 @@ func (s *Service) killProcessGroup() {
 	}
 }
 
+// forceKillProcessGroup terminates the process. Process.Kill is already
+// unconditional on Windows, so there is nothing to escalate to.
+func (s *Service) forceKillProcessGroup() {
+	s.killProcessGroup()
+}
+
 // getSysProcAttr returns the platform-specific process attributes.
 // On Windows, this creates a new process group for better child process management.
 func getSysProcAttr() *syscall.SysProcAttr {

@@ -86,6 +86,92 @@ func (s *ProcessManagerSuite) SetupSuite() {
 		// Make the server listen on the specified port and hostname
 		server.listen(port, hostname);
 	`), 0664))
+
+	// Traps SIGTERM and stays up, the way a server with a graceful shutdown
+	// that never completes would.
+	s.NoError(os.WriteFile(path.Join(s.tmpdir, "index-ignores-sigterm.js"), []byte(`
+		const http = require('http');
+		const fs = require('fs');
+
+		process.on('SIGTERM', () => {});
+
+		fs.appendFileSync(process.env.PID_LOG, process.pid + "\n");
+
+		const server = http.createServer((req, res) => {
+			res.statusCode = 200;
+			res.end('ok');
+		});
+
+		server.listen(process.env.PORT, '127.0.0.1');
+	`), 0664))
+
+	// Appends its own pid to PID_LOG on boot, so a test can count how many
+	// processes a series of invocations actually spawned.
+	s.NoError(os.WriteFile(path.Join(s.tmpdir, "index-pid-log.js"), []byte(`
+		const http = require('http');
+		const fs = require('fs');
+
+		fs.appendFileSync(process.env.PID_LOG, process.pid + "\n");
+
+		const server = http.createServer((req, res) => {
+			res.statusCode = 200;
+			res.end('ok');
+		});
+
+		server.listen(process.env.PORT, '127.0.0.1');
+	`), 0664))
+}
+
+// pidLog creates an empty pid log file and returns its path.
+func (s *ProcessManagerSuite) pidLog(name string) string {
+	logPath := path.Join(s.tmpdir, name)
+
+	s.NoError(os.WriteFile(logPath, []byte{}, 0664))
+
+	return logPath
+}
+
+// spawnedPids returns the pids recorded in the given pid log.
+func (s *ProcessManagerSuite) spawnedPids(logPath string) []int {
+	contents, err := os.ReadFile(logPath)
+
+	s.NoError(err)
+
+	pids := []int{}
+
+	for line := range strings.SplitSeq(strings.TrimSpace(string(contents)), "\n") {
+		if line != "" {
+			pids = append(pids, utils.StringToInt(line))
+		}
+	}
+
+	return pids
+}
+
+// waitUntilGone polls until none of the given pids exist, up to 3 seconds.
+func (s *ProcessManagerSuite) waitUntilGone(pids []int) {
+	deadline := time.Now().Add(3 * time.Second)
+
+	for time.Now().Before(deadline) {
+		alive := false
+
+		for _, pid := range pids {
+			if s.processExists(pid) {
+				alive = true
+				break
+			}
+		}
+
+		if !alive {
+			return
+		}
+
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	for _, pid := range pids {
+		s.False(s.processExists(pid), "process %d should have been terminated", pid)
+	}
 }
 
 func (s *ProcessManagerSuite) TearDownSuite() {
@@ -478,6 +564,221 @@ func (s *ProcessManagerSuite) Test_BuildServerCommand_WithFlake() {
 	})
 
 	s.Equal(`nix --extra-experimental-features "nix-command flakes" develop --command sh -c 'node index.js'`, cmd)
+}
+
+// Two requests arriving for a cold ARN used to spawn a server each. Only one
+// of them ended up in the services map; the other kept running and listening
+// with nothing tracking it, so neither the idle timer nor a later kill could
+// ever reach it.
+func (s *ProcessManagerSuite) Test_Invoke_ConcurrentStart_SpawnsOneProcess() {
+	logPath := s.pidLog("pids-concurrent.log")
+	arn := fmt.Sprintf("local:%s:concurrent_start", path.Join(s.tmpdir, "index-pid-log.js"))
+
+	args := integrations.InvokeArgs{
+		URL:          &url.URL{},
+		ARN:          arn,
+		Method:       shttp.MethodGet,
+		Command:      "node index-pid-log.js",
+		HostName:     "example.org",
+		DeploymentID: 1,
+		EnvVariables: map[string]string{"PID_LOG": logPath},
+	}
+
+	var wg sync.WaitGroup
+
+	for range 8 {
+		wg.Go(func() {
+			s.pm.Invoke(args, s.tmpdir)
+		})
+	}
+
+	wg.Wait()
+
+	result, err := s.invokeWithRetry(args, s.tmpdir)
+	s.NoError(err)
+	s.Equal("ok", string(result.Body))
+
+	pids := s.spawnedPids(logPath)
+	s.Len(pids, 1, "concurrent invocations must spawn exactly one process")
+
+	service := s.pm.GetService(arn)
+	s.Require().NotNil(service)
+	s.Equal(pids[0], service.Pid())
+
+	service.Kill()
+	s.waitUntilGone(pids)
+}
+
+// The process is spawned from a goroutine, so a Kill can arrive before there
+// is a pid to signal. It used to return early in that case and the process
+// came up a moment later with nothing owning it.
+func (s *ProcessManagerSuite) Test_Kill_BeforeSpawn_LeavesNoProcess() {
+	logPath := s.pidLog("pids-kill-before-spawn.log")
+
+	service, err := s.pm.Start(context.Background(), &integrations.InvokeArgs{
+		URL:          &url.URL{},
+		ARN:          fmt.Sprintf("local:%s:kill_before_spawn", path.Join(s.tmpdir, "index-pid-log.js")),
+		Method:       shttp.MethodGet,
+		Command:      "node index-pid-log.js",
+		HostName:     "example.org",
+		DeploymentID: 1,
+		EnvVariables: map[string]string{"PID_LOG": logPath},
+	}, s.tmpdir)
+
+	s.NoError(err)
+	s.Require().NotNil(service)
+
+	// Racing the start goroutine on purpose: whichever side wins, the
+	// service must not be left with a running process.
+	service.Kill()
+
+	time.Sleep(500 * time.Millisecond)
+
+	s.waitUntilGone(s.spawnedPids(logPath))
+}
+
+// A service that is no longer the one registered for its ARN can never be
+// reached by a request or by the idle timer, so it would run until the host
+// restarted. The reaper is the backstop for that.
+func (s *ProcessManagerSuite) Test_ReapOrphans_KillsUnregisteredService() {
+	logPath := s.pidLog("pids-orphan.log")
+
+	service, err := s.pm.Start(context.Background(), &integrations.InvokeArgs{
+		URL:          &url.URL{},
+		ARN:          fmt.Sprintf("local:%s:orphan", path.Join(s.tmpdir, "index-pid-log.js")),
+		Method:       shttp.MethodGet,
+		Command:      "node index-pid-log.js",
+		HostName:     "example.org",
+		DeploymentID: 1,
+		EnvVariables: map[string]string{"PID_LOG": logPath},
+	}, s.tmpdir)
+
+	s.NoError(err)
+	s.Require().NotNil(service)
+
+	deadline := time.Now().Add(3 * time.Second)
+
+	for time.Now().Before(deadline) && service.Pid() == 0 {
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	pid := service.Pid()
+	s.Require().Greater(pid, 0)
+
+	// The service was never registered, so it is an orphan by definition.
+	s.GreaterOrEqual(s.pm.ReapOrphans(0), 1)
+	s.waitUntilGone([]int{pid})
+
+	// The suite shares one process manager, so other tests may leave their
+	// own services behind: assert on this one rather than on a global count.
+	s.pm.ReapOrphans(0)
+	s.False(s.processExists(pid))
+}
+
+// A registered service is doing its job and must survive a sweep, however long
+// it has been up.
+func (s *ProcessManagerSuite) Test_ReapOrphans_KeepsRegisteredService() {
+	logPath := s.pidLog("pids-registered.log")
+	arn := fmt.Sprintf("local:%s:registered", path.Join(s.tmpdir, "index-pid-log.js"))
+
+	args := integrations.InvokeArgs{
+		URL:          &url.URL{},
+		ARN:          arn,
+		Method:       shttp.MethodGet,
+		Command:      "node index-pid-log.js",
+		HostName:     "example.org",
+		DeploymentID: 1,
+		EnvVariables: map[string]string{"PID_LOG": logPath},
+	}
+
+	_, err := s.invokeWithRetry(args, s.tmpdir)
+	s.NoError(err)
+
+	service := s.pm.GetService(arn)
+	s.Require().NotNil(service)
+
+	pid := service.Pid()
+	s.Require().Greater(pid, 0)
+	s.pm.ReapOrphans(0)
+	s.True(s.processExists(pid), "a registered service must not be reaped")
+
+	service.Kill()
+	s.waitUntilGone([]int{pid})
+}
+
+// Killing a service must not unregister a different one that has since taken
+// its ARN, or reaping an orphan would evict the healthy service serving that
+// ARN and the next sweep would reap that one too.
+func (s *ProcessManagerSuite) Test_Kill_DoesNotUnregisterItsReplacement() {
+	logPath := s.pidLog("pids-replacement.log")
+	arn := fmt.Sprintf("local:%s:replacement", path.Join(s.tmpdir, "index-pid-log.js"))
+
+	args := integrations.InvokeArgs{
+		URL:          &url.URL{},
+		ARN:          arn,
+		Method:       shttp.MethodGet,
+		Command:      "node index-pid-log.js",
+		HostName:     "example.org",
+		DeploymentID: 1,
+		EnvVariables: map[string]string{"PID_LOG": logPath},
+	}
+
+	// An unregistered service holding the same ARN, as an escaped start would.
+	orphan, err := s.pm.Start(context.Background(), &args, s.tmpdir)
+	s.NoError(err)
+	s.Require().NotNil(orphan)
+
+	_, err = s.invokeWithRetry(args, s.tmpdir)
+	s.NoError(err)
+
+	registered := s.pm.GetService(arn)
+	s.Require().NotNil(registered)
+	s.NotSame(orphan, registered)
+
+	orphan.Kill()
+
+	s.Same(registered, s.pm.GetService(arn), "killing the orphan must leave the registered service in place")
+	s.True(s.processExists(registered.Pid()), "the registered service must still be running")
+
+	pids := s.spawnedPids(logPath)
+	registered.Kill()
+	s.waitUntilGone(pids)
+}
+
+// SIGTERM is a request, not a guarantee. A server that traps it and never
+// exits used to keep its port for the lifetime of the host.
+func (s *ProcessManagerSuite) Test_ReapOrphans_ForceKillsServiceThatIgnoresSigterm() {
+	logPath := s.pidLog("pids-ignores-sigterm.log")
+
+	service, err := s.pm.Start(context.Background(), &integrations.InvokeArgs{
+		URL:          &url.URL{},
+		ARN:          fmt.Sprintf("local:%s:ignores_sigterm", path.Join(s.tmpdir, "index-ignores-sigterm.js")),
+		Method:       shttp.MethodGet,
+		Command:      "node index-ignores-sigterm.js",
+		HostName:     "example.org",
+		DeploymentID: 1,
+		EnvVariables: map[string]string{"PID_LOG": logPath},
+	}, s.tmpdir)
+
+	s.NoError(err)
+	s.Require().NotNil(service)
+
+	deadline := time.Now().Add(3 * time.Second)
+
+	for time.Now().Before(deadline) && len(s.spawnedPids(logPath)) == 0 {
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	pid := service.Pid()
+	s.Require().Greater(pid, 0)
+
+	service.Kill()
+
+	time.Sleep(500 * time.Millisecond)
+	s.True(s.processExists(pid), "the server is expected to survive SIGTERM")
+
+	s.GreaterOrEqual(s.pm.ReapOrphans(0), 1)
+	s.waitUntilGone([]int{pid})
 }
 
 // A service that goes idle is killed, so its packages survive a collection only
