@@ -85,6 +85,16 @@ func AutoPublishIfNecessary(ctx context.Context, d *Deployment) error {
 
 // Publish publishes a new deployment.
 func Publish(ctx context.Context, settings []*PublishSettings) error {
+	return publishNow(ctx, settings)
+}
+
+// publishNow points the environment at the given deployments and makes the
+// change visible: it writes the published rows, drops the hosting config cache
+// and fires the publish webhooks.
+//
+// It is the commit step of a publish and assumes any readiness check has
+// already passed.
+func publishNow(ctx context.Context, settings []*PublishSettings) error {
 	if err := NewStore().Publish(ctx, settings...); err != nil {
 		return err
 	}

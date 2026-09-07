@@ -33,6 +33,7 @@ const (
 	EventInvalidateHostingCache = "cache_invalidate"
 	EventMiseUpdate             = "mise_update"
 	EventRuntimesInstall        = "runtimes_install"
+	EventPublishWarmup          = "publish_warmup"
 )
 
 const (
@@ -69,6 +70,7 @@ type MicroService struct {
 
 type MicroServiceInterface interface {
 	Key(string) string
+	ServiceID() string
 	Subscribe(string, Handler) error
 	SubscribeAsync(string, Handler) error
 	Broadcast(string, ...string) error
@@ -207,6 +209,12 @@ func Service() MicroServiceInterface {
 	}
 
 	return _service
+}
+
+// ServiceID returns the identifier this process registered itself under, so it
+// can write a key that only it is expected to fill in.
+func (s *MicroService) ServiceID() string {
+	return s.ID
 }
 
 // Key generates a unique key for the microservice based on its name and ID.
