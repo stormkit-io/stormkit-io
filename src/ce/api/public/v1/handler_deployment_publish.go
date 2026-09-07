@@ -1,11 +1,13 @@
 package publicapiv1
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
+	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
@@ -43,11 +45,31 @@ func handlerDeploymentPublish(req *RequestContext) *shttp.Response {
 		})
 	}
 
-	err = deploy.Publish(req.Context(), []*deploy.PublishSettings{
-		{
-			EnvID:        req.Env.ID,
-			DeploymentID: id,
-			Percentage:   100,
+	// Both of these are read while the request is still alive. The licence
+	// lookup queries the database on Stormkit Cloud, and the audit builder
+	// captures the request's context — neither survives the response, and the
+	// callback below runs long after it.
+	isEnterprise := req.License().IsEnterprise()
+	auditEntry := audit.FromRequestContext(req).
+		WithAction(audit.UpdateAction, audit.TypeDeployment).
+		WithDiff(&audit.Diff{New: audit.DiffFields{DeploymentID: id.String()}})
+
+	bg := context.WithoutCancel(req.Context())
+
+	err = deploy.PublishWithWarmup(req.Context(), deploy.PublishWithWarmupParams{
+		EnvID:        req.Env.ID,
+		DeploymentID: id,
+
+		// The audit entry records the publish that happened, so it is written
+		// once the environment has actually moved.
+		OnPublished: func() {
+			if !isEnterprise {
+				return
+			}
+
+			if err := auditEntry.WithContext(bg).Insert(); err != nil {
+				slog.Errorf("cannot audit the publish of deployment %s: %s", id.String(), err.Error())
+			}
 		},
 	})
 
@@ -55,21 +77,14 @@ func handlerDeploymentPublish(req *RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	if req.License().IsEnterprise() {
-		err := audit.FromRequestContext(req).
-			WithAction(audit.UpdateAction, audit.TypeDeployment).
-			WithDiff(&audit.Diff{New: audit.DiffFields{DeploymentID: id.String()}}).
-			Insert()
-
-		if err != nil {
-			return shttp.Error(err)
-		}
-	}
-
+	// The deployment is warmed up before traffic moves to it, so the publish is
+	// under way rather than done. Poll the deployment's publish status to find
+	// out whether it completed.
 	return &shttp.Response{
 		Status: http.StatusOK,
 		Data: map[string]any{
-			"ok": true,
+			"ok":     true,
+			"status": deploy.PublishStatusPublishing,
 		},
 	}
 }

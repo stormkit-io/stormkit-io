@@ -94,12 +94,7 @@ export default ({ id, appId, envId, isRunning }: Props = {}): DeploymentV2 => ({
     },
   ],
   previewUrl: "http://sample--15.localhost:8888",
-  published: [
-    {
-      envId: "3",
-      percentage: 100,
-    },
-  ],
+  published: true,
   repo: "github/stormkit-io/sample-project",
   snapshot: {
     build: {

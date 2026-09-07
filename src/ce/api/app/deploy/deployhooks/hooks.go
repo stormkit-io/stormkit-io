@@ -149,5 +149,3 @@ func notifyDeploymentCompleted(channelHook string, d *deploy.Deployment) {
 		},
 	})
 }
-
-var Publish = deploy.Publish

@@ -89,7 +89,8 @@ func (s *HandlerMyDeploymentsSuite) responseTemplate() (*template.Template, erro
 					"stoppedAt": null,
 					"stoppedManually": false,
 					"uploadResult": null,
-					"published": [],
+					"published": false,
+					"isWarmingUp": false,
 					"statusChecksPassed": null,
 					"statusChecks": null,
 					"duration": 0

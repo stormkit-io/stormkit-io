@@ -28,12 +28,6 @@ type HooksSuite struct {
 
 	conn             databasetest.TestDB
 	mockCacheService *mocks.CacheInterface
-	calledSettings   []*deploy.PublishSettings
-	originalPublish  func(ctx context.Context, settings []*deploy.PublishSettings) error
-}
-
-func (s *HooksSuite) SetupSuite() {
-	s.originalPublish = deployhooks.Publish
 }
 
 func (s *HooksSuite) BeforeTest(suiteName, _ string) {
@@ -41,17 +35,21 @@ func (s *HooksSuite) BeforeTest(suiteName, _ string) {
 	s.Factory = factory.New(s.conn)
 	s.mockCacheService = &mocks.CacheInterface{}
 	appcache.DefaultCacheService = s.mockCacheService
-
-	deployhooks.Publish = func(ctx context.Context, settings []*deploy.PublishSettings) error {
-		s.calledSettings = settings
-		return nil
-	}
 }
 
 func (s *HooksSuite) AfterTest(_, _ string) {
 	appcache.DefaultCacheService = nil
-	deployhooks.Publish = nil
 	s.conn.CloseTx()
+}
+
+// publishedCount returns how many deployments the test's data has published.
+func (s *HooksSuite) publishedCount() int {
+	count := 0
+
+	row := s.conn.QueryRow(`SELECT count(*) FROM deployments_published;`)
+	s.NoError(row.Scan(&count))
+
+	return count
 }
 
 func (s *HooksSuite) TestOutboundWebhooks() {
@@ -118,7 +116,7 @@ func (s *HooksSuite) TestShouldNotPublish_WhenShouldPublishIsFalse() {
 	deployhooks.Exec(context.Background(), depl.Deployment)
 
 	a := assert.New(s.T())
-	a.Nil(s.calledSettings)
+	a.Zero(s.publishedCount(), "the deployment should not have been published")
 }
 
 func (s *HooksSuite) TestShouldNotPublish_WhenDeploymentFailed() {
@@ -135,7 +133,7 @@ func (s *HooksSuite) TestShouldNotPublish_WhenDeploymentFailed() {
 	deployhooks.Exec(context.Background(), depl.Deployment)
 
 	a := assert.New(s.T())
-	a.Nil(s.calledSettings)
+	a.Zero(s.publishedCount(), "the deployment should not have been published")
 }
 
 func TestHooks(t *testing.T) {

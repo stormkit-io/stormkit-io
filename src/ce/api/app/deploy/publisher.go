@@ -10,6 +10,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
+	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
@@ -29,18 +30,23 @@ func AutoPublishIfNecessary(ctx context.Context, d *Deployment) error {
 		return nil
 	}
 
-	settings := []*PublishSettings{
-		{
-			EnvID:        d.EnvID,
-			DeploymentID: d.ID,
-			Percentage:   100,
+	return PublishWithWarmup(ctx, PublishWithWarmupParams{
+		EnvID:        d.EnvID,
+		DeploymentID: d.ID,
+
+		// The audit entry belongs with the flip, not with the request that
+		// asked for it: a publish held back by a deployment that never came up
+		// did not happen and must not be recorded as though it had.
+		OnPublished: func() {
+			if err := auditAutoPublish(context.WithoutCancel(ctx), d); err != nil {
+				slog.Errorf("cannot audit the automatic publish of deployment %s: %s", d.ID.String(), err.Error())
+			}
 		},
-	}
+	})
+}
 
-	if err := Publish(ctx, settings); err != nil {
-		return err
-	}
-
+// auditAutoPublish records an automatic publish for enterprise licences.
+func auditAutoPublish(ctx context.Context, d *Deployment) error {
 	var license *admin.License
 
 	if config.IsStormkitCloud() {
@@ -81,11 +87,6 @@ func AutoPublishIfNecessary(ctx context.Context, d *Deployment) error {
 	}
 
 	return nil
-}
-
-// Publish publishes a new deployment.
-func Publish(ctx context.Context, settings []*PublishSettings) error {
-	return publishNow(ctx, settings)
 }
 
 // publishNow points the environment at the given deployments and makes the

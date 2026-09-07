@@ -38,6 +38,8 @@ func handlerMyDeployments(req *user.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
+	deploy.AttachPublishStatus(req.Context(), deployments)
+
 	response := []map[string]any{}
 
 	for _, d := range deployments {

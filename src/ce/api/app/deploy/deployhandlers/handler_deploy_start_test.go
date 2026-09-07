@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"testing"
 	"text/template"
+	"time"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
@@ -232,7 +233,8 @@ func (s *DeployStartTestSuite) Test_Zip() {
 	  "isAutoDeploy": false,
 	  "isAutoPublish": false,
 	  "isPriority": false,
-	  "published": [],
+	  "published": false,
+	  "isWarmingUp": false,
 	  "previewUrl": "http://{{ .displayName }}--{{ .id }}.stormkit:8888",
 	  "detailsUrl": "/apps/{{ .appId }}/environments/{{ .envId }}/deployments/{{ .id }}",
 	  "statusChecksPassed": null,
@@ -313,12 +315,26 @@ func (s *DeployStartTestSuite) Test_Zip_AutoPublish() {
 		},
 	)
 
-	depls, err := deploy.NewStore().MyDeployments(context.Background(), &deploy.DeploymentsQueryFilters{
-		EnvID:     env.ID,
-		Published: utils.Ptr(true),
-	})
+	// Auto-publish warms the deployment up before traffic moves to it, so the
+	// environment is pointed at it after this request has already returned.
+	var depls []*deploy.Deployment
 
-	s.NoError(err)
+	for range 100 {
+		published, err := deploy.NewStore().MyDeployments(context.Background(), &deploy.DeploymentsQueryFilters{
+			EnvID:     env.ID,
+			Published: utils.Ptr(true),
+		})
+
+		s.NoError(err)
+
+		if len(published) > 0 {
+			depls = published
+			break
+		}
+
+		time.Sleep(50 * time.Millisecond)
+	}
+
 	s.Len(depls, 1)
 
 	s.Equal(http.StatusOK, response.Code)

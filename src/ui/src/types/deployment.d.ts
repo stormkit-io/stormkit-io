@@ -42,7 +42,8 @@ declare type Deployment = {
   isRunning: boolean;
   logs: Array<Log>;
   numberOfFiles: number;
-  published: Array<PublishInfo>;
+  published: boolean;
+  isWarmingUp?: boolean;
   preview: string; // The preview endpoint
 };
 
@@ -75,10 +76,8 @@ declare type DeploymentV2 = {
     serverBytes?: number;
     serverlessBytes?: number;
   };
-  published: {
-    envId: string;
-    percentage: number;
-  }[];
+  published: boolean;
+  isWarmingUp?: boolean;
   isPriority?: boolean;
 };
 

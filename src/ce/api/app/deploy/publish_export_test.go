@@ -39,3 +39,15 @@ func AcquireFlipLockForTest(ctx context.Context, envID types.ID) (string, error)
 func ReleaseFlipLockForTest(ctx context.Context, envID types.ID, token string) {
 	warmupStore{}.unlock(ctx, envID, token)
 }
+
+// PublishNowForTest performs the flip without the warm-up gate, for tests that
+// need an environment already pointing at a deployment.
+func PublishNowForTest(ctx context.Context, settings []*PublishSettings) error {
+	return publishNow(ctx, settings)
+}
+
+// WarmUpAndPublishAsyncForTest drives the gate the way production does — on its
+// own goroutine — regardless of the inline-under-test shortcut.
+func WarmUpAndPublishAsyncForTest(ctx context.Context, p WarmUpAndPublishParams, onReady func() error) {
+	go warmUpGate{}.run(ctx, p, onReady)
+}

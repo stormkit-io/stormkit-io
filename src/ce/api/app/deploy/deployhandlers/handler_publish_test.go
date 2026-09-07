@@ -22,29 +22,24 @@ import (
 type HandlerPublishDeploymentSuite struct {
 	suite.Suite
 	*factory.Factory
-	conn           databasetest.TestDB
-	originalFunc   func(ctx context.Context, settings []*deploy.PublishSettings) error
-	calledSettings []*deploy.PublishSettings
-}
-
-func (s *HandlerPublishDeploymentSuite) SetupSuite() {
-	s.originalFunc = deploy.Publish
+	conn         databasetest.TestDB
+	calledParams *deploy.PublishWithWarmupParams
 }
 
 func (s *HandlerPublishDeploymentSuite) BeforeTest(suiteName, _ string) {
 	s.conn = databasetest.InitTx(suiteName)
 	s.Factory = factory.New(s.conn)
-	s.calledSettings = nil
+	s.calledParams = nil
 
-	deployhandlers.Publish = func(ctx context.Context, settings []*deploy.PublishSettings) error {
-		s.calledSettings = settings
+	deployhandlers.PublishWithWarmup = func(ctx context.Context, p deploy.PublishWithWarmupParams) error {
+		s.calledParams = &p
 		return nil
 	}
 }
 
 func (s *HandlerPublishDeploymentSuite) AfterTest(_, _ string) {
 	s.conn.CloseTx()
-	deployhandlers.Publish = nil
+	deployhandlers.PublishWithWarmup = nil
 	shttp.DefaultRequest = nil
 }
 
@@ -72,6 +67,7 @@ func (s *HandlerPublishDeploymentSuite) Test_Success() {
 
 	expectedResponse := fmt.Sprintf(`{
 		"appId": "%s",
+		"status": "publishing",
 		"config": [
 			{ "percentage":100, "deploymentId": "%s" }
 		],
@@ -80,21 +76,17 @@ func (s *HandlerPublishDeploymentSuite) Test_Success() {
 		dpl.ID.String(),
 		env.ID.String())
 
-	expectedSettings := []*deploy.PublishSettings{
-		{
-			DeploymentID: dpl.ID,
-			EnvID:        env.ID,
-			Percentage:   100,
-		},
-	}
-
 	a := assert.New(s.T())
 	a.Equal(http.StatusOK, response.Code)
-	a.Equal(expectedSettings, s.calledSettings)
+	s.Require().NotNil(s.calledParams)
+	a.Equal(dpl.ID, s.calledParams.DeploymentID)
+	a.Equal(env.ID, s.calledParams.EnvID)
 	a.JSONEq(expectedResponse, response.String())
 }
 
-func (s *HandlerPublishDeploymentSuite) Test_Success_Multiple() {
+// Test_BadRequest_MultipleDeployments verifies an environment can only be
+// pointed at one deployment: percentage-based releases are retired.
+func (s *HandlerPublishDeploymentSuite) Test_BadRequest_MultipleDeployments() {
 	usr := s.MockUser()
 	app := s.MockApp(usr)
 	env := s.MockEnv(app)
@@ -117,35 +109,10 @@ func (s *HandlerPublishDeploymentSuite) Test_Success_Multiple() {
 		},
 	)
 
-	expectedResponse := fmt.Sprintf(`{
-		"appId": "%s",
-		"config": [
-			{ "percentage": 30, "deploymentId": "%s" },
-			{ "percentage": 70, "deploymentId": "%s" }
-		],
-		"envId": "%s"}`,
-		app.ID.String(),
-		dpls[0].ID.String(),
-		dpls[1].ID.String(),
-		env.ID.String())
-
-	expectedSettings := []*deploy.PublishSettings{
-		{
-			DeploymentID: dpls[0].ID,
-			EnvID:        env.ID,
-			Percentage:   30,
-		},
-		{
-			DeploymentID: dpls[1].ID,
-			EnvID:        env.ID,
-			Percentage:   70,
-		},
-	}
-
 	a := assert.New(s.T())
-	a.Equal(http.StatusOK, response.Code)
-	a.Equal(expectedSettings, s.calledSettings)
-	a.JSONEq(expectedResponse, response.String())
+	a.Equal(http.StatusBadRequest, response.Code)
+	a.Contains(response.String(), "one deployment can be published")
+	a.Nil(s.calledParams)
 }
 
 func (s *HandlerPublishDeploymentSuite) Test_BadRequest() {
@@ -169,7 +136,7 @@ func (s *HandlerPublishDeploymentSuite) Test_BadRequest() {
 	a := assert.New(s.T())
 	a.Equal(http.StatusBadRequest, response.Code)
 	a.Equal(expectedResponse, response.String())
-	a.Nil(s.calledSettings)
+	a.Nil(s.calledParams)
 }
 
 func (s *HandlerPublishDeploymentSuite) Test_BadRequest_PercentageNot100() {
@@ -198,7 +165,7 @@ func (s *HandlerPublishDeploymentSuite) Test_BadRequest_PercentageNot100() {
 	a := assert.New(s.T())
 	a.Equal(http.StatusBadRequest, response.Code)
 	a.Equal(expectedResponse, response.String())
-	a.Nil(s.calledSettings)
+	a.Nil(s.calledParams)
 }
 
 func TestHandlerPublishDeployment(t *testing.T) {

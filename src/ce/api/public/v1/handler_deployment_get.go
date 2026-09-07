@@ -36,6 +36,8 @@ func handlerDeploymentGet(req *RequestContext) *shttp.Response {
 		return shttp.NotFound()
 	}
 
+	deploy.AttachPublishStatus(req.Context(), []*deploy.Deployment{depl})
+
 	data := depl.JSON(withLogs)
 
 	// A failed deployment carries its reason inline so a caller can triage
