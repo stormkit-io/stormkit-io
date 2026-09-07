@@ -68,7 +68,7 @@ func (s *PublisherSuite) Test_PublishingMultiple() {
 	s.mockCacheService.On("Reset", env.ID).Return(nil).Once()
 	s.mockCacheService.On("Reset", env.ID).Return(nil).Once()
 
-	err := deploy.Publish(context.Background(), settings)
+	err := deploy.PublishNowForTest(context.Background(), settings)
 	s.NoError(err)
 
 	rows, err := s.conn.Query(`
@@ -108,7 +108,7 @@ func (s *PublisherSuite) Test_PublishingMultiple() {
 
 	s.mockCacheService.On("Reset", env.ID).Return(nil).Once()
 
-	err = deploy.Publish(context.Background(), settings)
+	err = deploy.PublishNowForTest(context.Background(), settings)
 	s.NoError(err)
 
 	rows, err = s.conn.Query(`
@@ -166,7 +166,7 @@ func (s *PublisherSuite) Test_PublishOutboundWebhooks() {
 	s.mockCacheService.On("Reset", env.ID).Return(nil)
 
 	s.NoError(err)
-	s.Nil(deploy.Publish(context.Background(), settings))
+	s.Nil(deploy.PublishNowForTest(context.Background(), settings))
 }
 
 func (s *PublisherSuite) Test_AutoPublish() {

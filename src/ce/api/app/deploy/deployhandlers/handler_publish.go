@@ -1,6 +1,8 @@
 package deployhandlers
 
 import (
+	"context"
+
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
@@ -8,6 +10,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/model"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp/shttperr"
+	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 )
 
@@ -84,54 +87,60 @@ func handlerPublish(req *app.RequestContext) *shttp.Response {
 		return shttp.NotFound()
 	}
 
-	settings := []*deploy.PublishSettings{}
-
-	for _, publishDetails := range data.Publish {
-		settings = append(settings, &deploy.PublishSettings{
-			EnvID:        env.ID,
-			DeploymentID: publishDetails.DeploymentID,
-			Percentage:   publishDetails.Percentage,
+	// An environment serves exactly one deployment. Percentage-based releases
+	// are retired, so a request naming several of them cannot be honoured and
+	// is rejected rather than silently applying one.
+	if len(data.Publish) != 1 {
+		return shttp.BadRequest(map[string]any{
+			"errors": []string{"Exactly one deployment can be published at a time"},
 		})
 	}
 
-	if err := Publish(req.Context(), settings); err != nil {
-		return shttp.Error(err)
-	}
+	deploymentID := data.Publish[0].DeploymentID
 
-	if req.License().IsEnterprise() {
-		for _, publishDetails := range data.Publish {
-			err := audit.FromRequestContext(req).
-				WithAction(audit.UpdateAction, audit.TypeDeployment).
-				WithEnvID(env.ID).
-				WithDiff(&audit.Diff{New: audit.DiffFields{DeploymentID: publishDetails.DeploymentID.String()}}).
-				Insert()
+	// Both of these are read while the request is still alive. The licence
+	// lookup queries the database on Stormkit Cloud, and the audit builder
+	// captures the request's context — neither survives the response, and the
+	// callback below runs long after it.
+	isEnterprise := req.License().IsEnterprise()
+	auditEntry := audit.FromRequestContext(req).
+		WithAction(audit.UpdateAction, audit.TypeDeployment).
+		WithEnvID(env.ID).
+		WithDiff(&audit.Diff{New: audit.DiffFields{DeploymentID: deploymentID.String()}})
 
-			if err != nil {
-				return shttp.Error(err)
+	bg := context.WithoutCancel(req.Context())
+
+	err = PublishWithWarmup(req.Context(), deploy.PublishWithWarmupParams{
+		EnvID:        env.ID,
+		DeploymentID: deploymentID,
+
+		// The audit entry records the publish that happened, so it is written
+		// once the environment has actually moved.
+		OnPublished: func() {
+			if !isEnterprise {
+				return
 			}
-		}
-	}
 
-	var publishConfig []any
+			if err := auditEntry.WithContext(bg).Insert(); err != nil {
+				slog.Errorf("cannot audit the publish of deployment %s: %s", deploymentID.String(), err.Error())
+			}
+		},
+	})
 
-	if data.Publish != nil {
-		publishConfig = []any{}
-
-		for _, cnf := range data.Publish {
-			publishConfig = append(publishConfig, map[string]any{
-				"percentage":   cnf.Percentage,
-				"deploymentId": cnf.DeploymentID.String(),
-			})
-		}
+	if err != nil {
+		return shttp.Error(err)
 	}
 
 	return &shttp.Response{
 		Data: map[string]any{
 			"appId":  req.App.ID.String(),
 			"envId":  env.ID.String(),
-			"config": publishConfig,
+			"status": deploy.PublishStatusPublishing,
+			"config": []any{
+				map[string]any{"deploymentId": deploymentID.String(), "percentage": float64(100)},
+			},
 		},
 	}
 }
 
-var Publish = deploy.Publish
+var PublishWithWarmup = deploy.PublishWithWarmup

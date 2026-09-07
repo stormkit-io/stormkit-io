@@ -98,12 +98,10 @@ export default function CommitInfo({
               }}
             />
           )}
-          {deployment.published?.length > 0 && (
+          {(deployment.published || deployment.isWarmingUp) && (
             <Chip
-              color={deployment.published.length ? "success" : "info"}
-              label={
-                deployment.published.length ? `published` : "not published"
-              }
+              color={deployment.published ? "success" : "info"}
+              label={deployment.published ? "published" : "publishing"}
               size="small"
               sx={{
                 ml: 1,

@@ -43,7 +43,7 @@ func mcpAllTools() []mcpToolDef {
 				"properties": map[string]any{
 					"envId":   map[string]any{"type": "string", "description": "ID of the environment to deploy."},
 					"branch":  map[string]any{"type": "string", "description": "Git branch to deploy. Defaults to the environment's configured branch."},
-					"publish": map[string]any{"type": "boolean", "description": "Publish the deployment immediately after a successful build."},
+					"publish": map[string]any{"type": "boolean", "description": "Start publishing the deployment after a successful build. The deployment is booted first and traffic moves only once it answers, so a successful build does not guarantee it went live — check isWarmingUp and published on the deployment."},
 				},
 				"required":             []string{"envId"},
 				"additionalProperties": false,
@@ -106,7 +106,7 @@ func mcpAllTools() []mcpToolDef {
 		},
 		{
 			Name:        "publish_deployment",
-			Description: "Publish a successfully built deployment, making it live.",
+			Description: "Start publishing a successfully built deployment. Stormkit boots the deployment first and moves traffic only once it answers, so this returns before the deployment is live and the publish can still fail. Call get_deployment and check isWarmingUp and published to find out how it went; the deployment's runtime logs say why a publish failed.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

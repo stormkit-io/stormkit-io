@@ -40,7 +40,7 @@ export default (): DeploymentV2[] => [
     duration: 125,
     statusChecksPassed: true,
     statusChecks: [],
-    published: [{ envId: "1", percentage: 100 }],
+    published: true,
   },
   {
     appId: "1",
@@ -83,6 +83,6 @@ export default (): DeploymentV2[] => [
     duration: 125,
     statusChecksPassed: true,
     statusChecks: [],
-    published: [],
+    published: false,
   },
 ];

@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	null "gopkg.in/guregu/null.v3"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
 	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
@@ -41,7 +43,10 @@ func (s *HandlerDeploymentPublishSuite) publishURL(id fmt.Stringer) string {
 	return fmt.Sprintf("/v1/deployments/%s/publish", id)
 }
 
-// Test_Success verifies that a valid env-scoped key can publish a deployment at 100%.
+// Test_Success verifies that a valid env-scoped key can publish a deployment.
+//
+// The response says "publishing": the deployment is warmed up before traffic
+// moves to it, so the publish is under way rather than done.
 func (s *HandlerDeploymentPublishSuite) Test_Success() {
 	usr := s.MockUser()
 	appl := s.MockApp(usr)
@@ -63,10 +68,13 @@ func (s *HandlerDeploymentPublishSuite) Test_Success() {
 
 	body := response.Map()
 	s.Equal(true, body["ok"])
+	s.Equal(deploy.PublishStatusPublishing, body["status"])
 }
 
-// Test_PublishedStateReflected verifies that after publishing, fetching the deployment
-// returns non-empty published info.
+// Test_PublishedStateReflected verifies that a publish reaches the deployment.
+//
+// It polls rather than reading once: publishing waits for the deployment to
+// answer, so it completes after the request that asked for it has returned.
 func (s *HandlerDeploymentPublishSuite) Test_PublishedStateReflected() {
 	usr := s.MockUser()
 	appl := s.MockApp(usr)
@@ -82,26 +90,30 @@ func (s *HandlerDeploymentPublishSuite) Test_PublishedStateReflected() {
 		map[string]string{"Authorization": key.Value},
 	)
 
-	// Fetch the deployment and verify published is populated.
-	getResponse := shttptest.RequestWithHeaders(
-		s.handler(),
-		shttp.MethodGet,
-		fmt.Sprintf("/v1/deployments/%s", depl.ID),
-		nil,
-		map[string]string{"Authorization": key.Value},
-	)
+	published := false
 
-	s.Equal(http.StatusOK, getResponse.Code)
+	for range 100 {
+		getResponse := shttptest.RequestWithHeaders(
+			s.handler(),
+			shttp.MethodGet,
+			fmt.Sprintf("/v1/deployments/%s", depl.ID),
+			nil,
+			map[string]string{"Authorization": key.Value},
+		)
 
-	body := getResponse.Map()
+		s.Equal(http.StatusOK, getResponse.Code)
 
-	got := body["deployment"].(map[string]any)
-	published := got["published"].([]any)
-	s.Len(published, 1)
+		got := getResponse.Map()["deployment"].(map[string]any)
 
-	p := published[0].(map[string]any)
-	s.Equal(env.ID.String(), p["envId"])
-	s.Equal(float64(100), p["percentage"])
+		if live, ok := got["published"].(bool); ok && live {
+			published = true
+			break
+		}
+
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	s.True(published, "the deployment should be serving the environment")
 }
 
 // Test_NotFound_UnknownID verifies that a non-existent deployment ID returns 404.

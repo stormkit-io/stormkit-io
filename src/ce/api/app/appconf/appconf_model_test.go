@@ -120,7 +120,7 @@ func (s *appconfSuite) SetupSuite() {
 		},
 	}
 
-	s.NoError(deploy.Publish(context.Background(), settings))
+	s.NoError(deploy.NewStore().Publish(context.Background(), settings...))
 }
 
 func (s *appconfSuite) AfterTest(_, _ string) {

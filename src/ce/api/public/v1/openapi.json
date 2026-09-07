@@ -1015,7 +1015,7 @@
       "get": {
         "operationId": "listDeploymentRuntimeLogs",
         "summary": "List runtime logs of a deployment",
-        "description": "Return runtime logs — server-side rendering and API function output — produced by a deployment. Paginate with `afterId`/`beforeId`, passing the `id` of the last entry you received.",
+        "description": "Return runtime logs \u2014 server-side rendering and API function output \u2014 produced by a deployment. Paginate with `afterId`/`beforeId`, passing the `id` of the last entry you received.",
         "tags": [
           "Logs"
         ],
@@ -1094,7 +1094,7 @@
       "post": {
         "operationId": "publishDeployment",
         "summary": "Publish a deployment",
-        "description": "Make a successfully built deployment live on the environment's domains. Publishing replaces whatever was published before; the previous deployment stays available and can be published again to roll back.",
+        "description": "Make a successfully built deployment live on the environment's domains. Publishing replaces whatever was published before; the previous deployment stays available and can be published again to roll back. Stormkit warms the deployment up first and moves traffic only once it answers a request, so this returns while the publish is still under way \u2014 read publishStatus on the deployment to find out how it went.",
         "tags": [
           "Deployments"
         ],
@@ -1108,11 +1108,22 @@
         ],
         "responses": {
           "200": {
-            "description": "The deployment was published.",
+            "description": "The publish was accepted and is under way.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Ok"
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "publishing"
+                      ]
+                    }
+                  }
                 }
               }
             }
@@ -1262,7 +1273,7 @@
       "get": {
         "operationId": "listAccessLogs",
         "summary": "List HTTP access logs",
-        "description": "Return raw HTTP access logs — one entry per request served — for an environment, newest first. Defaults to the last 24 hours. Paginate by passing `pagination.cursor` from the previous response back verbatim.",
+        "description": "Return raw HTTP access logs \u2014 one entry per request served \u2014 for an environment, newest first. Defaults to the last 24 hours. Paginate by passing `pagination.cursor` from the previous response back verbatim.",
         "tags": [
           "Logs"
         ],
@@ -2473,7 +2484,7 @@
       "get": {
         "operationId": "listTriggerLogs",
         "summary": "List trigger executions",
-        "description": "Return the last 25 executions of a trigger — scheduled and manual — most recent first.",
+        "description": "Return the last 25 executions of a trigger \u2014 scheduled and manual \u2014 most recent first.",
         "tags": [
           "Triggers"
         ],
@@ -3932,6 +3943,14 @@
           "stoppedAt": {
             "type": "string",
             "description": "Unix timestamp, in seconds, of when the build finished."
+          },
+          "published": {
+            "type": "boolean",
+            "description": "Whether this deployment is the one the environment currently serves."
+          },
+          "isWarmingUp": {
+            "type": "boolean",
+            "description": "Whether a publish of this deployment is under way. Stormkit boots the deployment before moving traffic to it, so published is false while this is true."
           }
         },
         "required": [

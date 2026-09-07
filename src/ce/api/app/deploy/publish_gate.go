@@ -8,6 +8,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
@@ -35,6 +38,16 @@ type WarmUpAndPublishParams struct {
 // The progress and the reason for a failure are readable through
 // PublishStatusOf.
 func WarmUpAndPublish(ctx context.Context, p WarmUpAndPublishParams, onReady func() error) {
+	// Tests share one database transaction per test, and work that outlives the
+	// request would write to it after it has been rolled back — corrupting
+	// whichever test runs next rather than the one that started it. There are
+	// no hosting nodes registered under test, so running inline costs nothing
+	// but determinism.
+	if config.IsTest() {
+		warmUpGate{}.run(ctx, p, onReady)
+		return
+	}
+
 	// The caller is usually an HTTP handler whose context is cancelled the
 	// moment it responds, and this outlives the response by design.
 	go warmUpGate{}.run(context.WithoutCancel(ctx), p, onReady)
@@ -396,4 +409,113 @@ func PublishSettingsFor(envID, deploymentID types.ID) []*PublishSettings {
 			Percentage:   publishedPercentage,
 		},
 	}
+}
+
+// PublishWithWarmupParams describes a publish that has to wait for the
+// deployment to answer.
+type PublishWithWarmupParams struct {
+	EnvID        types.ID
+	DeploymentID types.ID
+
+	// OnPublished runs after the environment has moved, for work that must not
+	// happen when a publish is held back — an audit entry, say.
+	//
+	// It cannot fail the publish. By the time it runs the environment is
+	// already serving the new deployment, so reporting a failure here would
+	// tell the user their release did not happen when it did.
+	OnPublished func()
+}
+
+// PublishWithWarmup warms the deployment on every hosting node and moves the
+// environment onto it once they all report that it serves.
+//
+// It returns as soon as the warm-up has been requested. An error means the
+// publish could not be started at all; a deployment that fails to come up is
+// reported through PublishStatusOf instead, because by then the caller is long
+// gone.
+func PublishWithWarmup(ctx context.Context, p PublishWithWarmupParams) error {
+	env, err := buildconf.NewStore().EnvironmentByID(ctx, p.EnvID)
+
+	if err != nil {
+		return err
+	}
+
+	if env == nil {
+		return fmt.Errorf("environment %s does not exist", p.EnvID.String())
+	}
+
+	appl, err := app.NewStore().AppByEnvID(ctx, p.EnvID)
+
+	if err != nil {
+		return err
+	}
+
+	if appl == nil {
+		return fmt.Errorf("app of environment %s does not exist", p.EnvID.String())
+	}
+
+	// The request's context is done the moment it responds, and the warm-up
+	// outlives that.
+	bg := context.WithoutCancel(ctx)
+	settings := PublishSettingsFor(p.EnvID, p.DeploymentID)
+
+	WarmUpAndPublish(bg, WarmUpAndPublishParams{
+		AppID:        env.AppID,
+		EnvID:        p.EnvID,
+		DeploymentID: p.DeploymentID,
+		DisplayName:  appl.DisplayName,
+		EnvName:      env.Name,
+	}, func() error {
+		if err := publishNow(bg, settings); err != nil {
+			return err
+		}
+
+		if p.OnPublished != nil {
+			p.OnPublished()
+		}
+
+		return nil
+	})
+
+	return nil
+}
+
+// AttachPublishStatus marks the deployments that are currently warming up.
+//
+// Publishing waits for the deployment to answer before traffic moves to it, so
+// "not published" alone no longer says whether nothing is happening or a
+// release is on its way.
+//
+// It reads once per environment rather than once per deployment, since a list
+// commonly holds many deployments of the same one.
+func AttachPublishStatus(ctx context.Context, deployments []*Deployment) {
+	statuses := map[types.ID]*PublishStatus{}
+
+	for _, d := range deployments {
+		if _, read := statuses[d.EnvID]; read {
+			continue
+		}
+
+		status, err := PublishStatusOf(ctx, d.EnvID)
+
+		if err != nil {
+			slog.Errorf("cannot read the publish status of env %s: %s", d.EnvID.String(), err.Error())
+		}
+
+		statuses[d.EnvID] = status
+	}
+
+	for _, d := range deployments {
+		d.IsWarmingUp = isWarmingUp(d, statuses[d.EnvID])
+	}
+}
+
+// isWarmingUp reports whether a publish of this deployment is under way.
+//
+// The environment's status only speaks for the deployment it names: an older
+// deployment must not be shown as warming up because the one replacing it is.
+func isWarmingUp(d *Deployment, status *PublishStatus) bool {
+	return status != nil &&
+		status.DeploymentID == d.ID &&
+		status.Status == PublishStatusPublishing
 }

@@ -228,7 +228,8 @@ Returns the deployment object wrapped in a `deployment` key.
 | `snapshot`           | object       | Snapshot of the environment configuration used for this deployment.                       |
 | `logs`               | array\|null  | Array of log entries — see **`Log` object** below. `null` unless `?logs=true` is passed.  |
 | `statusChecks`       | array\|null  | Array of status-check log entries. `null` unless `?logs=true` is passed.                  |
-| `published`          | array        | Environments where this deployment is currently live — see **`Published` object** below.  |
+| `published`          | boolean      | Whether this deployment is the one the environment currently serves.                      |
+| `isWarmingUp`        | boolean      | Whether a publish of this deployment is under way. Stormkit boots the deployment before moving traffic to it, so `published` is `false` while this is `true`. |
 | `uploadResult`       | object\|null | Upload size breakdown — see **`UploadResult` object** below. `null` if not yet available. |
 
 **`Commit` object:**
@@ -247,13 +248,6 @@ Returns the deployment object wrapped in a `deployment` key.
 | `message`  | string  | Log output for this step.      |
 | `status`   | boolean | `true` if this step succeeded. |
 | `duration` | number  | Step duration in seconds.      |
-
-**`Published` object:**
-
-| Field        | Type   | Description                                           |
-| ------------ | ------ | ----------------------------------------------------- |
-| `envId`      | string | Environment ID where this deployment is published.    |
-| `percentage` | number | Traffic percentage routed to this deployment (0–100). |
 
 **`UploadResult` object:**
 
@@ -309,7 +303,8 @@ curl -H 'Authorization: <api_key>' \
     },
     "logs": null,
     "statusChecks": null,
-    "published": [{ "envId": "305", "percentage": 100 }],
+    "published": true,
+    "isWarmingUp": false,
     "uploadResult": {
       "clientBytes": 204800,
       "serverBytes": 0,
@@ -489,11 +484,14 @@ Makes a deployment live for the environment associated with the API key.
 | --------- | ------ | ------------------ |
 | `id`      | string | The deployment ID. |
 
+Publishing is not instant. Stormkit first asks every hosting node to boot the deployment, and moves the environment onto it only once it answers a request. Until then the previously published deployment keeps serving, so a deployment that fails to start never takes the site down — it simply does not get published.
+
 ### Response — 200 OK
 
-| Field | Type    | Description               |
-| ----- | ------- | ------------------------- |
-| `ok`  | boolean | Always `true` on success. |
+| Field    | Type    | Description                                          |
+| -------- | ------- | ---------------------------------------------------- |
+| `ok`     | boolean | Always `true` when the publish was accepted.         |
+| `status` | string  | Always `publishing`. Read `published` and `isWarmingUp` on the deployment for the outcome. |
 
 ### Error responses
 
@@ -507,7 +505,7 @@ Makes a deployment live for the environment associated with the API key.
 ### Examples
 
 ```bash
-# Publish a deployment at 100%
+# Publish a deployment
 curl -X POST \
      -H 'Authorization: <api_key>' \
      -H 'Content-Type: application/json' \
@@ -516,10 +514,11 @@ curl -X POST \
 
 ```json
 // Example response
-{ "ok": true }
+{ "ok": true, "status": "publishing" }
 ```
 
 ---
+
 
 ## DELETE /v1/deployments/{id}
 

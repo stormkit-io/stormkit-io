@@ -197,6 +197,17 @@ func FromRequestContext(req any) *Audit {
 	}
 }
 
+// WithContext replaces the context the entry is written with.
+//
+// FromRequestContext captures the request's own context, which is done as soon
+// as the response is written. An entry recorded after that — for work that
+// outlives the request, such as a publish that waits for the deployment to come
+// up — has to supply a context that is still live.
+func (a *Audit) WithContext(ctx context.Context) *Audit {
+	a.ctx = ctx
+	return a
+}
+
 func (a *Audit) WithEnvID(envID types.ID) *Audit {
 	a.EnvID = envID
 	return a

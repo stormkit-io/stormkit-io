@@ -109,6 +109,11 @@ type Deployment struct {
 	// the environment id and the released percentage.
 	Published PublishedInfo `json:"-"`
 
+	// IsWarmingUp is filled in by handlers that report it — see
+	// AttachPublishStatus. A deployment that is warming up is not published
+	// yet: Stormkit is booting it, and traffic moves only once it answers.
+	IsWarmingUp bool `json:"-"`
+
 	BuildConfig *buildconf.BuildConf `json:"-"` // ConfigCopy is the snapshot of the environment used during the deployment.
 	DisplayName string               `json:"-"` // DisplayName is the name of the app. It is injected to the deployment object.
 	IsRestart   bool                 `json:"-"`
@@ -503,6 +508,17 @@ func (d *Deployment) RepoSlug() string {
 	return ""
 }
 
+// IsPublished reports whether the deployment is currently serving traffic.
+func (d *Deployment) IsPublished() bool {
+	for _, p := range d.Published {
+		if p.Percentage > 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
 // AddLogs appends the given logs to the deployment logs.
 func (d *Deployment) AddLogs(logs []string) {
 	if len(logs) == 0 {
@@ -823,7 +839,8 @@ func (d *Deployment) JSON(withLogs bool) map[string]any {
 		"statusChecks":       statusChecksLogs,
 		"statusChecksPassed": d.StatusChecksPassed,
 		"duration":           calculateDuration(d.CreatedAt, d.StoppedAt),
-		"published":          []map[string]any{},
+		"published":          false,
+		"isWarmingUp":        d.IsWarmingUp,
 		"uploadResult":       uploadResult,
 		"isPriority":         d.IsPriority,
 		"commit": map[string]any{
@@ -833,14 +850,10 @@ func (d *Deployment) JSON(withLogs bool) map[string]any {
 		},
 	}
 
-	if d.Published != nil {
-		for _, p := range d.Published {
-			jsonMap["published"] = append(jsonMap["published"].([]map[string]any), map[string]any{
-				"envId":      p.EnvID.String(),
-				"percentage": p.Percentage,
-			})
-		}
-	}
+	// An environment serves exactly one deployment, so this is a yes or no
+	// rather than the list of shares it used to be: percentage-based releases
+	// are retired.
+	jsonMap["published"] = d.IsPublished()
 
 	if !withLogs {
 		jsonMap["logs"] = nil
