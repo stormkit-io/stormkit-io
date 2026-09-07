@@ -20,6 +20,44 @@ export const deleteForever = ({
   return api.delete(`/app/deploy`, { deploymentId, appId });
 };
 
+interface FetchPublishStateProps {
+  deploymentId: string;
+}
+
+export interface PublishState {
+  published: boolean;
+  isWarmingUp: boolean;
+}
+
+/**
+ * Reads where a deployment stands with publishing.
+ *
+ * Publishing waits for the deployment to answer a request before traffic moves
+ * to it, so the response to the publish call says nothing about the outcome.
+ */
+export const fetchPublishState = ({
+  deploymentId,
+}: FetchPublishStateProps): Promise<PublishState> => {
+  return api
+    .fetch<{ deployments: DeploymentV2[] }>(
+      `/my/deployments?deploymentId=${deploymentId}`,
+    )
+    .then(({ deployments }) => {
+      const deployment = deployments?.find(d => d.id === deploymentId);
+
+      // A deployment that is not in the response says nothing about the
+      // publish — reading it as "not published" would look like a failure.
+      if (!deployment) {
+        throw new Error(`deployment ${deploymentId} was not returned`);
+      }
+
+      return {
+        published: Boolean(deployment.published),
+        isWarmingUp: Boolean(deployment.isWarmingUp),
+      };
+    });
+};
+
 interface PublishDeploymentsProps {
   appId: string;
   envId: string;

@@ -102,6 +102,23 @@ interface MockPublishDeploymentsProps {
   response?: object;
 }
 
+interface MockFetchPublishStateProps {
+  deploymentId: string;
+  published?: boolean;
+  isWarmingUp?: boolean;
+}
+
+// Answers the poll the publish modal makes while it waits for the deployment to
+// start serving.
+export const mockFetchPublishState = ({
+  deploymentId,
+  published = false,
+  isWarmingUp = false,
+}: MockFetchPublishStateProps) =>
+  nock(endpoint)
+    .get(`/my/deployments?deploymentId=${deploymentId}`)
+    .reply(200, { deployments: [{ id: deploymentId, published, isWarmingUp }] });
+
 export const mockPublishDeployments = ({
   appId,
   envId,
