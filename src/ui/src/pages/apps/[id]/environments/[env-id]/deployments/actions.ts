@@ -227,14 +227,18 @@ export const useFetchDeployment = ({
           refreshApp(Date.now());
         }
 
-        // If the deployment is still running, then refetch it every 5 seconds
-        // by refreshing the time to trigger a new call.
+        // Refetch every 5 seconds while there is something to wait for: a
+        // build that is still running, or a publish that is still warming the
+        // deployment up before traffic moves to it.
         setTimeout(() => {
           if (unmounted) {
             return;
           }
 
-          setTime(deployment.status === "running" ? Date.now() : 0);
+          const pending =
+            deployment.status === "running" || deployment.isWarmingUp;
+
+          setTime(pending ? Date.now() : 0);
         }, 5000);
       })
       .catch(() => {
