@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,25 +13,58 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
-// Publish job statuses. A job is terminal once it is published or failed.
+// Publish statuses reported back to whoever asked for the publish.
 const (
 	PublishStatusPublishing = "publishing"
 	PublishStatusPublished  = "published"
 	PublishStatusFailed     = "failed"
 )
 
-// maxWarmupLogBytes caps how much of a failing deployment's boot output is
-// carried back to the user, so a server that logs in a loop cannot fill Redis.
-const maxWarmupLogBytes = 8 * 1024
+const (
+	// maxWarmupReasonBytes caps the human-readable failure reason a node
+	// reports.
+	maxWarmupReasonBytes = 1024
 
-// maxWarmupReasonBytes caps the human-readable failure reason a node reports.
-const maxWarmupReasonBytes = 1024
+	// defaultWarmupTimeout is how long every hosting node together has to get
+	// the deployment answering. Runtime dependencies are normally installed
+	// during the build, so the long case is a deployment whose nix profile was
+	// collected in the meantime.
+	defaultWarmupTimeout = 180 * time.Second
 
-// finalizeLockTTL has to outlast a finalization, which writes the published
-// rows, resets the hosting cache and dispatches the publish webhooks.
-const finalizeLockTTL = 2 * time.Minute
+	// warmupPollInterval is how often the waiter re-reads the node verdicts.
+	warmupPollInterval = 500 * time.Millisecond
+
+	// liveNodeCacheTTL is how long the waiter reuses its view of which hosting
+	// nodes are registered.
+	liveNodeCacheTTL = 5 * time.Second
+
+	// warmupReportGrace is how long the waiter keeps reading after the nodes'
+	// own deadline, so it sees the verdict a node writes when it gives up.
+	warmupReportGrace = 2 * time.Second
+
+	// publishStatusTTL keeps a finished publish readable long enough for the
+	// dashboard to explain a failure.
+	publishStatusTTL = time.Hour
+
+	// flipLockWait is how long a publish waits for another one to finish
+	// applying before giving up.
+	flipLockWait = 30 * time.Second
+
+	// flipLockRetryInterval is how often the flip lock is retried.
+	flipLockRetryInterval = 250 * time.Millisecond
+
+	// flipLockTTL has to outlast a flip, which writes the published rows,
+	// resets the hosting cache and dispatches the publish webhooks
+	// synchronously.
+	flipLockTTL = 2 * time.Minute
+
+	// publishedPercentage is what every published deployment gets.
+	// Percentage-based releases are retired.
+	publishedPercentage = 100
+)
 
 // unlockScript releases a lock only when the caller still owns it.
 var unlockScript = redis.NewScript(`
@@ -41,22 +75,18 @@ var unlockScript = redis.NewScript(`
 	return 0
 `)
 
-// publishedPercentage is what every published deployment gets. Percentage-based
-// releases are a retired feature: PublishSettings still carries the field
-// because the stored column and the public API do, but nothing chooses a value
-// other than this one.
-const publishedPercentage = 100
-
-// WarmupRequest is what a hosting node receives over the event bus. It carries
-// the app's display name because a config can only be resolved for an
-// unpublished deployment by deployment id *and* display name, and the display
-// name is not part of the config itself.
+// WarmupRequest is what a hosting node receives over the event bus.
+//
+// It carries the app's display name because a config can only be resolved for
+// an unpublished deployment by deployment id *and* display name, and the
+// environment name because the config does not hold one.
 type WarmupRequest struct {
-	JobID        string   `json:"jobId"`
-	AppID        types.ID `json:"appId,string"`
-	EnvID        types.ID `json:"envId,string"`
+	WarmupID     string   `json:"warmupId"`
+	AppID        types.ID `json:"appId"`
+	EnvID        types.ID `json:"envId"`
 	DisplayName  string   `json:"displayName"`
-	DeploymentID types.ID `json:"deploymentId,string"`
+	EnvName      string   `json:"envName"`
+	DeploymentID types.ID `json:"deploymentId"`
 	Deadline     int64    `json:"deadline"`
 }
 
@@ -65,65 +95,24 @@ func (r WarmupRequest) DeadlineAt() time.Time {
 	return time.Unix(r.Deadline, 0)
 }
 
-// WarmupResult is one hosting node's verdict for a publish job.
+// WarmupResult is one hosting node's verdict.
 type WarmupResult struct {
 	ServiceID    string   `json:"serviceId"`
 	ServiceName  string   `json:"serviceName"`
 	Status       string   `json:"status"`
-	DeploymentID types.ID `json:"deploymentId,string,omitempty"`
+	DeploymentID types.ID `json:"deploymentId,omitempty"`
 	StatusCode   int      `json:"statusCode,omitempty"`
 	Reason       string   `json:"reason,omitempty"`
-	Logs         string   `json:"logs,omitempty"`
-	Skipped      bool     `json:"skipped,omitempty"`
 }
 
-// PublishJob is the record a publish request creates before any traffic moves.
-// It is the single source of truth for "is a publish in flight, and did it
-// work" — the deployments_published table is only written once the job
-// succeeds.
-type PublishJob struct {
-	ID           string         `json:"id"`
-	AppID        types.ID       `json:"appId,string"`
-	EnvID        types.ID       `json:"envId,string"`
-	DeploymentID types.ID       `json:"deploymentId,string"`
-	Nodes        []string       `json:"nodes"`
+// PublishStatus is what the dashboard reads while a publish is in flight, and
+// afterwards to find out why one did not happen.
+type PublishStatus struct {
 	Status       string         `json:"status"`
+	DeploymentID types.ID       `json:"deploymentId"`
 	Reason       string         `json:"reason,omitempty"`
 	Failures     []WarmupResult `json:"failures,omitempty"`
-	StartedAt    int64          `json:"startedAt"`
-	Deadline     int64          `json:"deadline"`
-}
-
-// IsTerminal reports whether the job has already been decided.
-func (j *PublishJob) IsTerminal() bool {
-	return j.Status == PublishStatusPublished || j.Status == PublishStatusFailed
-}
-
-// DeadlineAt returns the moment after which the job can no longer succeed.
-func (j *PublishJob) DeadlineAt() time.Time {
-	return time.Unix(j.Deadline, 0)
-}
-
-// Settings turns the job into the arguments the publish itself needs.
-func (j *PublishJob) Settings() []*PublishSettings {
-	return []*PublishSettings{
-		{
-			EnvID:        j.EnvID,
-			DeploymentID: j.DeploymentID,
-			Percentage:   publishedPercentage,
-		},
-	}
-}
-
-// TruncateWarmupLogs trims boot output to what is worth storing and showing.
-// The tail is kept: the last thing a crashing server printed is the useful
-// part.
-func TruncateWarmupLogs(logs string) string {
-	if len(logs) <= maxWarmupLogBytes {
-		return logs
-	}
-
-	return logs[len(logs)-maxWarmupLogBytes:]
+	UpdatedAt    int64          `json:"updatedAt"`
 }
 
 // truncateReason bounds a node's failure reason.
@@ -135,139 +124,60 @@ func truncateReason(reason string) string {
 	return reason[:maxWarmupReasonBytes]
 }
 
-// PublishJobStore persists publish jobs and the per-node warm-up results.
+// WarmupTimeout is how long a publish waits for the hosting nodes.
+func WarmupTimeout() time.Duration {
+	if seconds := utils.StringToInt(os.Getenv("STORMKIT_PUBLISH_WARMUP_TIMEOUT")); seconds > 0 {
+		return time.Duration(seconds) * time.Second
+	}
+
+	return defaultWarmupTimeout
+}
+
+// warmupStore holds the transient state of a publish: the verdict each hosting
+// node reported, which publish is the newest for an environment, and the
+// status the dashboard reads.
 //
-// The state is deliberately transient: a lost job means the environment keeps
-// serving whatever it served before, which is the safe outcome.
-type PublishJobStore struct{}
+// None of it is durable on purpose. Losing it means the environment keeps
+// serving what it already served, which is the safe outcome.
+type warmupStore struct{}
 
-// NewPublishJobStore returns the store used to read and write publish jobs.
-func NewPublishJobStore() PublishJobStore {
-	return PublishJobStore{}
+func (warmupStore) nodeKey(warmupID, serviceID string) string {
+	return fmt.Sprintf("publish:warmup:%s:node:%s", warmupID, serviceID)
 }
 
-func (PublishJobStore) jobKey(jobID string) string {
-	return fmt.Sprintf("publish:job:%s", jobID)
+func (warmupStore) intentKey(envID types.ID) string {
+	return fmt.Sprintf("publish:intent:%s", envID.String())
 }
 
-func (PublishJobStore) nodeKey(jobID, serviceID string) string {
-	return fmt.Sprintf("publish:job:%s:node:%s", jobID, serviceID)
+func (warmupStore) lockKey(envID types.ID) string {
+	return fmt.Sprintf("publish:intent:%s:lock", envID.String())
 }
 
-func (PublishJobStore) lockKey(jobID string) string {
-	return fmt.Sprintf("publish:job:%s:lock", jobID)
+func (warmupStore) statusKey(envID types.ID) string {
+	return fmt.Sprintf("publish:status:%s", envID.String())
 }
 
-func (PublishJobStore) envKey(envID types.ID) string {
-	return fmt.Sprintf("publish:env:%s", envID.String())
+// ttlForDeadline outlives the warm-up window by an hour, so a verdict cannot
+// expire while the publish waiting for it is still running.
+func ttlForDeadline(deadline int64) time.Duration {
+	return max(time.Until(time.Unix(deadline, 0)), 0) + time.Hour
 }
 
-// ttl keeps a job readable for a while after it is decided, so the dashboard
-// can still show why a publish failed.
-func (PublishJobStore) ttl(job *PublishJob) time.Duration {
-	return max(time.Until(job.DeadlineAt()), 0) + time.Hour
-}
-
-// Create writes a new job and points its environment at it.
-//
-// Only creation moves the environment pointer. An older job recording its
-// outcome must not steal the pointer from a publish that started after it.
-func (s PublishJobStore) Create(ctx context.Context, job *PublishJob) error {
-	client := rediscache.Client()
-
-	if client == nil {
-		return nil
-	}
-
-	if err := s.Update(ctx, job); err != nil {
-		return err
-	}
-
-	return client.Set(ctx, s.envKey(job.EnvID), job.ID, s.ttl(job)).Err()
-}
-
-// Update writes the job's current state, leaving the environment pointer alone.
-func (s PublishJobStore) Update(ctx context.Context, job *PublishJob) error {
-	client := rediscache.Client()
-
-	if client == nil {
-		return nil
-	}
-
-	data, err := json.Marshal(job)
-
-	if err != nil {
-		return err
-	}
-
-	return client.Set(ctx, s.jobKey(job.ID), data, s.ttl(job)).Err()
-}
-
-// Load returns the job, or nil when there is no such job.
-//
-// A Redis failure is reported as an error rather than as a missing job: a
-// caller that mistook one for the other would abandon a publish that is still
-// in flight, leaving it neither committed nor marked failed.
-func (s PublishJobStore) Load(ctx context.Context, jobID string) (*PublishJob, error) {
-	client := rediscache.Client()
-
-	if client == nil {
-		return nil, nil
-	}
-
-	data, err := client.Get(ctx, s.jobKey(jobID)).Bytes()
-
-	if errors.Is(err, redis.Nil) {
-		return nil, nil
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	job := &PublishJob{}
-
-	if err := json.Unmarshal(data, job); err != nil {
-		return nil, err
-	}
-
-	return job, nil
-}
-
-// LoadByEnv returns the most recent job of an environment, or nil when it has
-// never published. As with Load, a Redis failure is an error and not an
-// absence: callers use this to decide whether a publish is already running.
-func (s PublishJobStore) LoadByEnv(ctx context.Context, envID types.ID) (*PublishJob, error) {
-	client := rediscache.Client()
-
-	if client == nil {
-		return nil, nil
-	}
-
-	jobID, err := client.Get(ctx, s.envKey(envID)).Result()
-
-	if errors.Is(err, redis.Nil) {
-		return nil, nil
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	if jobID == "" {
-		return nil, nil
-	}
-
-	return s.Load(ctx, jobID)
+// SaveNodeResultParams identifies the warm-up a verdict belongs to. A hosting
+// node only ever sees the broadcast request, so it addresses the warm-up by id
+// and deadline.
+type SaveNodeResultParams struct {
+	WarmupID string
+	Deadline int64
+	Result   WarmupResult
 }
 
 // SaveNodeResult records one hosting node's verdict.
 //
-// The size caps are applied here rather than by the caller: this is where data
-// reported by a hosting node enters Redis, and a server that crash-loops with
-// noisy output must not be able to write an unbounded value.
-func (s PublishJobStore) SaveNodeResult(ctx context.Context, job *PublishJob, result WarmupResult) error {
-	if result.ServiceID == "" {
+// The size cap is applied here rather than by the caller: this is where text
+// reported by a hosting node enters Redis.
+func SaveNodeResult(ctx context.Context, p SaveNodeResultParams) error {
+	if p.Result.ServiceID == "" {
 		return errors.New("cannot record a warm-up result without a service id")
 	}
 
@@ -277,25 +187,25 @@ func (s PublishJobStore) SaveNodeResult(ctx context.Context, job *PublishJob, re
 		return nil
 	}
 
-	result.Logs = TruncateWarmupLogs(result.Logs)
-	result.Reason = truncateReason(result.Reason)
+	p.Result.Reason = truncateReason(p.Result.Reason)
 
-	data, err := json.Marshal(result)
+	data, err := json.Marshal(p.Result)
 
 	if err != nil {
 		return err
 	}
 
-	// The verdict has to outlive the job that is waiting for it, or a node that
-	// already succeeded reads back as pending and the publish fails at its
-	// deadline.
-	return client.Set(ctx, s.nodeKey(job.ID, result.ServiceID), data, s.ttl(job)).Err()
+	store := warmupStore{}
+
+	return client.Set(ctx, store.nodeKey(p.WarmupID, p.Result.ServiceID), data, ttlForDeadline(p.Deadline)).Err()
 }
 
-// NodeResults returns the verdicts reported so far, keyed by service id. A
-// service that has not reported is absent from the map — never assume silence
-// means success.
-func (s PublishJobStore) NodeResults(ctx context.Context, job *PublishJob) map[string]WarmupResult {
+// nodeResults returns the verdicts reported so far, keyed by service id.
+//
+// A node that has not reported is absent from the map. Silence is never read as
+// success: that is what stops a publish from going ahead on the word of nodes
+// that never answered.
+func (s warmupStore) nodeResults(ctx context.Context, warmupID string, nodes []string) map[string]WarmupResult {
 	results := map[string]WarmupResult{}
 	client := rediscache.Client()
 
@@ -303,8 +213,8 @@ func (s PublishJobStore) NodeResults(ctx context.Context, job *PublishJob) map[s
 		return results
 	}
 
-	for _, serviceID := range job.Nodes {
-		data, err := client.Get(ctx, s.nodeKey(job.ID, serviceID)).Bytes()
+	for _, serviceID := range nodes {
+		data, err := client.Get(ctx, s.nodeKey(warmupID, serviceID)).Bytes()
 
 		// A node that cannot be read counts as pending, which fails the publish
 		// safely rather than committing one that was never verified. Log the
@@ -312,7 +222,7 @@ func (s PublishJobStore) NodeResults(ctx context.Context, job *PublishJob) map[s
 		// publish with nothing to explain it.
 		if err != nil {
 			if !errors.Is(err, redis.Nil) {
-				slog.Errorf("cannot read warm-up result for job %s node %s: %s", job.ID, serviceID, err.Error())
+				slog.Errorf("cannot read warm-up result for %s node %s: %s", warmupID, serviceID, err.Error())
 			}
 
 			continue
@@ -321,7 +231,7 @@ func (s PublishJobStore) NodeResults(ctx context.Context, job *PublishJob) map[s
 		result := WarmupResult{}
 
 		if err := json.Unmarshal(data, &result); err != nil {
-			slog.Errorf("cannot decode warm-up result for job %s node %s: %s", job.ID, serviceID, err.Error())
+			slog.Errorf("cannot decode warm-up result for %s node %s: %s", warmupID, serviceID, err.Error())
 			continue
 		}
 
@@ -331,80 +241,134 @@ func (s PublishJobStore) NodeResults(ctx context.Context, job *PublishJob) map[s
 	return results
 }
 
-// Lock takes the finalization lock for a job. The returned token identifies
-// this holder and must be handed back to Unlock. A false second return means
-// another process holds the lock and the caller must do nothing: the holder is
-// about to decide the same job.
-func (s PublishJobStore) Lock(ctx context.Context, jobID string) (string, bool) {
-	token := uuid.New().String()
-	client := rediscache.Client()
-
-	if client == nil {
-		return token, true
-	}
-
-	ok, err := client.SetNX(ctx, s.lockKey(jobID), token, finalizeLockTTL).Result()
-
-	if err != nil || !ok {
-		return "", false
-	}
-
-	return token, true
-}
-
-// Unlock releases the finalization lock, but only if this caller still holds
-// it.
-//
-// Finalizing writes to the database, resets the hosting cache and dispatches
-// publish webhooks, so it can outrun the lock's expiry. Without the token check
-// a slow finalizer would delete the lock a second one had since taken, and the
-// same publish would be committed twice.
-func (s PublishJobStore) Unlock(ctx context.Context, jobID, token string) {
+// recordIntent marks this warm-up as the newest publish for the environment.
+// The marker has to outlive the warm-up window, or a configured window longer
+// than the status TTL would disable the guard it exists for.
+func (s warmupStore) recordIntent(ctx context.Context, envID types.ID, warmupID string, deadline int64) {
 	client := rediscache.Client()
 
 	if client == nil {
 		return
 	}
 
-	if err := unlockScript.Run(ctx, client, []string{s.lockKey(jobID)}, token).Err(); err != nil && !errors.Is(err, redis.Nil) {
-		slog.Errorf("cannot release publish lock for job %s: %s", jobID, err.Error())
+	if err := client.Set(ctx, s.intentKey(envID), warmupID, ttlForDeadline(deadline)).Err(); err != nil {
+		slog.Errorf("cannot record publish intent for env %s: %s", envID.String(), err.Error())
 	}
 }
 
-// JobIDs returns every job currently held in Redis, decided or not.
-func (s PublishJobStore) JobIDs(ctx context.Context) ([]string, error) {
+// isNewestIntent reports whether this warm-up is still the one the environment
+// should end up on.
+//
+// Warm-ups run detached, so a slow publish can finish after a later one already
+// flipped. Without this check the older deployment would quietly win.
+//
+// An unreadable marker is an error rather than a "no": answering "superseded"
+// would drop a publish that warmed up perfectly, with nothing recorded to
+// explain why the environment never moved.
+func (s warmupStore) isNewestIntent(ctx context.Context, envID types.ID, warmupID string) (bool, error) {
+	client := rediscache.Client()
+
+	if client == nil {
+		return true, nil
+	}
+
+	newest, err := client.Get(ctx, s.intentKey(envID)).Result()
+
+	if errors.Is(err, redis.Nil) {
+		return true, nil
+	}
+
+	if err != nil {
+		return false, err
+	}
+
+	return newest == warmupID, nil
+}
+
+// setStatus publishes what the dashboard should show for this environment.
+func (s warmupStore) setStatus(ctx context.Context, envID types.ID, status PublishStatus) {
+	client := rediscache.Client()
+
+	if client == nil {
+		return
+	}
+
+	status.UpdatedAt = time.Now().Unix()
+	data, err := json.Marshal(status)
+
+	if err != nil {
+		slog.Errorf("cannot encode publish status for env %s: %s", envID.String(), err.Error())
+		return
+	}
+
+	if err := client.Set(ctx, s.statusKey(envID), data, publishStatusTTL).Err(); err != nil {
+		slog.Errorf("cannot record publish status for env %s: %s", envID.String(), err.Error())
+	}
+}
+
+// PublishStatusOf returns the last known publish status of an environment, or
+// nil when there is none.
+func PublishStatusOf(ctx context.Context, envID types.ID) (*PublishStatus, error) {
 	client := rediscache.Client()
 
 	if client == nil {
 		return nil, nil
 	}
 
-	keys, err := client.Keys(ctx, "publish:job:*")
+	data, err := client.Get(ctx, warmupStore{}.statusKey(envID)).Bytes()
+
+	if errors.Is(err, redis.Nil) {
+		return nil, nil
+	}
 
 	if err != nil {
 		return nil, err
 	}
 
-	ids := []string{}
+	status := &PublishStatus{}
 
-	for _, key := range keys {
-		// Skip the per-node and lock keys, which share the prefix.
-		if len(key) > len("publish:job:") && !hasSubKeySuffix(key) {
-			ids = append(ids, key[len("publish:job:"):])
-		}
+	if err := json.Unmarshal(data, status); err != nil {
+		return nil, err
 	}
 
-	return ids, nil
+	return status, nil
 }
 
-// hasSubKeySuffix reports whether a key under the job prefix belongs to a node
-// result or a lock rather than to a job itself.
-func hasSubKeySuffix(key string) bool {
-	for i := len("publish:job:"); i < len(key); i++ {
-		if key[i] == ':' {
-			return true
-		}
+// lock takes the flip lock for an environment. The returned token identifies
+// this holder and must be handed back to unlock.
+//
+// Contention and failure are told apart deliberately: a publish that merely
+// lost a race is worth retrying, while one that could not reach Redis is not.
+func (s warmupStore) lock(ctx context.Context, envID types.ID) (string, bool, error) {
+	token := uuid.New().String()
+	client := rediscache.Client()
+
+	if client == nil {
+		return token, true, nil
 	}
 
-	return false
+	ok, err := client.SetNX(ctx, s.lockKey(envID), token, flipLockTTL).Result()
+
+	if err != nil {
+		return "", false, err
+	}
+
+	return token, ok, nil
+}
+
+// unlock releases the flip lock, but only if this caller still holds it.
+//
+// The flip writes to the database, resets the hosting cache and dispatches
+// publish webhooks, so it can outrun the lock's expiry. Without the token check
+// a slow flip would delete a lock another one had since taken.
+func (s warmupStore) unlock(ctx context.Context, envID types.ID, token string) {
+	client := rediscache.Client()
+
+	if client == nil {
+		return
+	}
+
+	if err := unlockScript.Run(ctx, client, []string{s.lockKey(envID)}, token).Err(); err != nil && !errors.Is(err, redis.Nil) {
+		slog.Errorf("cannot release publish lock for env %s: %s", envID.String(), err.Error())
+	}
 }
