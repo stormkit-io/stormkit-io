@@ -133,6 +133,24 @@ func (_m *MicroServiceInterface) List(_a0 []string) ([]*rediscache.MicroService,
 	return r0, r1
 }
 
+// ServiceID provides a mock function with no fields
+func (_m *MicroServiceInterface) ServiceID() string {
+	ret := _m.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for ServiceID")
+	}
+
+	var r0 string
+	if rf, ok := ret.Get(0).(func() string); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	return r0
+}
+
 // SetAll provides a mock function with given fields: _a0, _a1, _a2
 func (_m *MicroServiceInterface) SetAll(_a0 string, _a1 string, _a2 []string) error {
 	ret := _m.Called(_a0, _a1, _a2)
