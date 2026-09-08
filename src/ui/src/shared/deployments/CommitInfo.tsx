@@ -15,6 +15,11 @@ interface Props {
   deployment: DeploymentV2;
   showProject?: boolean;
   clickable?: boolean;
+
+  // Set while a publish this session asked for is still going. A warm-up can
+  // finish inside a single poll, so waiting to observe it on the deployment
+  // would mean the badge never appears at all for a fast one.
+  publishing?: boolean;
 }
 
 const defaultMessage = (deployment: DeploymentV2): React.ReactNode => {
@@ -61,6 +66,7 @@ export default function CommitInfo({
   deployment,
   showProject,
   clickable = true,
+  publishing,
 }: Props) {
   const message =
     deployment.commit?.message?.split("\n")[0] || defaultMessage(deployment);
@@ -99,7 +105,7 @@ export default function CommitInfo({
               }}
             />
           )}
-          {(deployment.published || deployment.isWarmingUp) && (
+          {(deployment.published || deployment.isWarmingUp || publishing) && (
             <Chip
               color={deployment.published ? "success" : "info"}
               label={deployment.published ? "published" : "publishing..."}

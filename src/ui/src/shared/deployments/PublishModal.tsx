@@ -16,6 +16,10 @@ interface Props {
   onClose: () => void;
   onUpdate: () => void;
 
+  // Called as the publish moves on, so the row can show it is happening
+  // without having to catch a warm-up that may be over within one poll.
+  onPublishingChange?: (publishing: boolean) => void;
+
   // How often to ask whether the deployment is serving yet. Tests set this so
   // they do not have to spend real seconds waiting for a poll.
   pollInterval?: number;
@@ -39,6 +43,7 @@ export default function PublishModal({
   deployment,
   onClose,
   onUpdate,
+  onPublishingChange,
   pollInterval = defaultPollInterval,
 }: Props) {
   const { mode } = useContext(RootContext);
@@ -65,18 +70,26 @@ export default function PublishModal({
 
           if (published) {
             setPhase("published");
+            onPublishingChange?.(false);
             onUpdate();
             return;
           }
 
-          if (isWarmingUp) {
+          // Tell the page the moment the warm-up is visible. It stops polling
+          // once a build succeeds, and the refetch when the publish was asked
+          // for happens before the warm-up has been recorded — so without this
+          // nothing brings the page back to look again, and the publishing
+          // badge never appears.
+          if (isWarmingUp && !sawWarmUp.current) {
             sawWarmUp.current = true;
+            onUpdate();
           }
 
           // The warm-up was under way and has stopped without the environment
           // moving: the deployment never answered.
           if (sawWarmUp.current && !isWarmingUp) {
             setPhase("failed");
+            onPublishingChange?.(false);
             onUpdate();
             return;
           }
@@ -168,6 +181,7 @@ export default function PublishModal({
                 startedAt.current = Date.now();
                 sawWarmUp.current = false;
                 setPhase("publishing");
+                onPublishingChange?.(true);
 
                 publishDeployments({
                   deploymentId: deployment.id,
@@ -179,6 +193,7 @@ export default function PublishModal({
                   })
                   .catch(e => {
                     setPhase("idle");
+                    onPublishingChange?.(false);
                     setError(
                       typeof e === "string"
                         ? e

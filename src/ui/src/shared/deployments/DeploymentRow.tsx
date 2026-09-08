@@ -1,5 +1,5 @@
 import type { SxProps } from "@mui/material";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -46,6 +46,36 @@ export default function DeploymentRow({
   const [showManifest, setShowManifest] = useState<boolean>();
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>();
   const [showPublishModal, setShowPublishModal] = useState<boolean>();
+  const [publishing, setPublishing] = useState(false);
+  const wasBuilding = useRef(false);
+
+  // A warm-up can be over inside a single poll, so waiting to observe one on
+  // the deployment means a fast publish is never shown at all. A build that
+  // succeeds with auto-publish on is about to start one, and a publish asked
+  // for in this session is already running — both say so straight away and
+  // stop as soon as the environment has moved.
+  useEffect(() => {
+    if (deployment.status === "running") {
+      wasBuilding.current = true;
+      return;
+    }
+
+    if (
+      wasBuilding.current &&
+      deployment.status === "success" &&
+      deployment.isAutoPublish &&
+      !deployment.published
+    ) {
+      wasBuilding.current = false;
+      setPublishing(true);
+    }
+  }, [deployment.status, deployment.isAutoPublish, deployment.published]);
+
+  useEffect(() => {
+    if (deployment.published) {
+      setPublishing(false);
+    }
+  }, [deployment.published]);
   const menuItems = useWithMenuItems({
     deployment,
     omittedItems: viewDetails ? [] : ["view-details"],
@@ -111,7 +141,11 @@ export default function DeploymentRow({
           <LensIcon color={isSuccess ? "success" : "error"} sx={iconProps} />
         )}
         <Box sx={{ flex: 1 }}>
-          <CommitInfo deployment={deployment} showProject={showProject} />
+          <CommitInfo
+            deployment={deployment}
+            showProject={showProject}
+            publishing={publishing}
+          />
         </Box>
       </Box>
       {showDeleteModal && (
@@ -172,6 +206,7 @@ export default function DeploymentRow({
       {showPublishModal && (
         <PublishModal
           deployment={deployment}
+          onPublishingChange={setPublishing}
           onUpdate={() => {
             setRefreshToken(Date.now());
           }}
