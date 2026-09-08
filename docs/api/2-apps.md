@@ -305,7 +305,7 @@ Returns an array of configuration objects for all matching published deployments
 | `deploymentId`  | string     | ID of the published deployment.                                                |
 | `appId`         | string     | ID of the application.                                                         |
 | `envId`         | string     | ID of the environment.                                                         |
-| `percentage`    | number     | Traffic percentage routed to this deployment (0–100).                          |
+| `isPublished`   | boolean    | Whether the environment is currently serving this deployment.                  |
 | `apiPathPrefix` | string     | URL path prefix under which serverless API functions are served.               |
 | `domains`       | `string[]` | Custom domains associated with this deployment. `null` if none are configured. |
 | `staticFiles`   | object     | Map of URL paths to static file metadata.                                      |
@@ -336,7 +336,7 @@ curl -X GET \
       "deploymentId": "8241",
       "appId": "1510",
       "envId": "305",
-      "percentage": 100,
+      "isPublished": true,
       "apiPathPrefix": "/api",
       "domains": null,
       "staticFiles": {
