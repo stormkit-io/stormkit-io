@@ -48,9 +48,9 @@ var stmt = &statement{
 			(SELECT json_agg(
 				jsonb_build_object(
 					'envId', dp.env_id,
-					'percentage', dp.percentage_released)) as published
+					'deploymentId', dp.deployment_id::text)) as published
 			 FROM deployments_published dp
-			 WHERE dp.percentage_released > 0 AND dp.deployment_id = d.deployment_id) as published
+			 WHERE dp.deployment_id = d.deployment_id) as published
 		FROM deployments d
 		LEFT JOIN apps a ON a.app_id = d.app_id
 		{{ .joins }}
@@ -221,18 +221,22 @@ var stmt = &statement{
 		WHERE deployment_id = ANY($1);
 	`, tableDeploys),
 
+	// Pointing an environment at a deployment is an upsert, not a delete
+	// followed by an insert: an environment has one row, and the two halves of
+	// a delete-then-insert share a snapshot, so the insert would collide with
+	// the row the delete is on its way to removing.
 	publish: `
-		WITH delete_published AS (
-			DELETE FROM deployments_published WHERE env_id = ANY({{ .envIDsParam }})
-		),
-		update_ts AS (
+		WITH update_ts AS (
 			UPDATE apps_build_conf e SET updated_at = NOW()
 			WHERE e.env_id = ANY({{ .envIDsParam }})
 		)
 		INSERT INTO deployments_published
-			(env_id, deployment_id, percentage_released)
+			(env_id, deployment_id)
 		VALUES
-			{{ generateValues 3 (len .records) }};
+			{{ generateValues 2 (len .records) }}
+		ON CONFLICT (env_id) DO UPDATE SET
+			deployment_id = EXCLUDED.deployment_id,
+			created_at = NOW() AT TIME ZONE 'UTC';
 	`,
 
 	prioritizeDeployment: `

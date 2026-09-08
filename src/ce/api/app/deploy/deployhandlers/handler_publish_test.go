@@ -69,7 +69,7 @@ func (s *HandlerPublishDeploymentSuite) Test_Success() {
 		"appId": "%s",
 		"status": "publishing",
 		"config": [
-			{ "percentage":100, "deploymentId": "%s" }
+			{ "deploymentId": "%s" }
 		],
 		"envId": "%s"}`,
 		app.ID.String(),
@@ -131,7 +131,7 @@ func (s *HandlerPublishDeploymentSuite) Test_BadRequest() {
 		},
 	)
 
-	expectedResponse := `{"errors":{"envId":"Environment ID is a required field","percentage":"The sum of percentages should be 100 in order to publish."},"ok":false}`
+	expectedResponse := `{"errors":{"deploymentId":"Deployment id is a required field","envId":"Environment ID is a required field"},"ok":false}`
 
 	a := assert.New(s.T())
 	a.Equal(http.StatusBadRequest, response.Code)
@@ -139,10 +139,14 @@ func (s *HandlerPublishDeploymentSuite) Test_BadRequest() {
 	a.Nil(s.calledParams)
 }
 
-func (s *HandlerPublishDeploymentSuite) Test_BadRequest_PercentageNot100() {
+// Test_IgnoresPercentage verifies a percentage sent by an older client is
+// accepted and ignored. An environment serves exactly one deployment, so there
+// is no share to honour — but rejecting the field would break those clients.
+func (s *HandlerPublishDeploymentSuite) Test_IgnoresPercentage() {
 	usr := s.MockUser()
 	app := s.MockApp(usr)
 	env := s.MockEnv(app)
+	dpl := s.MockDeployment(env, nil)
 
 	response := shttptest.RequestWithHeaders(
 		shttp.NewRouter().RegisterService(deployhandlers.Services).Router().Handler(),
@@ -152,7 +156,7 @@ func (s *HandlerPublishDeploymentSuite) Test_BadRequest_PercentageNot100() {
 			"appId": app.ID.String(),
 			"envId": env.ID.String(),
 			"publish": []map[string]any{
-				{"percentage": 70, "deploymentId": app.ID.String()},
+				{"percentage": 70, "deploymentId": dpl.ID.String()},
 			},
 		},
 		map[string]string{
@@ -160,12 +164,10 @@ func (s *HandlerPublishDeploymentSuite) Test_BadRequest_PercentageNot100() {
 		},
 	)
 
-	expectedResponse := `{"errors":{"percentage":"The sum of percentages should be 100 in order to publish."},"ok":false}`
-
 	a := assert.New(s.T())
-	a.Equal(http.StatusBadRequest, response.Code)
-	a.Equal(expectedResponse, response.String())
-	a.Nil(s.calledParams)
+	a.Equal(http.StatusOK, response.Code)
+	s.Require().NotNil(s.calledParams)
+	a.Equal(dpl.ID, s.calledParams.DeploymentID)
 }
 
 func TestHandlerPublishDeployment(t *testing.T) {

@@ -18,7 +18,7 @@ export const mockFetchDeployments = ({
   response,
 }: MockFetchDeploymentCallProps) => {
   const params = new URLSearchParams(
-    JSON.parse(JSON.stringify({ teamId, deploymentId, envId }))
+    JSON.parse(JSON.stringify({ teamId, deploymentId, envId })),
   );
 
   return nock(endpoint)
@@ -97,7 +97,7 @@ export const mockFetchManifest = ({
 interface MockPublishDeploymentsProps {
   appId: string;
   envId: string;
-  publish: { percentage: number; deploymentId: string }[];
+  publish: { deploymentId: string }[];
   status?: number;
   response?: object;
 }
@@ -117,7 +117,9 @@ export const mockFetchPublishState = ({
 }: MockFetchPublishStateProps) =>
   nock(endpoint)
     .get(`/my/deployments?deploymentId=${deploymentId}`)
-    .reply(200, { deployments: [{ id: deploymentId, published, isWarmingUp }] });
+    .reply(200, {
+      deployments: [{ id: deploymentId, published, isWarmingUp }],
+    });
 
 export const mockPublishDeployments = ({
   appId,

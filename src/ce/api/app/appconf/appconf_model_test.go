@@ -104,18 +104,11 @@ func (s *appconfSuite) SetupSuite() {
 
 	s.NoError(buildconf.SnippetsStore().Insert(s.ctx, snippets))
 
-	// Publish deployments
+	// An environment serves exactly one deployment.
 	settings := []*deploy.PublishSettings{
 		{
 			EnvID:        s.env.ID,
 			DeploymentID: s.depl.ID,
-			Percentage:   25,
-			NoCacheReset: true,
-		},
-		{
-			EnvID:        s.env.ID,
-			DeploymentID: s.depls[1].ID,
-			Percentage:   75,
 			NoCacheReset: true,
 		},
 	}
@@ -146,7 +139,6 @@ func (s *appconfSuite) Test_ByDeploymentID() {
 	s.Len(configs, 1)
 	s.Equal(s.depl.ID, configs[0].DeploymentID)
 	s.Equal(s.depl.AppID, configs[0].AppID)
-	s.Equal(float64(25), configs[0].Percentage)
 	s.Equal(types.ID(0), configs[0].DomainID)
 	s.Equal("all", configs[0].AuthWall)
 	s.Equal("node index.js", configs[0].ServerCmd)
@@ -169,12 +161,11 @@ func (s *appconfSuite) Test_ByDeploymentID_Snippets_ProdDomain() {
 	})
 
 	s.NoError(err)
-	s.Len(configs, 2)
+	s.Len(configs, 1)
 	s.Equal("", configs[0].CertKey)
 	s.Equal("", configs[0].CertValue)
 	s.Equal(s.depl.ID, configs[0].DeploymentID)
 	s.Equal(s.depl.AppID, configs[0].AppID)
-	s.Equal(float64(25), configs[0].Percentage)
 	s.Equal("dev", configs[0].AuthWall)
 	s.Equal("aws:arn:aws:lambda:eu-central-1:account-id:function:lambda-name", configs[0].FunctionLocation)
 	s.Equal("aws:s3-bucket-name/s3-key-prefix", configs[0].StorageLocation)
@@ -216,7 +207,6 @@ func (s *appconfSuite) Test_ByDeploymentID_Snippets_DevDomain() {
 	s.Equal(s.depl.ID, configs[0].DeploymentID)
 	s.Equal(s.depl.AppID, configs[0].AppID)
 	s.Equal(types.ID(0), configs[0].DomainID)
-	s.Equal(float64(25), configs[0].Percentage)
 	s.Equal("", configs[0].AuthWall)
 	s.Equal("/index.html", configs[0].ErrorFile)
 	s.Equal("aws:arn:aws:lambda:eu-central-1:account-id:function:lambda-name", configs[0].FunctionLocation)
@@ -248,12 +238,11 @@ func (s *appconfSuite) Test_ByDomainName() {
 	})
 
 	s.NoError(err)
-	s.Len(configs, 2)
+	s.Len(configs, 1)
 
 	// Deployment 1
 	s.Equal(s.depl.ID, configs[0].DeploymentID)
 	s.Equal(s.depl.AppID, configs[0].AppID)
-	s.Equal(float64(25), configs[0].Percentage)
 	s.Equal("cert-value", configs[0].CertValue)
 	s.Equal("cert-key", configs[0].CertKey)
 	s.Equal(s.domains[0].ID, configs[0].DomainID)
@@ -265,17 +254,6 @@ func (s *appconfSuite) Test_ByDomainName() {
 		BodyAppend:  "S1",
 		BodyPrepend: "S2",
 	}, appconf.SnippetsHTML(configs[0].Snippets))
-
-	// Deployment 2
-	s.Equal(s.depls[1].ID, configs[1].DeploymentID)
-	s.Equal(s.depls[1].AppID, configs[1].AppID)
-	s.Equal(float64(75), configs[1].Percentage)
-	s.Equal("", configs[1].FunctionLocation)
-	s.Equal("", configs[1].StorageLocation)
-	s.Equal(appconf.StaticFileConfig{
-		"/about": {FileName: "about", Headers: map[string]string{"accept-encoding": "None", "content-type": "text/html; charset=utf-8"}},
-		"/index": {FileName: "index", Headers: map[string]string{"keep-alive": "30", "content-type": "text/html; charset=utf-8"}},
-	}, configs[1].StaticFiles)
 
 	s.Equal([]redirects.Redirect{
 		// This one is the redirects defined from the UI (takes precedence)
@@ -300,12 +278,11 @@ func (s *appconfSuite) Test_ByDisplayName() {
 	})
 
 	s.NoError(err)
-	s.Len(configs, 2)
+	s.Len(configs, 1)
 
 	// Deployment 1
 	s.Equal(s.depl.ID, configs[0].DeploymentID)
 	s.Equal(s.depl.AppID, configs[0].AppID)
-	s.Equal(float64(25), configs[0].Percentage)
 	s.Equal("aws:arn:aws:lambda:eu-central-1:account-id:function:lambda-name", configs[0].FunctionLocation)
 	s.Equal("aws:s3-bucket-name/s3-key-prefix", configs[0].StorageLocation)
 	s.Equal(&appconf.SnippetInjection{
@@ -314,16 +291,6 @@ func (s *appconfSuite) Test_ByDisplayName() {
 		BodyPrepend: "S2",
 	}, appconf.SnippetsHTML(configs[0].Snippets))
 
-	// Deployment 2
-	s.Equal(s.depls[1].ID, configs[1].DeploymentID)
-	s.Equal(s.depls[1].AppID, configs[1].AppID)
-	s.Equal(float64(75), configs[1].Percentage)
-	s.Equal("", configs[1].FunctionLocation)
-	s.Equal("", configs[1].StorageLocation)
-	s.Equal(appconf.StaticFileConfig{
-		"/about": {FileName: "about", Headers: map[string]string{"accept-encoding": "None", "content-type": "text/html; charset=utf-8"}},
-		"/index": {FileName: "index", Headers: map[string]string{"keep-alive": "30", "content-type": "text/html; charset=utf-8"}},
-	}, configs[1].StaticFiles)
 	s.Equal(&appconf.SnippetInjection{
 		HeadPrepend: "S4",
 		BodyAppend:  "S1",
@@ -357,12 +324,11 @@ func (s *appconfSuite) Test_ByStormkitDevSubdomain() {
 	})
 
 	s.NoError(err)
-	s.Len(configs, 2)
+	s.Len(configs, 1)
 
 	// Deployment 1
 	s.Equal(s.depl.ID, configs[0].DeploymentID)
 	s.Equal(s.depl.AppID, configs[0].AppID)
-	s.Equal(float64(25), configs[0].Percentage)
 	s.Equal("aws:arn:aws:lambda:eu-central-1:account-id:function:lambda-name", configs[0].FunctionLocation)
 	s.Equal("aws:s3-bucket-name/s3-key-prefix", configs[0].StorageLocation)
 	s.Equal(&appconf.SnippetInjection{
@@ -370,17 +336,6 @@ func (s *appconfSuite) Test_ByStormkitDevSubdomain() {
 		BodyAppend:  "S1",
 		BodyPrepend: "S2",
 	}, appconf.SnippetsHTML(configs[0].Snippets))
-
-	// Deployment 2
-	s.Equal(s.depls[1].ID, configs[1].DeploymentID)
-	s.Equal(s.depls[1].AppID, configs[1].AppID)
-	s.Equal(float64(75), configs[1].Percentage)
-	s.Equal("", configs[1].FunctionLocation)
-	s.Equal("", configs[1].StorageLocation)
-	s.Equal(appconf.StaticFileConfig{
-		"/about": {FileName: "about", Headers: map[string]string{"accept-encoding": "None", "content-type": "text/html; charset=utf-8"}},
-		"/index": {FileName: "index", Headers: map[string]string{"keep-alive": "30", "content-type": "text/html; charset=utf-8"}},
-	}, configs[1].StaticFiles)
 
 	s.Equal(&appconf.SnippetInjection{
 		HeadPrepend: "S4",

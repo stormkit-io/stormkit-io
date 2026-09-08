@@ -2,7 +2,6 @@ package hosting_test
 
 import (
 	"fmt"
-	"net/http"
 	"net/url"
 	"sync"
 	"sync/atomic"
@@ -56,7 +55,7 @@ func (s *HostSuite) Test_RequestConfig_CaseInsensitivy() {
 	env := s.MockEnv(app)
 	dep := s.MockDeployment(env, map[string]any{
 		"Published": deploy.PublishedInfo{
-			{EnvID: env.ID, Percentage: 100},
+			{EnvID: env.ID},
 		},
 	})
 
@@ -66,42 +65,11 @@ func (s *HostSuite) Test_RequestConfig_CaseInsensitivy() {
 	s.Equal(conf[0].DeploymentID, dep.ID)
 }
 
-func (s *HostSuite) Test_ChooseVersion_MultipleVersions() {
-	h := s.host()
-
-	confs := []*appconf.Config{
-		{Percentage: 100, DeploymentID: 1},
-		{Percentage: 0, DeploymentID: 2},
-	}
-
-	s.Equal(confs[0], h.ChooseVersion(confs))
-}
-
-func (s *HostSuite) Test_ChooseVersion_MultipleVersionsWithVersionCookie() {
-	req := &http.Request{
-		Header: map[string][]string{
-			"Cookie": {
-				fmt.Sprintf("%s=3", hosting.VersionCookieName),
-			},
-		},
-	}
-
-	h := &hosting.Host{Request: shttp.NewRequestContext(req)}
-
-	confs := []*appconf.Config{
-		{Percentage: 25, DeploymentID: 1},
-		{Percentage: 65, DeploymentID: 2},
-		{Percentage: 10, DeploymentID: 3},
-	}
-
-	s.Equal(confs[2], h.ChooseVersion(confs))
-}
-
 func (s *HostSuite) Test_ChooseVersion_SingleConf() {
 	h := s.host()
 
 	confs := []*appconf.Config{
-		{Percentage: 25, DeploymentID: 1},
+		{DeploymentID: 1},
 	}
 
 	s.Equal(confs[0], h.ChooseVersion(confs))

@@ -60,10 +60,6 @@ const (
 	// resets the hosting cache and dispatches the publish webhooks
 	// synchronously.
 	flipLockTTL = 2 * time.Minute
-
-	// publishedPercentage is what every published deployment gets.
-	// Percentage-based releases are retired.
-	publishedPercentage = 100
 )
 
 // unlockScript releases a lock only when the caller still owns it.

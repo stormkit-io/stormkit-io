@@ -222,7 +222,7 @@ func (s *Store) MyDeployments(ctx context.Context, filters *DeploymentsQueryFilt
 	}
 
 	if filters.Published != nil {
-		where = append(where, "dp.percentage_released > 0")
+		where = append(where, "dp.deployment_id IS NOT NULL")
 		joins = append(joins, "LEFT JOIN deployments_published dp ON dp.deployment_id = d.deployment_id")
 	}
 
@@ -506,11 +506,7 @@ func (s *Store) Publish(ctx context.Context, settings ...*PublishSettings) error
 	params := []any{}
 
 	for _, record := range settings {
-		if record.Percentage <= 0 {
-			continue
-		}
-
-		params = append(params, record.EnvID, record.DeploymentID, record.Percentage)
+		params = append(params, record.EnvID, record.DeploymentID)
 		envIDs = append(envIDs, record.EnvID)
 		checks[record.DeploymentID] = record.EnvID
 	}

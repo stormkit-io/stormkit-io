@@ -73,7 +73,7 @@ describe("~/shared/deployments/PublishModal", () => {
     const scope = mockPublishDeployments({
       appId: currentDepl.appId,
       envId: currentDepl.envId,
-      publish: [{ percentage: 100, deploymentId: currentDepl.id }],
+      publish: [{ deploymentId: currentDepl.id }],
     });
 
     // Registered before the click: the poll runs on a real clock, so a slow
@@ -105,7 +105,7 @@ describe("~/shared/deployments/PublishModal", () => {
     const scope = mockPublishDeployments({
       appId: currentDepl.appId,
       envId: currentDepl.envId,
-      publish: [{ percentage: 100, deploymentId: currentDepl.id }],
+      publish: [{ deploymentId: currentDepl.id }],
     });
 
     // Warming up, then stopped without the environment moving. Both are

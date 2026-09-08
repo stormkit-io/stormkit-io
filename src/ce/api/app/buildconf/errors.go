@@ -18,7 +18,6 @@ var (
 	ErrInvalidBranch       = shttperr.New(http.StatusBadRequest, "Branch name is required and can only contain following characters: alphanumeric, -, +, /, ., and =", "branch-invalid") // See https://wincent.com/wiki/Legal_Git_branch_names for more details.
 	ErrDomainInvalidFormat = shttperr.New(http.StatusBadRequest, "Domain format is not correct", "invalid-domain")
 	ErrDomainInvalidToken  = shttperr.New(http.StatusBadRequest, "The verification token is not found. Please start the verification process by setting a domain first.", "invalid-token")
-	ErrInvalidPercentage   = shttperr.New(http.StatusBadRequest, "The sum of percentages should be 100 in order to publish.", "invalid-percentage")
 	ErrLambdaAlreadyExists = shttperr.New(http.StatusBadRequest, "Lambda function name already exists.", "lambda-already-exists")
 	ErrDuplicateEnvName    = shttperr.New(http.StatusBadRequest, "Environment name is duplicate. Choose a different name.", "duplicate-env")
 )

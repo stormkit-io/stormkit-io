@@ -61,42 +61,19 @@ export const fetchPublishState = ({
 interface PublishDeploymentsProps {
   appId: string;
   envId: string;
-  percentages: Record<string, number>;
-}
-
-interface PublishInfo {
   deploymentId: string;
-  percentage: number;
 }
 
+// An environment serves exactly one deployment, so this points it at one.
 export const publishDeployments = ({
   appId,
-  percentages,
   envId,
+  deploymentId,
 }: PublishDeploymentsProps): Promise<void> => {
-  const publish: Array<PublishInfo> = [];
-  let total = 0;
-
-  Object.keys(percentages).forEach(deploymentId => {
-    const percentage = percentages[deploymentId];
-    total = total + percentage;
-
-    publish.push({
-      percentage,
-      deploymentId,
-    });
-  });
-
-  if (total !== 100) {
-    return Promise.reject(
-      `The sum of percentages has be to 100. Currently it is ${total}.`,
-    );
-  }
-
   return api.post(`/app/deployments/publish`, {
     appId,
     envId,
-    publish,
+    publish: [{ deploymentId }],
   });
 };
 

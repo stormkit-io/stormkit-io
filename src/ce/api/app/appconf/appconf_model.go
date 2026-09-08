@@ -29,7 +29,7 @@ type Config struct {
 	APIPathPrefix    string                `json:"apiPathPrefix"`
 	APILocation      string                `json:"apiLocation,omitempty"`
 	ServerCmd        string                `json:"serverCmd,omitempty"`
-	Percentage       float64               `json:"percentage"` // Percentage released: either 100 o 0
+	IsPublished      bool                  `json:"isPublished"` // Whether the environment is serving this deployment
 	Snippets         Snippets              `json:"snippets,omitempty"`
 	UpdatedAt        utils.Unix            `json:"updatedAt"`
 	Redirects        []redirects.Redirect  `json:"redirects,omitempty"`

@@ -48,19 +48,19 @@ func (d MockDeployment) Insert(conn databasetest.TestDB) error {
 		return err
 	}
 
-	updatePublishedInfo := func(envID types.ID, percentage float64) error {
+	publish := func(envID types.ID) error {
 		_, err = conn.PrepareOrPanic(`
 				INSERT INTO deployments_published
-					(env_id, deployment_id, percentage_released)
+					(env_id, deployment_id)
 				VALUES
-					($1, $2, $3)
-			`).Exec(envID, d.ID, percentage)
+					($1, $2)
+			`).Exec(envID, d.ID)
 
 		return err
 	}
 
 	for _, p := range d.Published {
-		if err := updatePublishedInfo(p.EnvID, p.Percentage); err != nil {
+		if err := publish(p.EnvID); err != nil {
 			return err
 		}
 	}

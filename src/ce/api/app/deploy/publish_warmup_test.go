@@ -181,7 +181,6 @@ func (s *PublishWarmupSuite) Test_PublishSettingsFor_PublishesInFull() {
 	s.Require().Len(settings, 1)
 	s.Equal(types.ID(7), settings[0].EnvID)
 	s.Equal(types.ID(42), settings[0].DeploymentID)
-	s.Equal(float64(100), settings[0].Percentage)
 }
 
 func TestPublishWarmupSuite(t *testing.T) {

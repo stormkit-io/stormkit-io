@@ -22,7 +22,6 @@ import (
 
 type PublishedInfo struct {
 	DeploymentID  types.ID    `json:"deploymentId,string"`
-	Percentage    float64     `json:"percentage"`
 	Branch        string      `json:"branch"`
 	CommitAuthor  null.String `json:"commitAuthor"`
 	CommitSha     null.String `json:"commitSha"`
