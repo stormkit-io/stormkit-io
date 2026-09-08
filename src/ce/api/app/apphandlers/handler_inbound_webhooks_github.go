@@ -17,6 +17,8 @@ var whiteList = []string{
 	string(github.CheckSuiteEvent),
 }
 
+const githubPushCommitLimit = 2048
+
 // processGithubPayload processes a github payload and starts a new deployment.
 func processGithubPayload(req *shttp.RequestContext) (*TriggerDeployInput, error) {
 	hook, _ := github.New()
@@ -56,6 +58,13 @@ func processGithubPayload(req *shttp.RequestContext) (*TriggerDeployInput, error
 		input.CheckoutRepo = fmt.Sprintf("github/%s", event.Repository.FullName)
 		input.EventType = typeCommit
 		input.IsFork = false
+		input.ChangesComplete = len(event.Commits) > 0 && len(event.Commits) < githubPushCommitLimit
+
+		for _, commit := range event.Commits {
+			input.ChangedFiles = append(input.ChangedFiles, commit.Added...)
+			input.ChangedFiles = append(input.ChangedFiles, commit.Modified...)
+			input.ChangedFiles = append(input.ChangedFiles, commit.Removed...)
+		}
 
 		// Pushed something else: for instance a tag.
 		if input.Message == "" {

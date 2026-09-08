@@ -40,6 +40,13 @@ func processGitlabPayload(req *shttp.RequestContext) (*TriggerDeployInput, error
 		input.EventType = typeCommit
 		input.Message = strings.Split(event.Commits[0].Message, "\n")[0]
 		input.IsFork = false
+		input.ChangesComplete = len(event.Commits) > 0 && int64(len(event.Commits)) == event.TotalCommitsCount
+
+		for _, commit := range event.Commits {
+			input.ChangedFiles = append(input.ChangedFiles, commit.Added...)
+			input.ChangedFiles = append(input.ChangedFiles, commit.Modified...)
+			input.ChangedFiles = append(input.ChangedFiles, commit.Removed...)
+		}
 
 		// Do not build commits that were not in default branch because:
 		// 1. If the commit is made into a pull request - we'll receive the event anyways.

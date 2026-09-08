@@ -14,6 +14,7 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apphandlers"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deployservice"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
@@ -93,14 +94,16 @@ func (s *InboundGitlabSuite) AfterTest(_, _ string) {
 	deployservice.MockDeployer = nil
 }
 
-func (s *InboundGitlabSuite) app(autoDeploy bool) *factory.MockApp {
+func (s *InboundGitlabSuite) app(autoDeploy bool, envOverwrites ...map[string]any) *factory.MockApp {
 	app := s.MockApp(nil, map[string]any{
 		"Repo": "gitlab/stormkit-test-acc/test-repo",
 	})
 
-	s.MockEnv(app, map[string]any{
+	overwrites := []map[string]any{{
 		"AutoDeploy": autoDeploy,
-	})
+	}}
+	overwrites = append(overwrites, envOverwrites...)
+	s.MockEnv(app, overwrites...)
 
 	return app
 }
@@ -154,6 +157,35 @@ func (s *InboundGitlabSuite) TestPushEventSuccess() {
 				a.Equal(int64(0), _depl.PullRequestNumber.ValueOrZero())
 		}),
 	)
+}
+
+func (s *InboundGitlabSuite) Test_PushEvent_BuildRootUnchanged() {
+	appl := s.app(true, map[string]any{
+		"Data": &buildconf.BuildConf{WorkDir: "apps/frontend"},
+	})
+
+	payload := map[string]any{}
+	s.Require().NoError(json.Unmarshal([]byte(gitlabPushExample), &payload))
+	payload["total_commits_count"] = 1
+	payload["commits"] = []map[string]any{
+		{
+			"message":  "Update infrastructure",
+			"modified": []string{"apps/infrastructure/main.tf"},
+		},
+	}
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(apphandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		fmt.Sprintf("/app/webhooks/gitlab/%s", appl.Secret()),
+		payload,
+		map[string]string{
+			"X-Gitlab-Event": "Push Hook",
+		},
+	)
+
+	s.Equal(http.StatusNoContent, response.Code)
+	s.mockDeployer.AssertNotCalled(s.T(), "Deploy")
 }
 
 func (s *InboundGitlabSuite) TestMergeRequestOpened() {
