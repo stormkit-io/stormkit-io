@@ -26,7 +26,7 @@ describe("~/shared/deployments/CommitInfo.tsx", () => {
           showProject={showProject}
           clickable={clickable}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
   };
 
@@ -35,6 +35,22 @@ describe("~/shared/deployments/CommitInfo.tsx", () => {
     expect(toHumanTime(61)).toBe("1m 1s");
     expect(toHumanTime(120)).toBe("2m 0s");
     expect(toHumanTime(121)).toBe("2m 1s");
+  });
+
+  // A publish waits for the deployment to answer before traffic moves to it,
+  // so the badge has to say the release is on its way rather than done.
+  it("shows a deployment that is being published", () => {
+    const deployment = mockDeployments()[0];
+    deployment.published = false;
+    deployment.isWarmingUp = true;
+
+    createWrapper({ deployment });
+
+    expect(wrapper.getByText("publishing...")).toBeTruthy();
+    expect(wrapper.queryByText("published")).toBeNull();
+    expect(
+      wrapper.container.querySelector(".MuiCircularProgress-root"),
+    ).toBeTruthy();
   });
 
   it("should display information properly", () => {
@@ -46,11 +62,11 @@ describe("~/shared/deployments/CommitInfo.tsx", () => {
     expect(wrapper.getByText("published")).toBeTruthy();
 
     expect(
-      wrapper.getByText("chore: update packages").getAttribute("href")
+      wrapper.getByText("chore: update packages").getAttribute("href"),
     ).toBe("/my-test/url");
 
     expect(wrapper.getByText("sample-project").getAttribute("href")).toBe(
-      "/apps/1/environments/1/deployments"
+      "/apps/1/environments/1/deployments",
     );
   });
 
@@ -58,7 +74,7 @@ describe("~/shared/deployments/CommitInfo.tsx", () => {
     createWrapper({ deployment: mockDeployments()[0], clickable: false });
 
     expect(
-      wrapper.getByText("chore: update packages").getAttribute("href")
+      wrapper.getByText("chore: update packages").getAttribute("href"),
     ).toBe(null);
   });
 

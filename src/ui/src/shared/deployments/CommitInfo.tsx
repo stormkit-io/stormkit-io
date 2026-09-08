@@ -5,6 +5,7 @@ import Link from "@mui/material/Link";
 import AltRoute from "@mui/icons-material/AltRoute";
 import Tooltip from "@mui/material/Tooltip";
 import Chip from "@mui/material/Chip";
+import CircularProgress from "@mui/material/CircularProgress";
 import Span from "~/components/Span";
 import Dot from "~/components/Dot";
 import Sha from "./Sha";
@@ -101,8 +102,16 @@ export default function CommitInfo({
           {(deployment.published || deployment.isWarmingUp) && (
             <Chip
               color={deployment.published ? "success" : "info"}
-              label={deployment.published ? "published" : "publishing"}
+              label={deployment.published ? "published" : "publishing..."}
               size="small"
+              // A publish waits for the deployment to answer before traffic
+              // moves to it, which takes as long as the deployment takes to
+              // boot. The spinner says the wait is expected rather than stuck.
+              icon={
+                deployment.published ? undefined : (
+                  <CircularProgress size={9} color="inherit" sx={{ ml: 1 }} />
+                )
+              }
               sx={{
                 ml: 1,
                 fontSize: 11,
