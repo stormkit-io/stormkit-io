@@ -602,7 +602,6 @@ ALTER SEQUENCE skitapi.deployments_deployment_id_seq OWNED BY skitapi.deployment
 CREATE TABLE skitapi.deployments_published (
     deployment_id bigint NOT NULL,
     env_id bigint NOT NULL,
-    percentage_released numeric(4,1) DEFAULT 0 NOT NULL,
     created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text) NOT NULL
 );
 
@@ -1753,6 +1752,13 @@ CREATE INDEX idx_deployments_published_deployment_id ON skitapi.deployments_publ
 --
 
 CREATE INDEX idx_deployments_published_env_id ON skitapi.deployments_published USING btree (env_id);
+
+
+--
+-- Name: idx_deployments_published_env_id_unique; Type: INDEX; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE UNIQUE INDEX idx_deployments_published_env_id_unique ON skitapi.deployments_published USING btree (env_id);
 
 
 --

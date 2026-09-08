@@ -31,7 +31,7 @@ describe("~/pages/apps/[id]/environments/_components/EnvironmentStatus.tsx", () 
         initialIndex={0}
       >
         <EnvironmentStatus app={app} env={env} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
   };
 
@@ -40,9 +40,7 @@ describe("~/pages/apps/[id]/environments/_components/EnvironmentStatus.tsx", () 
       currentApp = mockApp();
       currentEnv = mockEnvironment({ app: currentApp });
       currentEnv.lastDeploy = { id: "481481", createdAt: Date.now(), exit: 0 };
-      currentEnv.published = [
-        { deploymentId: "481481", percentage: 100, branch: "master" },
-      ];
+      currentEnv.published = [{ deploymentId: "481481", branch: "master" }];
 
       createWrapper({ app: currentApp, env: currentEnv });
     });

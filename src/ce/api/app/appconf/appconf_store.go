@@ -83,7 +83,7 @@ var stmt = &statement{
 				e.build_conf							 			 as build_conf,
 				e.auth_wall_conf						 			 as auth_wall_conf,
 				e.auth_conf											 as auth_conf,
-				coalesce(dp.percentage_released, 0)		 			 as percentage,
+				(dp.deployment_id IS NOT NULL)			 			 as is_published,
 				a.display_name,
 				coalesce(u.metadata->>'package', 'free') 			 as subscription_tier,
 				u.user_id							 	 			 as billing_user_id,
@@ -133,7 +133,7 @@ var stmt = &statement{
 		SELECT
 			d.app_id, d.deployment_id, d.env_id,
 			d.fn_loc, d.st_loc, d.api_loc, d.api_path_prefix,
-			d.manifest, d.build_conf_snapshot, d.env_updated, d.build_conf, d.percentage,
+			d.manifest, d.build_conf_snapshot, d.env_updated, d.build_conf, d.is_published,
 			coalesce(d.cert_value, '') as cert_value,
 			coalesce(d.cert_key, '') as cert_key,
 			d.domain_id, d.analytics_excluded, d.auth_wall_conf, d.auth_conf,
@@ -246,9 +246,11 @@ func (s *Store) BelongsToEnv(ctx context.Context, envID types.ID, host *RequestC
 	return false, nil
 }
 
-// ConfigsByDomain returns the hosting configurations for the given domain name.
-// A domain can have multiple configurations, but their sum of percentage
-// should always be 100.
+// Configs returns the hosting configurations for the given filters.
+//
+// An environment serves exactly one deployment, so a domain resolves to a
+// single configuration. The slice remains because a lookup can legitimately
+// find none.
 func (s *Store) Configs(ctx context.Context, filters ConfigFilters) ([]*Config, error) {
 	var query string
 	var params []any
@@ -318,7 +320,7 @@ func rowsToConfigs(rows *sql.Rows, err error) ([]*Config, error) {
 			&cnf.FunctionLocation, &cnf.StorageLocation,
 			&cnf.APILocation, &cnf.APIPathPrefix,
 			&buildManifest, &buildConfSnapshot, &cnf.UpdatedAt, &buildConf,
-			&cnf.Percentage, &certVal, &certKey, &cnf.DomainID, &cnf.AnalyticsExcluded,
+			&cnf.IsPublished, &certVal, &certKey, &cnf.DomainID, &cnf.AnalyticsExcluded,
 			&authwall, &authConf, &cnf.Snippets, &displayName, &envName, &tier,
 			&cnf.BillingUserID,
 		)

@@ -38,7 +38,6 @@ interface PublishedInfo {
   commitMessage?: string;
   deploymentId: string;
   branch: string;
-  percentage: number;
 }
 
 interface Redirect {

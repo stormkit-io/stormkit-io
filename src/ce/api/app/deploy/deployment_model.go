@@ -104,9 +104,8 @@ type Deployment struct {
 	// This value is used to retrieve the jobs and then the logs.
 	GithubRunID null.Int `json:"-"`
 
-	// Published represents the publish information.
-	// It's a json string fetched from the database that contains
-	// the environment id and the released percentage.
+	// Published names the environments this deployment is serving. It is a
+	// json aggregate read from the database.
 	Published PublishedInfo `json:"-"`
 
 	// IsWarmingUp is filled in by handlers that report it — see
@@ -130,8 +129,8 @@ type Deployment struct {
 // PublishedInfo represents information on the publish details
 // for the given deployment.
 type PublishedInfo []struct {
-	EnvID      types.ID `json:"envId"`
-	Percentage float64  `json:"percentage"`
+	EnvID        types.ID `json:"envId"`
+	DeploymentID string   `json:"deploymentId"`
 }
 
 func (pi *PublishedInfo) Scan(value any) error {
@@ -510,13 +509,7 @@ func (d *Deployment) RepoSlug() string {
 
 // IsPublished reports whether the deployment is currently serving traffic.
 func (d *Deployment) IsPublished() bool {
-	for _, p := range d.Published {
-		if p.Percentage > 0 {
-			return true
-		}
-	}
-
-	return false
+	return len(d.Published) > 0
 }
 
 // AddLogs appends the given logs to the deployment logs.

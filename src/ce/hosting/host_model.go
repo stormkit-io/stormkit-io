@@ -11,15 +11,9 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
-	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"go.uber.org/zap"
 	"golang.org/x/sync/singleflight"
 )
-
-// VersionCookieName represents the name of the cookie that
-// will determine version for the user. If this value is empty,
-// or does not match any of the deployments, then it will be reset.
-const VersionCookieName = "sk_variant"
 
 // SettingsCookieName is the name of the cookie to which stores
 // the application's settings.
@@ -168,33 +162,14 @@ func (h *Host) RequestConfig() error {
 	return nil
 }
 
-// ChooseVersion chooses one version from possible multiple configs.
-// It is used for doing A/B testing.
+// ChooseVersion returns the configuration to serve this request from.
+//
+// An environment serves exactly one deployment — the database holds it as a
+// unique index — so there is nothing to choose between. The lookup can still
+// return nothing, which is what the nil is for.
 func (h *Host) ChooseVersion(confs []*appconf.Config) *appconf.Config {
 	if len(confs) == 0 {
 		return nil
-	}
-
-	if len(confs) == 1 {
-		return confs[0]
-	}
-
-	variant, err := h.Request.Cookie(VersionCookieName)
-
-	if err == nil && variant != nil {
-		for _, c := range confs {
-			if c.DeploymentID.String() == variant.Value {
-				return c
-			}
-		}
-	}
-
-	rand := float64(utils.Random(0, 100))
-
-	for _, c := range confs {
-		if rand = rand - c.Percentage; rand <= 0 {
-			return c
-		}
 	}
 
 	return confs[0]

@@ -48,7 +48,7 @@ func (s *HandlerAppConfSuite) Test_Success() {
 	})
 	dep := s.MockDeployment(env, map[string]any{
 		"Published": deploy.PublishedInfo{
-			{EnvID: env.ID, Percentage: 100},
+			{EnvID: env.ID},
 		},
 	})
 
@@ -68,7 +68,7 @@ func (s *HandlerAppConfSuite) Test_Success() {
 		"configs": [{
 			"domains": null,
 			"apiPathPrefix": "/api",
-			"percentage": 100,
+			"isPublished": true,
 			"updatedAt": null,
 			"staticFiles": {
 				"/about": { "fileName": "about", "headers": { "accept-encoding": "None", "content-type": "text/html; charset=utf-8" }},

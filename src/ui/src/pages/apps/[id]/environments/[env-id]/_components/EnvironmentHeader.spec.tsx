@@ -77,9 +77,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/_components/EnvironmentHeader.
     beforeEach(() => {
       const envs = [...defaultEnvs];
       envs[0].lastDeploy = { id: "1231231", createdAt: Date.now(), exit: 0 };
-      envs[0].published = [
-        { deploymentId: "682381", branch: "main", percentage: 100 },
-      ];
+      envs[0].published = [{ deploymentId: "682381", branch: "main" }];
 
       scope = mockFetchStatus({
         appId: defaultApp.id,
@@ -111,9 +109,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/_components/EnvironmentHeader.
     beforeEach(() => {
       const envs = [...defaultEnvs];
       envs[0].lastDeploy = { id: "1231231", createdAt: Date.now(), exit: 0 };
-      envs[0].published = [
-        { deploymentId: "682381", branch: "main", percentage: 100 },
-      ];
+      envs[0].published = [{ deploymentId: "682381", branch: "main" }];
 
       scope = mockFetchStatus({
         appId: defaultApp.id,

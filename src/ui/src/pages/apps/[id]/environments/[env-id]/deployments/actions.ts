@@ -13,48 +13,6 @@ export const deleteForever = ({
   return api.delete(`/app/deploy`, { deploymentId, appId });
 };
 
-interface PublishDeploymentsProps {
-  app: App;
-  envId: string;
-  percentages: Record<string, number>;
-}
-
-interface PublishInfo {
-  deploymentId: string;
-  percentage: number;
-}
-
-export const publishDeployments = ({
-  app,
-  percentages,
-  envId,
-}: PublishDeploymentsProps): Promise<void> => {
-  const publish: Array<PublishInfo> = [];
-  let total = 0;
-
-  Object.keys(percentages).forEach(deploymentId => {
-    const percentage = percentages[deploymentId];
-    total = total + percentage;
-
-    publish.push({
-      percentage,
-      deploymentId,
-    });
-  });
-
-  if (total !== 100) {
-    return Promise.reject(
-      `The sum of percentages has to be 100. Currently it is ${total}.`,
-    );
-  }
-
-  return api.post(`/app/deployments/publish`, {
-    appId: app.id,
-    envId,
-    publish,
-  });
-};
-
 interface FetchManifestProps {
   deploymentId: string;
   appId: string;

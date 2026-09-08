@@ -1,6 +1,5 @@
 type PublishInfo = {
   envId: string;
-  percentage: number;
 };
 
 type Log = {

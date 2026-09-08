@@ -38,13 +38,20 @@ type WarmUpAndPublishParams struct {
 // The progress and the reason for a failure are readable through
 // PublishStatusOf.
 func WarmUpAndPublish(ctx context.Context, p WarmUpAndPublishParams, onReady func() error) {
-	// Tests share one database transaction per test, and work that outlives the
-	// request would write to it after it has been rolled back — corrupting
-	// whichever test runs next rather than the one that started it. There are
-	// no hosting nodes registered under test, so running inline costs nothing
-	// but determinism.
+	// Tests publish without the gate. Two reasons: work that outlives the
+	// request would write to a transaction that has since been rolled back,
+	// corrupting whichever test runs next rather than the one that started it;
+	// and service discovery is shared, so a registration left behind by another
+	// package's test binary would have a publish wait for a node that is never
+	// going to answer.
+	//
+	// The gate's own behaviour is covered by PublishGateSuite, which drives it
+	// with service discovery faked.
 	if config.IsTest() {
-		warmUpGate{}.run(ctx, p, onReady)
+		if err := onReady(); err != nil {
+			slog.Errorf("cannot publish deployment %s: %s", p.DeploymentID.String(), err.Error())
+		}
+
 		return
 	}
 
@@ -399,14 +406,13 @@ func (g warmUpGate) fail(ctx context.Context, p WarmUpAndPublishParams, warmupID
 	})
 }
 
-// PublishSettingsFor returns the arguments that publish a deployment in full.
-// Percentage-based releases are retired, so there is only ever one of them.
+// PublishSettingsFor returns the arguments that point an environment at a
+// deployment. An environment serves exactly one, so there is only ever one.
 func PublishSettingsFor(envID, deploymentID types.ID) []*PublishSettings {
 	return []*PublishSettings{
 		{
 			EnvID:        envID,
 			DeploymentID: deploymentID,
-			Percentage:   publishedPercentage,
 		},
 	}
 }

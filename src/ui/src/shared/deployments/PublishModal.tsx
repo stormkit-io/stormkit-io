@@ -170,7 +170,7 @@ export default function PublishModal({
                 setPhase("publishing");
 
                 publishDeployments({
-                  percentages: { [deployment.id]: 100 },
+                  deploymentId: deployment.id,
                   envId: deployment.envId,
                   appId: deployment.appId,
                 })

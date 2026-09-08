@@ -3835,17 +3835,13 @@
           },
           "published": {
             "type": "array",
-            "description": "Currently published deployments and their traffic share.",
+            "description": "The deployment this environment is currently serving.",
             "items": {
               "type": "object",
               "properties": {
                 "deploymentId": {
                   "type": "string",
                   "description": "ID of the published deployment."
-                },
-                "percentage": {
-                  "type": "integer",
-                  "description": "Share of traffic served by this deployment."
                 }
               }
             }
@@ -3902,10 +3898,6 @@
           "isPublished": {
             "type": "boolean",
             "description": "True when this deployment currently serves traffic."
-          },
-          "percentage": {
-            "type": "integer",
-            "description": "Share of traffic served by this deployment."
           },
           "preview": {
             "type": "string",

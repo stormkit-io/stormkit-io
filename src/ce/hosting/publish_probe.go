@@ -202,7 +202,7 @@ func warmupConfig(host string, deploymentID types.ID) (*appconf.Config, error) {
 // A deployment that is already serving is left alone: re-publishing the live
 // deployment would otherwise kill the process answering production.
 func doWarmupDiscard(cnf *appconf.Config) {
-	if cnf == nil || cnf.FunctionLocation == "" || cnf.Percentage > 0 {
+	if cnf == nil || cnf.FunctionLocation == "" || cnf.IsPublished {
 		return
 	}
 

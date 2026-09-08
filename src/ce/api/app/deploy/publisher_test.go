@@ -16,7 +16,6 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
-	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/mocks"
 	"github.com/stretchr/testify/suite"
 	"gopkg.in/guregu/null.v3"
@@ -47,86 +46,49 @@ func (s *PublisherSuite) AfterTest(_, _ string) {
 	appcache.DefaultCacheService = nil
 }
 
-func (s *PublisherSuite) Test_PublishingMultiple() {
+// Test_PublishingReplaces verifies an environment ends up on the deployment it
+// was last pointed at, rather than accumulating rows. It used to serve several
+// at once with the traffic split between them; it now serves exactly one.
+func (s *PublisherSuite) Test_PublishingReplaces() {
 	app := s.MockApp(nil)
 	env := s.MockEnv(app, nil)
 	dps := s.MockDeployments(2, env)
 
-	settings := []*deploy.PublishSettings{
-		{
-			EnvID:        env.ID,
-			DeploymentID: dps[0].ID,
-			Percentage:   25,
-		},
-		{
-			EnvID:        env.ID,
-			DeploymentID: dps[1].ID,
-			Percentage:   75,
-		},
-	}
+	s.mockCacheService.On("Reset", env.ID).Return(nil).Twice()
 
-	s.mockCacheService.On("Reset", env.ID).Return(nil).Once()
-	s.mockCacheService.On("Reset", env.ID).Return(nil).Once()
+	s.NoError(deploy.PublishNowForTest(context.Background(), []*deploy.PublishSettings{
+		{EnvID: env.ID, DeploymentID: dps[0].ID},
+	}))
 
-	err := deploy.PublishNowForTest(context.Background(), settings)
-	s.NoError(err)
+	s.Equal([]string{fmt.Sprintf("%s:%s", env.ID, dps[0].ID)}, s.publishedRows())
 
+	s.NoError(deploy.PublishNowForTest(context.Background(), []*deploy.PublishSettings{
+		{EnvID: env.ID, DeploymentID: dps[1].ID},
+	}))
+
+	s.Equal([]string{fmt.Sprintf("%s:%s", env.ID, dps[1].ID)}, s.publishedRows())
+}
+
+// publishedRows returns every published deployment as "envID:deploymentID".
+func (s *PublisherSuite) publishedRows() []string {
 	rows, err := s.conn.Query(`
-		SELECT
-			env_id, deployment_id, percentage_released
-		FROM
-			deployments_published
-		ORDER BY
-			percentage_released ASC;`)
-
-	s.NoError(err)
-
-	i := 0
-
-	for rows.Next() {
-		var envID, deploymentID types.ID
-		var percentage float64
-		var setting = settings[i]
-
-		err := rows.Scan(&envID, &deploymentID, &percentage)
-		s.NoError(err)
-		s.Equal(envID, setting.EnvID)
-		s.Equal(deploymentID, setting.DeploymentID)
-		s.Equal(percentage, setting.Percentage)
-		i = i + 1
-	}
-
-	// This should remove the old published environment (with ID 1)
-	// and replace the existing published deployments with the new one.
-	settings = []*deploy.PublishSettings{
-		{
-			EnvID:        env.ID,
-			DeploymentID: dps[0].ID,
-			Percentage:   100,
-		},
-	}
-
-	s.mockCacheService.On("Reset", env.ID).Return(nil).Once()
-
-	err = deploy.PublishNowForTest(context.Background(), settings)
-	s.NoError(err)
-
-	rows, err = s.conn.Query(`
-		SELECT
-			env_id::text || ':' ||
-			deployment_id::text || ':' ||
-			percentage_released::text
+		SELECT env_id::text || ':' || deployment_id::text
 		FROM deployments_published
 		ORDER BY env_id ASC;`)
 
-	s.NoError(err)
+	s.Require().NoError(err)
 
-	rows.Next()
-	var str string
+	published := []string{}
 
-	err = rows.Scan(&str)
-	s.NoError(err)
-	s.Equal(fmt.Sprintf("%d:%d:100.0", env.ID, dps[0].ID), str)
+	for rows.Next() {
+		var row string
+
+		s.Require().NoError(rows.Scan(&row))
+
+		published = append(published, row)
+	}
+
+	return published
 }
 
 func (s *PublisherSuite) Test_PublishOutboundWebhooks() {
@@ -138,7 +100,6 @@ func (s *PublisherSuite) Test_PublishOutboundWebhooks() {
 		{
 			EnvID:        env.ID,
 			DeploymentID: depl.ID,
-			Percentage:   100,
 		},
 	}
 

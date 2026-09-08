@@ -32,7 +32,6 @@ var stmt = &statement{
 			d.created_at, d.deployment_id, d.exit_code, (
 				SELECT json_agg(
 					json_build_object(
-						'percentage', dp.percentage_released,
 						'deploymentId', d2.deployment_id::text,
 						'branch', d2.branch,
 						'commitSha', d2.commit_id,

@@ -38,7 +38,7 @@ export const mockDeleteDeploymentCall = ({
 interface MockPublishDeploymentsCallProps {
   appId: string;
   envId: string;
-  publish: { percentage: number; deploymentId: string }[];
+  publish: { deploymentId: string }[];
   status?: number;
   response?: object;
 }

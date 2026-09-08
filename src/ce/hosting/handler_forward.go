@@ -511,7 +511,7 @@ func (r *RequestServer) Dynamic() *shttp.Response {
 		DeploymentID:  cnf.DeploymentID,
 		Command:       cnf.ServerCmd,
 		EnvVariables:  cnf.EnvVariables,
-		IsPublished:   cnf.Percentage > 0,
+		IsPublished:   cnf.IsPublished,
 		CaptureLogs:   true,
 		RemoteAddress: r.req.RemoteIP(),
 		RemotePort:    r.req.RemotePort(),

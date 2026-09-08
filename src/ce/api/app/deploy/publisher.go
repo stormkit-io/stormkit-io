@@ -19,7 +19,6 @@ import (
 type PublishSettings struct {
 	DeploymentID types.ID
 	EnvID        types.ID
-	Percentage   float64
 	NoCacheReset bool
 }
 

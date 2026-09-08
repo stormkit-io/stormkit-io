@@ -14,8 +14,10 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 )
 
-// publishSettings specifies the percentage which
-// a deployment is published.
+// publishSettings names a deployment to publish.
+//
+// Percentage is still accepted so existing clients keep working, but it is
+// ignored: an environment serves exactly one deployment.
 type publishSettings struct {
 	Percentage   float64  `json:"percentage"`
 	DeploymentID types.ID `json:"deploymentId,string"`
@@ -28,7 +30,7 @@ type publishRequest struct {
 	// If nothing is provided, then it defaults to "production".
 	EnvID types.ID `json:"envId,string"`
 
-	// Publish holds a map of ids with their respective percentage to deploy.
+	// Publish names the deployment to point the environment at.
 	Publish []publishSettings `json:"publish"`
 }
 
@@ -40,22 +42,14 @@ func (pr *publishRequest) Validate() *shttperr.ValidationError {
 		err.SetError("envId", deploy.ErrMissingEnvID.Error())
 	}
 
-	total := float64(0)
+	if len(pr.Publish) == 0 {
+		err.SetError("deploymentId", deploy.ErrMissingDeploymentID.Error())
+	}
 
 	for _, publishDetails := range pr.Publish {
 		if publishDetails.DeploymentID == 0 {
 			err.SetError("deploymentId", deploy.ErrMissingDeploymentID.Error())
 		}
-
-		if publishDetails.Percentage < 0 || publishDetails.Percentage > 100 {
-			err.SetError("percentage", buildconf.ErrInvalidPercentage.Error())
-		}
-
-		total = total + publishDetails.Percentage
-	}
-
-	if total != 100 {
-		err.SetError("percentage", buildconf.ErrInvalidPercentage.Error())
 	}
 
 	return err.ToError()
@@ -137,7 +131,7 @@ func handlerPublish(req *app.RequestContext) *shttp.Response {
 			"envId":  env.ID.String(),
 			"status": deploy.PublishStatusPublishing,
 			"config": []any{
-				map[string]any{"deploymentId": deploymentID.String(), "percentage": float64(100)},
+				map[string]any{"deploymentId": deploymentID.String()},
 			},
 		},
 	}
