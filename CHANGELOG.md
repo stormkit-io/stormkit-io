@@ -1,5 +1,28 @@
 # Changelog
 
+## v2026.09.08.1...v2026.09.08.2
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.08.1...v2026.09.08.2)
+
+### 🚀 Enhancements
+
+- Skip unchanged monorepo build roots ([#521](https://github.com/stormkit-io/stormkit-io/pull/521))
+- Make monorepo build root filter opt-in ([#526](https://github.com/stormkit-io/stormkit-io/pull/526))
+
+### 📖 Documentation
+
+- Document isPublished on the app config response ([#527](https://github.com/stormkit-io/stormkit-io/pull/527))
+
+### 🏡 Chore
+
+- Update changelog for v2026.09.08.1 ([#524](https://github.com/stormkit-io/stormkit-io/pull/524))
+- Position stormkit as an application platform ([#525](https://github.com/stormkit-io/stormkit-io/pull/525))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+- Roberto.commit <robimalco@gmail.com>
+
 ## v2026.09.04.1...v2026.09.08.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.04.1...v2026.09.08.1)
