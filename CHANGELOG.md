@@ -1,5 +1,31 @@
 # Changelog
 
+## v2026.09.04.1...v2026.09.08.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.04.1...v2026.09.08.1)
+
+### 🚀 Enhancements
+
+- Add publish warm-up job plumbing ([#515](https://github.com/stormkit-io/stormkit-io/pull/515))
+- Warm a deployment up before publishing it ([#516](https://github.com/stormkit-io/stormkit-io/pull/516))
+- Publish only once the deployment answers ([#517](https://github.com/stormkit-io/stormkit-io/pull/517))
+- Show a publish while it is happening ([#518](https://github.com/stormkit-io/stormkit-io/pull/518))
+- Show a spinner while a deployment is publishing ([#522](https://github.com/stormkit-io/stormkit-io/pull/522))
+
+### 🩹 Fixes
+
+- Show the publishing badge on the deployment page ([#523](https://github.com/stormkit-io/stormkit-io/pull/523))
+
+### 🏡 Chore
+
+- Add intro video and sound assets ([#514](https://github.com/stormkit-io/stormkit-io/pull/514))
+- Update changelog for v2026.09.04.1 ([#513](https://github.com/stormkit-io/stormkit-io/pull/513))
+- Retire percentage-based releases ([#519](https://github.com/stormkit-io/stormkit-io/pull/519))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.09.03.1...v2026.09.04.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.03.1...v2026.09.04.1)
