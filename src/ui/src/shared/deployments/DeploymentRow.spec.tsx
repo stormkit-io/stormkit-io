@@ -8,6 +8,7 @@ import {
   mockDeleteDeployment,
   mockFetchManifest,
 } from "~/testing/nocks/nock_deployments_v2";
+import { useState } from "react";
 import DeploymentRow from "./DeploymentRow";
 import { renderWithRouter } from "~/testing/helpers";
 
@@ -38,6 +39,40 @@ describe("~/shared/deployments/DeploymentRow.tsx", () => {
     fireEvent.click(wrapper.getByLabelText(`Deployment ${id} menu`));
   };
 
+  // A warm-up can finish inside a single poll, so the badge has to appear from
+  // what the page already knows rather than from observing the warm-up.
+  it("shows a build that is about to auto-publish as publishing", async () => {
+    const deployment = mockDeployments()[0];
+    deployment.published = false;
+    deployment.isAutoPublish = true;
+
+    // The row is mounted while the build runs and then told it finished. That
+    // transition is what says a publish is on its way.
+    const Row = () => {
+      const [status, setStatus] = useState<DeploymentV2["status"]>("running");
+
+      return (
+        <>
+          <button onClick={() => setStatus("success")}>finish</button>
+          <DeploymentRow
+            deployment={{ ...deployment, status }}
+            setRefreshToken={vi.fn()}
+          />
+        </>
+      );
+    };
+
+    wrapper = renderWithRouter({ el: Row });
+
+    expect(wrapper.queryByText("publishing...")).toBeNull();
+
+    fireEvent.click(wrapper.getByText("finish"));
+
+    await waitFor(() => {
+      expect(wrapper.getByText("publishing...")).toBeTruthy();
+    });
+  });
+
   it("should display the commit information properly", () => {
     const deployment = mockDeployments()[0];
     deployment.detailsUrl = "/my-test/url";
@@ -47,11 +82,11 @@ describe("~/shared/deployments/DeploymentRow.tsx", () => {
     expect(wrapper.getByText("published")).toBeTruthy();
 
     expect(
-      wrapper.getByText("chore: update packages").getAttribute("href")
+      wrapper.getByText("chore: update packages").getAttribute("href"),
     ).toBe("/my-test/url");
 
     expect(wrapper.getByText("sample-project").getAttribute("href")).toBe(
-      "/apps/1/environments/1/deployments"
+      "/apps/1/environments/1/deployments",
     );
   });
 
@@ -60,7 +95,7 @@ describe("~/shared/deployments/DeploymentRow.tsx", () => {
     createWrapper({ deployment });
 
     expect(
-      wrapper.getByLabelText(`Deployment ${deployment.id} menu`)
+      wrapper.getByLabelText(`Deployment ${deployment.id} menu`),
     ).toBeTruthy();
   });
 
@@ -77,13 +112,16 @@ describe("~/shared/deployments/DeploymentRow.tsx", () => {
 
     it("should contain a publish button", () => {
       expect(
-        wrapper.getByText("Publish").closest("button")!.getAttribute("disabled")
+        wrapper
+          .getByText("Publish")
+          .closest("button")!
+          .getAttribute("disabled"),
       ).toBe(null);
     });
 
     it("should contain a preview button", () => {
       expect(
-        wrapper.getByText("Preview").closest("a")!.getAttribute("href")
+        wrapper.getByText("Preview").closest("a")!.getAttribute("href"),
       ).toBe("http://sample-project--36185651722.stormkit:8888");
     });
 
@@ -110,7 +148,7 @@ describe("~/shared/deployments/DeploymentRow.tsx", () => {
 
     it("should have a link to runtime logs", () => {
       expect(wrapper.getByText("Runtime logs").getAttribute("href")).toBe(
-        "/deployment/details/runtime-logs"
+        "/deployment/details/runtime-logs",
       );
     });
 
@@ -147,7 +185,10 @@ describe("~/shared/deployments/DeploymentRow.tsx", () => {
 
     it("should have the preview button disabled", () => {
       expect(
-        wrapper.getByText("Preview").closest("a")!.getAttribute("aria-disabled")
+        wrapper
+          .getByText("Preview")
+          .closest("a")!
+          .getAttribute("aria-disabled"),
       ).toBe("true");
     });
 
@@ -156,7 +197,7 @@ describe("~/shared/deployments/DeploymentRow.tsx", () => {
         wrapper
           .getByText("Manifest")
           .closest("button")!
-          .getAttribute("disabled")
+          .getAttribute("disabled"),
       ).toBe("");
     });
 
@@ -165,7 +206,7 @@ describe("~/shared/deployments/DeploymentRow.tsx", () => {
         wrapper
           .getByText("Runtime logs")
           .closest("a")!
-          .getAttribute("aria-disabled")
+          .getAttribute("aria-disabled"),
       ).toBe("true");
     });
 
@@ -217,7 +258,10 @@ describe("~/shared/deployments/DeploymentRow.tsx", () => {
 
     it("should have the preview button disabled", () => {
       expect(
-        wrapper.getByText("Preview").closest("a")!.getAttribute("aria-disabled")
+        wrapper
+          .getByText("Preview")
+          .closest("a")!
+          .getAttribute("aria-disabled"),
       ).toBe("true");
     });
 
@@ -226,7 +270,7 @@ describe("~/shared/deployments/DeploymentRow.tsx", () => {
         wrapper
           .getByText("Manifest")
           .closest("button")!
-          .getAttribute("disabled")
+          .getAttribute("disabled"),
       ).toBe("");
     });
 
@@ -235,13 +279,13 @@ describe("~/shared/deployments/DeploymentRow.tsx", () => {
         wrapper
           .getByText("Runtime logs")
           .closest("a")!
-          .getAttribute("aria-disabled")
+          .getAttribute("aria-disabled"),
       ).toBe("true");
     });
 
     it("should contain a view details button", () => {
       expect(wrapper.getByText("View details").getAttribute("href")).toBe(
-        "/deployment/details"
+        "/deployment/details",
       );
     });
 

@@ -99,6 +99,30 @@ describe("~/shared/deployments/PublishModal", () => {
     );
   }, 15000);
 
+  // The page stops polling once a build succeeds, so the modal has to tell it
+  // when the warm-up becomes visible — otherwise nothing brings the page back
+  // to look again and the publishing badge never appears.
+  it("tells the page when the warm-up becomes visible", async () => {
+    const onUpdate = vi.fn();
+
+    createWrapper({ onUpdate });
+
+    mockPublishDeployments({
+      appId: currentDepl.appId,
+      envId: currentDepl.envId,
+      publish: [{ deploymentId: currentDepl.id }],
+    });
+
+    mockFetchPublishState({ deploymentId: currentDepl.id, isWarmingUp: true });
+
+    fireEvent.click(wrapper.getByText(/Publish to/));
+
+    await waitFor(() => {
+      // Once for the publish request, once for the warm-up becoming visible.
+      expect(onUpdate).toHaveBeenCalledTimes(2);
+    });
+  });
+
   it("reports a deployment that never came up", async () => {
     createWrapper();
 
