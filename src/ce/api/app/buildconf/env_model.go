@@ -374,6 +374,16 @@ type BuildConf struct {
 	StatusChecks    []StatusCheck        `json:"statusChecks,omitempty"`    // StatusChecks is an array of commands that will be executed after the deployment is complete.
 	PriorityPattern string               `json:"priorityPattern,omitempty"` // PriorityPattern is a regex matched against the commit message to auto-prioritize deployments.
 	CacheDirs       []string             `json:"cacheDirs,omitempty"`       // CacheDirs is a list of directories (relative to the working directory) restored before install and snapshotted after a successful build.
+
+	// SkipUnchangedBuildRoot opts an environment into monorepo path filtering. When enabled, a push
+	// only triggers an auto deployment if it changes a file inside WorkDir, inside one of WatchPaths,
+	// or at the repository root. Off unless enabled, so existing environments keep deploying on every push.
+	SkipUnchangedBuildRoot null.Bool `json:"skipUnchangedBuildRoot,omitempty"`
+
+	// WatchPaths lists additional paths (relative to the repository root) that count as changes for
+	// this environment. Shared workspace packages that live outside WorkDir belong here. Only read
+	// when SkipUnchangedBuildRoot is enabled.
+	WatchPaths []string `json:"watchPaths,omitempty"`
 }
 
 type InterpolatedVarsOpts struct {
@@ -495,6 +505,7 @@ func Validate(env *Env) []string {
 
 	if env.Data != nil {
 		errors = append(errors, ValidateCacheDirs(env.Data.CacheDirs)...)
+		errors = append(errors, ValidateWatchPaths(env.Data.WatchPaths)...)
 	}
 
 	if len(errors) == 0 {
@@ -548,6 +559,49 @@ func ValidateCacheDirs(dirs []string) []string {
 
 		if cleaned == "." || cleaned == ".." || strings.HasPrefix(cleaned, "../") {
 			errors = append(errors, fmt.Sprintf("Cache directory %q must point inside the working directory", dir))
+		}
+	}
+
+	return errors
+}
+
+// NormalizeWatchPaths trims each entry and drops empty ones, so callers can
+// accept a raw list (e.g. a textarea split by newlines) before validation.
+func NormalizeWatchPaths(paths []string) []string {
+	normalized := make([]string, 0, len(paths))
+
+	for _, p := range paths {
+		if p = strings.TrimSpace(p); p != "" {
+			normalized = append(normalized, p)
+		}
+	}
+
+	return normalized
+}
+
+// ValidateWatchPaths ensures every watch path is a relative path that stays
+// inside the repository. Watch paths are matched against the paths reported by
+// push webhooks, which are always relative to the repository root.
+func ValidateWatchPaths(paths []string) []string {
+	errors := []string{}
+
+	for _, p := range paths {
+		p = strings.TrimSpace(p)
+
+		if p == "" {
+			errors = append(errors, "Watch paths cannot be empty")
+			continue
+		}
+
+		if strings.HasPrefix(p, "~") {
+			errors = append(errors, fmt.Sprintf("Watch path %q must be relative to the repository root", p))
+			continue
+		}
+
+		cleaned := path.Clean(strings.Trim(p, "/"))
+
+		if cleaned == "." || cleaned == ".." || strings.HasPrefix(cleaned, "../") {
+			errors = append(errors, fmt.Sprintf("Watch path %q must point inside the repository", p))
 		}
 	}
 

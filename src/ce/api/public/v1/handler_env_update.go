@@ -41,6 +41,9 @@ type EnvUpdateRequest struct {
 	PriorityPattern    *string                 `json:"priorityPattern,omitempty"`
 	EnvVars            *map[string]string      `json:"envVars,omitempty"`
 	CacheDirs          *[]string               `json:"cacheDirs,omitempty"`
+
+	SkipUnchangedBuildRoot *bool     `json:"skipUnchangedBuildRoot,omitempty"`
+	WatchPaths             *[]string `json:"watchPaths,omitempty"`
 }
 
 func handlerEnvUpdate(req *RequestContext) *shttp.Response {
@@ -179,6 +182,14 @@ func handlerEnvUpdate(req *RequestContext) *shttp.Response {
 
 	if data.CacheDirs != nil {
 		env.Data.CacheDirs = buildconf.NormalizeCacheDirs(*data.CacheDirs)
+	}
+
+	if data.SkipUnchangedBuildRoot != nil {
+		env.Data.SkipUnchangedBuildRoot = null.BoolFrom(*data.SkipUnchangedBuildRoot)
+	}
+
+	if data.WatchPaths != nil {
+		env.Data.WatchPaths = buildconf.NormalizeWatchPaths(*data.WatchPaths)
 	}
 
 	if errs := buildconf.Validate(env); len(errs) > 0 {

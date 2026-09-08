@@ -107,6 +107,8 @@ Creates a new environment for an application.
 | `redirectsFile`      | string                  | No       | Path to a file containing redirect/rewrite rules.                                                           |
 | `serverCmd`          | string                  | No       | Command to start the server (self-hosted only).                                                             |
 | `statusChecks`       | `StatusCheck[]`         | No       | Post-deployment commands to run. See `StatusCheck` object below.                                            |
+| `skipUnchangedBuildRoot` | boolean             | No       | Monorepo path filtering. When `true`, a push only auto-deploys this environment if it changes a file inside `workDir`, inside one of `watchPaths`, or at the repository root. Off unless enabled. GitHub and GitLab push events only. |
+| `watchPaths`         | `string[]`              | No       | Extra paths, relative to the repository root, that count as changes for this environment — typically shared workspace packages that live outside `workDir`. Only read when `skipUnchangedBuildRoot` is enabled. |
 | `workDir`            | string                  | No       | Working directory relative to the repository root where install/build commands run. Defaults to repo root.  |
 
 **`StatusCheck` object:**
@@ -189,6 +191,8 @@ All fields are **optional**. Only the fields you include will be updated.
 | `redirectsFile`      | string                  | Path to a file containing redirect/rewrite rules.                                                                                            |
 | `serverCmd`          | string                  | Command to start the server (self-hosted only).                                                                                              |
 | `statusChecks`       | `StatusCheck[]`         | Post-deployment commands to run. Replaces all existing checks. See `StatusCheck` in `POST /v1/env`.                                          |
+| `skipUnchangedBuildRoot` | boolean             | Monorepo path filtering. When `true`, a push only auto-deploys this environment if it changes a file inside `workDir`, inside one of `watchPaths`, or at the repository root. Off unless enabled. GitHub and GitLab push events only.          |
+| `watchPaths`         | `string[]`              | Extra paths, relative to the repository root, that count as changes for this environment — typically shared workspace packages that live outside `workDir`. Replaces the existing list; pass `[]` to clear it.                                 |
 | `workDir`            | string                  | Working directory relative to the repository root where install/build commands run. Defaults to repo root.                                   |
 
 ### Response — 200 OK

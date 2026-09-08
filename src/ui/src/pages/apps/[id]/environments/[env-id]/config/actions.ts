@@ -73,6 +73,24 @@ export const prepareBuildObject = (values: FormValues): BuildConfig => {
       .filter(Boolean);
   }
 
+  // One path per line; an empty textarea clears the list.
+  let watchPaths: string[] | undefined;
+
+  if (values["build.watchPaths"] !== undefined) {
+    watchPaths = values["build.watchPaths"]
+      .split("\n")
+      .map(p => p.trim())
+      .filter(Boolean);
+  }
+
+  // Only sent by the section that owns the switch, so that a form which does
+  // not carry it (the new environment modal) leaves the setting untouched.
+  let skipUnchangedBuildRoot: boolean | undefined;
+
+  if (values["build.skipUnchangedBuildRoot"] !== undefined) {
+    skipUnchangedBuildRoot = values["build.skipUnchangedBuildRoot"] === "on";
+  }
+
   const build: BuildConfig = {
     buildCmd: values["build.buildCmd"]?.trim() || "",
     serverCmd: values["build.serverCmd"]?.trim() || "",
@@ -90,6 +108,8 @@ export const prepareBuildObject = (values: FormValues): BuildConfig => {
     statusChecks,
     redirects,
     cacheDirs,
+    watchPaths,
+    skipUnchangedBuildRoot,
     vars,
   };
 
@@ -148,6 +168,10 @@ export const buildFormValues = (
     "build.installCmd": env.build.installCmd,
     "build.distFolder": env.build.distFolder,
     "build.workDir": env.build.workDir,
+    "build.watchPaths": env.build.watchPaths?.join("\n") || "",
+    "build.skipUnchangedBuildRoot": env.build.skipUnchangedBuildRoot
+      ? "on"
+      : "off",
     "build.redirects": JSON.stringify(env.build.redirects),
     "build.vars": Object.keys(env.build?.vars || {})
       .filter(key => env.build.vars[key])
@@ -166,6 +190,7 @@ interface ControlledFormValues {
   "build.headers"?: string;
   "build.statusChecks"?: string;
   "build.workDir"?: string;
+  "build.skipUnchangedBuildRoot"?: "on" | "off";
 }
 
 // EnvUpdatePayload is a partial environment update: each config section sends
@@ -197,6 +222,8 @@ export interface EnvUpdatePayload {
   redirects?: Redirect[];
   envVars?: Record<string, string>;
   cacheDirs?: string[];
+  skipUnchangedBuildRoot?: boolean;
+  watchPaths?: string[];
 }
 
 export interface FormValues {
@@ -215,6 +242,8 @@ export interface FormValues {
   "build.distFolder"?: string;
   "build.workDir"?: string;
   "build.cacheDirs"?: string;
+  "build.watchPaths"?: string;
+  "build.skipUnchangedBuildRoot"?: "on" | "off";
   "build.headers"?: string;
   "build.headersFile"?: string;
   "build.errorFile"?: string;

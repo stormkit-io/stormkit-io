@@ -104,6 +104,8 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabConfigBu
           distFolder: "./dist",
           workDir: "./",
           cacheDirs: [".next/cache", "node_modules"],
+          skipUnchangedBuildRoot: false,
+          watchPaths: [],
         },
         status: 200,
         response: { ok: true },
@@ -114,6 +116,71 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabConfigBu
       await waitFor(() => {
         expect(scope.isDone()).toBe(true);
         expect(setRefreshToken).toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe("build root path filtering", () => {
+    beforeEach(() => {
+      currentApp = mockApp();
+      currentEnv = mockEnvironments({ app: currentApp })[0];
+      currentEnv.build.installCmd = "";
+      currentEnv.build.buildCmd = "";
+      currentEnv.build.distFolder = "";
+      currentEnv.build.vars = {};
+
+      createWrapper({ environment: currentEnv });
+    });
+
+    it("keeps typed watch paths when the filter is toggled off and on", async () => {
+      await userEvent.click(
+        wrapper.getByLabelText("Deploy only when the build root changes")
+      );
+
+      fireEvent.change(wrapper.getByLabelText("Watch paths"), {
+        target: { value: "packages/ui" },
+      });
+
+      // Toggling the switch must not discard what the user typed.
+      await userEvent.click(
+        wrapper.getByLabelText("Deploy only when the build root changes")
+      );
+      await userEvent.click(
+        wrapper.getByLabelText("Deploy only when the build root changes")
+      );
+
+      expect(
+        (wrapper.getByLabelText("Watch paths") as HTMLTextAreaElement).value
+      ).toBe("packages/ui");
+    });
+
+    it("sends the filter and the watch paths", async () => {
+      await userEvent.click(
+        wrapper.getByLabelText("Deploy only when the build root changes")
+      );
+
+      fireEvent.change(wrapper.getByLabelText("Watch paths"), {
+        target: { value: "packages/ui\npackages/config" },
+      });
+
+      const scope = mockUpdateEnvironment({
+        payload: {
+          installCmd: "",
+          buildCmd: "",
+          distFolder: "./",
+          workDir: "./",
+          cacheDirs: [],
+          skipUnchangedBuildRoot: true,
+          watchPaths: ["packages/ui", "packages/config"],
+        },
+        status: 200,
+        response: { ok: true },
+      });
+
+      fireEvent.click(wrapper.getByText("Save"));
+
+      await waitFor(() => {
+        expect(scope.isDone()).toBe(true);
       });
     });
   });

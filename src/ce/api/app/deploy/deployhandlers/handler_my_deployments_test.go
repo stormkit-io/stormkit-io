@@ -73,6 +73,7 @@ func (s *HandlerMyDeploymentsSuite) responseTemplate() (*template.Template, erro
 							"markdown": null,
 							"markdownConvert": null,
 							"previewLinks": null,
+							"skipUnchangedBuildRoot": null,
 							"statusChecks": [{
 								"cmd": "npm run e2e",
 								"name": "run e2e tests",
