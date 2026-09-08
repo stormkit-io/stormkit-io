@@ -9,6 +9,7 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apphandlers"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 )
 
@@ -214,6 +215,61 @@ func (s *InboundWebhooksSuite) Test_FilterDeployCandidates_AutoDeployCommitsConf
 	}, list)
 
 	s.Len(c, 0)
+}
+
+func (s *InboundWebhooksSuite) Test_FilterDeployCandidates_BuildRootChanged() {
+	myApp := &app.MyApp{
+		App: &app.App{},
+	}
+
+	list := []*app.DeployCandidate{
+		{
+			MyApp:            myApp,
+			EnvName:          "infrastructure",
+			EnvDefaultBranch: "main",
+			BuildConfig:      &buildconf.BuildConf{WorkDir: "/apps/infrastructure/"},
+		},
+		{
+			MyApp:            myApp,
+			EnvName:          "frontend",
+			EnvDefaultBranch: "main",
+			BuildConfig:      &buildconf.BuildConf{WorkDir: "apps/frontend"},
+		},
+		{
+			MyApp:            myApp,
+			EnvName:          "repository-root",
+			EnvDefaultBranch: "main",
+			BuildConfig:      &buildconf.BuildConf{},
+		},
+	}
+
+	input := apphandlers.TriggerDeployInput{
+		Branch:          "main",
+		ChangedFiles:    []string{"apps/infrastructure/main.tf"},
+		ChangesComplete: true,
+	}
+
+	candidates := apphandlers.FilterDeployCandidates(input, list)
+
+	s.Len(candidates, 2)
+	s.Equal("infrastructure", candidates[0].EnvName)
+	s.Equal("repository-root", candidates[1].EnvName)
+
+	input.ChangedFiles = []string{"package-lock.json"}
+	candidates = apphandlers.FilterDeployCandidates(input, list)
+
+	s.Len(candidates, 3)
+
+	input.ChangedFiles = []string{"apps/infrastructure-docs/readme.md"}
+	candidates = apphandlers.FilterDeployCandidates(input, list)
+
+	s.Len(candidates, 1)
+	s.Equal("repository-root", candidates[0].EnvName)
+
+	input.ChangesComplete = false
+	candidates = apphandlers.FilterDeployCandidates(input, list)
+
+	s.Len(candidates, 3)
 }
 
 func TestIncomingWebhooks(t *testing.T) {

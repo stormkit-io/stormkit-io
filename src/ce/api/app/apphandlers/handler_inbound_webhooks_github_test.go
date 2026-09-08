@@ -13,6 +13,7 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apphandlers"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deployservice"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
@@ -200,6 +201,35 @@ func (s *InboundGithubSuite) Test_PushEventSuccess_BranchNameMatches() {
 				a.Equal(int64(0), _depl.PullRequestNumber.ValueOrZero())
 		}),
 	)
+}
+
+func (s *InboundGithubSuite) Test_PushEvent_BuildRootUnchanged() {
+	appl := s.app(map[string]any{
+		"Data": &buildconf.BuildConf{WorkDir: "apps/frontend"},
+	})
+
+	payload := map[string]any{}
+	s.Require().NoError(json.Unmarshal([]byte(githubPushExample), &payload))
+	payload["commits"] = []map[string]any{
+		{
+			"message":  "Update infrastructure",
+			"modified": []string{"apps/infrastructure/main.tf"},
+		},
+	}
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(apphandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		fmt.Sprintf("/app/webhooks/github/%s", appl.Secret()),
+		payload,
+		map[string]string{
+			"X-Github-Event":  "push",
+			"X-Hub-Signature": fmt.Sprintf("sha1=%s", hex.EncodeToString(githubMac(payload).Sum(nil))),
+		},
+	)
+
+	s.Equal(http.StatusNoContent, response.Code)
+	s.mockDeployer.AssertNotCalled(s.T(), "Deploy")
 }
 
 func (s *InboundGithubSuite) Test_PushEvent_BranchNameDoesNotMatch() {

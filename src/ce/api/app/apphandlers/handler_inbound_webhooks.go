@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path"
 	"strings"
 
 	"github.com/dlclark/regexp2"
@@ -32,6 +33,8 @@ type TriggerDeployInput struct {
 	EventType         string
 	CommitSha         string
 	PullRequestNumber int64
+	ChangedFiles      []string
+	ChangesComplete   bool
 
 	payload any // The payload that is sent by the provider - we store this in the database.
 }
@@ -177,6 +180,10 @@ func FilterDeployCandidates(input TriggerDeployInput, dcs []*app.DeployCandidate
 
 	// All candidates have auto_deploy turned on
 	for _, dc := range dcs {
+		if !buildRootChanged(input, dc) {
+			continue
+		}
+
 		patternBranches := dc.AutoDeployBranches.ValueOrZero()
 		patternCommits := dc.AutoDeployCommits.ValueOrZero()
 
@@ -209,6 +216,35 @@ func FilterDeployCandidates(input TriggerDeployInput, dcs []*app.DeployCandidate
 	}
 
 	return filtered
+}
+
+// buildRootChanged reports whether a deploy candidate can be affected by the
+// changed paths. Unknown change sets preserve the existing deploy behavior.
+func buildRootChanged(input TriggerDeployInput, dc *app.DeployCandidate) bool {
+	if !input.ChangesComplete || len(input.ChangedFiles) == 0 || dc.BuildConfig == nil {
+		return true
+	}
+
+	workDir := strings.Trim(path.Clean(strings.TrimSpace(dc.BuildConfig.WorkDir)), "/")
+
+	if workDir == "" || workDir == "." {
+		return true
+	}
+
+	for _, file := range input.ChangedFiles {
+		changedPath := strings.Trim(path.Clean(strings.TrimSpace(file)), "/")
+
+		// Repository-root files may affect every workspace in a monorepo.
+		if changedPath != "" && !strings.Contains(changedPath, "/") {
+			return true
+		}
+
+		if changedPath == workDir || strings.HasPrefix(changedPath, workDir+"/") {
+			return true
+		}
+	}
+
+	return false
 }
 
 // commitHasBeenBuilt checks whether there is already a build for the commit or not.
