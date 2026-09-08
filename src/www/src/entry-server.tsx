@@ -28,7 +28,7 @@ export type RenderFunction = (url: string, seo?: SEO) => Promise<RenderReturn>
 const defaultSEO: SEO = {
   title: 'Self-Hosted Vercel and Netlify Alternative',
   description:
-    'Stormkit is a self-hostable, full-featured alternative to Vercel and Netlify, offering powerful features such as deployment previews, multiple environments, and seamless integration with Git.',
+    'Stormkit is a self-hostable platform for running full applications: a managed database, authentication, transactional email, cron jobs and analytics, alongside deployments, previews and multiple environments.',
   type: 'website',
   domain: {
     name: 'Stormkit.io',
