@@ -287,6 +287,15 @@ func mcpAllTools() []mcpToolDef {
 						"description": "Directories (relative to the build working directory) restored before install and snapshotted after a successful build. Best for compiler caches like .next/cache or .turbo. Requires a premium or ultimate subscription on Stormkit Cloud; always enabled on self-hosted.",
 						"items":       map[string]any{"type": "string"},
 					},
+					"skipUnchangedBuildRoot": map[string]any{
+						"type":        "boolean",
+						"description": "Monorepo path filtering. When true, a push only auto-deploys this environment if it changes a file inside workDir, inside one of watchPaths, or at the repository root. Off unless enabled. Has no effect when the build root is the repository root, and applies to GitHub and GitLab push events only.",
+					},
+					"watchPaths": map[string]any{
+						"type":        "array",
+						"description": "Extra paths, relative to the repository root, that count as changes for this environment - typically shared workspace packages that live outside workDir. Only read when skipUnchangedBuildRoot is enabled.",
+						"items":       map[string]any{"type": "string"},
+					},
 				},
 				"required":             []string{"appId", "name", "branch"},
 				"additionalProperties": false,
@@ -353,6 +362,15 @@ func mcpAllTools() []mcpToolDef {
 					"cacheDirs": map[string]any{
 						"type":        "array",
 						"description": "Directories (relative to the build working directory) restored before install and snapshotted after a successful build. Best for compiler caches like .next/cache or .turbo. Pass an empty array to disable caching. Requires a premium or ultimate subscription on Stormkit Cloud; always enabled on self-hosted.",
+						"items":       map[string]any{"type": "string"},
+					},
+					"skipUnchangedBuildRoot": map[string]any{
+						"type":        "boolean",
+						"description": "Monorepo path filtering. When true, a push only auto-deploys this environment if it changes a file inside workDir, inside one of watchPaths, or at the repository root. Off unless enabled. Has no effect when the build root is the repository root, and applies to GitHub and GitLab push events only.",
+					},
+					"watchPaths": map[string]any{
+						"type":        "array",
+						"description": "Extra paths, relative to the repository root, that count as changes for this environment - typically shared workspace packages that live outside workDir. Only read when skipUnchangedBuildRoot is enabled.",
 						"items":       map[string]any{"type": "string"},
 					},
 				},
@@ -1030,6 +1048,11 @@ func mcpCreateEnvironment(req *RequestContextMCP, id any, args map[string]any) *
 
 	body.StatusChecks = parseStatusChecksArg(args)
 	body.CacheDirs, _ = stringArrayArg(args, "cacheDirs")
+	body.WatchPaths, _ = stringArrayArg(args, "watchPaths")
+
+	if raw, ok := args["skipUnchangedBuildRoot"].(bool); ok {
+		body.SkipUnchangedBuildRoot = null.BoolFrom(raw)
+	}
 
 	resp := req.setBody(id, body)
 
@@ -1200,6 +1223,12 @@ func mcpUpdateEnvironment(req *RequestContextMCP, id any, args map[string]any) *
 	if dirs, ok := stringArrayArg(args, "cacheDirs"); ok {
 		update.CacheDirs = &dirs
 	}
+
+	if paths, ok := stringArrayArg(args, "watchPaths"); ok {
+		update.WatchPaths = &paths
+	}
+
+	setBool("skipUnchangedBuildRoot", &update.SkipUnchangedBuildRoot)
 
 	if resp := req.setBody(id, update); resp != nil {
 		return resp

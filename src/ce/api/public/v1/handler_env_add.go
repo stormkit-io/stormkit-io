@@ -38,6 +38,9 @@ type EnvAddRequest struct {
 	ServerCmd          string                  `json:"serverCmd,omitempty"`
 	StatusChecks       []buildconf.StatusCheck `json:"statusChecks,omitempty"`
 	CacheDirs          []string                `json:"cacheDirs,omitempty"`
+
+	SkipUnchangedBuildRoot null.Bool `json:"skipUnchangedBuildRoot,omitempty"`
+	WatchPaths             []string  `json:"watchPaths,omitempty"`
 }
 
 func handlerEnvAdd(req *RequestContext) *shttp.Response {
@@ -73,6 +76,9 @@ func handlerEnvAdd(req *RequestContext) *shttp.Response {
 			Vars:            data.EnvVars,
 			StatusChecks:    data.StatusChecks,
 			CacheDirs:       buildconf.NormalizeCacheDirs(data.CacheDirs),
+
+			SkipUnchangedBuildRoot: data.SkipUnchangedBuildRoot,
+			WatchPaths:             buildconf.NormalizeWatchPaths(data.WatchPaths),
 		},
 		Name:        data.Name,
 		AppID:       req.App.ID,

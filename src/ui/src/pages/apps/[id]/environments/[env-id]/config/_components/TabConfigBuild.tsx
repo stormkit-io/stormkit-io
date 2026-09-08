@@ -3,6 +3,9 @@ import { useContext, useState } from "react";
 import Box from "@mui/material/Box";
 import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
+import Switch from "@mui/material/Switch";
+import Typography from "@mui/material/Typography";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import { AuthContext } from "~/pages/auth/Auth.context";
 import { RootContext } from "~/pages/Root.context";
 import Card from "~/components/Card";
@@ -32,6 +35,12 @@ export default function TabConfigGeneral({
   const [success, setSuccess] = useState<string>();
   const [isLoading, setLoading] = useState(false);
   const [root, setRoot] = useState(env?.build?.workDir || "./");
+  const [skipUnchangedBuildRoot, setSkipUnchangedBuildRoot] = useState(
+    env?.build?.skipUnchangedBuildRoot === true,
+  );
+
+  // A build root pointing at the repository root cannot filter anything out.
+  const isRepoRoot = ["", ".", "./", "/"].includes(root.trim());
 
   // Build caching is available on self-hosted instances and for premium or
   // ultimate subscriptions on Stormkit Cloud.
@@ -54,11 +63,17 @@ export default function TabConfigGeneral({
       onSubmit={e => {
         e.preventDefault();
 
-        // workDir is a controlled input (no form name), so feed it in directly.
+        // workDir and the path filter switch are controlled inputs (no form
+        // name), so feed them in directly.
         const values: FormValues = buildFormValues(
           env,
           e.target as HTMLFormElement,
-          { "build.workDir": root }
+          {
+            "build.workDir": root,
+            "build.skipUnchangedBuildRoot": skipUnchangedBuildRoot
+              ? "on"
+              : "off",
+          }
         );
 
         const build = prepareBuildObject(values);
@@ -72,6 +87,8 @@ export default function TabConfigGeneral({
             distFolder: build.distFolder,
             workDir: build.workDir,
             cacheDirs: build.cacheDirs,
+            skipUnchangedBuildRoot: build.skipUnchangedBuildRoot,
+            watchPaths: build.watchPaths,
           },
           setError,
           setLoading,
@@ -154,6 +171,44 @@ export default function TabConfigGeneral({
           fullWidth
           placeholder="Defaults to `./`"
           helperText={"The working directory relative to the Repository root."}
+        />
+      </Box>
+      <Box sx={{ bgcolor: "container.paper", p: 1.75, pt: 1, mb: 4 }}>
+        <FormControlLabel
+          sx={{ pl: 0, ml: 0 }}
+          label="Deploy only when the build root changes"
+          control={
+            <Switch
+              color="secondary"
+              checked={skipUnchangedBuildRoot}
+              onChange={e => {
+                setSkipUnchangedBuildRoot(e.target.checked);
+              }}
+            />
+          }
+          labelPlacement="start"
+        />
+        <Typography sx={{ opacity: 0.5 }}>
+          For monorepos. When turned on, a push only deploys this environment if
+          it touches the build root, one of the watch paths below, or a file at
+          the repository root. Available for GitHub and GitLab push events.
+          {isRepoRoot &&
+            " This environment builds from the repository root, so every change" +
+              " already affects it and the filter has no effect."}
+        </Typography>
+      </Box>
+      <Box sx={{ mb: 4, display: skipUnchangedBuildRoot ? "block" : "none" }}>
+        <TextField
+          label="Watch paths"
+          variant="filled"
+          autoComplete="off"
+          multiline
+          minRows={2}
+          defaultValue={env?.build.watchPaths?.join("\n") || ""}
+          fullWidth
+          name="build.watchPaths"
+          placeholder={"packages/ui\npackages/config"}
+          helperText="One path per line, relative to the repository root. Add the shared workspace packages this environment depends on, so a change to them still triggers a deployment."
         />
       </Box>
       <Box sx={{ mb: 4 }}>

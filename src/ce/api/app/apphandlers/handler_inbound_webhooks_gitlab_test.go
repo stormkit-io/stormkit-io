@@ -159,21 +159,19 @@ func (s *InboundGitlabSuite) TestPushEventSuccess() {
 	)
 }
 
-func (s *InboundGitlabSuite) Test_PushEvent_BuildRootUnchanged() {
-	appl := s.app(true, map[string]any{
-		"Data": &buildconf.BuildConf{WorkDir: "apps/frontend"},
-	})
-
+// gitlabPushPayload builds a push payload carrying the given commits.
+// totalCommits mirrors GitLab's total_commits_count, which is how a truncated
+// commit list is detected.
+func (s *InboundGitlabSuite) gitlabPushPayload(commits []map[string]any, totalCommits int) map[string]any {
 	payload := map[string]any{}
 	s.Require().NoError(json.Unmarshal([]byte(gitlabPushExample), &payload))
-	payload["total_commits_count"] = 1
-	payload["commits"] = []map[string]any{
-		{
-			"message":  "Update infrastructure",
-			"modified": []string{"apps/infrastructure/main.tf"},
-		},
-	}
+	payload["commits"] = commits
+	payload["total_commits_count"] = totalCommits
 
+	return payload
+}
+
+func (s *InboundGitlabSuite) gitlabPush(appl *factory.MockApp, payload map[string]any) int {
 	response := shttptest.RequestWithHeaders(
 		shttp.NewRouter().RegisterService(apphandlers.Services).Router().Handler(),
 		shttp.MethodPost,
@@ -184,8 +182,69 @@ func (s *InboundGitlabSuite) Test_PushEvent_BuildRootUnchanged() {
 		},
 	)
 
-	s.Equal(http.StatusNoContent, response.Code)
+	return response.Code
+}
+
+func (s *InboundGitlabSuite) Test_PushEvent_BuildRootUnchanged() {
+	appl := s.app(true, map[string]any{
+		"Data": &buildconf.BuildConf{
+			WorkDir:                "apps/frontend",
+			SkipUnchangedBuildRoot: null.BoolFrom(true),
+		},
+	})
+
+	code := s.gitlabPush(appl, s.gitlabPushPayload([]map[string]any{
+		{
+			"message":  "Update infrastructure",
+			"modified": []string{"apps/infrastructure/main.tf"},
+		},
+	}, 1))
+
+	s.Equal(http.StatusNoContent, code)
 	s.mockDeployer.AssertNotCalled(s.T(), "Deploy")
+}
+
+// A change to a watched shared package deploys even though it sits outside the
+// build root.
+func (s *InboundGitlabSuite) Test_PushEvent_WatchPathChanged() {
+	appl := s.app(true, map[string]any{
+		"Data": &buildconf.BuildConf{
+			WorkDir:                "apps/frontend",
+			WatchPaths:             []string{"packages/ui"},
+			SkipUnchangedBuildRoot: null.BoolFrom(true),
+		},
+	})
+
+	code := s.gitlabPush(appl, s.gitlabPushPayload([]map[string]any{
+		{
+			"message":  "Restyle the button",
+			"modified": []string{"packages/ui/button.tsx"},
+		},
+	}, 1))
+
+	s.Equal(http.StatusOK, code)
+	s.mockDeployer.AssertCalled(s.T(), "Deploy", mock.Anything, mock.Anything, mock.Anything)
+}
+
+// GitLab caps the commit list but reports the real total. A mismatch means the
+// change set is incomplete, so the candidate has to be kept.
+func (s *InboundGitlabSuite) Test_PushEvent_TruncatedCommitsDeploys() {
+	appl := s.app(true, map[string]any{
+		"Data": &buildconf.BuildConf{
+			WorkDir:                "apps/frontend",
+			SkipUnchangedBuildRoot: null.BoolFrom(true),
+		},
+	})
+
+	code := s.gitlabPush(appl, s.gitlabPushPayload([]map[string]any{
+		{
+			"message":  "Update infrastructure",
+			"modified": []string{"apps/infrastructure/main.tf"},
+		},
+	}, 25))
+
+	s.Equal(http.StatusOK, code)
+	s.mockDeployer.AssertCalled(s.T(), "Deploy", mock.Anything, mock.Anything, mock.Anything)
 }
 
 func (s *InboundGitlabSuite) TestMergeRequestOpened() {

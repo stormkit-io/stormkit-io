@@ -203,20 +203,16 @@ func (s *InboundGithubSuite) Test_PushEventSuccess_BranchNameMatches() {
 	)
 }
 
-func (s *InboundGithubSuite) Test_PushEvent_BuildRootUnchanged() {
-	appl := s.app(map[string]any{
-		"Data": &buildconf.BuildConf{WorkDir: "apps/frontend"},
-	})
-
+// githubPushPayload builds a push payload carrying the given commits.
+func (s *InboundGithubSuite) githubPushPayload(commits []map[string]any) map[string]any {
 	payload := map[string]any{}
 	s.Require().NoError(json.Unmarshal([]byte(githubPushExample), &payload))
-	payload["commits"] = []map[string]any{
-		{
-			"message":  "Update infrastructure",
-			"modified": []string{"apps/infrastructure/main.tf"},
-		},
-	}
+	payload["commits"] = commits
 
+	return payload
+}
+
+func (s *InboundGithubSuite) githubPush(appl *factory.MockApp, payload map[string]any) int {
 	response := shttptest.RequestWithHeaders(
 		shttp.NewRouter().RegisterService(apphandlers.Services).Router().Handler(),
 		shttp.MethodPost,
@@ -228,8 +224,88 @@ func (s *InboundGithubSuite) Test_PushEvent_BuildRootUnchanged() {
 		},
 	)
 
-	s.Equal(http.StatusNoContent, response.Code)
+	return response.Code
+}
+
+func (s *InboundGithubSuite) Test_PushEvent_BuildRootUnchanged() {
+	appl := s.app(map[string]any{
+		"Data": &buildconf.BuildConf{
+			WorkDir:                "apps/frontend",
+			SkipUnchangedBuildRoot: null.BoolFrom(true),
+		},
+	})
+
+	code := s.githubPush(appl, s.githubPushPayload([]map[string]any{
+		{
+			"message":  "Update infrastructure",
+			"modified": []string{"apps/infrastructure/main.tf"},
+		},
+	}))
+
+	s.Equal(http.StatusNoContent, code)
 	s.mockDeployer.AssertNotCalled(s.T(), "Deploy")
+}
+
+// A push inside the build root still deploys, which also proves the added,
+// modified and removed paths are read off the payload.
+func (s *InboundGithubSuite) Test_PushEvent_BuildRootChanged() {
+	appl := s.app(map[string]any{
+		"Data": &buildconf.BuildConf{
+			WorkDir:                "apps/frontend",
+			SkipUnchangedBuildRoot: null.BoolFrom(true),
+		},
+	})
+
+	code := s.githubPush(appl, s.githubPushPayload([]map[string]any{
+		{"message": "Add a page", "added": []string{"apps/frontend/page.tsx"}},
+		{"message": "Rename a page", "removed": []string{"apps/frontend/old.tsx"}},
+	}))
+
+	s.Equal(http.StatusOK, code)
+	s.mockDeployer.AssertCalled(s.T(), "Deploy", mock.Anything, mock.Anything, mock.Anything)
+}
+
+// GitHub caps the push payload at 2048 commits. At that point the change set is
+// incomplete, so every otherwise matching candidate has to be kept.
+func (s *InboundGithubSuite) Test_PushEvent_TruncatedCommitsDeploys() {
+	appl := s.app(map[string]any{
+		"Data": &buildconf.BuildConf{
+			WorkDir:                "apps/frontend",
+			SkipUnchangedBuildRoot: null.BoolFrom(true),
+		},
+	})
+
+	commits := make([]map[string]any, 2048)
+
+	for i := range commits {
+		commits[i] = map[string]any{
+			"message":  "Update infrastructure",
+			"modified": []string{"apps/infrastructure/main.tf"},
+		}
+	}
+
+	code := s.githubPush(appl, s.githubPushPayload(commits))
+
+	s.Equal(http.StatusOK, code)
+	s.mockDeployer.AssertCalled(s.T(), "Deploy", mock.Anything, mock.Anything, mock.Anything)
+}
+
+// The filter is opt-in, so an environment with a build root but no filter
+// enabled keeps deploying on every push.
+func (s *InboundGithubSuite) Test_PushEvent_BuildRootFilterIsOptIn() {
+	appl := s.app(map[string]any{
+		"Data": &buildconf.BuildConf{WorkDir: "apps/frontend"},
+	})
+
+	code := s.githubPush(appl, s.githubPushPayload([]map[string]any{
+		{
+			"message":  "Update infrastructure",
+			"modified": []string{"apps/infrastructure/main.tf"},
+		},
+	}))
+
+	s.Equal(http.StatusOK, code)
+	s.mockDeployer.AssertCalled(s.T(), "Deploy", mock.Anything, mock.Anything, mock.Anything)
 }
 
 func (s *InboundGithubSuite) Test_PushEvent_BranchNameDoesNotMatch() {

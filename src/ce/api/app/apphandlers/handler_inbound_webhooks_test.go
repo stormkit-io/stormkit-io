@@ -217,31 +217,44 @@ func (s *InboundWebhooksSuite) Test_FilterDeployCandidates_AutoDeployCommitsConf
 	s.Len(c, 0)
 }
 
-func (s *InboundWebhooksSuite) Test_FilterDeployCandidates_BuildRootChanged() {
+func (s *InboundWebhooksSuite) buildRootList() []*app.DeployCandidate {
 	myApp := &app.MyApp{
 		App: &app.App{},
 	}
 
-	list := []*app.DeployCandidate{
+	return []*app.DeployCandidate{
 		{
 			MyApp:            myApp,
 			EnvName:          "infrastructure",
 			EnvDefaultBranch: "main",
-			BuildConfig:      &buildconf.BuildConf{WorkDir: "/apps/infrastructure/"},
+			BuildConfig: &buildconf.BuildConf{
+				WorkDir:                "/apps/infrastructure/",
+				SkipUnchangedBuildRoot: null.BoolFrom(true),
+			},
 		},
 		{
 			MyApp:            myApp,
 			EnvName:          "frontend",
 			EnvDefaultBranch: "main",
-			BuildConfig:      &buildconf.BuildConf{WorkDir: "apps/frontend"},
+			BuildConfig: &buildconf.BuildConf{
+				WorkDir:                "apps/frontend",
+				WatchPaths:             []string{"packages/ui"},
+				SkipUnchangedBuildRoot: null.BoolFrom(true),
+			},
 		},
 		{
 			MyApp:            myApp,
 			EnvName:          "repository-root",
 			EnvDefaultBranch: "main",
-			BuildConfig:      &buildconf.BuildConf{},
+			BuildConfig: &buildconf.BuildConf{
+				SkipUnchangedBuildRoot: null.BoolFrom(true),
+			},
 		},
 	}
+}
+
+func (s *InboundWebhooksSuite) Test_FilterDeployCandidates_BuildRootChanged() {
+	list := s.buildRootList()
 
 	input := apphandlers.TriggerDeployInput{
 		Branch:          "main",
@@ -270,6 +283,82 @@ func (s *InboundWebhooksSuite) Test_FilterDeployCandidates_BuildRootChanged() {
 	candidates = apphandlers.FilterDeployCandidates(input, list)
 
 	s.Len(candidates, 3)
+}
+
+// Path filtering is opt-in: an environment that has a build root but has not
+// enabled the filter keeps deploying on every push.
+func (s *InboundWebhooksSuite) Test_FilterDeployCandidates_BuildRootFilterIsOptIn() {
+	list := s.buildRootList()
+
+	for _, dc := range list {
+		dc.BuildConfig.SkipUnchangedBuildRoot = null.Bool{}
+	}
+
+	candidates := apphandlers.FilterDeployCandidates(apphandlers.TriggerDeployInput{
+		Branch:          "main",
+		ChangedFiles:    []string{"apps/infrastructure/main.tf"},
+		ChangesComplete: true,
+	}, list)
+
+	s.Len(candidates, 3)
+}
+
+// Shared workspace packages live outside the build root, so a change to one of
+// them has to keep the environments that watch it.
+func (s *InboundWebhooksSuite) Test_FilterDeployCandidates_WatchPaths() {
+	list := s.buildRootList()
+
+	candidates := apphandlers.FilterDeployCandidates(apphandlers.TriggerDeployInput{
+		Branch:          "main",
+		ChangedFiles:    []string{"packages/ui/button.tsx"},
+		ChangesComplete: true,
+	}, list)
+
+	s.Len(candidates, 2)
+	s.Equal("frontend", candidates[0].EnvName)
+	s.Equal("repository-root", candidates[1].EnvName)
+
+	// A sibling directory sharing the prefix must not match.
+	candidates = apphandlers.FilterDeployCandidates(apphandlers.TriggerDeployInput{
+		Branch:          "main",
+		ChangedFiles:    []string{"packages/ui-legacy/button.tsx"},
+		ChangesComplete: true,
+	}, list)
+
+	s.Len(candidates, 1)
+	s.Equal("repository-root", candidates[0].EnvName)
+}
+
+// Watch paths are additive. An environment building from the repository root
+// is affected by every change, so adding a watch path must not start filtering
+// out the directories it used to deploy on.
+func (s *InboundWebhooksSuite) Test_FilterDeployCandidates_RepoRootBuildRootIgnoresWatchPaths() {
+	myApp := &app.MyApp{
+		App: &app.App{},
+	}
+
+	for _, workDir := range []string{"", "./", "/", "."} {
+		list := []*app.DeployCandidate{
+			{
+				MyApp:            myApp,
+				EnvName:          "root",
+				EnvDefaultBranch: "main",
+				BuildConfig: &buildconf.BuildConf{
+					WorkDir:                workDir,
+					WatchPaths:             []string{"packages/ui"},
+					SkipUnchangedBuildRoot: null.BoolFrom(true),
+				},
+			},
+		}
+
+		candidates := apphandlers.FilterDeployCandidates(apphandlers.TriggerDeployInput{
+			Branch:          "main",
+			ChangedFiles:    []string{"apps/unrelated/main.go"},
+			ChangesComplete: true,
+		}, list)
+
+		s.Len(candidates, 1, "workDir %q must keep deploying on every change", workDir)
+	}
 }
 
 func TestIncomingWebhooks(t *testing.T) {

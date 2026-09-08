@@ -733,6 +733,83 @@ func (s *HandlerMCPSuite) Test_UpdateEnvironment_SetsMarkdown() {
 	s.True(updated.Data.Markdown.ValueOrZero())
 }
 
+// Monorepo path filtering is bulk multi-environment wiring, which is exactly
+// the kind of setup an agent drives rather than a person clicking per
+// environment, so both settings have to be reachable over MCP.
+func (s *HandlerMCPSuite) Test_UpdateEnvironment_SetsBuildRootFilter() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl, map[string]any{
+		"Data": &buildconf.BuildConf{WorkDir: "apps/frontend"},
+	})
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "update_environment", map[string]any{
+		"envId":                  mockEnv.ID.String(),
+		"skipUnchangedBuildRoot": true,
+		"watchPaths":             []any{"packages/ui", " packages/config ", ""},
+	}))
+
+	s.rpcOK(resp)
+
+	updated, err := buildconf.NewStore().EnvironmentByID(context.Background(), mockEnv.ID)
+
+	s.Require().NoError(err)
+	s.True(updated.Data.SkipUnchangedBuildRoot.ValueOrZero())
+	s.Equal([]string{"packages/ui", "packages/config"}, updated.Data.WatchPaths)
+}
+
+// Leaving the settings out of the call must not disturb what is stored.
+func (s *HandlerMCPSuite) Test_UpdateEnvironment_KeepsBuildRootFilterWhenOmitted() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl, map[string]any{
+		"Data": &buildconf.BuildConf{
+			WorkDir:                "apps/frontend",
+			WatchPaths:             []string{"packages/ui"},
+			SkipUnchangedBuildRoot: null.BoolFrom(true),
+		},
+	})
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "update_environment", map[string]any{
+		"envId":  mockEnv.ID.String(),
+		"branch": "develop",
+	}))
+
+	s.rpcOK(resp)
+
+	updated, err := buildconf.NewStore().EnvironmentByID(context.Background(), mockEnv.ID)
+
+	s.Require().NoError(err)
+	s.True(updated.Data.SkipUnchangedBuildRoot.ValueOrZero())
+	s.Equal([]string{"packages/ui"}, updated.Data.WatchPaths)
+}
+
+func (s *HandlerMCPSuite) Test_CreateEnvironment_SetsBuildRootFilter() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	key := s.userKey(usr)
+
+	resp := s.post(key.Value, mcpToolCall(1, "create_environment", map[string]any{
+		"appId":                  appl.ID.String(),
+		"name":                   "frontend",
+		"branch":                 "main",
+		"workDir":                "apps/frontend",
+		"skipUnchangedBuildRoot": true,
+		"watchPaths":             []any{"packages/ui"},
+	}))
+
+	s.rpcOK(resp)
+
+	created, err := buildconf.NewStore().Environment(context.Background(), appl.ID, "frontend")
+
+	s.Require().NoError(err)
+	s.Require().NotNil(created)
+	s.True(created.Data.SkipUnchangedBuildRoot.ValueOrZero())
+	s.Equal([]string{"packages/ui"}, created.Data.WatchPaths)
+}
+
 func (s *HandlerMCPSuite) Test_UpdateEnvironment_Forbidden_NotMember() {
 	usr1 := s.MockUser()
 	usr2 := s.MockUser()

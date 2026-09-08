@@ -12,6 +12,7 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deployservice"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/github"
@@ -219,32 +220,95 @@ func FilterDeployCandidates(input TriggerDeployInput, dcs []*app.DeployCandidate
 }
 
 // buildRootChanged reports whether a deploy candidate can be affected by the
-// changed paths. Unknown change sets preserve the existing deploy behavior.
+// changed paths. Path filtering is opt-in per environment, and unknown change
+// sets always preserve the existing deploy behavior.
 func buildRootChanged(input TriggerDeployInput, dc *app.DeployCandidate) bool {
-	if !input.ChangesComplete || len(input.ChangedFiles) == 0 || dc.BuildConfig == nil {
+	if dc.BuildConfig == nil || !dc.BuildConfig.SkipUnchangedBuildRoot.ValueOrZero() {
 		return true
 	}
 
-	workDir := strings.Trim(path.Clean(strings.TrimSpace(dc.BuildConfig.WorkDir)), "/")
+	if !input.ChangesComplete || len(input.ChangedFiles) == 0 {
+		return true
+	}
 
-	if workDir == "" || workDir == "." {
+	matcher := newChangedPathMatcher(dc.BuildConfig)
+
+	// An environment that builds from the repository root is affected by every
+	// change, so there is nothing to filter out. Watch paths are additive and
+	// must never narrow that down.
+	if matcher.matchAll {
 		return true
 	}
 
 	for _, file := range input.ChangedFiles {
-		changedPath := strings.Trim(path.Clean(strings.TrimSpace(file)), "/")
-
-		// Repository-root files may affect every workspace in a monorepo.
-		if changedPath != "" && !strings.Contains(changedPath, "/") {
-			return true
-		}
-
-		if changedPath == workDir || strings.HasPrefix(changedPath, workDir+"/") {
+		if matcher.matches(file) {
 			return true
 		}
 	}
 
 	return false
+}
+
+// changedPathMatcher decides whether a path reported by a push webhook affects
+// an environment. Paths on both sides are relative to the repository root.
+type changedPathMatcher struct {
+	roots []string
+
+	// matchAll is set when the build root is the repository root itself, which
+	// no path can fall outside of.
+	matchAll bool
+}
+
+func newChangedPathMatcher(bc *buildconf.BuildConf) *changedPathMatcher {
+	m := &changedPathMatcher{matchAll: normalizeRepoPath(bc.WorkDir) == ""}
+
+	if m.matchAll {
+		return m
+	}
+
+	for _, p := range append([]string{bc.WorkDir}, bc.WatchPaths...) {
+		if root := normalizeRepoPath(p); root != "" {
+			m.roots = append(m.roots, root)
+		}
+	}
+
+	return m
+}
+
+// matches reports whether the changed path falls under one of the watched
+// roots. Repository-root files match everything because shared manifests,
+// lockfiles and root configuration can affect every workspace in a monorepo.
+func (m *changedPathMatcher) matches(file string) bool {
+	changed := normalizeRepoPath(file)
+
+	if changed == "" {
+		return false
+	}
+
+	if !strings.Contains(changed, "/") {
+		return true
+	}
+
+	for _, root := range m.roots {
+		if changed == root || strings.HasPrefix(changed, root+"/") {
+			return true
+		}
+	}
+
+	return false
+}
+
+// normalizeRepoPath strips surrounding whitespace and slashes so that
+// "apps/web", "/apps/web" and "apps/web/" compare equal. It returns an empty
+// string for paths that address the repository root itself.
+func normalizeRepoPath(p string) string {
+	cleaned := strings.Trim(path.Clean(strings.TrimSpace(p)), "/")
+
+	if cleaned == "." {
+		return ""
+	}
+
+	return cleaned
 }
 
 // commitHasBeenBuilt checks whether there is already a build for the commit or not.

@@ -62,6 +62,7 @@ func (s *HandlerEnvGetSuite) Test_Success() {
 			  "markdown": null,
 			  "markdownConvert": null,
 			  "previewLinks": null,
+			  "skipUnchangedBuildRoot": null,
 			  "vars":{
 				 "NODE_ENV":""
 			  }

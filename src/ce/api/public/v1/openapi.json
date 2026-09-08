@@ -3802,6 +3802,17 @@
             "items": {
               "type": "string"
             }
+          },
+          "skipUnchangedBuildRoot": {
+            "type": "boolean",
+            "description": "Monorepo path filtering. When true, a push only auto-deploys this environment if it changes a file inside `workDir`, inside one of `watchPaths`, or at the repository root. Off unless enabled. GitHub and GitLab push events only."
+          },
+          "watchPaths": {
+            "type": "array",
+            "description": "Extra paths, relative to the repository root, that count as changes for this environment - typically shared workspace packages that live outside `workDir`. Only read when `skipUnchangedBuildRoot` is enabled.",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },

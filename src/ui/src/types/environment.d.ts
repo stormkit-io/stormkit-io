@@ -23,6 +23,8 @@ declare type BuildConfig = {
   statusChecks?: StatusCheck[];
   priorityPattern?: string;
   cacheDirs?: string[]; // Directories restored before install and snapshotted after a successful build
+  skipUnchangedBuildRoot?: boolean; // Only auto deploy when the push touches the build root, a watch path, or the repository root
+  watchPaths?: string[]; // Extra paths (relative to the repository root) that count as changes for this environment
   vars: Record<string, string>;
 };
 
