@@ -80,7 +80,7 @@ export default function Vercel() {
         </Typography>
         <Typography>
           Stormkit is an intuitive, scalable, and cost-effective self-hostable
-          deployment platform for web applications in any language. It comes
+          application platform for the web. It comes
           with built-in features like deployment previews, a PostgreSQL
           database, end-user authentication, a mailer, scheduled jobs,
           analytics, snippet injections, multiple environments and more.
