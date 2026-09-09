@@ -3,7 +3,7 @@
   "info": {
     "title": "Stormkit API",
     "version": "1.0.0",
-    "summary": "REST API for the Stormkit deployment platform.",
+    "summary": "REST API for the Stormkit application platform.",
     "description": "The Stormkit API lets you create applications and environments, trigger and publish deployments, read build, runtime and access logs, manage custom domains, redirects, snippets, periodic triggers and transactional email.\n\nEvery endpoint is authenticated with an API key sent in the `Authorization` header. Keys are scoped to a user, a team, an application or a single environment; each operation documents the minimum scope it accepts. See https://www.stormkit.io/docs/api/authentication for how to create one.\n\nStormkit also exposes the same capabilities to agents over MCP at `POST /v1/mcp`; see https://www.stormkit.io/mcp.",
     "termsOfService": "https://www.stormkit.io/policies/terms",
     "contact": {

@@ -1,7 +1,7 @@
 {
   "name": "www-stormkit-io",
   "version": "1.0.0",
-  "description": "Stormkit is a serverless platform for users to deploy fullstack javascript applications using git providers. It comes with application previews, code injections and  many more features.",
+  "description": "Stormkit is a self-hostable application platform for the web. It comes with deployment previews, a managed Postgres database, end-user authentication, a mailer, cron triggers, analytics and more.",
   "author": {
     "email": "hello@stormkit.io",
     "name": "Stormkit",

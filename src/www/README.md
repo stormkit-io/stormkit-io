@@ -2,14 +2,14 @@
   <img src="https://www.stormkit.io/stormkit-logo.png" height="90"/>
 </p>
 <p align="center">
-  <i>Stormkit is a hosting and deployment platform for modern web applications, offering seamless integration with Git repositories and powerful CI/CD capabilities.<br/>Try out Stormkit using our hosted version at <a href="https://app.stormkit.io">app.stormkit.io</a>.</i>
+  <i>Stormkit is a self-hostable application platform for the web: git-driven deployments, preview environments, a managed Postgres database, end-user authentication, a mailer, cron triggers and analytics.<br/>Try out Stormkit using our hosted version at <a href="https://app.stormkit.io">app.stormkit.io</a>.</i>
 </p>
 
 This repository contains code related to the landing page and documentation. If you'd like to contribute to the application frontend, check out our frontend repository on https://github.com/stormkit-io/app-stormkit-io. You're more than welcome to contribute.
 
 ## What is Stormkit?
 
-Stormkit is a hosting and deployment platform for modern web applications, offering seamless integration with Git repositories and powerful CI/CD capabilities.
+Stormkit is a self-hostable application platform for the web: git-driven deployments, preview environments, a managed Postgres database, end-user authentication, a mailer, cron triggers and analytics.
 
 ## Contributing
 

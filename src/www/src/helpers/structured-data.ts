@@ -57,7 +57,7 @@ export function organizationSchema(): JsonLd {
     logo: `${DEFAULT_ORIGIN}/stormkit-logo.png`,
     email: SUPPORT_EMAIL,
     description:
-      'Stormkit is a self-hostable deployment platform for web applications, with deployments, environments, a managed database, end-user authentication, a mailer, cron triggers and analytics.',
+      'Stormkit is a self-hostable application platform for the web, with deployments, environments, a managed database, end-user authentication, a mailer, cron triggers and analytics.',
     foundingDate: '2020',
     sameAs: SAME_AS,
     contactPoint: [
@@ -95,7 +95,7 @@ export function softwareApplicationSchema(): JsonLd {
     downloadUrl: `${DEFAULT_ORIGIN}/install.sh`,
     softwareHelp: `${DEFAULT_ORIGIN}/docs/welcome/getting-started`,
     description:
-      'Self-hostable deployment platform for web applications: git-driven deployments, preview environments, a managed Postgres database, end-user authentication, a mailer, cron triggers, volumes and analytics — driveable over a REST API and an MCP server.',
+      'Self-hostable application platform for the web: git-driven deployments, preview environments, a managed Postgres database, end-user authentication, a mailer, cron triggers, volumes and analytics — driveable over a REST API and an MCP server.',
     publisher: { '@id': ORGANIZATION_ID },
     sameAs: ['https://github.com/stormkit-io/stormkit-io'],
     // Mirrors the tiers rendered by components/Pricing/PricingSelfHosted.tsx and

@@ -9,7 +9,7 @@ const faq = [
   {
     question: 'What is Stormkit?',
     answer:
-      'Stormkit is a hosting and deployment platform for modern web applications, offering seamless integration with Git repositories and powerful CI/CD capabilities.',
+      'Stormkit is a self-hostable application platform for the web: git-driven deployments, preview environments, a managed Postgres database, end-user authentication, a mailer, cron triggers and analytics.',
   },
   {
     question: 'Which frameworks does Stormkit support?',

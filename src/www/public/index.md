@@ -1,10 +1,10 @@
 <!-- Source: https://www.stormkit.io/ -->
 <!-- Title: Stormkit — self-hosted deployment platform for web applications -->
-<!-- Description: Stormkit is a self-hostable deployment platform for web applications: deployments, environments, previews, a Postgres database, end-user auth, a mailer, cron triggers and analytics — on your own infrastructure, driveable by an agent over MCP. -->
+<!-- Description: Stormkit is a self-hostable application platform for the web: deployments, environments, previews, a Postgres database, end-user auth, a mailer, cron triggers and analytics — on your own infrastructure, driveable by an agent over MCP. -->
 
 # Stormkit
 
-Stormkit is a deployment platform for web applications in any language. It gives
+Stormkit is an application platform for the web. It gives
 you the workflow of a managed platform — git-driven deployments, preview
 environments, instant rollbacks — while running on infrastructure you own, so
 there is no vendor lock-in and no usage-based surprise.

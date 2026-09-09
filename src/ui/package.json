@@ -1,7 +1,7 @@
 {
   "name": "app.stormkit.io",
   "version": "1.0.0",
-  "description": "Stormkit is an infrastructure provider for modern javascript applications which is strongly integrated with popular Git providers.",
+  "description": "Stormkit is a self-hostable application platform for the web, strongly integrated with popular Git providers.",
   "private": true,
   "license": "MIT",
   "author": "Savas Vedova <savas@stormkit.io>",

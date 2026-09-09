@@ -7,7 +7,7 @@ description: Discover Stormkit, the self-hosted alternative to Vercel and Netlif
 
 <section>
 
-Stormkit is a deployment platform for web applications. It helps you focus on your product by providing a solution for most common technical challenges, such as deployments, logs, hosting, scaling tls certificates, and helps saving valuable time. Your app can be written in any language — see [Runtime Management](/docs/self-hosting/runtimes) for how runtimes and system packages are provisioned.
+Stormkit is an application platform for the web. It helps you focus on your product by providing a solution for most common technical challenges, such as deployments, logs, hosting, scaling tls certificates, and helps saving valuable time. Your app can be written in any language — see [Runtime Management](/docs/self-hosting/runtimes) for how runtimes and system packages are provisioned.
 
 </section>
 
