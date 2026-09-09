@@ -1,6 +1,12 @@
 import { afterEach, vi } from "vitest";
 import fetch, { Headers, Request, Response } from "node-fetch";
+import { configure } from "@testing-library/react";
 import nock from "nock";
+
+// Test files run in parallel, so a render waiting on a mocked request competes
+// for CPU with every other file. The 1s default left specs failing on timing
+// alone under load; the vitest testTimeout still catches a genuine hang.
+configure({ asyncUtilTimeout: 5000 });
 
 (global as any).fetch = fetch;
 (global as any).Headers = Headers;
@@ -111,10 +117,23 @@ afterEach(() => {
   nock.enableNetConnect("127.0.0.1");
 });
 
-// FAIL LOUDLY on unhandled promise rejections / errors
+// FAIL LOUDLY on unhandled promise rejections / errors.
+//
+// This setup file runs once per test file against a process that every test
+// file in the worker shares, so registering unconditionally leaked a listener
+// per file ("MaxListenersExceededWarning: 11 unhandledRejection listeners")
+// and let one file's stray rejection throw into whichever file was running.
+const rejectionFlag = "__skUnhandledRejectionHooked";
+
 // @ts-ignore
-process.on("unhandledRejection", reason => {
-  // eslint-disable-next-line no-console
-  console.log(`FAILED TO HANDLE PROMISE REJECTION`);
-  throw reason;
-});
+if (!(globalThis as any)[rejectionFlag]) {
+  // @ts-ignore
+  (globalThis as any)[rejectionFlag] = true;
+
+  // @ts-ignore
+  process.on("unhandledRejection", reason => {
+    // eslint-disable-next-line no-console
+    console.log(`FAILED TO HANDLE PROMISE REJECTION`);
+    throw reason;
+  });
+}
