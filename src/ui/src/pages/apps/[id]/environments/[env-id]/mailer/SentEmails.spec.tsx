@@ -51,10 +51,9 @@ describe("~/pages/apps/[id]/environments/[env-id]/mailer/SentEmails.tsx", () => 
 
     await waitFor(() => {
       expect(fetchScope.isDone()).toBe(true);
+      expect(wrapper.getByText("Sent Emails")).toBeTruthy();
+      expect(wrapper.getByText("No emails sent yet.")).toBeTruthy();
     });
-
-    expect(wrapper.getByText("Sent Emails")).toBeTruthy();
-    expect(wrapper.getByText("No emails sent yet.")).toBeTruthy();
   });
 
   it("should render list of emails", async () => {
@@ -74,10 +73,9 @@ describe("~/pages/apps/[id]/environments/[env-id]/mailer/SentEmails.tsx", () => 
 
     await waitFor(() => {
       expect(fetchScope.isDone()).toBe(true);
+      expect(wrapper.getByText("Welcome aboard")).toBeTruthy();
+      expect(wrapper.getByText("To: recipient@example.com")).toBeTruthy();
     });
-
-    expect(wrapper.getByText("Welcome aboard")).toBeTruthy();
-    expect(wrapper.getByText("To: recipient@example.com")).toBeTruthy();
   });
 
   it("should open email preview dialog on row click", async () => {

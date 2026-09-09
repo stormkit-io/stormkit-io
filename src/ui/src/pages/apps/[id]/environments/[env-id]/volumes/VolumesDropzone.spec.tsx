@@ -119,11 +119,10 @@ describe("~/pages/apps/[id]/environments/[env-id]/volumes/VolumesDropzone.tsx", 
       await waitFor(() => {
         expect(fetchFilesScope.isDone()).toBe(true);
         expect(setLoading).toHaveBeenCalledWith(false);
+        expect(wrapper.getByText("text.txt")).toBeTruthy();
+        expect(wrapper.getByText("index.js")).toBeTruthy();
+        expect(wrapper.getByText("http://localhost/volumes/142")).toBeTruthy();
       });
-
-      expect(wrapper.getByText("text.txt")).toBeTruthy();
-      expect(wrapper.getByText("index.js")).toBeTruthy();
-      expect(wrapper.getByText("http://localhost/volumes/142")).toBeTruthy();
     });
 
     it("should delete a file", async () => {

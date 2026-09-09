@@ -57,6 +57,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabDomainCo
 
       await waitFor(() => {
         expect(scope.isDone()).toBe(true);
+        expect(wrapper.getByText(domain.domainName)).toBeTruthy();
       });
     });
 

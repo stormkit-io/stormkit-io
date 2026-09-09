@@ -158,6 +158,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/analytics/Visitors.tsx", () =>
 
     await waitFor(() => {
       expect(scope.isDone()).toBe(true);
+      expect(wrapper.getByTestId("area-chart")).toBeTruthy();
     });
 
     const series = JSON.parse(wrapper.getByTestId("area-chart").innerHTML);

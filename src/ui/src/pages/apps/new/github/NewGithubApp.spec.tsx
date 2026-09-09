@@ -136,6 +136,7 @@ describe("~/pages/apps/new/github/NewGithubApp.tsx", () => {
       await waitFor(() => {
         expect(scope1.isDone()).toBe(true);
         expect(scope2.isDone()).toBe(true);
+        expect(wrapper.getByText("Import from GitHub")).toBeTruthy();
       });
     });
 

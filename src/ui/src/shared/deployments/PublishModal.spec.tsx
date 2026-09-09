@@ -84,10 +84,8 @@ describe("~/shared/deployments/PublishModal", () => {
 
     await waitFor(() => {
       expect(scope.isDone()).toBe(true);
+      expect(wrapper.getByText(/Deployment is being warmed up/)).toBeTruthy();
     });
-
-    // The publish call has returned, but the environment has not moved yet.
-    expect(wrapper.getByText(/Deployment is being warmed up/)).toBeTruthy();
 
     await waitFor(
       () => {
