@@ -45,6 +45,11 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabAuthWall
 
       await waitFor(() => {
         expect(scope.isDone()).toBe(true);
+        expect(
+          wrapper.getByText(
+            "There are no logins for this environment. Click the button above to add a new user."
+          )
+        ).toBeTruthy();
       });
 
       expect(() => wrapper.getByTestId("card-loading")).toThrow();
@@ -88,12 +93,6 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabAuthWall
         expect(scope.isDone()).toBe(true);
       });
 
-      expect(() =>
-        wrapper.getByText(
-          "There are no logins for this environment. Click the button above to add a new user."
-        )
-      ).toThrow();
-
       await waitFor(() => {
         expect(wrapper.getByText("Email")).toBeTruthy();
         expect(wrapper.getByText("Last login")).toBeTruthy();
@@ -101,11 +100,19 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabAuthWall
         expect(wrapper.getByText("email-2@example.org")).toBeTruthy();
         expect(wrapper.getByText("21.09.2022 - 21:30")).toBeTruthy();
       });
+
+      // Only once the list is on screen is the empty state meaningfully absent.
+      expect(() =>
+        wrapper.getByText(
+          "There are no logins for this environment. Click the button above to add a new user."
+        )
+      ).toThrow();
     });
 
     it("should remove selected users", async () => {
       await waitFor(() => {
         expect(scope.isDone()).toBe(true);
+        expect(wrapper.getByText("Remove selected")).toBeTruthy();
       });
 
       const button = wrapper.getByText("Remove selected");

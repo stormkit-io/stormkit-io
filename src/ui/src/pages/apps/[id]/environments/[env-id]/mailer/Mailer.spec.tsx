@@ -62,6 +62,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/mailer/Mailer.tsx", () => {
 
     await waitFor(() => {
       expect(fetchScope.isDone()).toBe(true);
+      expect(wrapper.getByText("Mailer Configuration")).toBeTruthy();
     });
 
     const subheader = "Simple Email Service to send transactional emails.";

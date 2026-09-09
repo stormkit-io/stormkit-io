@@ -141,9 +141,8 @@ describe("~/shared/deployments/DeploymentRow.tsx", () => {
 
       await waitFor(() => {
         expect(scope.isDone()).toBe(true);
+        expect(wrapper.getByText(/Deployment manifest/)).toBeTruthy();
       });
-
-      expect(wrapper.getByText(/Deployment manifest/)).toBeTruthy();
     });
 
     it("should have a link to runtime logs", () => {

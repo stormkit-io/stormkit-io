@@ -196,17 +196,17 @@ describe("~/pages/apps/[id]/environments/[env-id]/volumes/Volumes.tsx", () => {
       });
 
       it("should display empty list", async () => {
-        // This should not be rendered anymore
+        await waitFor(() => {
+          expect(wrapper.getByText("No files uploaded yet")).toBeTruthy();
+          expect(fetchFilesScope.isDone()).toBe(true);
+        });
+
+        // Only once the list is on screen is the empty state meaningfully absent.
         expect(() =>
           wrapper.getByText(
             "Persist your files seamlessly using Stormkit Volumes"
           )
         ).toThrow();
-
-        await waitFor(() => {
-          expect(wrapper.getByText("No files uploaded yet")).toBeTruthy();
-          expect(fetchFilesScope.isDone()).toBe(true);
-        });
       });
     });
   });
