@@ -12,6 +12,11 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["src/testing/setup.tsx"],
     retry: 2,
+
+    // Comfortably above the testing-library asyncUtilTimeout set in
+    // src/testing/setup.tsx, so a slow wait under load still fails as a real
+    // hang rather than being cut off mid-wait.
+    testTimeout: 20000,
     browser: {
       name: "Chrome",
       viewport: {

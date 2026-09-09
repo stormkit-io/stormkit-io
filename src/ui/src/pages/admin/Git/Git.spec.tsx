@@ -115,11 +115,16 @@ describe("~/pages/admin/Git/Git.tsx", () => {
       expect(scope.isDone()).toBe(true);
     });
 
-    // Check that check icons are displayed for configured providers
-    const checkIcons = wrapper.container.querySelectorAll(
-      '[data-testid="CheckIcon"]'
-    );
-    expect(checkIcons.length).toBe(3); // One for each provider
+    // Wait on the rendered output rather than the request: nock reports a call
+    // as done the moment it matches, which is before React has re-rendered with
+    // the response.
+    await waitFor(() => {
+      const checkIcons = wrapper.container.querySelectorAll(
+        '[data-testid="CheckIcon"]'
+      );
+
+      expect(checkIcons.length).toBe(3); // One for each provider
+    });
   });
 
   it("should handle git details fetch error", async () => {

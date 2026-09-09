@@ -53,6 +53,13 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/AuthUsers.tsx", () => {
     await waitFor(() => {
       expect(scope.isDone()).toBe(true);
     });
+
+    // Wait for the row itself: nock reports the call as done as soon as it
+    // matches, which is before React has rendered the response, so every test
+    // body would otherwise race the first paint of the user list.
+    await waitFor(() => {
+      expect(wrapper.getByLabelText("User actions")).toBeTruthy();
+    });
   };
 
   beforeEach(async () => {
