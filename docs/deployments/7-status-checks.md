@@ -19,6 +19,8 @@ To set up status checks:
 
 The command will execute with the same environment variables available during the build process.
 
+If you are self-hosting Stormkit, you can also use status checks for browser-based workflows with tools such as Playwright and headless Chromium. See [Headless Browsers](/docs/features/headless-browsers) and [Runtime Management](/docs/self-hosting/runtimes).
+
 For an example of a status check script, visit our [sample repository](https://github.com/stormkit-io/sample-project/blob/main/scripts/puppeteer.ts).
 
 ## Modifying an Existing Status Check
