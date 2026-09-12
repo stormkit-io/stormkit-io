@@ -23,8 +23,10 @@ type RedisCache struct {
 
 var Cache *RedisCache
 
-func newClient() (*redis.Client, error) {
-	client := redis.NewClient(&redis.Options{
+// dial builds a client without contacting the server. go-redis connects
+// lazily, so this cannot block and cannot fail.
+func dial() *redis.Client {
+	return redis.NewClient(&redis.Options{
 		Addr: config.Get().RedisAddr,
 
 		// Explicitly disable maintenance notifications
@@ -34,10 +36,16 @@ func newClient() (*redis.Client, error) {
 			Mode: maintnotifications.ModeDisabled,
 		},
 	})
+}
 
-	_, err := client.Ping(context.Background()).Result()
+// newClient builds a client and verifies it answers. Only startup uses this:
+// the ping costs a full dial timeout, and the driver retries it internally, so
+// an unreachable server makes a single call here take over a minute.
+func newClient() (*redis.Client, error) {
+	client := dial()
 
-	if err != nil {
+	if _, err := client.Ping(context.Background()).Result(); err != nil {
+		client.Close()
 		return nil, err
 	}
 
@@ -56,8 +64,11 @@ func Client() *RedisCache {
 		client, err = newClient()
 
 		if err != nil {
+			// Backoff stays in the low seconds on purpose: the dial happens
+			// under the package mutex, so every other caller is blocked for
+			// however long this loop runs.
 			for attempt := 1; attempt <= 5; attempt++ {
-				backoffDuration := time.Duration(attempt*attempt) * time.Second
+				backoffDuration := time.Duration(200*(1<<(attempt-1))) * time.Millisecond
 				slog.Errorf("redis connection attempt %d failed, retrying in %v", attempt, backoffDuration)
 				time.Sleep(backoffDuration)
 
@@ -77,6 +88,35 @@ func Client() *RedisCache {
 	}
 
 	return Cache
+}
+
+// Reset discards the shared client so the next Client call redials.
+//
+// It is a no-op unless r is still the shared client, so that several
+// goroutines observing the same failure do not each tear down a healthy
+// replacement.
+func (r *RedisCache) Reset() {
+	mux.Lock()
+	defer mux.Unlock()
+
+	if r == nil || Cache != r {
+		return
+	}
+
+	// Swap in a replacement rather than clearing the field. Clearing it makes
+	// the next caller re-run the verified startup path while holding this
+	// mutex, which on an unreachable server parks every other caller for over
+	// a minute, and the caller after that pays it again because the failure is
+	// not remembered. A lazy client cannot block here, and each command then
+	// fails on its own dial timeout instead of behind a process-wide lock.
+	old := Cache.Client
+	Cache = &RedisCache{Client: dial()}
+
+	if err := old.Close(); err != nil {
+		slog.Errorf("error while closing redis client: %v", err)
+	}
+
+	slog.Info("discarded redis client, connections will be redialled")
 }
 
 // Keys returns all keys matching the given pattern using SCAN.
@@ -128,5 +168,26 @@ func IsConnectionError(err error) bool {
 	return strings.Contains(errStr, "connection refused") ||
 		strings.Contains(errStr, "network is unreachable") ||
 		strings.Contains(errStr, "no route to host") ||
-		strings.Contains(errStr, "i/o timeout")
+		strings.Contains(errStr, "i/o timeout") ||
+		IsReadOnlyError(err)
+}
+
+// IsReadOnlyError reports whether err is a READONLY reply, which a managed
+// instance returns while it serves a replica - during and after a
+// primary-standby switchover.
+//
+// The reply arrives as a valid Redis error, so the pool keeps handing out the
+// connections pinned to the demoted node and every write path stays dead until
+// the client is discarded. Callers should treat it as a connection fault and
+// Reset, not as an application error.
+//
+// Tair's proxy emits "ERR READONLY You can't write against a read only
+// instance."; native Redis emits "READONLY You can't write against a read only
+// replica.".
+func IsReadOnlyError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return strings.Contains(err.Error(), "READONLY")
 }

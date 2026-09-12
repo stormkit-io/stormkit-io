@@ -70,6 +70,10 @@ func IngestHandlerForward(ctx context.Context) error {
 		batch, err := client.LPopCount(ctx, HostingQueueName, rows).Result()
 
 		if rediscache.IsConnectionError(err) {
+			// LPopCount is a write, so a failover answers it with READONLY.
+			// Drop the client or every later tick reuses the same dead
+			// connections and the queue never drains.
+			client.Reset()
 			return err
 		}
 

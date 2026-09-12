@@ -17,7 +17,6 @@ type Node struct {
 	id         string
 	options    Options
 	key        string
-	redis      *rediscache.RedisCache
 	renewMu    sync.Mutex
 	renewID    *time.Ticker
 	electID    *time.Timer
@@ -53,7 +52,6 @@ func NewNode(options Options) *Node {
 
 	return &Node{
 		id:         uuid.New().String(),
-		redis:      rediscache.Client(),
 		options:    options,
 		key:        options.Key,
 		stopChan:   make(chan struct{}),
@@ -61,6 +59,26 @@ func NewNode(options Options) *Node {
 		onRenounce: options.OnRenounce,
 		onStart:    options.OnStart,
 	}
+}
+
+// do runs a Redis command against the shared client.
+//
+// The client is resolved per call rather than held on the node, so a client
+// discarded after a failover is replaced instead of being reused once closed.
+func (l *Node) do(ctx context.Context, args ...any) (any, error) {
+	client := rediscache.Client()
+
+	if client == nil {
+		return nil, errors.New("redis client is not available")
+	}
+
+	reply, err := client.Do(ctx, args...).Result()
+
+	if rediscache.IsConnectionError(err) {
+		client.Reset()
+	}
+
+	return reply, err
 }
 
 // ID returns the node id.
@@ -114,7 +132,7 @@ func (l *Node) Stop(ctx context.Context) {
 
 	l.isLeader(ctx, func(isLeader bool) {
 		if isLeader {
-			_, err := l.redis.Do(ctx, "DEL", l.key).Result()
+			_, err := l.do(ctx, "DEL", l.key)
 
 			if err != nil {
 				slog.Errorf("error while revoking key: %s", err.Error())
@@ -133,7 +151,7 @@ func (l *Node) elect(ctx context.Context) {
 		case <-l.stopChan:
 			return
 		default:
-			reply, err := l.redis.Do(ctx, "SET", l.key, l.id, "PX", int(l.options.TTL/time.Millisecond), "NX").Result()
+			reply, err := l.do(ctx, "SET", l.key, l.id, "PX", int(l.options.TTL/time.Millisecond), "NX")
 
 			if rediscache.IsConnectionError(err) {
 				slog.Errorf("redis connection error: %v", err)
@@ -174,7 +192,7 @@ func (l *Node) renew(ctx context.Context) {
 		case <-l.renewID.C:
 			l.isLeader(ctx, func(isLeader bool) {
 				if isLeader {
-					_, err := l.redis.Do(ctx, "PEXPIRE", l.key, int(l.options.TTL/time.Millisecond)).Result()
+					_, err := l.do(ctx, "PEXPIRE", l.key, int(l.options.TTL/time.Millisecond))
 					if err != nil {
 						slog.Errorf("failed to renew leader key: %v", err)
 					}
@@ -192,7 +210,7 @@ func (l *Node) renew(ctx context.Context) {
 }
 
 func (l *Node) isLeader(ctx context.Context, callback func(bool)) {
-	reply, err := l.redis.Do(ctx, "GET", l.key).Result()
+	reply, err := l.do(ctx, "GET", l.key)
 
 	if err != nil && err != redis.Nil {
 		slog.Errorf("failed to get leader key: %v", err)
