@@ -485,6 +485,20 @@ func SetSMTP(smtp *SMTPConfig) {
 	cPtr.Store(&next)
 }
 
+// SetRedisAddr overrides the Redis address. Intended for tests only, so a test
+// can point the cache at a stub server: the test environment otherwise pins the
+// address to the local instance.
+func SetRedisAddr(addr string) {
+	if !IsTest() {
+		panic("SetRedisAddr can only be used in test environments")
+	}
+
+	cur := Get()
+	next := *cur
+	next.RedisAddr = addr
+	cPtr.Store(&next)
+}
+
 var _cachedSecrets map[string]string
 
 // Secrets decrypts environment variables that start with Salted_ key.

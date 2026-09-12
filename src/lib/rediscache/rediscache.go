@@ -7,6 +7,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -21,10 +22,23 @@ type RedisCache struct {
 	*redis.Client
 }
 
+// AutoResetCooldown bounds how often a refused write may discard the client.
+//
+// A switchover refuses every write for as long as it lasts, so without this
+// each refusal would tear down the pool and build another, hundreds of times a
+// second, aborting in-flight reads each time. The window has to live outside
+// the client because the client is what gets replaced.
+var AutoResetCooldown = 5 * time.Second
+
+// lastAutoReset is the Unix nanosecond time of the last automatic discard.
+var lastAutoReset atomic.Int64
+
 var Cache *RedisCache
 
-func newClient() (*redis.Client, error) {
-	client := redis.NewClient(&redis.Options{
+// dial builds a client without contacting the server. go-redis connects
+// lazily, so this cannot block and cannot fail.
+func dial() *redis.Client {
+	return redis.NewClient(&redis.Options{
 		Addr: config.Get().RedisAddr,
 
 		// Explicitly disable maintenance notifications
@@ -34,14 +48,88 @@ func newClient() (*redis.Client, error) {
 			Mode: maintnotifications.ModeDisabled,
 		},
 	})
+}
 
-	_, err := client.Ping(context.Background()).Result()
+// newClient builds a client and verifies it answers. Only startup uses this:
+// the ping costs a full dial timeout, and the driver retries it internally, so
+// an unreachable server makes a single call here take over a minute.
+func newClient() (*redis.Client, error) {
+	client := dial()
 
-	if err != nil {
+	if _, err := client.Ping(context.Background()).Result(); err != nil {
 		return nil, err
 	}
 
 	return client, nil
+}
+
+// newCache wraps a client and attaches the failover hook, so recovery does not
+// depend on each caller remembering to check for it.
+func newCache(client *redis.Client) *RedisCache {
+	cache := &RedisCache{Client: client}
+	client.AddHook(&failoverHook{cache: cache})
+
+	return cache
+}
+
+// failoverHook watches every command for a read-only reply and discards the
+// client when it sees one.
+//
+// The driver recycles a connection itself for the wordings it recognises, and
+// for ordinary network faults. This exists only for the one case it misses, so
+// it deliberately does not fire on connection errors in general: tearing the
+// pool down on a transient timeout would be worse than the timeout.
+type failoverHook struct {
+	cache *RedisCache
+}
+
+func (h *failoverHook) DialHook(next redis.DialHook) redis.DialHook {
+	return next
+}
+
+func (h *failoverHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
+	return func(ctx context.Context, cmd redis.Cmder) error {
+		err := next(ctx, cmd)
+		h.cache.resetOnReadOnly(err)
+
+		return err
+	}
+}
+
+func (h *failoverHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.ProcessPipelineHook {
+	return func(ctx context.Context, cmds []redis.Cmder) error {
+		// The driver returns the first failing command's error for the batch,
+		// so a refused write inside a pipeline arrives here directly.
+		err := next(ctx, cmds)
+		h.cache.resetOnReadOnly(err)
+
+		return err
+	}
+}
+
+// resetOnReadOnly discards the client if err says the server has become a
+// replica, at most once per cooldown window.
+//
+// The discard runs detached: it closes the pool, and this is called from
+// inside the command path that is still using it.
+func (r *RedisCache) resetOnReadOnly(err error) {
+	if r == nil || !IsReadOnlyError(err) {
+		return
+	}
+
+	now := time.Now().UnixNano()
+	previous := lastAutoReset.Load()
+
+	if now-previous < int64(AutoResetCooldown) {
+		return
+	}
+
+	// Whoever wins the swap owns this window; everyone else returns.
+	if !lastAutoReset.CompareAndSwap(previous, now) {
+		return
+	}
+
+	go r.Reset()
 }
 
 // Client returns a new RedisCache instance. If the connection is not
@@ -72,11 +160,54 @@ func Client() *RedisCache {
 			}
 		}
 
-		Cache = &RedisCache{Client: client}
+		Cache = newCache(client)
 		slog.Info("created new redis client successfully")
 	}
 
 	return Cache
+}
+
+// UniversalClient returns the shared client through the driver's interface,
+// for callers that hand it to a library.
+//
+// It never returns nil. When the shared client is unavailable it hands back a
+// lazily connecting one, so such a caller gets an ordinary connection error
+// rather than dereferencing nil on a TLS handshake.
+func UniversalClient() redis.UniversalClient {
+	if cache := Client(); cache != nil {
+		return cache.Client
+	}
+
+	return dial()
+}
+
+// Reset discards the shared client so the next Client call redials.
+//
+// It is a no-op unless r is still the shared client, so that several
+// goroutines observing the same failure do not each tear down a healthy
+// replacement.
+func (r *RedisCache) Reset() {
+	mux.Lock()
+	defer mux.Unlock()
+
+	if r == nil || Cache != r {
+		return
+	}
+
+	// Swap in a replacement rather than clearing the field. Clearing it makes
+	// the next caller re-run the verified startup path while holding this
+	// mutex, which on an unreachable server parks every other caller for over
+	// a minute, and the caller after that pays it again because the failure is
+	// not remembered. A lazy client cannot block here, and each command then
+	// fails on its own dial timeout instead of behind a process-wide lock.
+	old := Cache.Client
+	Cache = newCache(dial())
+
+	if err := old.Close(); err != nil {
+		slog.Errorf("error while closing redis client: %v", err)
+	}
+
+	slog.Info("discarded redis client, connections will be redialled")
 }
 
 // Keys returns all keys matching the given pattern using SCAN.
@@ -128,5 +259,28 @@ func IsConnectionError(err error) bool {
 	return strings.Contains(errStr, "connection refused") ||
 		strings.Contains(errStr, "network is unreachable") ||
 		strings.Contains(errStr, "no route to host") ||
-		strings.Contains(errStr, "i/o timeout")
+		strings.Contains(errStr, "i/o timeout") ||
+		IsReadOnlyError(err)
+}
+
+// IsReadOnlyError reports whether err is a READONLY reply, which a managed
+// instance returns while it serves a replica - during and after a
+// primary-standby switchover.
+//
+// The reply arrives as a valid Redis error, so the pool keeps handing out the
+// connections pinned to the demoted node and every write path stays dead until
+// the client is discarded. Callers should treat it as a connection fault and
+// Reset, not as an application error.
+//
+// Tair's proxy emits "ERR READONLY You can't write against a read only
+// instance."; native Redis emits "READONLY You can't write against a read only
+// replica.". The optional "ERR " is stripped and the rest matched as a reply
+// code, so an unrelated error that merely mentions the word is not mistaken
+// for a failover and does not discard the pool.
+func IsReadOnlyError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return strings.HasPrefix(strings.TrimPrefix(err.Error(), "ERR "), "READONLY ")
 }
