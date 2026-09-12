@@ -3,6 +3,7 @@ package integrations
 import (
 	"container/list"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
@@ -79,6 +80,32 @@ func (fc *fileCache) get(key string) (*GetFileResult, bool) {
 	fc.order.MoveToFront(element)
 
 	return element.Value.(*fileCacheEntry).file, true
+}
+
+// dropDeployment removes every entry belonging to a deployment.
+//
+// Without it the only way out of the cache is eviction pressure, so a
+// deployment nobody serves any more holds its share of the budget until
+// something else needs the room.
+func (fc *fileCache) dropDeployment(deploymentID string) {
+	if fc == nil {
+		return
+	}
+
+	prefix := deploymentID + ":"
+
+	fc.mu.Lock()
+	defer fc.mu.Unlock()
+
+	for key, element := range fc.entries {
+		if !strings.HasPrefix(key, prefix) {
+			continue
+		}
+
+		fc.used -= element.Value.(*fileCacheEntry).size
+		fc.order.Remove(element)
+		delete(fc.entries, key)
+	}
 }
 
 // put stores a file, evicting least recently used entries to stay inside the

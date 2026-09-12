@@ -80,6 +80,10 @@ func (s *ZipManagerSuite) Test_Download() {
 // than once per request. Deleting the file between calls is the check: if the
 // second call still answers, it never touched the disk.
 func (s *ZipManagerSuite) Test_GetFile_ServesFromMemory() {
+	// Pinned rather than inherited: the budget is read from the environment,
+	// and a machine with the cache switched off would fail this confusingly.
+	s.T().Setenv("STORMKIT_FILE_CACHE_BYTES", "1048576")
+
 	var location string
 
 	zipManager := integrations.NewZipManager(func(deploymentID, bucketname, keyprefix string) (string, error) {
