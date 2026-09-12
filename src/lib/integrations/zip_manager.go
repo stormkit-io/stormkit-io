@@ -51,6 +51,11 @@ func (z *Zip) RemoveFolder() {
 		return
 	}
 
+	// The files go with the folder. Holding them would keep a deployment
+	// nobody serves any more inside the byte budget, and would let bad bytes
+	// in memory outlive the fix of deleting the folder.
+	z.manager.files.dropDeployment(z.cacheKey)
+
 	slog.Debug(slog.LogOpts{
 		Msg:   "Removing folder after inactivity",
 		Level: slog.DL2,

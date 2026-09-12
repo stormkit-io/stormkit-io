@@ -91,6 +91,45 @@ func (s *FileCacheSuite) Test_ZeroBudgetDisablesIt() {
 	s.False(ok, "a zero budget is how the cache is turned off without a release")
 }
 
+func (s *FileCacheSuite) Test_DropDeploymentRemovesOnlyThatDeployment() {
+	s.cache.put("10:/index.html", s.file(10))
+	s.cache.put("10:/app.js", s.file(10))
+	s.cache.put("11:/index.html", s.file(10))
+
+	s.cache.dropDeployment("10")
+
+	_, hasOld := s.cache.get("10:/index.html")
+	_, hasOldTwo := s.cache.get("10:/app.js")
+	_, hasOther := s.cache.get("11:/index.html")
+
+	s.False(hasOld)
+	s.False(hasOldTwo)
+	s.True(hasOther, "a different deployment keeps its entries")
+}
+
+func (s *FileCacheSuite) Test_DropDeploymentReclaimsTheBudget() {
+	s.cache.put("10:/index.html", s.file(30))
+	s.cache.put("11:/index.html", s.file(30))
+
+	s.cache.dropDeployment("10")
+
+	s.Equal(int64(30), s.cache.used, "the freed bytes go back to the budget")
+}
+
+// Prefixes must not be confused: dropping 1 must not touch 10.
+func (s *FileCacheSuite) Test_DropDeploymentDoesNotMatchIdPrefixes() {
+	s.cache.put("1:/index.html", s.file(10))
+	s.cache.put("10:/index.html", s.file(10))
+
+	s.cache.dropDeployment("1")
+
+	_, hasOne := s.cache.get("1:/index.html")
+	_, hasTen := s.cache.get("10:/index.html")
+
+	s.False(hasOne)
+	s.True(hasTen, "deployment 10 is not deployment 1")
+}
+
 func TestFileCache(t *testing.T) {
 	suite.Run(t, &FileCacheSuite{})
 }
