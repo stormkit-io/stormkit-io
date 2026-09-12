@@ -57,7 +57,6 @@ func newClient() (*redis.Client, error) {
 	client := dial()
 
 	if _, err := client.Ping(context.Background()).Result(); err != nil {
-		client.Close()
 		return nil, err
 	}
 
