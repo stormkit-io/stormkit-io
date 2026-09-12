@@ -177,6 +177,59 @@ func (s *FilesysSuite) Test_GetFile() {
 	s.Equal("text/html; charset=utf-8", file.ContentType)
 }
 
+// Test_GetFile_ServesFromMemory proves the read happens once per file rather
+// than once per request. Deleting the file between calls is the check: if the
+// second call still answers, it never touched the disk.
+func (s *FilesysSuite) Test_GetFile_ServesFromMemory() {
+	s.T().Setenv("STORMKIT_FILE_CACHE_BYTES", "1048576")
+
+	client := integrations.Filesys()
+	filePath := path.Join(s.tmpdir, "client", "index.html")
+	args := integrations.GetFileArgs{Location: fmt.Sprintf("local:%s", filePath)}
+
+	first, err := client.GetFile(args)
+
+	s.Require().NoError(err)
+	s.Equal("Hello world", string(first.Content))
+
+	s.Require().NoError(os.Remove(filePath))
+
+	second, err := client.GetFile(args)
+
+	s.Require().NoError(err, "a cached file must not need the one on disk")
+	s.Equal("Hello world", string(second.Content))
+	s.Same(first, second, "the same bytes are shared rather than re-allocated per request")
+}
+
+// Test_DeleteArtifacts_DropsCachedFiles makes sure deleting a deployment
+// reclaims its share of the budget, and that nothing outlives the files it
+// came from.
+func (s *FilesysSuite) Test_DeleteArtifacts_DropsCachedFiles() {
+	s.T().Setenv("STORMKIT_FILE_CACHE_BYTES", "1048576")
+
+	client := integrations.Filesys()
+	clientDir := path.Join(s.tmpdir, "client")
+	filePath := path.Join(clientDir, "index.html")
+	args := integrations.GetFileArgs{Location: fmt.Sprintf("local:%s", filePath)}
+
+	_, err := client.GetFile(args)
+	s.Require().NoError(err)
+
+	s.Require().NoError(client.DeleteArtifacts(context.Background(), integrations.DeleteArtifactsArgs{
+		StorageLocation: fmt.Sprintf("local:%s", filePath),
+	}))
+
+	// Same path, different content. A stale entry would answer with the old
+	// bytes instead.
+	s.Require().NoError(os.MkdirAll(clientDir, 0774))
+	s.Require().NoError(os.WriteFile(filePath, []byte("Redeployed"), 0664))
+
+	after, err := client.GetFile(args)
+
+	s.Require().NoError(err)
+	s.Equal("Redeployed", string(after.Content), "the cached copy must not outlive the deployment")
+}
+
 func (s *FilesysSuite) Test_Invoke() {
 	client := integrations.Filesys()
 	reqURL := &url.URL{}
