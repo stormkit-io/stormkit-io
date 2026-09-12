@@ -86,10 +86,15 @@ type ZipManager struct {
 	// well under 1 MB per ~30k distinct deployments seen by the process,
 	// and process restarts on upgrade reset the map.
 	locks sync.Map // deploymentID (string) -> *sync.Mutex
+
+	// files holds file contents in memory. A deployment id names one fixed
+	// set of files, so entries never go stale: a new deployment writes new
+	// keys and the old ones fall out by least-recently-used.
+	files *fileCache
 }
 
 func NewZipManager(download DownloadFunc) *ZipManager {
-	return &ZipManager{download: download}
+	return &ZipManager{download: download, files: newFileCache().configure()}
 }
 
 func (zm *ZipManager) didLock(did string) *sync.Mutex {
@@ -115,12 +120,19 @@ func (zm *ZipManager) folderDoesNotExist(folder string) bool {
 // qualified location name in the form "aws:<bucket>/<key-prefix>".
 //
 // Flow:
+//
 //  1. Acquire the per-deployment lock.
+//
 //  2. Check the cache; download the zip on a miss. Other readers of the
 //     same deployment wait. Different deployments are independent.
+//
 //  3. Reset the inactivity timer.
+//
 //  4. Release the lock and read the file with no lock held — large reads
 //     do not block other readers of the same deployment.
+//
+//  5. Serve the content from memory when it is there, so the read and the
+//     allocation happen once per file rather than once per request.
 func (zm *ZipManager) GetFile(args GetFileArgs) (*GetFileResult, error) {
 	did := args.DeploymentID.String()
 	pieces := strings.Split(strings.TrimPrefix(args.Location, "aws:"), "/")
@@ -159,6 +171,14 @@ func (zm *ZipManager) GetFile(args GetFileArgs) (*GetFileResult, error) {
 	location := z.Location
 	lock.Unlock()
 
+	// Looked up after the folder is resolved, not before, so removing a
+	// deployment folder still triggers the re-download it always did.
+	cacheKey := did + ":" + args.FileName
+
+	if file, ok := zm.files.get(cacheKey); ok {
+		return file, nil
+	}
+
 	filePath := filepath.Join(location, args.FileName)
 
 	// Defense in depth: reject paths that escape the deployment directory.
@@ -180,9 +200,13 @@ func (zm *ZipManager) GetFile(args GetFileArgs) (*GetFileResult, error) {
 		return nil, err
 	}
 
-	return &GetFileResult{
+	file := &GetFileResult{
 		Content:     data,
 		ContentType: DetectContentType(filePath, data),
 		Size:        stat.Size(),
-	}, nil
+	}
+
+	zm.files.put(cacheKey, file)
+
+	return file, nil
 }

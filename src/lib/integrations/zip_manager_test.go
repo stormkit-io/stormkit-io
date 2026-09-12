@@ -76,6 +76,37 @@ func (s *ZipManagerSuite) Test_Download() {
 	s.Equal(2, called)
 }
 
+// Test_GetFile_ServesFromMemory proves the read happens once per file rather
+// than once per request. Deleting the file between calls is the check: if the
+// second call still answers, it never touched the disk.
+func (s *ZipManagerSuite) Test_GetFile_ServesFromMemory() {
+	var location string
+
+	zipManager := integrations.NewZipManager(func(deploymentID, bucketname, keyprefix string) (string, error) {
+		location = s.createFiles()
+		return location, nil
+	})
+
+	args := integrations.GetFileArgs{
+		Location:     "my-bucket/my-key-prefix",
+		FileName:     "/index.html",
+		DeploymentID: types.ID(20),
+	}
+
+	first, err := zipManager.GetFile(args)
+
+	s.Require().NoError(err)
+	s.Equal("Hello world", string(first.Content))
+
+	s.Require().NoError(os.Remove(path.Join(location, "index.html")))
+
+	second, err := zipManager.GetFile(args)
+
+	s.Require().NoError(err, "a cached file must not need the one on disk")
+	s.Equal("Hello world", string(second.Content))
+	s.Same(first, second, "the same bytes are shared rather than re-allocated per request")
+}
+
 func (s *ZipManagerSuite) Test_Download_NotFound() {
 	zipManager := integrations.NewZipManager(func(deploymentID, bucketname, keyprefix string) (string, error) {
 		s.createFiles()
