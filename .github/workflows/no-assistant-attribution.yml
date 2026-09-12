@@ -1,0 +1,36 @@
+name: No Assistant Attribution
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened]
+
+# The local hooks cover commit messages. This covers what they cannot see:
+# the pull request title and body, which never pass through git.
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check commit messages
+        run: |
+          git log --format=%B "origin/${{ github.base_ref }}..HEAD" > /tmp/commits.txt
+          ./.githooks/forbidden-attribution.sh /tmp/commits.txt
+
+      - name: Check pull request title and body
+        env:
+          # Passed through the environment, never interpolated into the
+          # script, so that title or body content cannot run as shell.
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          printf '%s\n%s\n' "$PR_TITLE" "$PR_BODY" > /tmp/pr.txt
+          ./.githooks/forbidden-attribution.sh /tmp/pr.txt

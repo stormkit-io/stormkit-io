@@ -1,0 +1,6 @@
+#!/bin/sh
+# Rejects a commit message carrying AI-assistant attribution.
+set -eu
+
+hooks_dir=$(dirname "$0")
+exec "$hooks_dir/forbidden-attribution.sh" "$1"
