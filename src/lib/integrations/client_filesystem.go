@@ -25,6 +25,11 @@ type FilesysClient struct {
 	pm  *ProcessManager
 	mjs *template.Template
 	cjs *template.Template
+
+	// files holds file contents in memory, so serving one costs a read per
+	// file rather than a read per request. A deployment writes to its own
+	// directory, so an entry never goes stale.
+	files *fileCache
 }
 
 var _filesys *FilesysClient
@@ -36,6 +41,8 @@ func Filesys() *FilesysClient {
 
 	if _filesys == nil {
 		_filesys = &FilesysClient{
+			files: newFileCache().configure(),
+
 			mjs: template.Must(template.New("mjs").Parse(strings.Join(strings.Fields(`
 				const log = (r) => r && console.log(JSON.stringify(r)) || process.exit(0);
 				const err = (e) => console.log({ body: e && e.message ? e.message : e, status: 500 }) || process.exit(1);
@@ -175,12 +182,28 @@ func (c *FilesysClient) DeleteArtifacts(ctx context.Context, args DeleteArtifact
 		return nil
 	}
 
-	return os.RemoveAll(c.getDeploymentPath(location))
+	deploymentPath := c.getDeploymentPath(location)
+
+	// The files go with the folder. Holding them would keep a deployment
+	// nobody serves any more inside the byte budget.
+	c.files.dropPrefix(deploymentPath)
+
+	return os.RemoveAll(deploymentPath)
 }
 
 // GetFile returns a file from the Filesystem.
+//
+// Content already in memory is returned without touching the disk. Callers
+// share the stored value and MUST NOT modify its content.
 func (c *FilesysClient) GetFile(args GetFileArgs) (*GetFileResult, error) {
 	filePath := path.Join(strings.TrimPrefix(args.Location, "local:"), args.FileName)
+
+	// Keyed on the resolved path: it is unique, and it starts with the
+	// deployment directory, so deleting a deployment drops its entries.
+	if file, ok := c.files.get(filePath); ok {
+		return file, nil
+	}
+
 	stat, err := os.Stat(filePath)
 
 	if os.IsNotExist(err) {
@@ -197,11 +220,15 @@ func (c *FilesysClient) GetFile(args GetFileArgs) (*GetFileResult, error) {
 		return nil, err
 	}
 
-	return &GetFileResult{
+	result := &GetFileResult{
 		ContentType: DetectContentType(filePath, data),
 		Size:        stat.Size(),
 		Content:     data,
-	}, nil
+	}
+
+	c.files.put(filePath, result)
+
+	return result, nil
 }
 
 // Upload a file to the file system. Use the DistDir argument to specify

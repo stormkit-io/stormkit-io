@@ -130,6 +130,33 @@ func (s *FileCacheSuite) Test_DropDeploymentDoesNotMatchIdPrefixes() {
 	s.True(hasTen, "deployment 10 is not deployment 1")
 }
 
+func (s *FileCacheSuite) Test_DropPrefixMatchesPaths() {
+	s.cache.put("/deployments/deployment-10/client/index.html", s.file(10))
+	s.cache.put("/deployments/deployment-10/client/app.js", s.file(10))
+	s.cache.put("/deployments/deployment-11/client/index.html", s.file(10))
+
+	s.cache.dropPrefix("/deployments/deployment-10")
+
+	_, hasOne := s.cache.get("/deployments/deployment-10/client/index.html")
+	_, hasTwo := s.cache.get("/deployments/deployment-10/client/app.js")
+	_, hasOther := s.cache.get("/deployments/deployment-11/client/index.html")
+
+	s.False(hasOne)
+	s.False(hasTwo)
+	s.True(hasOther, "a different deployment keeps its entries")
+	s.Equal(int64(10), s.cache.used)
+}
+
+func (s *FileCacheSuite) Test_DropPrefixIgnoresAnEmptyPrefix() {
+	s.cache.put("a", s.file(10))
+
+	s.cache.dropPrefix("")
+
+	_, ok := s.cache.get("a")
+
+	s.True(ok, "an empty prefix must not empty the cache")
+}
+
 func TestFileCache(t *testing.T) {
 	suite.Run(t, &FileCacheSuite{})
 }

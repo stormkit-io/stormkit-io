@@ -88,11 +88,16 @@ func (fc *fileCache) get(key string) (*GetFileResult, bool) {
 // deployment nobody serves any more holds its share of the budget until
 // something else needs the room.
 func (fc *fileCache) dropDeployment(deploymentID string) {
-	if fc == nil {
+	fc.dropPrefix(deploymentID + ":")
+}
+
+// dropPrefix removes every entry whose key starts with prefix. Callers keying
+// on a path pass the deployment directory; callers keying on an id pass it
+// with its separator, so dropping 1 cannot match 10.
+func (fc *fileCache) dropPrefix(prefix string) {
+	if fc == nil || prefix == "" {
 		return
 	}
-
-	prefix := deploymentID + ":"
 
 	fc.mu.Lock()
 	defer fc.mu.Unlock()
