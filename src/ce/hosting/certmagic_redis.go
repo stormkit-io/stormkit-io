@@ -257,7 +257,6 @@ func NewRedisStorage(logger *zap.Logger) *RedisStorage {
 	}
 }
 
-// SetClient sets the Redis client to be used by the RedisStorage instance.
 // SetClient pins a single connection. Intended for tests; production should
 // use SetClientFunc so the store follows a replaced client.
 func (rs *RedisStorage) SetClient(client redis.UniversalClient) {

@@ -20,9 +20,10 @@ import (
 // managed instance in front of that fleet emits.
 type FailoverSuite struct {
 	suite.Suite
-	stub     *stubRedis
-	prevAddr string
-	ctx      context.Context
+	stub         *stubRedis
+	prevAddr     string
+	prevCooldown time.Duration
+	ctx          context.Context
 }
 
 func (s *FailoverSuite) start(wording string) *rediscache.RedisCache {
@@ -48,9 +49,16 @@ func (s *FailoverSuite) start(wording string) *rediscache.RedisCache {
 func (s *FailoverSuite) SetupTest() {
 	s.ctx = context.Background()
 	s.prevAddr = config.Get().RedisAddr
+	s.prevCooldown = rediscache.AutoResetCooldown
+
+	// Each test drives its own switchover, so they must not throttle each
+	// other. Test_ProxyWording_DiscardsAtMostOncePerWindow sets its own.
+	rediscache.AutoResetCooldown = 0
 }
 
 func (s *FailoverSuite) TearDownTest() {
+	rediscache.AutoResetCooldown = s.prevCooldown
+
 	// Restore the address before discarding the client: Reset builds the
 	// replacement against whatever the config says at that moment.
 	config.SetRedisAddr(s.prevAddr)
@@ -221,6 +229,39 @@ func (s *FailoverSuite) Test_NativeWording_DoesNotDiscard() {
 	s.Never(func() bool {
 		return rediscache.Client() != client
 	}, 500*time.Millisecond, 50*time.Millisecond, "the driver handled it, nothing should be discarded")
+}
+
+// Test_ProxyWording_DiscardsAtMostOncePerWindow is the throttle. A switchover
+// refuses every write for as long as it lasts, so without a window each
+// refusal would tear down the pool and build another, hundreds of times a
+// second, aborting in-flight reads each time.
+func (s *FailoverSuite) Test_ProxyWording_DiscardsAtMostOncePerWindow() {
+	rediscache.AutoResetCooldown = time.Minute
+
+	client := s.start(proxyReadOnly)
+
+	// Still in progress, so even a fresh connection is refused.
+	s.stub.HoldReadOnly()
+
+	// The switchover keeps refusing, so every one of these would discard the
+	// client if nothing bounded it.
+	for range 50 {
+		s.Require().Error(client.Set(s.ctx, "k", "v", 0).Err())
+	}
+
+	s.Eventually(func() bool {
+		return rediscache.Client() != client
+	}, 2*time.Second, 10*time.Millisecond)
+
+	replacement := rediscache.Client()
+
+	for range 50 {
+		s.Require().Error(replacement.Set(s.ctx, "k", "v", 0).Err())
+	}
+
+	s.Never(func() bool {
+		return rediscache.Client() != replacement
+	}, 500*time.Millisecond, 50*time.Millisecond, "a second discard inside the window would thrash the pool")
 }
 
 func TestFailover(t *testing.T) {

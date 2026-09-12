@@ -33,6 +33,7 @@ type stubRedis struct {
 	wording    atomic.Value // string
 	generation atomic.Int64
 	conns      atomic.Int64
+	holding    atomic.Bool
 }
 
 func newStubRedis(wording string) (*stubRedis, error) {
@@ -58,6 +59,13 @@ func (s *stubRedis) Addr() string {
 // now talking to a demoted node and will only ever refuse writes.
 func (s *stubRedis) Failover() {
 	s.generation.Add(1)
+}
+
+// HoldReadOnly makes every connection refuse writes, new ones included, which
+// is what a switchover looks like while it is still in progress rather than
+// at the instant it completes.
+func (s *stubRedis) HoldReadOnly() {
+	s.holding.Store(true)
 }
 
 // Conns is the number of connections accepted since start. A pool that
@@ -107,7 +115,7 @@ func (s *stubRedis) handle(conn net.Conn, acceptedAt int64) {
 		}
 
 		cmd := strings.ToUpper(args[0])
-		demoted := acceptedAt < s.generation.Load()
+		demoted := s.holding.Load() || acceptedAt < s.generation.Load()
 
 		var reply string
 

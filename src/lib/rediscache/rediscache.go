@@ -20,11 +20,18 @@ var mux sync.Mutex
 
 type RedisCache struct {
 	*redis.Client
-
-	// resetting keeps a storm of refused writes from each launching their own
-	// teardown. The first observer wins and the rest return immediately.
-	resetting atomic.Bool
 }
+
+// AutoResetCooldown bounds how often a refused write may discard the client.
+//
+// A switchover refuses every write for as long as it lasts, so without this
+// each refusal would tear down the pool and build another, hundreds of times a
+// second, aborting in-flight reads each time. The window has to live outside
+// the client because the client is what gets replaced.
+var AutoResetCooldown = 5 * time.Second
+
+// lastAutoReset is the Unix nanosecond time of the last automatic discard.
+var lastAutoReset atomic.Int64
 
 var Cache *RedisCache
 
@@ -92,18 +99,9 @@ func (h *failoverHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
 
 func (h *failoverHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.ProcessPipelineHook {
 	return func(ctx context.Context, cmds []redis.Cmder) error {
+		// The driver returns the first failing command's error for the batch,
+		// so a refused write inside a pipeline arrives here directly.
 		err := next(ctx, cmds)
-
-		if err == nil {
-			// A pipeline reports per-command errors rather than one error for
-			// the batch, so a refused write is only visible on the commands.
-			for _, cmd := range cmds {
-				if err = cmd.Err(); err != nil {
-					break
-				}
-			}
-		}
-
 		h.cache.resetOnReadOnly(err)
 
 		return err
@@ -111,14 +109,24 @@ func (h *failoverHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis
 }
 
 // resetOnReadOnly discards the client if err says the server has become a
-// replica. The discard runs detached: it closes the pool, and this is called
-// from inside the command path that is still using it.
+// replica, at most once per cooldown window.
+//
+// The discard runs detached: it closes the pool, and this is called from
+// inside the command path that is still using it.
 func (r *RedisCache) resetOnReadOnly(err error) {
 	if r == nil || !IsReadOnlyError(err) {
 		return
 	}
 
-	if !r.resetting.CompareAndSwap(false, true) {
+	now := time.Now().UnixNano()
+	previous := lastAutoReset.Load()
+
+	if now-previous < int64(AutoResetCooldown) {
+		return
+	}
+
+	// Whoever wins the swap owns this window; everyone else returns.
+	if !lastAutoReset.CompareAndSwap(previous, now) {
 		return
 	}
 
@@ -137,11 +145,8 @@ func Client() *RedisCache {
 		client, err = newClient()
 
 		if err != nil {
-			// Backoff stays in the low seconds on purpose: the dial happens
-			// under the package mutex, so every other caller is blocked for
-			// however long this loop runs.
 			for attempt := 1; attempt <= 5; attempt++ {
-				backoffDuration := time.Duration(200*(1<<(attempt-1))) * time.Millisecond
+				backoffDuration := time.Duration(attempt*attempt) * time.Second
 				slog.Errorf("redis connection attempt %d failed, retrying in %v", attempt, backoffDuration)
 				time.Sleep(backoffDuration)
 
@@ -270,11 +275,13 @@ func IsConnectionError(err error) bool {
 //
 // Tair's proxy emits "ERR READONLY You can't write against a read only
 // instance."; native Redis emits "READONLY You can't write against a read only
-// replica.".
+// replica.". The optional "ERR " is stripped and the rest matched as a reply
+// code, so an unrelated error that merely mentions the word is not mistaken
+// for a failover and does not discard the pool.
 func IsReadOnlyError(err error) bool {
 	if err == nil {
 		return false
 	}
 
-	return strings.Contains(err.Error(), "READONLY")
+	return strings.HasPrefix(strings.TrimPrefix(err.Error(), "ERR "), "READONLY ")
 }

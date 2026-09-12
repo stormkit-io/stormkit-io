@@ -24,6 +24,12 @@ func (s *RedisCacheSuite) Test_IsReadOnlyError() {
 	s.False(rediscache.IsReadOnlyError(nil))
 	s.False(rediscache.IsReadOnlyError(redis.Nil))
 	s.False(rediscache.IsReadOnlyError(errors.New("NOPERM this user has no permissions")))
+
+	// Discarding the pool is expensive, so an error that merely mentions the
+	// word must not be mistaken for a failover.
+	s.False(rediscache.IsReadOnlyError(errors.New("ERR unknown command 'READONLY'")))
+	s.False(rediscache.IsReadOnlyError(errors.New("ERR Error running script: READONLY")))
+	s.False(rediscache.IsReadOnlyError(errors.New("READONLYISH something else")))
 }
 
 func (s *RedisCacheSuite) Test_IsConnectionError_Readonly() {

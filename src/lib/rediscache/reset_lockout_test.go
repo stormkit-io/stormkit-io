@@ -29,11 +29,13 @@ func TestResetDoesNotLockOutCallers(t *testing.T) {
 
 	prev := config.Get().RedisAddr
 
+	// Address first: Reset builds its replacement from the config as it runs,
+	// so discarding before pointing at the stub would connect to neither.
+	config.SetRedisAddr(stub.Addr())
+
 	if current := rediscache.Client(); current != nil {
 		current.Reset()
 	}
-
-	config.SetRedisAddr(stub.Addr())
 
 	client := rediscache.Client()
 
