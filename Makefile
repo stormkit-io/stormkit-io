@@ -191,6 +191,7 @@ endif
 help:
 	@echo "Available targets:"
 	@echo "  check-deps    - Verify all dependencies are installed and running"
+	@echo "  hooks         - Enable the versioned git hooks (run once per clone)"
 	@echo "  start         - Start Docker services (db, redis)"
 	@echo "  dev           - Run check-deps and start services"
 	@echo "  print-env     - Display environment variables for debugging"
@@ -214,6 +215,11 @@ print-env:
 	@echo "============================"
 
 # Check all dependencies
+# Point git at the versioned hooks. Run once per clone.
+hooks:
+	git config core.hooksPath .githooks
+	@echo "git hooks enabled from .githooks"
+
 check-deps:
 	@echo "Checking dependencies on $(DETECTED_OS)..."
 	@$(call check_command,docker,$(DOCKER_ERROR),$(DOCKER_OK))

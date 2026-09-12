@@ -1,0 +1,39 @@
+#!/bin/sh
+# Rejects a push whose commits carry AI-assistant attribution.
+#
+# commit-msg only sees messages written through this clone. This catches
+# everything actually leaving it: amended commits, rebases, cherry-picks and
+# anything authored elsewhere.
+set -eu
+
+hooks_dir=$(dirname "$0")
+zero=$(git hash-object --stdin </dev/null | tr '[0-9a-f]' '0')
+status=0
+
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+	# Branch deletion has nothing to inspect.
+	[ "$local_sha" = "$zero" ] && continue
+
+	if [ "$remote_sha" = "$zero" ]; then
+		# New branch: check only what it adds on top of the other refs,
+		# so an old commit already on the remote is not re-litigated.
+		range=$(git rev-list "$local_sha" --not --remotes)
+	else
+		range=$(git rev-list "$remote_sha..$local_sha")
+	fi
+
+	for sha in $range; do
+		msg=$(mktemp)
+		git log -1 --format=%B "$sha" >"$msg"
+
+		if ! "$hooks_dir/forbidden-attribution.sh" "$msg" 2>/tmp/attr.$$; then
+			echo "Refusing to push $(git log -1 --oneline "$sha")" >&2
+			sed 's/^/  /' /tmp/attr.$$ >&2
+			status=1
+		fi
+
+		rm -f "$msg" /tmp/attr.$$
+	done
+done
+
+exit $status
