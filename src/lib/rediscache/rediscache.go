@@ -7,6 +7,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -19,6 +20,10 @@ var mux sync.Mutex
 
 type RedisCache struct {
 	*redis.Client
+
+	// resetting keeps a storm of refused writes from each launching their own
+	// teardown. The first observer wins and the rest return immediately.
+	resetting atomic.Bool
 }
 
 var Cache *RedisCache
@@ -52,6 +57,74 @@ func newClient() (*redis.Client, error) {
 	return client, nil
 }
 
+// newCache wraps a client and attaches the failover hook, so recovery does not
+// depend on each caller remembering to check for it.
+func newCache(client *redis.Client) *RedisCache {
+	cache := &RedisCache{Client: client}
+	client.AddHook(&failoverHook{cache: cache})
+
+	return cache
+}
+
+// failoverHook watches every command for a read-only reply and discards the
+// client when it sees one.
+//
+// The driver recycles a connection itself for the wordings it recognises, and
+// for ordinary network faults. This exists only for the one case it misses, so
+// it deliberately does not fire on connection errors in general: tearing the
+// pool down on a transient timeout would be worse than the timeout.
+type failoverHook struct {
+	cache *RedisCache
+}
+
+func (h *failoverHook) DialHook(next redis.DialHook) redis.DialHook {
+	return next
+}
+
+func (h *failoverHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
+	return func(ctx context.Context, cmd redis.Cmder) error {
+		err := next(ctx, cmd)
+		h.cache.resetOnReadOnly(err)
+
+		return err
+	}
+}
+
+func (h *failoverHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.ProcessPipelineHook {
+	return func(ctx context.Context, cmds []redis.Cmder) error {
+		err := next(ctx, cmds)
+
+		if err == nil {
+			// A pipeline reports per-command errors rather than one error for
+			// the batch, so a refused write is only visible on the commands.
+			for _, cmd := range cmds {
+				if err = cmd.Err(); err != nil {
+					break
+				}
+			}
+		}
+
+		h.cache.resetOnReadOnly(err)
+
+		return err
+	}
+}
+
+// resetOnReadOnly discards the client if err says the server has become a
+// replica. The discard runs detached: it closes the pool, and this is called
+// from inside the command path that is still using it.
+func (r *RedisCache) resetOnReadOnly(err error) {
+	if r == nil || !IsReadOnlyError(err) {
+		return
+	}
+
+	if !r.resetting.CompareAndSwap(false, true) {
+		return
+	}
+
+	go r.Reset()
+}
+
 // Client returns a new RedisCache instance. If the connection is not
 // closed yet, it returns the shared client.
 func Client() *RedisCache {
@@ -83,11 +156,25 @@ func Client() *RedisCache {
 			}
 		}
 
-		Cache = &RedisCache{Client: client}
+		Cache = newCache(client)
 		slog.Info("created new redis client successfully")
 	}
 
 	return Cache
+}
+
+// UniversalClient returns the shared client through the driver's interface,
+// for callers that hand it to a library.
+//
+// It never returns nil. When the shared client is unavailable it hands back a
+// lazily connecting one, so such a caller gets an ordinary connection error
+// rather than dereferencing nil on a TLS handshake.
+func UniversalClient() redis.UniversalClient {
+	if cache := Client(); cache != nil {
+		return cache.Client
+	}
+
+	return dial()
 }
 
 // Reset discards the shared client so the next Client call redials.
@@ -110,7 +197,7 @@ func (r *RedisCache) Reset() {
 	// not remembered. A lazy client cannot block here, and each command then
 	// fails on its own dial timeout instead of behind a process-wide lock.
 	old := Cache.Client
-	Cache = &RedisCache{Client: dial()}
+	Cache = newCache(dial())
 
 	if err := old.Close(); err != nil {
 		slog.Errorf("error while closing redis client: %v", err)

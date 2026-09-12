@@ -216,10 +216,24 @@ type RedisStorage struct {
 	// Useful when the Redis server is used by multiple applications.
 	KeyPrefix string `json:"key_prefix"`
 
-	client redis.UniversalClient
-	locker *redislock.Client
-	logger *zap.SugaredLogger
-	locks  *sync.Map
+	// clientFn resolves the connection per call rather than pinning one.
+	// A pinned client is closed out from under this store the first time a
+	// failover is recovered from, which would leave certificates dead for the
+	// life of the process.
+	clientFn func() redis.UniversalClient
+	logger   *zap.SugaredLogger
+	locks    *sync.Map
+}
+
+// redis returns the current connection.
+func (rs RedisStorage) redis() redis.UniversalClient {
+	return rs.clientFn()
+}
+
+// locker builds a lock client over the current connection. redislock.New only
+// wraps the client, so there is nothing to reuse across calls.
+func (rs RedisStorage) locker() *redislock.Client {
+	return redislock.New(rs.clientFn())
 }
 
 type StorageData struct {
@@ -244,9 +258,15 @@ func NewRedisStorage(logger *zap.Logger) *RedisStorage {
 }
 
 // SetClient sets the Redis client to be used by the RedisStorage instance.
+// SetClient pins a single connection. Intended for tests; production should
+// use SetClientFunc so the store follows a replaced client.
 func (rs *RedisStorage) SetClient(client redis.UniversalClient) {
-	rs.client = client
-	rs.locker = redislock.New(client)
+	rs.SetClientFunc(func() redis.UniversalClient { return client })
+}
+
+// SetClientFunc sets the resolver used for every operation.
+func (rs *RedisStorage) SetClientFunc(fn func() redis.UniversalClient) {
+	rs.clientFn = fn
 	rs.locks = &sync.Map{}
 }
 
@@ -272,7 +292,7 @@ func (rs RedisStorage) Store(ctx context.Context, key string, value []byte) erro
 	}
 
 	// Store the key value in the Redis database
-	if err := rs.client.Set(ctx, prefixedKey, jsonValue, 0).Err(); err != nil {
+	if err := rs.redis().Set(ctx, prefixedKey, jsonValue, 0).Err(); err != nil {
 		return fmt.Errorf("unable to set value for %s: %v", key, err)
 	}
 
@@ -299,7 +319,7 @@ func (rs RedisStorage) Delete(ctx context.Context, key string) error {
 		return fmt.Errorf("unable to delete directory for key %s: %v", key, err)
 	}
 
-	if err := rs.client.Del(ctx, prefixedKey).Err(); err != nil {
+	if err := rs.redis().Del(ctx, prefixedKey).Err(); err != nil {
 		return fmt.Errorf("unable to delete key %s: %v", key, err)
 	}
 
@@ -309,7 +329,7 @@ func (rs RedisStorage) Delete(ctx context.Context, key string) error {
 // Exists checks if the given key exists in Redis storage.
 func (rs RedisStorage) Exists(ctx context.Context, key string) bool {
 	// Redis returns a count of the number of keys found
-	exists := rs.client.Exists(ctx, rs.prefixKey(key)).Val()
+	exists := rs.redis().Exists(ctx, rs.prefixKey(key)).Val()
 	return exists > 0
 }
 
@@ -319,7 +339,7 @@ func (rs RedisStorage) List(ctx context.Context, dir string, recursive bool) ([]
 	currKey := rs.prefixKey(dir)
 
 	// Obtain range of all direct children stored in the Sorted Set
-	keys, err := rs.client.ZRange(ctx, currKey, 0, -1).Result()
+	keys, err := rs.redis().ZRange(ctx, currKey, 0, -1).Result()
 	if err != nil {
 		return keyList, fmt.Errorf("unable to get range on sorted set '%s': %v", currKey, err)
 	}
@@ -368,7 +388,7 @@ func (rs *RedisStorage) Lock(ctx context.Context, name string) error {
 
 	for {
 		// try to obtain lock
-		lock, err := rs.locker.Obtain(ctx, key, lockTTL, &redislock.Options{})
+		lock, err := rs.locker().Obtain(ctx, key, lockTTL, &redislock.Options{})
 
 		// lock successfully obtained
 		if err == nil {
@@ -439,7 +459,7 @@ func (rs *RedisStorage) Repair(ctx context.Context, dir string) error {
 
 		for {
 			// Scan for keys matching the search query and iterate until all found
-			keys, nextPointer, err := rs.client.Scan(ctx, pointer, currKey+"*", scanCount).Result()
+			keys, nextPointer, err := rs.redis().Scan(ctx, pointer, currKey+"*", scanCount).Result()
 			if err != nil {
 				return fmt.Errorf("unable to scan path %s: %v", currKey, err)
 			}
@@ -447,7 +467,7 @@ func (rs *RedisStorage) Repair(ctx context.Context, dir string) error {
 			// Iterate over returned keys
 			for _, key := range keys {
 				// Proceed only if key type is regular string value
-				keyType := rs.client.Type(ctx, key).Val()
+				keyType := rs.redis().Type(ctx, key).Val()
 				if keyType != "string" {
 					continue
 				}
@@ -476,7 +496,7 @@ func (rs *RedisStorage) Repair(ctx context.Context, dir string) error {
 	}
 
 	// Obtain range of all direct children stored in the Sorted Set
-	keys, err := rs.client.ZRange(ctx, currKey, 0, -1).Result()
+	keys, err := rs.redis().ZRange(ctx, currKey, 0, -1).Result()
 
 	if err != nil {
 		return fmt.Errorf("unable to get range on sorted set '%s': %v", currKey, err)
@@ -492,7 +512,7 @@ func (rs *RedisStorage) Repair(ctx context.Context, dir string) error {
 
 		// Remove key from set if it does not exist
 		if !rs.Exists(ctx, fullPathKey) {
-			rs.client.ZRem(ctx, currKey, k)
+			rs.redis().ZRem(ctx, currKey, k)
 			rs.logger.Infof("Removed non-existent record '%s' from directory '%s'", k, currKey)
 			continue
 		}
@@ -522,7 +542,7 @@ func (rs *RedisStorage) prefixLock(key string) string {
 }
 
 func (rs RedisStorage) loadStorageData(ctx context.Context, key string) (*StorageData, error) {
-	data, err := rs.client.Get(ctx, rs.prefixKey(key)).Bytes()
+	data, err := rs.redis().Get(ctx, rs.prefixKey(key)).Bytes()
 
 	if data == nil || errors.Is(err, redis.Nil) {
 		return nil, fs.ErrNotExist
@@ -548,7 +568,7 @@ func (rs RedisStorage) storeDirectoryRecord(ctx context.Context, key string, sco
 	}
 
 	// Insert "base" value into Set "dir"
-	success, err := rs.client.ZAdd(ctx, dir, redis.Z{Score: score, Member: base}).Result()
+	success, err := rs.redis().ZAdd(ctx, dir, redis.Z{Score: score, Member: base}).Result()
 	if err != nil {
 		return fmt.Errorf("unable to add %s to Set %s: %v", base, dir, err)
 	}
@@ -579,12 +599,12 @@ func (rs RedisStorage) deleteDirectoryRecord(ctx context.Context, key string, ba
 	}
 
 	// Remove "base" value from Set "dir"
-	if err := rs.client.ZRem(ctx, dir, base).Err(); err != nil {
+	if err := rs.redis().ZRem(ctx, dir, base).Err(); err != nil {
 		return fmt.Errorf("unable to remove %s from Set %s: %v", base, dir, err)
 	}
 
 	// Check if Set "dir" still exists (removing the last item deletes the set)
-	if exists := rs.client.Exists(ctx, dir).Val(); exists == 0 {
+	if exists := rs.redis().Exists(ctx, dir).Val(); exists == 0 {
 		// Recursively delete parent directory until parent
 		// is not empty (exists > 0) or top level reached
 		if err := rs.deleteDirectoryRecord(ctx, dir, true); err != nil {

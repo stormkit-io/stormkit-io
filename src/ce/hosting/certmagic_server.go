@@ -36,7 +36,10 @@ func storage(logger *zap.Logger) certmagic.Storage {
 	slog.Infof("using redis storage for certificates")
 
 	storage := NewRedisStorage(logger)
-	storage.SetClient(rediscache.Client().Client)
+
+	// Resolve per call: a recovered failover replaces the shared client, and a
+	// pinned one would be closed and never renew a certificate again.
+	storage.SetClientFunc(rediscache.UniversalClient)
 
 	return storage
 }

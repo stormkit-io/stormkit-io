@@ -66,22 +66,22 @@ func IngestHandlerForward(ctx context.Context) error {
 
 	msgs := []string{}
 
+	// Reported after the records already popped have been inserted. Returning
+	// at the point of failure would discard them, and they are gone from the
+	// queue by then.
+	var drainErr error
+
 	for range maxBatchesPerTick {
 		batch, err := client.LPopCount(ctx, HostingQueueName, rows).Result()
-
-		if rediscache.IsConnectionError(err) {
-			// LPopCount is a write, so a failover answers it with READONLY.
-			// Drop the client or every later tick reuses the same dead
-			// connections and the queue never drains.
-			client.Reset()
-			return err
-		}
 
 		if err != nil && !errors.Is(err, redis.Nil) {
 			// Stop draining but fall through to insert whatever was already
 			// popped: earlier batches are gone from the queue, so returning
-			// here would drop those records.
+			// here would drop those records. A failover answers this pop with
+			// READONLY, since a pop is a write, and takes the same path.
 			slog.Errorf("error while popping from redis: %v", err)
+			drainErr = err
+
 			break
 		}
 
@@ -194,5 +194,5 @@ func IngestHandlerForward(ctx context.Context) error {
 		}
 	}
 
-	return nil
+	return drainErr
 }

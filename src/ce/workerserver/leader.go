@@ -72,13 +72,9 @@ func (l *Node) do(ctx context.Context, args ...any) (any, error) {
 		return nil, errors.New("redis client is not available")
 	}
 
-	reply, err := client.Do(ctx, args...).Result()
-
-	if rediscache.IsConnectionError(err) {
-		client.Reset()
-	}
-
-	return reply, err
+	// Recovery from a failover is handled by the client itself, so this only
+	// has to avoid holding a client that recovery has replaced.
+	return client.Do(ctx, args...).Result()
 }
 
 // ID returns the node id.
