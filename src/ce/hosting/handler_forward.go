@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -46,6 +47,7 @@ func HandlerForward(req *RequestContext) (res *shttp.Response) {
 		// Finalize the response (custom headers, snippets, analytics) so the
 		// same transforms apply uniformly regardless of which path produced it.
 		res = rs.finalize(res)
+		res = rs.cacheResponse(res)
 
 		// The duration is read here, on the request goroutine, and not inside the
 		// push below: the push is detached, so measuring there would add however
@@ -109,6 +111,10 @@ func HandlerForward(req *RequestContext) (res *shttp.Response) {
 		Payload: rs.req.Fields,
 	})
 
+	if cached := rs.cachedResponse(); cached != nil {
+		return cached
+	}
+
 	return rs.Handle()
 }
 
@@ -119,16 +125,18 @@ func (r *RequestServer) finalize(res *shttp.Response) *shttp.Response {
 		return res
 	}
 
-	res = injectHeaders(r.req, res)
-	res = injectSnippets(r.req, res)
-	res = injectOAuthChallenge(r.req, res)
+	if !r.servedFromCache {
+		res = injectHeaders(r.req, res)
+		res = injectSnippets(r.req, res)
+		res = injectOAuthChallenge(r.req, res)
 
-	// Vary is stamped here, and not in the individual handlers, because every
-	// exit path has to carry it: the static twin, the server-rendered HTML, the
-	// deployment's 404 and the built-in one are all representations of a
-	// negotiable URL. It runs after injectHeaders so a custom header rule cannot
-	// drop the one header that keeps a cache from serving markdown to a browser.
-	res = r.applyVary(res)
+		// Vary is stamped here, and not in the individual handlers, because every
+		// exit path has to carry it: the static twin, the server-rendered HTML, the
+		// deployment's 404 and the built-in one are all representations of a
+		// negotiable URL. It runs after injectHeaders so a custom header rule cannot
+		// drop the one header that keeps a cache from serving markdown to a browser.
+		res = r.applyVary(res)
+	}
 
 	if r.req.Host.Config.IsEnterprise {
 		if isHTMLContentType(res.Headers.Get("Content-Type")) {
@@ -150,17 +158,7 @@ func (r *RequestServer) applyVary(res *shttp.Response) *shttp.Response {
 		res.Headers = http.Header{}
 	}
 
-	for _, token := range strings.Split(res.Headers.Get("Vary"), ",") {
-		if strings.EqualFold(strings.TrimSpace(token), "Accept") {
-			return res
-		}
-	}
-
-	if existing := res.Headers.Get("Vary"); existing != "" {
-		res.Headers.Set("Vary", existing+", Accept")
-	} else {
-		res.Headers.Set("Vary", "Accept")
-	}
+	appendVary(res.Headers, "Accept")
 
 	return res
 }
@@ -215,6 +213,12 @@ type RequestServer struct {
 	// varyAccept is true when the requested URL has more than one
 	// representation, so caches must key on the Accept header.
 	varyAccept bool
+	// servedFromCache is true when the response came from the response cache,
+	// which holds it already finalized.
+	servedFromCache bool
+	// bodySize is the length of a body sent compressed, before compression.
+	// Bandwidth is counted on it, as it is when the edge compresses the body.
+	bodySize int64
 }
 
 func NewRequestServer(req *RequestContext) *RequestServer {
@@ -248,7 +252,13 @@ func (r *RequestServer) artifacts(p artifactsParams) {
 		data, _ = res.Data.([]byte)
 	}
 
-	bandwidth := int64(len(data)) + headersSize(res.Headers)
+	bodySize := int64(len(data))
+
+	if r.bodySize > 0 {
+		bodySize = r.bodySize
+	}
+
+	bandwidth := bodySize + headersSize(res.Headers)
 
 	Queue(&jobs.HostingRecord{
 		AppID:           r.req.Host.Config.AppID,
@@ -720,6 +730,53 @@ func (r *RequestServer) fileContent(headers http.Header) ([]byte, error) {
 	}
 
 	return file.Content, nil
+}
+
+// acceptsGzip reports whether the header asks for gzip. A client may list it
+// and then refuse it with a zero quality value, spelled any way a number can be.
+func acceptsGzip(acceptEncoding string) bool {
+	for _, part := range strings.Split(acceptEncoding, ",") {
+		fields := strings.Split(strings.TrimSpace(part), ";")
+
+		if !strings.EqualFold(strings.TrimSpace(fields[0]), "gzip") {
+			continue
+		}
+
+		for _, param := range fields[1:] {
+			key, value, found := strings.Cut(strings.TrimSpace(param), "=")
+
+			if !found || !strings.EqualFold(strings.TrimSpace(key), "q") {
+				continue
+			}
+
+			// An unreadable q counts as a refusal, as it does for the compression
+			// middleware: compressed bytes a client cannot read are the worse
+			// mistake.
+			q, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+
+			return err == nil && q > 0
+		}
+
+		return true
+	}
+
+	return false
+}
+
+// appendVary adds a token to Vary unless it is already listed.
+func appendVary(headers http.Header, token string) {
+	for _, existing := range strings.Split(headers.Get("Vary"), ",") {
+		if strings.EqualFold(strings.TrimSpace(existing), token) {
+			return
+		}
+	}
+
+	if current := headers.Get("Vary"); current != "" {
+		headers.Set("Vary", current+", "+token)
+		return
+	}
+
+	headers.Set("Vary", token)
 }
 
 // imageKey returns the full path to the current optimized image.

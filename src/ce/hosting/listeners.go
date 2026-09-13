@@ -45,6 +45,8 @@ func invalidateAdminCache(ctx context.Context, payload ...string) {
 	appCacheMu.Lock()
 	appCache = map[string]*CachedConfig{}
 	appCacheMu.Unlock()
+
+	responses.clear()
 }
 
 // InvalidateCache is a function that invalidates the domain configuration cache.
@@ -78,4 +80,6 @@ func InvalidateCache(ctx context.Context, payload ...string) {
 	}
 
 	appCacheMu.Unlock()
+
+	responses.dropHosts(re)
 }

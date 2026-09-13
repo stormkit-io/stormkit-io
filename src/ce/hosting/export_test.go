@@ -144,6 +144,28 @@ func ResetFetchConfigFn() {
 	fetchConfigFn = appconf.FetchConfig
 }
 
+// ResetResponseCache replaces the response cache with an empty one holding up
+// to budget compressed bytes. Zero disables it.
+func ResetResponseCache(budget int64) {
+	responses = newResponseCache(responseCacheParams{Budget: budget, MaxBody: defaultResponseCacheMaxBody})
+}
+
+// ResponseCacheLen returns how many responses are cached.
+func ResponseCacheLen() int {
+	responses.mu.Lock()
+	defer responses.mu.Unlock()
+
+	return len(responses.entries)
+}
+
+// ResponseCacheUsed returns how much memory the cached responses count for.
+func ResponseCacheUsed() int64 {
+	responses.mu.Lock()
+	defer responses.mu.Unlock()
+
+	return responses.used
+}
+
 // InvalidateAppCache removes a hostname entry from the in-process cache,
 // allowing tests to force a cold-cache scenario without restarting the process.
 func InvalidateAppCache(hostName string) {
