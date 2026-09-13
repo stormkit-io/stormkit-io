@@ -1,5 +1,38 @@
 # Changelog
 
+## v2026.09.08.2...v2026.09.12.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.08.2...v2026.09.12.1)
+
+### 🚀 Enhancements
+
+- Keep deployment files in memory ([#536](https://github.com/stormkit-io/stormkit-io/pull/536))
+- Keep filesystem deployment files in memory ([#539](https://github.com/stormkit-io/stormkit-io/pull/539))
+
+### 🩹 Fixes
+
+- Recover from redis read-only failover ([#533](https://github.com/stormkit-io/stormkit-io/pull/533))
+- Drop cached files when a deployment folder goes ([#537](https://github.com/stormkit-io/stormkit-io/pull/537))
+
+### 📖 Documentation
+
+- Say application platform where we define ourselves ([#529](https://github.com/stormkit-io/stormkit-io/pull/529))
+
+### 🏡 Chore
+
+- Update changelog for v2026.09.08.2 ([#528](https://github.com/stormkit-io/stormkit-io/pull/528))
+- Re-cut the intro for the application platform line ([#530](https://github.com/stormkit-io/stormkit-io/pull/530))
+- Block assistant attribution in history ([#534](https://github.com/stormkit-io/stormkit-io/pull/534))
+
+### ✅ Tests
+
+- Stop specs racing the mock instead of the DOM ([#531](https://github.com/stormkit-io/stormkit-io/pull/531))
+- Wait on the DOM, not the mock, in the remaining specs ([#532](https://github.com/stormkit-io/stormkit-io/pull/532))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.09.08.1...v2026.09.08.2
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.08.1...v2026.09.08.2)
