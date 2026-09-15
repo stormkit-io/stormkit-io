@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.09.12.1...v2026.09.15.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.12.1...v2026.09.15.1)
+
+### 🚀 Enhancements
+
+- Cache finished static responses gzipped ([#541](https://github.com/stormkit-io/stormkit-io/pull/541))
+
+### 🏡 Chore
+
+- Update changelog for v2026.09.12.1 ([#540](https://github.com/stormkit-io/stormkit-io/pull/540))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.09.08.2...v2026.09.12.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.08.2...v2026.09.12.1)
