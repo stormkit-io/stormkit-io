@@ -100,7 +100,7 @@ func (buffer *Buffer) Close() error {
 	}
 }
 
-func (buffer Buffer) closed() bool {
+func (buffer *Buffer) closed() bool {
 	select {
 	case <-buffer.doneCh:
 		return true
