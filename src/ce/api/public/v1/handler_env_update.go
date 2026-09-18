@@ -177,7 +177,7 @@ func handlerEnvUpdate(req *RequestContext) *shttp.Response {
 	}
 
 	if data.EnvVars != nil {
-		env.Data.Vars = *data.EnvVars
+		env.Data.Vars = mergeEnvVars(env.Data.Vars, *data.EnvVars)
 	}
 
 	if data.CacheDirs != nil {
@@ -264,4 +264,27 @@ func handlerEnvUpdate(req *RequestContext) *shttp.Response {
 	}
 
 	return shttp.OK()
+}
+
+// mergeEnvVars merges the given variables into the current set and returns a
+// new map. Values are masked everywhere they are read back, so a caller cannot
+// reconstruct what a wholesale replace would destroy — keys not listed keep
+// their value, and an empty value removes the key.
+func mergeEnvVars(current, given map[string]string) map[string]string {
+	out := make(map[string]string, len(current)+len(given))
+
+	for k, v := range current {
+		out[k] = v
+	}
+
+	for k, v := range given {
+		if v == "" {
+			delete(out, k)
+			continue
+		}
+
+		out[k] = v
+	}
+
+	return out
 }

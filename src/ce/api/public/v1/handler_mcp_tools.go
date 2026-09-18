@@ -1212,7 +1212,9 @@ func mcpUpdateEnvironment(req *RequestContextMCP, id any, args map[string]any) *
 	setBool("markdownConvert", &update.MarkdownConvert)
 	setBool("previewLinks", &update.PreviewLinks)
 
-	update.EnvVars = mergeEnvVarsArg(req.Env.Data.Vars, args)
+	if vars := stringMapArg(args, "envVars"); vars != nil {
+		update.EnvVars = &vars
+	}
 
 	if r := parseRedirectsArg(args); r != nil {
 		update.Redirects = &r
@@ -1244,36 +1246,6 @@ func mcpUpdateEnvironment(req *RequestContextMCP, id any, args map[string]any) *
 		Status: http.StatusOK,
 		Data:   map[string]any{"ok": true, "envVars": sortedKeys(req.Env.Data.Vars)},
 	}
-}
-
-// mergeEnvVarsArg merges the envVars argument of update_environment into the
-// environment's current variables, or returns nil when the caller did not pass
-// any. Values are masked everywhere they are read back, so a caller cannot
-// reconstruct what a wholesale replace would destroy — keys not listed keep
-// their value, and an empty value removes the key.
-func mergeEnvVarsArg(current map[string]string, args map[string]any) *map[string]string {
-	given := stringMapArg(args, "envVars")
-
-	if given == nil {
-		return nil
-	}
-
-	out := make(map[string]string, len(current)+len(given))
-
-	for k, v := range current {
-		out[k] = v
-	}
-
-	for k, v := range given {
-		if v == "" {
-			delete(out, k)
-			continue
-		}
-
-		out[k] = v
-	}
-
-	return &out
 }
 
 func sortedKeys(m map[string]string) []string {

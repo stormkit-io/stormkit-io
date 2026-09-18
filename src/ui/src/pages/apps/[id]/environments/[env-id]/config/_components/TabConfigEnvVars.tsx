@@ -12,6 +12,7 @@ import {
   buildFormValues,
   prepareBuildObject,
   revealEnvVars,
+  envVarsPayload,
 } from "../actions";
 
 interface Props {
@@ -87,7 +88,12 @@ export default function TabConfigEnvVars({
         updateEnvironment({
           app,
           envId: env.id!,
-          payload: { envVars: prepareBuildObject(values).vars },
+          payload: {
+            envVars: envVarsPayload(
+              env.build.vars || {},
+              prepareBuildObject(values).vars || {}
+            ),
+          },
           setError,
           setLoading,
           setSuccess,

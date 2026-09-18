@@ -14,6 +14,23 @@ export const revealEnvVars = ({
     .then(vars => vars || {});
 };
 
+// envVarsPayload builds the envVars sent on save. The API merges envVars into
+// the stored set, so keys the user removed are sent as "" to delete them.
+export const envVarsPayload = (
+  stored: Record<string, string>,
+  edited: Record<string, string>
+): Record<string, string> => {
+  const payload = { ...edited };
+
+  Object.keys(stored).forEach(key => {
+    if (!(key in edited)) {
+      payload[key] = "";
+    }
+  });
+
+  return payload;
+};
+
 export const computeAutoDeployValue = (env?: Environment): AutoDeployValues => {
   if (!env) {
     return "all";

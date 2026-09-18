@@ -151,6 +151,84 @@ func (s *HandlerEnvUpdateSuite) Test_Success_PartialUpdate_OnlyBuildCmd() {
 	s.Equal("npm run build:staging", updated.Data.BuildCmd)
 }
 
+// Values are masked on every read, so a caller cannot resend the full set —
+// envVars must merge rather than replace.
+func (s *HandlerEnvUpdateSuite) Test_Success_EnvVarsMerge() {
+	app := s.MockApp(nil)
+	env := s.MockEnv(app, map[string]any{
+		"Data": &buildconf.BuildConf{
+			Vars: map[string]string{
+				"KEEP":   "kept",
+				"CHANGE": "old",
+				"REMOVE": "gone",
+			},
+		},
+	})
+	key := s.MockAPIKey(nil, env, map[string]any{
+		"Scope": apikey.SCOPE_ENV,
+		"EnvID": env.ID,
+	})
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodPut,
+		fmt.Sprintf("/v1/env?envId=%s", env.ID),
+		map[string]any{
+			"envVars": map[string]string{
+				"CHANGE": "new",
+				"REMOVE": "",
+				"ADD":    "added",
+			},
+		},
+		map[string]string{
+			"Authorization": key.Value,
+		},
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+
+	updated, err := buildconf.NewStore().EnvironmentByID(context.Background(), env.ID)
+
+	s.Require().NoError(err)
+	s.Equal(map[string]string{
+		"KEEP":   "kept",
+		"CHANGE": "new",
+		"ADD":    "added",
+	}, updated.Data.Vars)
+}
+
+func (s *HandlerEnvUpdateSuite) Test_Success_EnvVarsOmitted() {
+	app := s.MockApp(nil)
+	env := s.MockEnv(app, map[string]any{
+		"Data": &buildconf.BuildConf{
+			Vars: map[string]string{"KEEP": "kept"},
+		},
+	})
+	key := s.MockAPIKey(nil, env, map[string]any{
+		"Scope": apikey.SCOPE_ENV,
+		"EnvID": env.ID,
+	})
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodPut,
+		fmt.Sprintf("/v1/env?envId=%s", env.ID),
+		map[string]any{
+			"buildCmd": "npm run build",
+		},
+		map[string]string{
+			"Authorization": key.Value,
+		},
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+
+	updated, err := buildconf.NewStore().EnvironmentByID(context.Background(), env.ID)
+
+	s.Require().NoError(err)
+	s.Equal(map[string]string{"KEEP": "kept"}, updated.Data.Vars)
+}
+
 func (s *HandlerEnvUpdateSuite) Test_Success_CacheDirs() {
 	app := s.MockApp(nil)
 	env := s.MockEnv(app)
