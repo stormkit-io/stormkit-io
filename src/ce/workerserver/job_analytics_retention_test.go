@@ -84,7 +84,7 @@ func (s *JobAnalyticsRetentionSuite) countAnalytics() int {
 func (s *JobAnalyticsRetentionSuite) Test_RemoveOldAnalytics_DeletesOnlyOldRows() {
 	s.Equal(4, s.countAnalytics())
 
-	deleted, err := jobs.NewStore().RemoveOldAnalytics(context.Background(), jobs.RemoveOldAnalyticsParams{
+	deleted, err := jobs.NewStore().RemoveOldAnalytics(context.Background(), jobs.RemoveOldRowsParams{
 		RetentionDays: 180,
 		BatchSize:     10000,
 	})
@@ -95,7 +95,7 @@ func (s *JobAnalyticsRetentionSuite) Test_RemoveOldAnalytics_DeletesOnlyOldRows(
 }
 
 func (s *JobAnalyticsRetentionSuite) Test_RemoveOldAnalytics_NoOpWhenNothingExpired() {
-	deleted, err := jobs.NewStore().RemoveOldAnalytics(context.Background(), jobs.RemoveOldAnalyticsParams{
+	deleted, err := jobs.NewStore().RemoveOldAnalytics(context.Background(), jobs.RemoveOldRowsParams{
 		RetentionDays: 365,
 		BatchSize:     10000,
 	})
