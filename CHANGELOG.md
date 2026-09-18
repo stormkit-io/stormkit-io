@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.09.15.1...v2026.09.18.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.15.1...v2026.09.18.1)
+
+### 🚀 Enhancements
+
+- Merge env vars on rest env update ([#543](https://github.com/stormkit-io/stormkit-io/pull/543))
+
+### 🏡 Chore
+
+- Update changelog for v2026.09.15.1 ([#542](https://github.com/stormkit-io/stormkit-io/pull/542))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.09.12.1...v2026.09.15.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.12.1...v2026.09.15.1)
