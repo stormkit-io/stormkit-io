@@ -119,6 +119,41 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabConfigEn
     });
   });
 
+  it("sends removed variables as empty values so the API deletes them", async () => {
+    currentApp = mockApp();
+    currentEnv = mockEnvironments({ app: currentApp })[0];
+    currentEnv.build.vars = { KEEP: "", REMOVE: "" };
+
+    createWrapper({ environment: currentEnv });
+
+    const revealScope = mockRevealEnvVars({
+      envId: currentEnv.id!,
+      response: { KEEP: "kept", REMOVE: "gone" },
+    });
+
+    fireEvent.click(wrapper.getByText("Reveal values"));
+
+    await waitFor(() => {
+      expect(revealScope.isDone()).toBe(true);
+      expect(wrapper.getByDisplayValue("REMOVE")).toBeTruthy();
+    });
+
+    fireEvent.click(wrapper.getByLabelText("Remove build.vars row number 2"));
+
+    const scope = mockUpdateEnvironment({
+      payload: { envVars: { KEEP: "kept", REMOVE: "" } },
+      status: 200,
+      response: { ok: true },
+    });
+
+    fireEvent.click(wrapper.getByText("Save"));
+
+    await waitFor(() => {
+      expect(scope.isDone()).toBe(true);
+      expect(setRefreshToken).toHaveBeenCalled();
+    });
+  });
+
   it("hides the reveal button when there are no variables", () => {
     currentApp = mockApp();
     currentEnv = mockEnvironments({ app: currentApp })[0];

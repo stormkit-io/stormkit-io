@@ -179,7 +179,7 @@ All fields are **optional**. Only the fields you include will be updated.
 | `buildCmd`           | string                  | Command to build the application.                                                                                                            |
 | `cacheDirs`          | `string[]`              | Directories (relative to `workDir`) restored before the install step and snapshotted after a successful build. Replaces the existing list; pass `[]` to disable caching. Requires a premium or ultimate subscription on Stormkit Cloud; always enabled on self-hosted. |
 | `distFolder`         | string                  | Output folder containing the build artifacts.                                                                                                |
-| `envVars`            | `Record<string,string>` | Environment variables to inject into deployments. Replaces all existing variables.                                                           |
+| `envVars`            | `Record<string,string>` | Environment variables to set or update. Merged into the existing set: keys not listed keep their current value, and a key set to an empty string (`""`) is removed. |
 | `errorFile`          | string                  | File served on errors. Must be inside `distFolder`.                                                                                          |
 | `headers`            | string                  | Inline custom HTTP response headers.                                                                                                         |
 | `headersFile`        | string                  | Path to the custom HTTP headers file.                                                                                                        |
