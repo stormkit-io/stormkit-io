@@ -192,13 +192,12 @@ func (s *Store) queryWithEnvNameAndDisplayName(filters ConfigFilters) (string, [
 
 	err := s.selectConfigs.Execute(&wr, map[string]any{
 		"join": "",
-		"where": `dp.deployment_id IS NOT NULL AND (
-			(e.env_name = $2 AND LOWER(a.display_name) = LOWER($3)) OR 
-			((e.env_id in (SELECT dm.env_id FROM domains dm WHERE dm.domain_name = $4 and dm.domain_verified IS TRUE)))
-		)`,
+		// Custom domains are resolved by the domain query before this one runs,
+		// so this only has to cover managed subdomains.
+		"where": "dp.deployment_id IS NOT NULL AND e.env_name = $2 AND LOWER(a.display_name) = LOWER($3)",
 	})
 
-	return wr.String(), []any{"*.dev", filters.EnvName, filters.DisplayName, filters.HostName}, err
+	return wr.String(), []any{"*.dev", filters.EnvName, filters.DisplayName}, err
 }
 
 // BelongsToEnv checks if the given parsed host belongs to the environment.
@@ -252,30 +251,49 @@ func (s *Store) BelongsToEnv(ctx context.Context, envID types.ID, host *RequestC
 // single configuration. The slice remains because a lookup can legitimately
 // find none.
 func (s *Store) Configs(ctx context.Context, filters ConfigFilters) ([]*Config, error) {
-	var query string
-	var params []any
-	var err error
-
-	if filters.DeploymentID != 0 {
-		query, params, err = s.queryWithDeploymentID(filters)
-	} else if filters.DisplayName != "" {
-		if filters.EnvName == "" {
-			filters.EnvName = config.AppDefaultEnvironmentName
+	// The error is the one from rendering the query template; the error from
+	// running the query is handled by rowsToConfigs.
+	fetch := func(query string, params []any, err error) ([]*Config, error) {
+		if err != nil {
+			slog.Errorf("error while creating query template: %v", err)
+			return nil, err
 		}
 
-		query, params, err = s.queryWithEnvNameAndDisplayName(filters)
-	} else if filters.HostName != "" {
-		query, params, err = s.queryWithDomainName(filters)
-	} else {
+		return rowsToConfigs(s.Query(ctx, query, params...))
+	}
+
+	if filters.DeploymentID != 0 {
+		return fetch(s.queryWithDeploymentID(filters))
+	}
+
+	// A verified custom domain is an exact match, so it is always tried first.
+	// The host name alone cannot tell a custom domain from a managed subdomain
+	// when the domain sits under the dev domain — www.example.org while the dev
+	// domain is example.org — and only this query returns the domain row the
+	// caller needs for analytics, certificates and indexability.
+	if filters.HostName != "" {
+		confs, err := fetch(s.queryWithDomainName(filters))
+
+		if err != nil {
+			return nil, err
+		}
+
+		// No verified domain for this host: it is a managed subdomain, so fall
+		// through to the display name lookup.
+		if len(confs) > 0 {
+			return confs, nil
+		}
+	}
+
+	if filters.DisplayName == "" {
 		return nil, nil
 	}
 
-	if err != nil {
-		slog.Errorf("error while creating query template: %v", err)
-		return nil, err
+	if filters.EnvName == "" {
+		filters.EnvName = config.AppDefaultEnvironmentName
 	}
 
-	return rowsToConfigs(s.Query(ctx, query, params...))
+	return fetch(s.queryWithEnvNameAndDisplayName(filters))
 }
 
 type Snippets []struct {

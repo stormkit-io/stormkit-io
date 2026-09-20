@@ -329,6 +329,9 @@ func (s *appconfSuite) Test_ByStormkitDevSubdomain() {
 	// Deployment 1
 	s.Equal(s.depl.ID, configs[0].DeploymentID)
 	s.Equal(s.depl.AppID, configs[0].AppID)
+	// The host matched a verified custom domain, so the domain row is resolved
+	// even though the host name looks like a managed subdomain.
+	s.Equal(domain.ID, configs[0].DomainID)
 	s.Equal("aws:arn:aws:lambda:eu-central-1:account-id:function:lambda-name", configs[0].FunctionLocation)
 	s.Equal("aws:s3-bucket-name/s3-key-prefix", configs[0].StorageLocation)
 	s.Equal(&appconf.SnippetInjection{
@@ -342,6 +345,66 @@ func (s *appconfSuite) Test_ByStormkitDevSubdomain() {
 		BodyAppend:  "S1",
 		BodyPrepend: "S2",
 	}, appconf.SnippetsHTML(configs[0].Snippets))
+}
+
+// A custom domain can live under the dev domain — www.example.org while the dev
+// domain is example.org. ParseHost reads such a host as the subdomain "www", so
+// the lookup goes through the display-name query. It has to come back with the
+// domain row all the same, otherwise the request is treated as a dev endpoint
+// and loses its analytics, its certificate and its indexability.
+func (s *appconfSuite) Test_ByDisplayName_CustomDomainUnderDevDomain() {
+	s.NoError(buildconf.DomainStore().UpdateDomainCert(context.Background(), &buildconf.DomainModel{
+		ID: s.domains[1].ID,
+		CustomCert: &buildconf.CustomCert{
+			Value: "www-cert-value",
+			Key:   "www-cert-key",
+		},
+	}))
+
+	defer func() {
+		s.NoError(buildconf.DomainStore().UpdateDomainCert(context.Background(), &buildconf.DomainModel{
+			ID: s.domains[1].ID,
+		}))
+	}()
+
+	configs, err := appconf.NewStore().Configs(s.ctx, appconf.ConfigFilters{
+		HostName:    "www.example.org",
+		DisplayName: "www",
+		EnvName:     "production",
+	})
+
+	s.NoError(err)
+	s.Len(configs, 1)
+	s.Equal(s.depl.ID, configs[0].DeploymentID)
+	s.Equal(s.domains[1].ID, configs[0].DomainID)
+	s.Greater(configs[0].DomainID, types.ID(0))
+	s.Equal("www-cert-value", configs[0].CertValue)
+	s.Equal("www-cert-key", configs[0].CertKey)
+}
+
+// An app whose display name matches the subdomain must not outrank the verified
+// custom domain for the same host.
+func (s *appconfSuite) Test_ByDisplayName_DomainWinsOverDisplayNameCollision() {
+	other := s.MockApp(s.user, map[string]any{"DisplayName": "www"})
+	otherEnv := s.MockEnv(other)
+	otherDepl := s.MockDeployment(otherEnv)
+
+	s.NoError(deploy.NewStore().Publish(context.Background(), &deploy.PublishSettings{
+		EnvID:        otherEnv.ID,
+		DeploymentID: otherDepl.ID,
+		NoCacheReset: true,
+	}))
+
+	configs, err := appconf.NewStore().Configs(s.ctx, appconf.ConfigFilters{
+		HostName:    "www.example.org",
+		DisplayName: "www",
+		EnvName:     "production",
+	})
+
+	s.NoError(err)
+	s.Require().NotEmpty(configs)
+	s.Equal(s.domains[1].ID, configs[0].DomainID)
+	s.Equal(s.depl.ID, configs[0].DeploymentID)
 }
 
 func TestAppConf(t *testing.T) {
