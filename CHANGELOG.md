@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.09.18.1...v2026.09.20.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.18.1...v2026.09.20.1)
+
+### 🩹 Fixes
+
+- Resolve custom domains under the dev domain ([#545](https://github.com/stormkit-io/stormkit-io/pull/545))
+
+### 🏡 Chore
+
+- Update changelog for v2026.09.18.1 ([#544](https://github.com/stormkit-io/stormkit-io/pull/544))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.09.15.1...v2026.09.18.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.15.1...v2026.09.18.1)
