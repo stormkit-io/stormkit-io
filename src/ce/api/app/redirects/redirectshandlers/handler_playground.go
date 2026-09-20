@@ -52,7 +52,9 @@ func handlerPlayground(req *app.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	if configs == nil {
+	// Configs returns an empty, non-nil slice when nothing matched, so the
+	// length is what says whether there is a config to read.
+	if len(configs) == 0 {
 		return shttp.NotFound()
 	}
 

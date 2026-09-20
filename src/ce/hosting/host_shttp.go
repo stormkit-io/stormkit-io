@@ -212,11 +212,20 @@ func hostFromContext(req *shttp.RequestContext) *Host {
 
 	domain := utils.GetString(req.HostName(), req.Host)
 
+	// Optimistic guess from the host name alone: a custom domain can sit under
+	// the dev domain (www.example.org when the dev domain is example.org), and
+	// only the resolved config can tell the two apart.
 	host.IsStormkitSubdomain = appconf.IsStormkitDev(domain)
 	host.Name = domain
 
 	if err := host.RequestConfig(); err != nil {
 		return nil
+	}
+
+	// The lookup matched a verified custom domain, so this is not a dev
+	// endpoint: it keeps its analytics, its certificate and its indexability.
+	if host.Config != nil && host.Config.DomainID != 0 {
+		host.IsStormkitSubdomain = false
 	}
 
 	return host

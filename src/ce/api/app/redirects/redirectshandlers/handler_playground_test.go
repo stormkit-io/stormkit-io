@@ -86,6 +86,33 @@ func (s *HandlerPlaygroundSuite) Test_Success() {
 	s.JSONEq(expected, response.String())
 }
 
+// An environment with no published deployment resolves no config. The handler
+// has to answer 404 rather than read the first entry of an empty result.
+func (s *HandlerPlaygroundSuite) Test_NoPublishedDeployment() {
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(redirectshandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/redirects/playground",
+		map[string]any{
+			"appId":   app.ID.String(),
+			"envId":   env.ID.String(),
+			"address": "https://www.stormkit.io/old-docs",
+			"redirects": []map[string]any{
+				{"from": "/old-docs", "to": "/docs", "status": 301},
+			},
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusNotFound, response.Code)
+}
+
 func TestHandlerPlayground(t *testing.T) {
 	suite.Run(t, &HandlerPlaygroundSuite{})
 }
