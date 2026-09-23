@@ -1562,6 +1562,43 @@ func (s *HandlerForwardSuite) Test_PageDataLoader_ErrorStatusRendersDefaults() {
 	s.Contains(fmt.Sprintf("%s", res.Data), "<title>Videos</title>")
 }
 
+// The API sees the visitor, not Stormkit: a view counter has to tell a person
+// from a link unfurler.
+func (s *HandlerForwardSuite) Test_PageDataLoader_ForwardsVisitorHeaders() {
+	s.T().Setenv("STORMKIT_PAGE_DATA_INSECURE", "true")
+
+	var received http.Header
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received = r.Header.Clone()
+		w.Write([]byte(`{"title":"My video"}`))
+	}))
+
+	defer server.Close()
+
+	s.mockClient.On("GetFile", integrations.GetFileArgs{
+		Location:     "aws:my-bucket/my-key-prefix",
+		FileName:     "/videos.html",
+		DeploymentID: types.ID(1),
+	}).Return(&integrations.GetFileResult{
+		Content: []byte(`<html><head><title>{{data.title}}</title></head></html>`),
+	}, nil)
+
+	headers := http.Header{}
+	headers.Set("User-Agent", "Slackbot-LinkExpanding 1.0")
+
+	req := s.newRequest(s.pageDataHost(server.URL, false), "/v/abc123", headers)
+	req.Request.RemoteAddr = "203.0.113.7:51234"
+
+	res := hosting.HandlerForward(req)
+
+	s.Equal(http.StatusOK, res.Status)
+	s.Require().NotNil(received)
+	s.Equal("Slackbot-LinkExpanding 1.0", received.Get("User-Agent"))
+	s.Equal("203.0.113.7", received.Get("X-Forwarded-For"))
+	s.Equal("203.0.113.7", received.Get("X-Real-IP"))
+}
+
 // The loader speaks for the record behind the page: when the API no longer has
 // it, the visitor gets a 404 rather than a shell full of defaults.
 func (s *HandlerForwardSuite) Test_PageDataLoader_PassthroughStatus() {
