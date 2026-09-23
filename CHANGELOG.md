@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.09.20.1...v2026.09.23.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.20.1...v2026.09.23.1)
+
+### 🚀 Enhancements
+
+- Add a data loader to rewrite rules ([#548](https://github.com/stormkit-io/stormkit-io/pull/548))
+
+### 🏡 Chore
+
+- Update changelog for v2026.09.20.1 ([#546](https://github.com/stormkit-io/stormkit-io/pull/546))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.09.18.1...v2026.09.20.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.18.1...v2026.09.20.1)
