@@ -55,6 +55,10 @@ func WithRedirect(req *RequestContext) (*shttp.Response, error) {
 			url.RawQuery = pieces[1]
 		}
 
+		// The loader is resolved here, against the path the visitor asked for,
+		// and read later against the document the rewrite landed on.
+		req.Loader = match.Data
+
 		return nil, nil
 	}
 

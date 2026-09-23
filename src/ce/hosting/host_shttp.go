@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/redirects"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
@@ -38,6 +39,11 @@ type RequestContext struct {
 	Fields []zap.Field
 
 	RequestID string
+
+	// Loader is set by the redirect middleware when the matched rewrite rule
+	// declares a data loader, and is consumed when the rewritten document is
+	// served.
+	Loader *redirects.Loader
 }
 
 var cachedCertMagicServer *certmagic.Config

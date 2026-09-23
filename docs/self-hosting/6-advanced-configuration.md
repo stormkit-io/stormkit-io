@@ -45,6 +45,16 @@ TCP load balancers forward connections at the network level and cannot inject HT
 
 > **Security note:** It is not advised to enable `STORMKIT_PROXY_PROTOCOL` and `STORMKIT_TRUST_PROXY_HEADERS` at the same time as it will allow a client to spoof its source IP by injecting arbitrary `X-Forwarded-For` headers alongside a PROXY protocol header.
 
+## Page Data Loaders
+
+A [data loader](/docs/features/redirects-and-path-rewrites#dynamic-pages) on a rewrite rule fetches JSON from your API on every matching request. To stop a rule from reaching your cloud provider's metadata service or other internal services, loaders only accept `https` URLs and only connect to public IP addresses.
+
+| Variable                      | Default | Description                                                                                                                                                                   |
+| ----------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `STORMKIT_PAGE_DATA_INSECURE` | `false` | Set to `true` to allow loaders to use plain `http` URLs and connect to private, loopback and link-local addresses. Use it when your API is only reachable on a private network. |
+
+> **Security note:** With this enabled, anyone who can edit redirect rules can make Stormkit send requests to any service on its network. Only enable it when everyone with that access is trusted.
+
 ## HTTP Timeouts
 
 The following environment variables control the HTTP server timeouts. Values are parsed as Go duration strings; you should include a unit suffix (e.g. `30s`, `1m`, `500ms`). Bare integers without a unit (e.g. `30`) are interpreted as nanoseconds (e.g. `30` → `30ns`), which results in an extremely short timeout and is almost never desired. When unset, the defaults shown below are used.

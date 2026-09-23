@@ -394,13 +394,21 @@ func (r *RequestServer) Static() *shttp.Response {
 		Payload: r.req.Fields,
 	})
 
+	// A page filled by a loader changes with its data, not with the file or the
+	// deployment, so neither validator describes it: honouring them would answer
+	// 304 without ever asking the API, and a deleted record would never 404.
+	dynamic := r.req.Loader != nil && !r.markdown && isHTMLContentType(headers.Get("Content-Type"))
+
 	// RFC 9110 §13.2.2: an entity tag validator takes precedence, and
 	// If-Modified-Since is evaluated only when the request carries none. The
 	// order matters here beyond conformance — the ETag is a per-file content
 	// hash, so it is the only validator that can tell the two representations
 	// of a negotiable URL apart. Last-Modified is the deployment timestamp and
 	// is identical for the page and its markdown twin.
-	if noneMatchHeader := r.req.Header.Get("If-None-Match"); noneMatchHeader != "" {
+	if dynamic {
+		headers.Del("ETag")
+		headers.Del("Last-Modified")
+	} else if noneMatchHeader := r.req.Header.Get("If-None-Match"); noneMatchHeader != "" {
 		notModified = headers.Get("ETag") == noneMatchHeader
 	} else if modifiedSinceHeader != "" && r.req.Host.Config.UpdatedAt.Valid && !r.varyAccept {
 		// Skipped entirely on a negotiable URL: a bare If-Modified-Since cannot
@@ -443,7 +451,7 @@ func (r *RequestServer) Static() *shttp.Response {
 		}
 	}
 
-	if headers.Get("Last-Modified") == "" && r.req.Host.Config.UpdatedAt.Valid {
+	if !dynamic && headers.Get("Last-Modified") == "" && r.req.Host.Config.UpdatedAt.Valid {
 		headers.Add("Last-Modified", r.req.Host.Config.UpdatedAt.Time.UTC().Format(http.TimeFormat))
 	}
 
@@ -463,6 +471,22 @@ func (r *RequestServer) Static() *shttp.Response {
 
 	if err != nil {
 		return r.Error(err)
+	}
+
+	content, upstream := r.applyPageData(content, headers)
+
+	// A loader that asked for its status to be passed through speaks for the
+	// record behind the page: when the API no longer has it, the page it would
+	// have filled is not there either.
+	if upstream != nil {
+		if upstream.Status == http.StatusNotFound {
+			return r.NotFound()
+		}
+
+		upstream.Headers = headers
+		r.res = upstream
+
+		return r.res
 	}
 
 	r.res = &shttp.Response{

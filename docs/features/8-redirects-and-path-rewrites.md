@@ -15,7 +15,8 @@ Stormkit is able to handle the path rewrites and redirects on the load balancer 
     "to": "string", // (required): The destination path.
     "status": "number", // (optional): The HTTP Status Code for redirect. Default is empty.
     "assets": "boolean", // (optional): Whether to apply the redirect/rewrite to any static file that is not an html file. Default is false.
-    "hosts": "Array<string>" // (optional): When provided, the redirect rule will apply only when the host name matches.
+    "hosts": "Array<string>", // (optional): When provided, the redirect rule will apply only when the host name matches.
+    "data": "object" // (optional): Fetches a JSON document and fills it into the page the rule rewrites to. See Dynamic pages.
   }
 ]
 ```
@@ -60,6 +61,92 @@ the request will be proxied.
 ```
 
 In this case, all requests coming to `/my-path` will be proxied to `https://example.com/my-new-path/*`.
+
+</section>
+
+## Dynamic pages
+
+<section>
+
+A static site sometimes needs one dynamic route: a page per video, product or profile, with the right `<title>` and Open Graph tags for crawlers and link previews. Add a `data` loader to a rewrite rule. Stormkit fetches a JSON document for each request and fills its values into the HTML file the rule rewrites to. Your markup, styles and asset URLs stay in your build, and your API only returns JSON.
+
+```json
+[
+  {
+    "from": "/v/*",
+    "to": "/videos.html",
+    "data": {
+      "url": "https://api.example.com/v/$1.json"
+    }
+  }
+]
+```
+
+A request to `/v/abc123` serves `/videos.html` from your deployment, filled with the document at `https://api.example.com/v/abc123.json`.
+
+| Property                 | Required | Description                                                                                                                         |
+| ------------------------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `data.url`               | Yes      | The JSON document to fetch. Must be `https`. Wildcard captures from `from` are available as `$1`, `$2`, and so on.                   |
+| `data.passthroughStatus` | No       | When `true`, an error status from the API is returned to the visitor instead of the page. Default is `false`.                        |
+
+Captures are URL-encoded before they are inserted, so a visitor's path can add path segments to `data.url` but cannot add a query string or fragment. A path whose capture contains a `.` or `..` segment does not match the rule.
+
+A loader only works on a rewrite to a file in your deployment. It is rejected on a proxy rule (a `to` starting with `http`) and on a `3xx` redirect.
+
+### Placeholders
+
+In the HTML file, reference the document with `{{data.<field>}}`. Use dots for nested fields and `:-` for a default value:
+
+```html
+<title>{{data.title:-Videos}} · Example</title>
+<meta property="og:title" content="{{data.title}}" />
+<meta property="og:image" content="{{data.thumbnail:-/og.png}}" />
+<meta name="robots" content="{{data.robots:-noindex}}" />
+<span>{{data.owner.name}}</span>
+<script id="__sk_data__" type="application/json">{{data}}</script>
+```
+
+- `{{data}}` renders the whole document as JSON. Put it in a `<script type="application/json">` block and read it from your client code to hydrate the page.
+- Values from the API are HTML-escaped, so they are safe in text and in attributes. Your own default values are inserted as written.
+- The default applies when a field is missing, `null` or an empty string. It does not apply to `false` or `0`: `{{data.public:-true}}` renders `false` when the API returns `false`.
+- A placeholder with no value and no default renders as an empty string.
+- Numbers render without a trailing decimal (`12`, not `12.0`). Objects and arrays render as JSON.
+
+### When the API fails
+
+Your page is never blocked on the API for long. The fetch times out after 2 seconds and reads at most 1 MB.
+
+- **The API is unreachable, times out or returns invalid JSON:** the page is served with every placeholder set to its default.
+- **The API returns an error status (e.g. `404`):** by default the page is served with defaults, and the error response body is ignored. With `"passthroughStatus": true`, the visitor gets that status instead, so a deleted record returns a real `404`.
+
+### Caching
+
+Stormkit does not cache pages with a loader or their JSON documents: every request calls your API. Stormkit also does not send `ETag` or `Last-Modified` for these pages, so browsers and CDNs always get the current data. Requests for the same document that arrive at the same time share a single call to your API. If an endpoint is expensive, cache it in your API.
+
+### Hide the template file
+
+The file your rule rewrites to is a normal file in your deployment, so `/videos.html` can also be opened directly, showing unfilled placeholders. Redirect it away. List this rule **after** the loader rule:
+
+```json
+[
+  {
+    "from": "/v/*",
+    "to": "/videos.html",
+    "data": { "url": "https://api.example.com/v/$1.json" }
+  },
+  {
+    "from": "/videos(.html)?",
+    "to": "/",
+    "status": 301
+  }
+]
+```
+
+Stormkit applies the first rule that matches, so `/v/abc123` still rewrites to the template while direct requests to `/videos` and `/videos.html` are redirected.
+
+### Self-hosted instances
+
+A loader only connects to public addresses. On a self-hosted instance whose API runs on a private network, set `STORMKIT_PAGE_DATA_INSECURE=true` to allow private addresses and plain `http` URLs. See [Advanced Configuration](/docs/self-hosting/advanced-configuration).
 
 </section>
 
