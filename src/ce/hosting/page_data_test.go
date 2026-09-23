@@ -39,24 +39,30 @@ func (s *PageDataRenderSuite) document() map[string]any {
 	return document
 }
 
-func (s *PageDataRenderSuite) Test_Render_Value() {
-	out := s.renderer.render(`<title>{{data.title}}</title>`, s.document())
-	s.Equal("<title>My video</title>", out)
+// render executes body against document with a 200 status and fails the test on
+// a template error.
+func (s *PageDataRenderSuite) render(body string, document map[string]any) string {
+	out, err := s.renderer.render(body, document, http.StatusOK)
+	s.Require().NoError(err)
+
+	return string(out)
 }
 
-func (s *PageDataRenderSuite) Test_Render_InnerWhitespace() {
-	out := s.renderer.render(`<title>{{ data.title }}</title>`, s.document())
-	s.Equal("<title>My video</title>", out)
+func (s *PageDataRenderSuite) Test_Render_Value() {
+	s.Equal("<title>My video</title>", s.render(`<title>{{.title}}</title>`, s.document()))
+	s.Equal("<title>My video</title>", s.render(`<title>{{ .title }}</title>`, s.document()))
 }
 
 func (s *PageDataRenderSuite) Test_Render_NestedKey() {
-	out := s.renderer.render(`<span>{{data.owner.name}}</span>`, s.document())
-	s.Equal("<span>Alice</span>", out)
+	s.Equal("<span>Alice</span>", s.render(`<span>{{.owner.name}}</span>`, s.document()))
 }
 
 func (s *PageDataRenderSuite) Test_Render_Numbers() {
-	out := s.renderer.render(`{{data.views}}|{{data.ratio}}`, s.document())
-	s.Equal("12|1.5", out)
+	s.Equal("12|1.5", s.render(`{{.views}}|{{.ratio}}`, s.document()))
+}
+
+func (s *PageDataRenderSuite) Test_Render_MissingValueIsEmpty() {
+	s.Equal(`<meta content="">`, s.render(`<meta content="{{.robots}}">`, s.document()))
 }
 
 // A default fires on absent, null and empty — never on false or zero, which are
@@ -65,57 +71,86 @@ func (s *PageDataRenderSuite) Test_Render_Default_OnMissingNullAndEmpty() {
 	document := s.document()
 	document["subtitle"] = nil
 
-	s.Equal("noindex", s.renderer.render(`{{data.robots:-noindex}}`, document))
-	s.Equal("none", s.renderer.render(`{{data.subtitle:-none}}`, document))
-	s.Equal("/og.png", s.renderer.render(`{{data.thumbnail:-/og.png}}`, document))
+	s.Equal("noindex", s.render(`{{.robots | default "noindex"}}`, document))
+	s.Equal("none", s.render(`{{.subtitle | default "none"}}`, document))
+	s.Equal("/og.png", s.render(`{{.thumbnail | default "/og.png"}}`, document))
 }
 
 func (s *PageDataRenderSuite) Test_Render_Default_NotAppliedToFalseOrZero() {
 	document := s.document()
 	document["views"] = float64(0)
 
-	s.Equal("false", s.renderer.render(`{{data.public:-true}}`, document))
-	s.Equal("0", s.renderer.render(`{{data.views:-42}}`, document))
-}
-
-func (s *PageDataRenderSuite) Test_Render_Default_TrimmedAndOptional() {
-	s.Equal("noindex", s.renderer.render(`{{ data.robots :- noindex }}`, s.document()))
-	s.Equal("", s.renderer.render(`{{data.robots}}`, s.document()))
-	s.Equal("", s.renderer.render(`{{data.robots:-}}`, s.document()))
+	s.Equal("false", s.render(`{{.public | default true}}`, document))
+	s.Equal("0", s.render(`{{.views | default 42}}`, document))
 }
 
 // A value lands in attribute position as often as in text, so it is escaped
-// either way: an unescaped quote from the API would end the attribute.
+// for whichever context it is in.
 func (s *PageDataRenderSuite) Test_Render_EscapesUpstreamValues() {
 	document := s.document()
 	document["title"] = `" onload="alert(1)`
+	document["link"] = "javascript:alert(1)"
 
-	out := s.renderer.render(`<video id="{{data.title}}">`, document)
-	s.Equal(`<video id="&#34; onload=&#34;alert(1)">`, out)
+	out := s.render(`<video id="{{.title}}"><a href="{{.link}}">`, document)
+
 	s.NotContains(out, `onload="alert`)
+	s.NotContains(out, "javascript:")
 }
 
-// The author's own default is their markup, so it is left alone.
-func (s *PageDataRenderSuite) Test_Render_DoesNotEscapeDefault() {
-	s.Equal(`a&b`, s.renderer.render(`{{data.missing:-a&b}}`, s.document()))
+func (s *PageDataRenderSuite) Test_Render_WholeDocumentInScript() {
+	document := map[string]any{"title": "</script>"}
+	out := s.render(`<script id="__sk_data__" type="application/json">{{.}}</script>`, document)
+
+	s.Equal(`<script id="__sk_data__" type="application/json">{"title":"\u003c/script\u003e"}</script>`, out)
 }
 
-func (s *PageDataRenderSuite) Test_Render_WholeDocument() {
-	document := map[string]any{"title": "<script>"}
-	out := s.renderer.render(`<script id="__sk_data__" type="application/json">{{data}}</script>`, document)
+func (s *PageDataRenderSuite) Test_Render_Conditionals() {
+	body := `{{if eq status 410}}Unavailable{{else if .public}}Public{{else}}Private{{end}}`
 
-	// json.Marshal escapes <, > and & so the block cannot close early.
-	s.Equal("<script id=\"__sk_data__\" type=\"application/json\">{\"title\":\"\\u003cscript\\u003e\"}</script>", out)
+	out, err := s.renderer.render(body, map[string]any{}, http.StatusGone)
+	s.Require().NoError(err)
+	s.Equal("Unavailable", string(out))
+
+	s.Equal("Private", s.render(body, s.document()))
 }
 
-func (s *PageDataRenderSuite) Test_Render_ObjectAndArrayValues() {
-	out := s.renderer.render(`{{data.tags}}`, s.document())
-	s.Equal(`[&#34;a&#34;,&#34;b&#34;]`, out)
+func (s *PageDataRenderSuite) Test_Render_Range() {
+	s.Equal("<li>a</li><li>b</li>", s.render(`{{range .tags}}<li>{{.}}</li>{{end}}`, s.document()))
 }
 
-func (s *PageDataRenderSuite) Test_Render_LeavesForeignTokensAlone() {
-	out := s.renderer.render(`{{ other.title }} {{SK_REQUEST_ID}}`, s.document())
-	s.Equal(`{{ other.title }} {{SK_REQUEST_ID}}`, out)
+// A nested field on a missing object is an execution error; with guards it.
+func (s *PageDataRenderSuite) Test_Render_WithGuardsMissingObjects() {
+	s.Equal("", s.render(`{{with .author}}{{.name}}{{end}}`, s.document()))
+
+	_, err := s.renderer.render(`{{.author.name}}`, s.document(), http.StatusOK)
+	s.Error(err)
+}
+
+// When the API fails the document is empty, and {{if .}} keeps the page from
+// reading nested fields that are not there.
+func (s *PageDataRenderSuite) Test_Render_GuardsAPIFailure() {
+	body := `{{if .}}{{.owner.name}}{{else if eq status 410}}Unavailable{{else}}Something went wrong{{end}}`
+
+	out, err := s.renderer.render(body, map[string]any{}, 0)
+	s.Require().NoError(err)
+	s.Equal("Something went wrong", string(out))
+
+	out, err = s.renderer.render(body, map[string]any{}, http.StatusGone)
+	s.Require().NoError(err)
+	s.Equal("Unavailable", string(out))
+
+	s.Equal("Alice", s.render(body, s.document()))
+}
+
+// Documented limitations: comments are dropped, and a literal {{ is escaped.
+func (s *PageDataRenderSuite) Test_Render_Limitations() {
+	s.Equal("<p>hi</p>", s.render(`<!-- note --><p>hi</p>`, s.document()))
+	s.Equal("<p>{{ name }}</p>", s.render(`<p>{{"{{"}} name }}</p>`, s.document()))
+}
+
+func (s *PageDataRenderSuite) Test_Render_ParseError() {
+	_, err := s.renderer.render(`<title>{{.title</title>`, s.document(), http.StatusOK)
+	s.Error(err)
 }
 
 func TestPageDataRender(t *testing.T) {

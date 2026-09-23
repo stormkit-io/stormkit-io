@@ -1,16 +1,15 @@
 package hosting
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"html"
+	"html/template"
 	"io"
 	"net"
 	"net/http"
 	"os"
-	"regexp"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -31,11 +30,6 @@ const (
 	// feeds a page's placeholders, not a payload.
 	pageDataMaxBody = 1 << 20
 )
-
-// pageDataToken matches {{data}}, {{data.field}} and {{data.field:-fallback}}.
-// The default is the literal text up to the closing braces: no nesting, no
-// second :-, which keeps the parser dumb enough to be predictable.
-var pageDataToken = regexp.MustCompile(`\{\{\s*data(?:\.([A-Za-z0-9_.\-]+))?\s*(?::-([^}]*))?\}\}`)
 
 // pageDataInsecure relaxes both guards below. A self-hosted instance whose API
 // answers on the private network next to it has no public address to give, and
@@ -171,88 +165,48 @@ func (p *pageData) request(ctx context.Context) loaderResult {
 	return loaderResult{document: document, status: res.StatusCode}
 }
 
-// render replaces every token in the document with its value. A value that is
-// absent, null or empty falls back to the token's default, and every value the
-// upstream supplied is HTML-escaped: it lands in attributes as often as in text,
-// and an unescaped quote there is an injection.
-func (p *pageData) render(body string, document map[string]any) string {
-	return pageDataToken.ReplaceAllStringFunc(body, func(token string) string {
-		groups := pageDataToken.FindStringSubmatch(token)
+// render executes the page as an html/template against the document. The page
+// is the deployment's own markup, so it is trusted as a template; the document
+// is the API's, and html/template escapes it for the context it lands in —
+// text, attribute, URL or script. status is the upstream status, or 0 when the
+// API could not be reached, so the page can branch on a missing or withheld
+// record.
+func (p *pageData) render(body string, document map[string]any, status int) ([]byte, error) {
+	tmpl, err := template.New("page").
+		Option("missingkey=zero").
+		Funcs(template.FuncMap{
+			"status":  func() int { return status },
+			"default": p.fallback,
+		}).
+		Parse(body)
 
-		key := groups[1]
-
-		// An absent :- and an empty one mean the same thing here: the fallback
-		// is the empty string. A token that resolves to nothing renders as
-		// nothing rather than leaking its own braces to the browser.
-		fallback := strings.TrimSpace(groups[2])
-
-		// {{data}} is the whole document, for handing the page its own state in
-		// a <script type="application/json"> block. json.Marshal escapes <, >
-		// and & by default, which is what keeps that block from closing early.
-		if key == "" {
-			encoded, err := json.Marshal(document)
-
-			if err != nil {
-				return fallback
-			}
-
-			return string(encoded)
-		}
-
-		value, ok := p.lookup(document, key)
-
-		if !ok || value == nil || value == "" {
-			return fallback
-		}
-
-		return html.EscapeString(p.stringify(value))
-	})
-}
-
-func (p *pageData) lookup(document map[string]any, key string) (any, bool) {
-	var current any = document
-
-	for _, segment := range strings.Split(key, ".") {
-		node, ok := current.(map[string]any)
-
-		if !ok {
-			return nil, false
-		}
-
-		current, ok = node[segment]
-
-		if !ok {
-			return nil, false
-		}
+	if err != nil {
+		return nil, err
 	}
 
-	return current, true
+	var out bytes.Buffer
+
+	if err := tmpl.Execute(&out, document); err != nil {
+		return nil, err
+	}
+
+	return out.Bytes(), nil
 }
 
-func (p *pageData) stringify(value any) string {
-	switch typed := value.(type) {
-	case string:
-		return typed
-	case bool:
-		return strconv.FormatBool(typed)
-	case float64:
-		// JSON has one number type. An integral value reads as an id or a count
-		// on the page, so it is rendered without a decimal point.
-		return strconv.FormatFloat(typed, 'f', -1, 64)
-	default:
-		encoded, err := json.Marshal(typed)
-
-		if err != nil {
-			return ""
-		}
-
-		return string(encoded)
+// fallback backs the template's default function: {{.title | default "Videos"}}.
+// It fires on an absent, null or empty value and never on false or zero, which
+// are answers the API gave — unlike the built-in or, which treats them as empty.
+func (p *pageData) fallback(fallback, value any) any {
+	if value == nil || value == "" {
+		return fallback
 	}
+
+	return value
 }
 
 // applyPageData fetches the request's loader document and renders it into the
 // static file that was matched. It returns the rendered body, or a response
-// when the rule asked for the upstream status to be passed through.
+// when the upstream status is passed through or the page fails to render.
 func (r *RequestServer) applyPageData(content []byte, headers http.Header) ([]byte, *shttp.Response) {
 	loader := r.req.Loader
 
@@ -272,24 +226,43 @@ func (r *RequestServer) applyPageData(content []byte, headers http.Header) ([]by
 	}
 
 	result := renderer.fetch(ctx)
+	document := map[string]any{}
 
 	if result.err != nil {
-		// The document is already on disk and the page still renders with its
-		// defaults. Serving it beats answering with an error because a
-		// dependency was slow.
+		// The document is already on disk and the page still renders, as it
+		// would for a record with no data. Serving it beats answering with an
+		// error because a dependency was slow.
 		slog.Errorf("page data loader failed for %s: %s", loader.URL, result.err.Error())
-		return []byte(renderer.render(string(content), map[string]any{})), nil
+		result.status = 0
+	} else if result.status < 300 {
+		// An error body is the API's, not the record's: rendering it would put
+		// "Not found" in the page's title. The page learns about the error from
+		// status instead.
+		document = result.document
 	}
 
-	if result.status >= 300 {
-		if loader.PassthroughStatus {
-			return content, &shttp.Response{Status: result.status}
+	rendered, err := renderer.render(string(content), document, result.status)
+
+	// A template that does not parse or execute is the author's to fix, and a
+	// half-rendered page would ship to crawlers as if it were whole.
+	if err != nil {
+		err = fmt.Errorf("page data template %s: %w", r.fileMeta.Name, err)
+		slog.Errorf("%s", err.Error())
+		return nil, r.Error(err)
+	}
+
+	// A loader that asked for its status to be passed through speaks for the
+	// record behind the page: the visitor gets the API's answer, in the page's
+	// own markup.
+	if loader.PassthroughStatus && result.status >= 300 {
+		r.res = &shttp.Response{
+			Status:  result.status,
+			Data:    rendered,
+			Headers: headers,
 		}
 
-		// An error body is the API's, not the record's: rendering it would put
-		// "Not found" in the page's title.
-		return []byte(renderer.render(string(content), map[string]any{})), nil
+		return nil, r.res
 	}
 
-	return []byte(renderer.render(string(content), result.document)), nil
+	return rendered, nil
 }
