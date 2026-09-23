@@ -473,20 +473,10 @@ func (r *RequestServer) Static() *shttp.Response {
 		return r.Error(err)
 	}
 
-	content, upstream := r.applyPageData(content, headers)
+	content, res := r.applyPageData(content, headers)
 
-	// A loader that asked for its status to be passed through speaks for the
-	// record behind the page: when the API no longer has it, the page it would
-	// have filled is not there either.
-	if upstream != nil {
-		if upstream.Status == http.StatusNotFound {
-			return r.NotFound()
-		}
-
-		upstream.Headers = headers
-		r.res = upstream
-
-		return r.res
+	if res != nil {
+		return res
 	}
 
 	r.res = &shttp.Response{

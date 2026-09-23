@@ -1446,9 +1446,9 @@ func (s *HandlerForwardSuite) Test_PageDataLoader_RendersTheDeploymentsOwnDocume
 		FileName:     "/videos.html",
 		DeploymentID: types.ID(1),
 	}).Return(&integrations.GetFileResult{
-		Content: []byte(`<html><head><title>{{data.title}}</title>` +
-			`<meta property="og:image" content="{{data.thumbnail:-/og.png}}">` +
-			`<meta name="robots" content="{{data.robots:-noindex}}"></head></html>`),
+		Content: []byte(`<html><head><title>{{.title}}</title>` +
+			`<meta property="og:image" content="{{.thumbnail | default "/og.png"}}">` +
+			`<meta name="robots" content="{{.robots | default "noindex"}}"></head></html>`),
 	}, nil)
 
 	res := hosting.HandlerForward(s.newRequest(s.pageDataHost(server.URL, false), "/v/abc123"))
@@ -1480,8 +1480,8 @@ func (s *HandlerForwardSuite) Test_PageDataLoader_FailedFetchRendersDefaults() {
 		FileName:     "/videos.html",
 		DeploymentID: types.ID(1),
 	}).Return(&integrations.GetFileResult{
-		Content: []byte(`<html><head><title>{{data.title:-Videos}}</title>` +
-			`<meta name="description" content="{{data.description}}"></head></html>`),
+		Content: []byte(`<html><head><title>{{.title | default "Videos"}}</title>` +
+			`<meta name="description" content="{{.description}}"></head></html>`),
 	}, nil)
 
 	res := hosting.HandlerForward(s.newRequest(s.pageDataHost(server.URL, false), "/v/abc123"))
@@ -1512,7 +1512,7 @@ func (s *HandlerForwardSuite) Test_PageDataLoader_IgnoresFileValidators() {
 		FileName:     "/videos.html",
 		DeploymentID: types.ID(1),
 	}).Return(&integrations.GetFileResult{
-		Content: []byte(`<html><head><title>{{data.title}}</title></head></html>`),
+		Content: []byte(`<html><head><title>{{.title}}</title></head></html>`),
 	}, nil)
 
 	host := s.pageDataHost(server.URL, false)
@@ -1553,7 +1553,7 @@ func (s *HandlerForwardSuite) Test_PageDataLoader_ErrorStatusRendersDefaults() {
 		FileName:     "/videos.html",
 		DeploymentID: types.ID(1),
 	}).Return(&integrations.GetFileResult{
-		Content: []byte(`<html><head><title>{{data.title:-Videos}}</title></head></html>`),
+		Content: []byte(`<html><head><title>{{.title | default "Videos"}}</title></head></html>`),
 	}, nil)
 
 	res := hosting.HandlerForward(s.newRequest(s.pageDataHost(server.URL, false), "/v/gone"))
@@ -1581,7 +1581,7 @@ func (s *HandlerForwardSuite) Test_PageDataLoader_ForwardsVisitorHeaders() {
 		FileName:     "/videos.html",
 		DeploymentID: types.ID(1),
 	}).Return(&integrations.GetFileResult{
-		Content: []byte(`<html><head><title>{{data.title}}</title></head></html>`),
+		Content: []byte(`<html><head><title>{{.title}}</title></head></html>`),
 	}, nil)
 
 	headers := http.Header{}
@@ -1599,8 +1599,8 @@ func (s *HandlerForwardSuite) Test_PageDataLoader_ForwardsVisitorHeaders() {
 	s.Equal("203.0.113.7", received.Get("X-Real-IP"))
 }
 
-// The loader speaks for the record behind the page: when the API no longer has
-// it, the visitor gets a 404 rather than a shell full of defaults.
+// The loader speaks for the record behind the page: the visitor gets the API's
+// status, and the page's own markup decides what to show for it.
 func (s *HandlerForwardSuite) Test_PageDataLoader_PassthroughStatus() {
 	s.T().Setenv("STORMKIT_PAGE_DATA_INSECURE", "true")
 
@@ -1615,11 +1615,35 @@ func (s *HandlerForwardSuite) Test_PageDataLoader_PassthroughStatus() {
 		FileName:     "/videos.html",
 		DeploymentID: types.ID(1),
 	}).Return(&integrations.GetFileResult{
-		Content: []byte(`<html><head><title>{{data.title}}</title></head></html>`),
+		Content: []byte(`<html><head><title>{{if eq status 404}}Demo not found{{else}}{{.title}}{{end}}</title></head></html>`),
 	}, nil)
 
 	res := hosting.HandlerForward(s.newRequest(s.pageDataHost(server.URL, true), "/v/gone"))
 
 	s.Equal(http.StatusNotFound, res.Status)
-	s.NotContains(fmt.Sprintf("%s", res.Data), "{{data.title}}")
+	s.Equal("<html><head><title>Demo not found</title></head></html>", fmt.Sprintf("%s", res.Data))
+}
+
+// A template the author broke is an error, not a half-rendered page.
+func (s *HandlerForwardSuite) Test_PageDataLoader_TemplateErrorIsAnError() {
+	s.T().Setenv("STORMKIT_PAGE_DATA_INSECURE", "true")
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte(`{"title":"My video"}`))
+	}))
+
+	defer server.Close()
+
+	s.mockClient.On("GetFile", integrations.GetFileArgs{
+		Location:     "aws:my-bucket/my-key-prefix",
+		FileName:     "/videos.html",
+		DeploymentID: types.ID(1),
+	}).Return(&integrations.GetFileResult{
+		Content: []byte(`<html><head><title>{{.owner.name}}</title></head></html>`),
+	}, nil)
+
+	res := hosting.HandlerForward(s.newRequest(s.pageDataHost(server.URL, false), "/v/abc123"))
+
+	s.Equal(http.StatusInternalServerError, res.Status)
+	s.Contains(fmt.Sprintf("%s", res.Data), "page data template /videos.html")
 }

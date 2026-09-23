@@ -68,7 +68,7 @@ In this case, all requests coming to `/my-path` will be proxied to `https://exam
 
 <section>
 
-A static site sometimes needs one dynamic route: a page per video, product or profile, with the right `<title>` and Open Graph tags for crawlers and link previews. Add a `data` loader to a rewrite rule. Stormkit fetches a JSON document for each request and fills its values into the HTML file the rule rewrites to. Your markup, styles and asset URLs stay in your build, and your API only returns JSON.
+A static site sometimes needs one dynamic route: a page per video, product or profile, with the right `<title>` and Open Graph tags for crawlers and link previews. Add a `data` loader to a rewrite rule. Stormkit fetches a JSON document for each request and renders the HTML file the rule rewrites to as a template, with that document as its data. Your markup, styles and asset URLs stay in your build, and your API only returns JSON.
 
 ```json
 [
@@ -87,37 +87,61 @@ A request to `/v/abc123` serves `/videos.html` from your deployment, filled with
 | Property                 | Required | Description                                                                                                                         |
 | ------------------------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `data.url`               | Yes      | The JSON document to fetch. Must be `https`. Wildcard captures from `from` are available as `$1`, `$2`, and so on.                   |
-| `data.passthroughStatus` | No       | When `true`, an error status from the API is returned to the visitor instead of the page. Default is `false`.                        |
+| `data.passthroughStatus` | No       | When `true`, an error status from the API becomes the page's status code. Default is `false`: the page is served with `200`.         |
 
 Captures are URL-encoded before they are inserted, so a visitor's path can add path segments to `data.url` but cannot add a query string or fragment. A path whose capture contains a `.` or `..` segment does not match the rule.
 
 A loader only works on a rewrite to a file in your deployment. It is rejected on a proxy rule (a `to` starting with `http`) and on a `3xx` redirect.
 
-### Placeholders
+### Templates
 
-In the HTML file, reference the document with `{{data.<field>}}`. Use dots for nested fields and `:-` for a default value:
+The HTML file is a Go [`html/template`](https://pkg.go.dev/html/template). `.` is the JSON document, and `.field` reads a field from it:
 
 ```html
-<title>{{data.title:-Videos}} · Example</title>
-<meta property="og:title" content="{{data.title}}" />
-<meta property="og:image" content="{{data.thumbnail:-/og.png}}" />
-<meta name="robots" content="{{data.robots:-noindex}}" />
-<span>{{data.owner.name}}</span>
-<script id="__sk_data__" type="application/json">{{data}}</script>
+<title>{{.title | default "Videos"}} · Example</title>
+<meta property="og:title" content="{{.title}}" />
+<meta property="og:image" content="{{.thumbnail | default "/og.png"}}" />
+<meta name="robots" content="{{.robots | default "noindex"}}" />
+{{with .owner}}<span>{{.name}}</span>{{end}}
+<ul>{{range .tags}}<li>{{.}}</li>{{end}}</ul>
+<script id="__sk_data__" type="application/json">{{.}}</script>
 ```
 
-- `{{data}}` renders the whole document as JSON. Put it in a `<script type="application/json">` block and read it from your client code to hydrate the page.
-- Values from the API are HTML-escaped, so they are safe in text and in attributes. Your own default values are inserted as written.
-- The default applies when a field is missing, `null` or an empty string. It does not apply to `false` or `0`: `{{data.public:-true}}` renders `false` when the API returns `false`.
-- A placeholder with no value and no default renders as an empty string.
-- Numbers render without a trailing decimal (`12`, not `12.0`). Objects and arrays render as JSON.
+- Values are escaped for where they appear: in text, attributes, URLs and scripts. A `javascript:` URL from the API is replaced with `#ZgotmplZ`.
+- `{{.}}` inside a `<script type="application/json">` block renders the whole document as JSON. Read it from your client code to hydrate the page.
+- A missing field renders as an empty string.
+- `default` applies when a field is missing, `null` or an empty string. It does not apply to `false` or `0`: `{{.public | default true}}` renders `false` when the API returns `false`. The built-in `or` treats `false` and `0` as empty, so prefer `default`.
+- Use `{{with .owner}}{{.name}}{{end}}` when an object may be missing. `{{.owner.name}}` fails when `owner` is absent, and the visitor gets a `500`.
+- `if`, `else`, `range`, `eq`, `and`, `not` and the rest of the [template actions](https://pkg.go.dev/text/template#hdr-Actions) are available.
+
+If the file fails to parse, or fails while rendering, the visitor gets a `500` error page that shows the template error, and the error is written to your runtime logs.
 
 ### When the API fails
 
-Your page is never blocked on the API for long. The fetch times out after 2 seconds and reads at most 1 MB.
+Your page is never blocked on the API for long. The fetch times out after 2 seconds and reads at most 1 MB. When the API fails, the document is empty and `status` holds the API's status code, or `0` when the API could not be reached. Use them to show something else for a missing or withheld record:
 
-- **The API is unreachable, times out or returns invalid JSON:** the page is served with every placeholder set to its default.
-- **The API returns an error status (e.g. `404`):** by default the page is served with defaults, and the error response body is ignored. With `"passthroughStatus": true`, the visitor gets that status instead: a `404` serves your deployment's 404 page (`/404.html`, `/error.html`, or the custom error file), and any other status is returned with an empty body.
+```html
+{{if .}}
+  <h1>{{.title}}</h1>
+  <p>By {{.owner.name}}</p>
+{{else if eq status 410}}
+  <h1>This video is no longer available</h1>
+{{else if eq status 404}}
+  <h1>Video not found</h1>
+{{else}}
+  <h1>Something went wrong. Please try again later.</h1>
+{{end}}
+```
+
+`{{if .}}` is false when the document is empty, so the fields inside it, including nested ones like `.owner.name`, are only read when the API returned data.
+
+- **The API is unreachable, times out or returns invalid JSON:** the page is rendered with an empty document and `status` set to `0`.
+- **The API returns an error status (e.g. `404`):** the page is rendered with an empty document, and the error response body is ignored. `status` holds the error status. With `"passthroughStatus": true` the visitor gets that status code too, so a deleted record returns a real `404`.
+
+### Limitations
+
+- HTML comments are removed from the rendered page.
+- Every `{{` in the file is read as template syntax, and text that is not valid template syntax is a template error. To output a literal `{{`, write `{{"{{"}}`.
 
 ### Caching
 
@@ -157,7 +181,7 @@ Stormkit applies the first rule that matches, and `*` also matches `/`. List mor
 
 ### Hide the template file
 
-The file your rule rewrites to is a normal file in your deployment, so `/videos.html` can also be opened directly, showing unfilled placeholders. Redirect it away. List this rule **after** the loader rule:
+The file your rule rewrites to is a normal file in your deployment, so `/videos.html` can also be opened directly, showing its raw template. Redirect it away. List this rule **after** the loader rule:
 
 ```json
 [
