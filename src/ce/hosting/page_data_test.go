@@ -244,6 +244,37 @@ func (s *PageDataFetchSuite) Test_Fetch_ConcurrentCallersShareOneRequest() {
 	}
 }
 
+// Requests from different visitors each reach the API, so it can count them.
+func (s *PageDataFetchSuite) Test_Fetch_DifferentVisitorsDoNotShare() {
+	var calls atomic.Int32
+
+	release := make(chan struct{})
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		<-release
+		w.Write([]byte(`{"title":"My video"}`))
+	}))
+
+	defer server.Close()
+
+	loader := &redirects.Loader{URL: server.URL}
+	wg := sync.WaitGroup{}
+
+	for _, ip := range []string{"203.0.113.1", "203.0.113.2"} {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+			(&pageData{loader: loader, visitor: pageDataVisitor{ip: ip}}).fetch(context.Background())
+		}()
+	}
+
+	s.Eventually(func() bool { return calls.Load() == 2 }, time.Second, 5*time.Millisecond)
+	close(release)
+	wg.Wait()
+}
+
 // The caller that wins the race may disconnect; the others still get the document.
 func (s *PageDataFetchSuite) Test_Fetch_SharedRequestSurvivesWinnerCancellation() {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

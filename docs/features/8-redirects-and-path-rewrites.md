@@ -117,11 +117,43 @@ In the HTML file, reference the document with `{{data.<field>}}`. Use dots for n
 Your page is never blocked on the API for long. The fetch times out after 2 seconds and reads at most 1 MB.
 
 - **The API is unreachable, times out or returns invalid JSON:** the page is served with every placeholder set to its default.
-- **The API returns an error status (e.g. `404`):** by default the page is served with defaults, and the error response body is ignored. With `"passthroughStatus": true`, the visitor gets that status instead, so a deleted record returns a real `404`.
+- **The API returns an error status (e.g. `404`):** by default the page is served with defaults, and the error response body is ignored. With `"passthroughStatus": true`, the visitor gets that status instead: a `404` serves your deployment's 404 page (`/404.html`, `/error.html`, or the custom error file), and any other status is returned with an empty body.
 
 ### Caching
 
-Stormkit does not cache pages with a loader or their JSON documents: every request calls your API. Stormkit also does not send `ETag` or `Last-Modified` for these pages, so browsers and CDNs always get the current data. Requests for the same document that arrive at the same time share a single call to your API. If an endpoint is expensive, cache it in your API.
+Stormkit does not cache pages with a loader or their JSON documents: every request calls your API. Stormkit also does not send `ETag` or `Last-Modified` for these pages, so browsers and CDNs always get the current data. If an endpoint is expensive, cache it in your API.
+
+### Request headers
+
+The request to your API carries the visitor's details, so it can count views and tell people apart from bots and link unfurlers:
+
+| Header            | Value                                                                                  |
+| ----------------- | -------------------------------------------------------------------------------------- |
+| `User-Agent`      | The visitor's `User-Agent`                                                             |
+| `X-Forwarded-For` | The visitor's IP address                                                               |
+| `X-Real-IP`       | The visitor's IP address                                                               |
+| `Accept`          | `application/json`                                                                     |
+
+Identical requests from the same visitor that arrive at the same time share a single call to your API. Requests from different visitors are never combined.
+
+### More than one route
+
+Stormkit applies the first rule that matches, and `*` also matches `/`. List more specific rules first: here `/v/abc/embed` would match `/v/*` if that rule came first.
+
+```json
+[
+  {
+    "from": "/v/*/embed",
+    "to": "/embed.html",
+    "data": { "url": "https://api.example.com/v/$1.json" }
+  },
+  {
+    "from": "/v/*",
+    "to": "/videos.html",
+    "data": { "url": "https://api.example.com/v/$1.json" }
+  }
+]
+```
 
 ### Hide the template file
 

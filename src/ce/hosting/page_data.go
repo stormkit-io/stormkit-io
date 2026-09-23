@@ -79,17 +79,26 @@ var pageDataClient = &http.Client{
 	},
 }
 
-// pageDataFlight collapses concurrent fetches of the same document into one
-// upstream request. A share link landing on social media arrives as a burst of
-// requests for a single record, and each one would otherwise be its own call.
-// Nothing outlives the request that made it: caching belongs to the API.
+// pageDataFlight collapses concurrent fetches of the same document by the same
+// visitor into one upstream request. Each visitor still reaches the API on its
+// own, with its own User-Agent and address, so the API can count views and tell
+// an unfurler from a person. Nothing outlives the request that made it: caching
+// belongs to the API.
 var pageDataFlight singleflight.Group
 
 // pageData renders a deployment's own document with values fetched from an
 // upstream JSON endpoint. The markup, its asset URLs and its design tokens stay
 // in the build; only the values come from the API.
 type pageData struct {
-	loader *redirects.Loader
+	loader  *redirects.Loader
+	visitor pageDataVisitor
+}
+
+// pageDataVisitor is what the loader passes on about the request that asked for
+// the page. Without it every fetch would look like Stormkit to the API.
+type pageDataVisitor struct {
+	userAgent string
+	ip        string
 }
 
 // loaderResult reports what the fetch found. Status is the upstream status,
@@ -101,9 +110,11 @@ type loaderResult struct {
 }
 
 // fetch returns the loader's document. Concurrent callers for the same URL
-// share one request.
+// from the same visitor share one request.
 func (p *pageData) fetch(ctx context.Context) loaderResult {
-	shared, _, _ := pageDataFlight.Do(p.loader.URL, func() (any, error) {
+	key := strings.Join([]string{p.loader.URL, p.visitor.userAgent, p.visitor.ip}, "\x00")
+
+	shared, _, _ := pageDataFlight.Do(key, func() (any, error) {
 		// Detached from the winner's request: if that visitor disconnects, the
 		// callers waiting on the shared fetch must not inherit the cancellation.
 		// The client's own timeout still bounds it.
@@ -125,6 +136,15 @@ func (p *pageData) request(ctx context.Context) loaderResult {
 	}
 
 	req.Header.Set("Accept", "application/json")
+
+	// An empty User-Agent is sent as empty rather than as Go's default, which
+	// would make a visitor without one look like Stormkit.
+	req.Header.Set("User-Agent", p.visitor.userAgent)
+
+	if p.visitor.ip != "" {
+		req.Header.Set("X-Forwarded-For", p.visitor.ip)
+		req.Header.Set("X-Real-IP", p.visitor.ip)
+	}
 
 	res, err := pageDataClient.Do(req)
 
@@ -241,12 +261,16 @@ func (r *RequestServer) applyPageData(content []byte, headers http.Header) ([]by
 	}
 
 	ctx := context.Background()
+	renderer := &pageData{loader: loader}
 
 	if r.req.Request != nil {
 		ctx = r.req.Context()
+		renderer.visitor = pageDataVisitor{
+			userAgent: r.req.Header.Get("User-Agent"),
+			ip:        r.req.RemoteIP(),
+		}
 	}
 
-	renderer := &pageData{loader: loader}
 	result := renderer.fetch(ctx)
 
 	if result.err != nil {
