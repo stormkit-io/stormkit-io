@@ -1,5 +1,26 @@
 # Changelog
 
+## v2026.09.23.1...v2026.09.23.2
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.23.1...v2026.09.23.2)
+
+### 🚀 Enhancements
+
+- Forward visitor headers to page loaders ([#550](https://github.com/stormkit-io/stormkit-io/pull/550))
+- Render page loaders with html/template ([#551](https://github.com/stormkit-io/stormkit-io/pull/551))
+
+### 🩹 Fixes
+
+- Wait for revealed env vars in flaky test ([#552](https://github.com/stormkit-io/stormkit-io/pull/552))
+
+### 🏡 Chore
+
+- Update changelog for v2026.09.23.1 ([#549](https://github.com/stormkit-io/stormkit-io/pull/549))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.09.20.1...v2026.09.23.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.20.1...v2026.09.23.1)
