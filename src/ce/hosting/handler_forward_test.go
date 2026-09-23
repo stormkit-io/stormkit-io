@@ -9,6 +9,7 @@ import (
 	"image/png"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"strings"
@@ -1401,4 +1402,187 @@ func (s *HandlerForwardSuite) Test_AuthWall_AlreadyLoggedIn() {
 
 func TestHandlerForward(t *testing.T) {
 	suite.Run(t, &HandlerForwardSuite{})
+}
+
+// pageDataHost serves a single static document that every /v/* path rewrites
+// to, with a loader pointed at the given test server.
+func (s *HandlerForwardSuite) pageDataHost(loaderURL string, passthrough bool) *hosting.Host {
+	return &hosting.Host{
+		Name: "www.stormkit.io",
+		Config: &appconf.Config{
+			DeploymentID:    types.ID(1),
+			StorageLocation: "aws:my-bucket/my-key-prefix",
+			StaticFiles: appconf.StaticFileConfig{
+				"/videos.html": {
+					FileName: "/videos.html",
+					Headers:  map[string]string{"content-type": "text/html; charset=utf-8", "etag": "file-hash"},
+				},
+			},
+			Redirects: []deploy.Redirect{
+				{
+					From: "/v/*",
+					To:   "/videos.html",
+					Data: &redirects.Loader{URL: loaderURL + "/v/$1.json", PassthroughStatus: passthrough},
+				},
+			},
+		},
+	}
+}
+
+func (s *HandlerForwardSuite) Test_PageDataLoader_RendersTheDeploymentsOwnDocument() {
+	s.T().Setenv("STORMKIT_PAGE_DATA_INSECURE", "true")
+
+	var requested string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requested = r.URL.Path
+		w.Write([]byte(`{"title":"My video","thumbnail":""}`))
+	}))
+
+	defer server.Close()
+
+	s.mockClient.On("GetFile", integrations.GetFileArgs{
+		Location:     "aws:my-bucket/my-key-prefix",
+		FileName:     "/videos.html",
+		DeploymentID: types.ID(1),
+	}).Return(&integrations.GetFileResult{
+		Content: []byte(`<html><head><title>{{data.title}}</title>` +
+			`<meta property="og:image" content="{{data.thumbnail:-/og.png}}">` +
+			`<meta name="robots" content="{{data.robots:-noindex}}"></head></html>`),
+	}, nil)
+
+	res := hosting.HandlerForward(s.newRequest(s.pageDataHost(server.URL, false), "/v/abc123"))
+
+	s.Equal(http.StatusOK, res.Status)
+	s.Equal("/v/abc123.json", requested)
+
+	body, ok := res.Data.([]byte)
+
+	s.Require().True(ok)
+	s.Contains(string(body), "<title>My video</title>")
+	s.Contains(string(body), `content="/og.png"`)
+	s.Contains(string(body), `content="noindex"`)
+}
+
+// An unreachable upstream still serves the page, with its defaults rather than
+// raw placeholders.
+func (s *HandlerForwardSuite) Test_PageDataLoader_FailedFetchRendersDefaults() {
+	s.T().Setenv("STORMKIT_PAGE_DATA_INSECURE", "true")
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte(`not json`))
+	}))
+
+	defer server.Close()
+
+	s.mockClient.On("GetFile", integrations.GetFileArgs{
+		Location:     "aws:my-bucket/my-key-prefix",
+		FileName:     "/videos.html",
+		DeploymentID: types.ID(1),
+	}).Return(&integrations.GetFileResult{
+		Content: []byte(`<html><head><title>{{data.title:-Videos}}</title>` +
+			`<meta name="description" content="{{data.description}}"></head></html>`),
+	}, nil)
+
+	res := hosting.HandlerForward(s.newRequest(s.pageDataHost(server.URL, false), "/v/abc123"))
+
+	s.Equal(http.StatusOK, res.Status)
+
+	body, ok := res.Data.([]byte)
+
+	s.Require().True(ok)
+	s.Contains(string(body), "<title>Videos</title>")
+	s.Contains(string(body), `content=""`)
+	s.NotContains(string(body), "{{")
+}
+
+// A page filled by a loader changes with its data, so the file's validators
+// must not let a client skip the fetch with a 304.
+func (s *HandlerForwardSuite) Test_PageDataLoader_IgnoresFileValidators() {
+	s.T().Setenv("STORMKIT_PAGE_DATA_INSECURE", "true")
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte(`{"title":"Fresh title"}`))
+	}))
+
+	defer server.Close()
+
+	s.mockClient.On("GetFile", integrations.GetFileArgs{
+		Location:     "aws:my-bucket/my-key-prefix",
+		FileName:     "/videos.html",
+		DeploymentID: types.ID(1),
+	}).Return(&integrations.GetFileResult{
+		Content: []byte(`<html><head><title>{{data.title}}</title></head></html>`),
+	}, nil)
+
+	host := s.pageDataHost(server.URL, false)
+	host.Config.UpdatedAt = utils.UnixFrom(time.Now().Add(-time.Hour))
+
+	headers := http.Header{}
+	headers.Set("If-None-Match", "file-hash")
+
+	res := hosting.HandlerForward(s.newRequest(host, "/v/abc123", headers))
+
+	s.Equal(http.StatusOK, res.Status)
+	s.Empty(res.Headers.Get("ETag"))
+	s.Empty(res.Headers.Get("Last-Modified"))
+	s.Contains(fmt.Sprintf("%s", res.Data), "<title>Fresh title</title>")
+
+	headers = http.Header{}
+	headers.Set("If-Modified-Since", time.Now().UTC().Format(http.TimeFormat))
+
+	res = hosting.HandlerForward(s.newRequest(host, "/v/abc123", headers))
+
+	s.Equal(http.StatusOK, res.Status)
+}
+
+// Without passthrough, an error body is the API's rather than the record's, so
+// the page falls back to its defaults instead of rendering it.
+func (s *HandlerForwardSuite) Test_PageDataLoader_ErrorStatusRendersDefaults() {
+	s.T().Setenv("STORMKIT_PAGE_DATA_INSECURE", "true")
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"title":"Not found"}`))
+	}))
+
+	defer server.Close()
+
+	s.mockClient.On("GetFile", integrations.GetFileArgs{
+		Location:     "aws:my-bucket/my-key-prefix",
+		FileName:     "/videos.html",
+		DeploymentID: types.ID(1),
+	}).Return(&integrations.GetFileResult{
+		Content: []byte(`<html><head><title>{{data.title:-Videos}}</title></head></html>`),
+	}, nil)
+
+	res := hosting.HandlerForward(s.newRequest(s.pageDataHost(server.URL, false), "/v/gone"))
+
+	s.Equal(http.StatusOK, res.Status)
+	s.Contains(fmt.Sprintf("%s", res.Data), "<title>Videos</title>")
+}
+
+// The loader speaks for the record behind the page: when the API no longer has
+// it, the visitor gets a 404 rather than a shell full of defaults.
+func (s *HandlerForwardSuite) Test_PageDataLoader_PassthroughStatus() {
+	s.T().Setenv("STORMKIT_PAGE_DATA_INSECURE", "true")
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+
+	defer server.Close()
+
+	s.mockClient.On("GetFile", integrations.GetFileArgs{
+		Location:     "aws:my-bucket/my-key-prefix",
+		FileName:     "/videos.html",
+		DeploymentID: types.ID(1),
+	}).Return(&integrations.GetFileResult{
+		Content: []byte(`<html><head><title>{{data.title}}</title></head></html>`),
+	}, nil)
+
+	res := hosting.HandlerForward(s.newRequest(s.pageDataHost(server.URL, true), "/v/gone"))
+
+	s.Equal(http.StatusNotFound, res.Status)
+	s.NotContains(fmt.Sprintf("%s", res.Data), "{{data.title}}")
 }

@@ -190,36 +190,6 @@ export default config
 
 </section>
 
-## Testing locally
-
-<section>
-
-In order to test the API locally go ahead and install the [`@stormkit/cli`](https://www.github.com/stormkit-io/stormkit-cli) package.
-
-```bash
-npm i -D @stormkit/cli
-```
-
-Update `package.json`:
-
-```json
-{
-  "scripts": {
-    "dev:api": "stormkit api"
-  }
-}
-```
-
-And run the script:
-
-```bash
-npm run dev:api
-```
-
-You can access the api from http://localhost:9090/api.
-
-</section>
-
 ## API in action
 
 If you wish to see the API in action promptly, take a look at our [template project](https://github.com/stormkit-io/monorepo-template-react), utilizing Vitejs as the build tool. This project encapsulates server-side rendering (SSR), API functionality, and a single-page application.

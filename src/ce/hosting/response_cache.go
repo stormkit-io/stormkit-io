@@ -283,6 +283,13 @@ func (r *RequestServer) cacheKey() string {
 		return ""
 	}
 
+	// A page filled by a loader is as current as its document. The loader keeps
+	// its own TTL cache; this one holds finished bodies with no expiry of their
+	// own, so it would outlive the data it rendered.
+	if r.req.Loader != nil {
+		return ""
+	}
+
 	// The same URL serves the page or its markdown depending on Accept.
 	variant := "page"
 

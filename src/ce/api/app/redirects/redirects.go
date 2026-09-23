@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
@@ -17,6 +19,21 @@ type Redirect struct {
 	Status  int               `json:"status,omitempty"`
 	Hosts   []string          `json:"hosts,omitempty"`
 	Headers map[string]string `json:"headers,omitempty"`
+	Data    *Loader           `json:"data,omitempty"`
+}
+
+// Loader declares an upstream JSON document to fetch at request time and
+// interpolate into the page the rule rewrites to. It turns a single route of an
+// otherwise static deployment dynamic without moving the markup out of the
+// build: the document stays in the deployment, the data comes from the API.
+type Loader struct {
+	// URL is the document to fetch. Wildcard captures from the rule's `from`
+	// are available as $1, $2 ... so one rule serves every record.
+	URL string `json:"url"`
+
+	// PassthroughStatus propagates a non-2xx upstream status to the visitor, so
+	// a record the API no longer has answers 404 rather than an empty shell.
+	PassthroughStatus bool `json:"passthroughStatus,omitempty"`
 }
 
 // Validate checks each redirect rule for correctness and returns a list of
@@ -37,6 +54,21 @@ func Validate(rules []Redirect) []string {
 
 		if r.Status != 0 && http.StatusText(r.Status) == "" {
 			errors = append(errors, fmt.Sprintf("%s: status %d is not a valid HTTP status code", prefix, r.Status))
+		}
+
+		if r.Data != nil {
+			if strings.TrimSpace(r.Data.URL) == "" {
+				errors = append(errors, fmt.Sprintf("%s: 'data.url' is required", prefix))
+			} else if !strings.HasPrefix(r.Data.URL, "https://") && os.Getenv("STORMKIT_PAGE_DATA_INSECURE") != "true" {
+				errors = append(errors, fmt.Sprintf("%s: 'data.url' must be an https URL", prefix))
+			}
+
+			// A loader interpolates the document the rule rewrites to. An
+			// absolute target is proxied and a 3xx never has a body, so neither
+			// has a document to interpolate.
+			if strings.HasPrefix(r.To, "http") || (r.Status >= 300 && r.Status <= 308) {
+				errors = append(errors, fmt.Sprintf("%s: 'data' is only supported on a rewrite to a local path", prefix))
+			}
 		}
 	}
 
@@ -61,6 +93,10 @@ type MatchReturn struct {
 	Redirect string
 	Rewrite  string
 	Pattern  string
+
+	// Data carries the rule's loader with its URL resolved against this
+	// request, and is set only on a rewrite.
+	Data *Loader
 }
 
 func Match(args MatchArgs) *MatchReturn {
@@ -161,12 +197,79 @@ func Match(args MatchArgs) *MatchReturn {
 				}
 			}
 
+			loader, ok := resolveLoader(resolveLoaderParams{
+				Loader:  redirect.Data,
+				Pattern: pattern,
+				Path:    url.Path,
+			})
+
+			// A capture that would walk the loader URL out of its own path is not
+			// a record this rule serves.
+			if !ok {
+				continue
+			}
+
 			return &MatchReturn{
 				Rewrite: target,
 				Pattern: pattern,
+				Data:    loader,
 			}
 		}
 	}
 
 	return nil
+}
+
+type resolveLoaderParams struct {
+	Loader  *Loader
+	Pattern string
+	Path    string
+}
+
+var loaderCaptureRef = regexp.MustCompile(`\$(\d+)`)
+
+// resolveLoader expands the wildcard captures of the matched path into the
+// loader URL, so a rule written once serves every record it matches. Each
+// capture is escaped segment by segment: a visitor's path may add segments to
+// the loader URL, never a query, a fragment or a "..". It returns false when a
+// capture holds a "." or ".." segment.
+func resolveLoader(p resolveLoaderParams) (*Loader, bool) {
+	if p.Loader == nil {
+		return nil, true
+	}
+
+	re, err := regexp.Compile(p.Pattern)
+
+	if err != nil {
+		return nil, true
+	}
+
+	captures := re.FindStringSubmatch(p.Path)
+
+	for i := 1; i < len(captures); i++ {
+		segments := strings.Split(captures[i], "/")
+
+		for j, segment := range segments {
+			if segment == "." || segment == ".." {
+				return nil, false
+			}
+
+			segments[j] = url.PathEscape(segment)
+		}
+
+		captures[i] = strings.Join(segments, "/")
+	}
+
+	resolved := *p.Loader
+	resolved.URL = loaderCaptureRef.ReplaceAllStringFunc(p.Loader.URL, func(ref string) string {
+		index, _ := strconv.Atoi(ref[1:])
+
+		if index < len(captures) {
+			return captures[index]
+		}
+
+		return ""
+	})
+
+	return &resolved, true
 }
