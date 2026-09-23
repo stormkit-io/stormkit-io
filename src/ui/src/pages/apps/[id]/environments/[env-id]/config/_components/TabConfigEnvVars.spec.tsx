@@ -133,9 +133,11 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/_components/TabConfigEn
 
     fireEvent.click(wrapper.getByText("Reveal values"));
 
+    // Wait for the revealed value, not the key: keys are on screen before the
+    // reveal, and removing a row before the rows reseed edits the masked values.
     await waitFor(() => {
       expect(revealScope.isDone()).toBe(true);
-      expect(wrapper.getByDisplayValue("REMOVE")).toBeTruthy();
+      expect(wrapper.getByDisplayValue("kept")).toBeTruthy();
     });
 
     fireEvent.click(wrapper.getByLabelText("Remove build.vars row number 2"));
