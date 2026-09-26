@@ -34,6 +34,14 @@ func ProvidersJSON(ctx context.Context, env *buildconf.Env) (map[string]any, err
 		if p.Data.FromAddress != "" {
 			rendered[p.Name]["fromAddress"] = p.Data.FromAddress
 		}
+
+		if p.Data.Subject != "" {
+			rendered[p.Name]["subject"] = p.Data.Subject
+		}
+
+		if p.Data.Body != "" {
+			rendered[p.Name]["body"] = p.Data.Body
+		}
 	}
 
 	out := AuthConfigJSON(env.AuthConf)

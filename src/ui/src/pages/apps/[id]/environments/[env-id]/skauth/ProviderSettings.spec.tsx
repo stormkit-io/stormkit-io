@@ -295,4 +295,59 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/ProviderSettings.tsx", 
       });
     });
   });
+  describe("magic link submission", () => {
+    beforeEach(() => {
+      nock.cleanAll();
+      createWrapper({
+        provider: {
+          ...mockProvider,
+          id: "magiclink",
+          drawerTitle: "Magic Link Settings",
+          hasRedirectUrl: false,
+          hasAuthUrl: false,
+          fields: [
+            { name: "fromAddress", label: "From address", value: "a@b.co" },
+            { name: "subject", label: "Email subject", value: "" },
+            {
+              name: "body",
+              label: "Email body",
+              value: "",
+              multiline: true,
+            },
+          ],
+        },
+      });
+    });
+
+    afterEach(() => {
+      nock.cleanAll();
+    });
+
+    it("should send the subject and body", async () => {
+      fireEvent.change(wrapper.getByLabelText("Email subject"), {
+        target: { value: "Sign in to Acme" },
+      });
+
+      fireEvent.change(wrapper.getByLabelText("Email body"), {
+        target: { value: '<a href="{{link}}">Sign in</a>' },
+      });
+
+      const scope = nock(apiDomain)
+        .post("/skauth", {
+          envId: currentEnv.id,
+          providerName: "magiclink",
+          fromAddress: "a@b.co",
+          subject: "Sign in to Acme",
+          body: '<a href="{{link}}">Sign in</a>',
+          status: false,
+        })
+        .reply(200, { success: true });
+
+      fireEvent.click(wrapper.getByText("Save"));
+
+      await waitFor(() => {
+        expect(scope.isDone()).toBe(true);
+      });
+    });
+  });
 });

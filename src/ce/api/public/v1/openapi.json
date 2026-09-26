@@ -3234,6 +3234,16 @@
                     "type": "string",
                     "description": "Sender address for magic-link emails. Required for `magiclink`."
                   },
+                  "subject": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "description": "Subject of magic-link emails. Omit to keep the stored subject; an empty string restores the default `Your magic link`."
+                  },
+                  "body": {
+                    "type": "string",
+                    "maxLength": 20000,
+                    "description": "HTML body template for magic-link emails. Must contain `{{link}}`, which is replaced by the HTML-escaped sign-in URL. Omit to keep the stored body; an empty string restores the default."
+                  },
                   "clientId": {
                     "type": "string",
                     "description": "OAuth client ID. Required for OAuth providers."
@@ -4435,6 +4445,14 @@
           "fromAddress": {
             "type": "string",
             "description": "Sender address used for magic-link emails."
+          },
+          "subject": {
+            "type": "string",
+            "description": "Custom subject for magic-link emails. Absent when the default is used."
+          },
+          "body": {
+            "type": "string",
+            "description": "Custom HTML body template for magic-link emails. Absent when the default is used."
           }
         },
         "required": [

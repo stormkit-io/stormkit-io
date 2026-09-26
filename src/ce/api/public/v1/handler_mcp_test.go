@@ -2018,6 +2018,48 @@ func (s *HandlerMCPSuite) Test_ConfigureAuthProvider_KeepsFromAddressWhenOmitted
 	s.Equal("Acme <noreply@acme.com>", provider.Data.FromAddress, "omitted from address must be retained")
 }
 
+// Test_ConfigureAuthProvider_MagicLinkSubjectAndBody verifies the tool stores
+// the email subject and body, and keeps them when a later call omits them.
+func (s *HandlerMCPSuite) Test_ConfigureAuthProvider_MagicLinkSubjectAndBody() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	mockEnv := s.MockEnv(appl, map[string]any{
+		"SchemaConf": &buildconf.SchemaConf{
+			Host:              s.conn.Cfg.Host,
+			Port:              s.conn.Cfg.Port,
+			DBName:            s.conn.Cfg.DBName,
+			SchemaName:        s.conn.Cfg.Schema,
+			AppUserName:       s.conn.Cfg.User,
+			AppPassword:       s.conn.Cfg.Password,
+			MigrationPassword: s.conn.Cfg.Password,
+			MigrationUserName: s.conn.Cfg.User,
+			MigrationsEnabled: true,
+		},
+	})
+	key := s.userKey(usr)
+
+	s.rpcOK(s.post(key.Value, mcpToolCall(1, "configure_auth_provider", map[string]any{
+		"envId":        mockEnv.ID.String(),
+		"providerName": skauth.ProviderMagicLink,
+		"fromAddress":  "noreply@acme.com",
+		"subject":      "Sign in to Acme",
+		"body":         `<a href="{{link}}">Sign in</a>`,
+	})))
+
+	s.rpcOK(s.post(key.Value, mcpToolCall(2, "configure_auth_provider", map[string]any{
+		"envId":        mockEnv.ID.String(),
+		"providerName": skauth.ProviderMagicLink,
+		"status":       false,
+	})))
+
+	provider, err := skauth.NewStore().Provider(context.Background(), mockEnv.ID, skauth.ProviderMagicLink)
+	s.Require().NoError(err)
+	s.Require().NotNil(provider)
+	s.False(provider.Status)
+	s.Equal("Sign in to Acme", provider.Data.Subject)
+	s.Equal(`<a href="{{link}}">Sign in</a>`, provider.Data.Body)
+}
+
 // Test_ConfigureAuthProvider_CoercesQuotedStatus pins the fail-open direction
 // of a mistyped argument: a quoted boolean must still disable the provider,
 // because an ignored status silently keeps a live sign-in method enabled.

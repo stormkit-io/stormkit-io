@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
@@ -332,6 +333,115 @@ func (s *HandlerAuthUpsertSuite) Test_MagicLinkProvider_RequiresFromAddress() {
 	)
 
 	s.Equal(http.StatusBadRequest, response.Code)
+}
+
+// upsert posts body to the dashboard provider endpoint as the suite's user.
+func (s *HandlerAuthUpsertSuite) upsert(body map[string]any) shttptest.Response {
+	body["envId"] = s.env.ID
+
+	return shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/skauth",
+		body,
+		map[string]string{
+			"Authorization": usertest.Authorization(s.usr.ID),
+		},
+	)
+}
+
+func (s *HandlerAuthUpsertSuite) magicLinkProvider() *skauth.Provider {
+	provider, err := skauth.NewStore().Provider(context.Background(), s.env.ID, skauth.ProviderMagicLink)
+	s.Require().NoError(err)
+	s.Require().NotNil(provider)
+
+	return provider
+}
+
+// Test_MagicLinkProvider_SubjectAndBody covers the patch semantics: omitted
+// keeps the stored value, an empty string restores the default.
+func (s *HandlerAuthUpsertSuite) Test_MagicLinkProvider_SubjectAndBody() {
+	response := s.upsert(map[string]any{
+		"providerName": skauth.ProviderMagicLink,
+		"fromAddress":  "noreply@acme.com",
+		"subject":      "  Sign in to Acme  ",
+		"body":         `<a href="{{link}}">Sign in</a>`,
+	})
+
+	s.Equal(http.StatusOK, response.Code)
+	s.Equal("Sign in to Acme", s.magicLinkProvider().Data.Subject)
+	s.Equal(`<a href="{{link}}">Sign in</a>`, s.magicLinkProvider().Data.Body)
+
+	response = s.upsert(map[string]any{
+		"providerName": skauth.ProviderMagicLink,
+		"status":       false,
+	})
+
+	s.Equal(http.StatusOK, response.Code)
+	s.Equal("Sign in to Acme", s.magicLinkProvider().Data.Subject, "omitted subject must be retained")
+	s.Equal(`<a href="{{link}}">Sign in</a>`, s.magicLinkProvider().Data.Body, "omitted body must be retained")
+
+	response = s.upsert(map[string]any{
+		"providerName": skauth.ProviderMagicLink,
+		"subject":      "",
+		"body":         "",
+	})
+
+	s.Equal(http.StatusOK, response.Code)
+	s.Equal(skauth.ProviderData{FromAddress: "noreply@acme.com"}, s.magicLinkProvider().Data)
+}
+
+func (s *HandlerAuthUpsertSuite) Test_MagicLinkProvider_BodyRequiresPlaceholder() {
+	response := s.upsert(map[string]any{
+		"providerName": skauth.ProviderMagicLink,
+		"fromAddress":  "noreply@acme.com",
+		"body":         "<p>Sign in</p>",
+	})
+
+	s.Equal(http.StatusBadRequest, response.Code)
+	s.JSONEq(`{"errors":{"body":"Body must contain the {{link}} placeholder"}}`, response.String())
+}
+
+func (s *HandlerAuthUpsertSuite) Test_MagicLinkProvider_SubjectTooLong() {
+	response := s.upsert(map[string]any{
+		"providerName": skauth.ProviderMagicLink,
+		"fromAddress":  "noreply@acme.com",
+		"subject":      strings.Repeat("a", 201),
+	})
+
+	s.Equal(http.StatusBadRequest, response.Code)
+	s.JSONEq(`{"errors":{"subject":"Subject must be at most 200 characters"}}`, response.String())
+}
+
+// Test_MagicLinkProvider_SubjectCountsCharacters verifies the limit counts
+// characters, not bytes, so non-Latin subjects get the full 200.
+func (s *HandlerAuthUpsertSuite) Test_MagicLinkProvider_SubjectCountsCharacters() {
+	subject := strings.Repeat("ログ", 100)
+
+	response := s.upsert(map[string]any{
+		"providerName": skauth.ProviderMagicLink,
+		"fromAddress":  "noreply@acme.com",
+		"subject":      subject,
+	})
+
+	s.Equal(http.StatusOK, response.Code)
+	s.Equal(subject, s.magicLinkProvider().Data.Subject)
+}
+
+// Test_EmailProvider_IgnoresSubjectAndBody verifies the fields are magic-link only.
+func (s *HandlerAuthUpsertSuite) Test_EmailProvider_IgnoresSubjectAndBody() {
+	response := s.upsert(map[string]any{
+		"providerName": skauth.ProviderEmail,
+		"subject":      "Hello",
+		"body":         "{{link}}",
+	})
+
+	s.Equal(http.StatusOK, response.Code)
+
+	provider, err := skauth.NewStore().Provider(context.Background(), s.env.ID, skauth.ProviderEmail)
+	s.Require().NoError(err)
+	s.Require().NotNil(provider)
+	s.Equal(skauth.ProviderData{}, provider.Data)
 }
 
 func TestHandlerUpsertSuite(t *testing.T) {

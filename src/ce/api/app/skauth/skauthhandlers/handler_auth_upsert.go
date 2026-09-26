@@ -11,7 +11,11 @@ type AuthUpsertRequest struct {
 	ClientID     string `json:"clientId"`
 	ClientSecret string `json:"clientSecret"`
 	FromAddress  string `json:"fromAddress"`
-	Status       *bool  `json:"status"`
+	// Subject and Body are magic-link only. Omitted keeps the stored value;
+	// an empty string resets to the default.
+	Subject *string `json:"subject"`
+	Body    *string `json:"body"`
+	Status  *bool   `json:"status"`
 }
 
 // handlerAuthUpsert handles the upsert of an authentication provider
