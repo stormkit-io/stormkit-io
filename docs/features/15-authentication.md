@@ -208,6 +208,9 @@ Passwordless sign-in via a one-time link sent by email.
 
 - Configure the **From address** used as the `From` header for magic-link emails
   (e.g. `Acme <noreply@acme.com>`).
+- Optionally set the email **Subject** (defaults to `Your magic link`) and an
+  HTML **Body** template. The body must contain `{{link}}`, which is replaced by
+  the sign-in URL. Leave either empty to use the default.
 - Request a link: `GET /_stormkit/auth/magic?email=user@example.com`. The
   endpoint returns `201` with no content and emails the user a link.
 - The emailed link points to `/_stormkit/auth/magic?token=<token>`, which
@@ -433,6 +436,8 @@ with the same key requirements and the same self-hosted-only availability.
 | `clientId` | string | OAuth client id. Required for OAuth providers. |
 | `clientSecret` | string | OAuth client secret. Write-only; omit it or send the placeholder to keep the stored one. |
 | `fromAddress` | string | Sender address for the `email` and `magiclink` providers. Required for `magiclink`. |
+| `subject` | string | Magic-link email subject, up to 200 characters. Omitted keeps the stored value; empty restores the default. |
+| `body` | string | Magic-link email HTML template containing `{{link}}`. Omitted keeps the stored value; empty restores the default. |
 
 Enabling a provider requires the environment to have a
 [database schema](/docs/features/database) configured, and creates a default

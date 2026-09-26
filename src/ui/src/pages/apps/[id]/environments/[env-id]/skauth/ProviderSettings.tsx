@@ -119,13 +119,19 @@ export default function ProviderSettings({
           setLoading(true);
           setError(undefined);
 
+          // Wrapped in `body` because the payload has its own `body` field,
+          // which Api.post would otherwise mistake for the request body.
           Api.post(`/skauth`, {
-            envId,
-            providerName: provider?.id,
-            clientId: data.clientId,
-            clientSecret: data.clientSecret,
-            fromAddress: data.fromAddress,
-            status: isEnabled,
+            body: {
+              envId,
+              providerName: provider?.id,
+              clientId: data.clientId,
+              clientSecret: data.clientSecret,
+              fromAddress: data.fromAddress,
+              subject: data.subject,
+              body: data.body,
+              status: isEnabled,
+            },
           })
             .then(() => {
               setRefreshToken(Date.now());
@@ -160,6 +166,8 @@ export default function ProviderSettings({
               defaultValue={field.value}
               helperText={field.helperText}
               required={field.required}
+              multiline={field.multiline}
+              minRows={field.multiline ? 4 : undefined}
               fullWidth
               sx={{ mb: 2 }}
             />

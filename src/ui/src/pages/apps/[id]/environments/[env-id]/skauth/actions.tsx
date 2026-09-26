@@ -62,6 +62,7 @@ export interface Field {
   value: string;
   required?: boolean;
   helperText?: string;
+  multiline?: boolean;
 }
 
 type AuthProviderID = "email" | "magiclink" | "google" | "x";
@@ -123,6 +124,21 @@ const allProviders: AuthProvider[] = [
         required: true,
         helperText:
           'Address used as the From header for magic-link emails (e.g. "Acme <noreply@acme.com>").',
+      },
+      {
+        name: "subject",
+        label: "Email subject",
+        value: "",
+        helperText:
+          'Subject of the magic-link email (e.g. "Sign in to Acme"). Leave empty to use "Your magic link".',
+      },
+      {
+        name: "body",
+        label: "Email body",
+        value: "",
+        multiline: true,
+        helperText:
+          "HTML template for the email body. Use {{link}} where the sign-in URL goes. Leave empty to use the default.",
       },
     ],
     steps: [

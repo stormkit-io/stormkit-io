@@ -115,7 +115,16 @@ type ProviderData struct {
 	RedirectURL  string   `json:"redirectURL"`
 	Scopes       []string `json:"scopes"`
 	FromAddress  string   `json:"fromAddress,omitempty"`
+	// Subject and Body customise the magic-link email. Empty means the
+	// built-in default. Body is an HTML template where MagicLinkPlaceholder is
+	// replaced by the sign-in URL.
+	Subject string `json:"subject,omitempty"`
+	Body    string `json:"body,omitempty"`
 }
+
+// MagicLinkPlaceholder marks where the sign-in URL goes in a custom
+// magic-link email body.
+const MagicLinkPlaceholder = "{{link}}"
 
 type Provider struct {
 	ID     types.ID

@@ -218,6 +218,39 @@ func (s *WithSKAuthMagicLinkSuite) Test_Request_Success() {
 	s.Require().Len(emails, 1)
 	s.Equal("user@example.com", emails[0].To)
 	s.Contains(emails[0].Body, "_stormkit/auth/magic?token=")
+	s.Equal("Your magic link", emails[0].Subject)
+}
+
+// Test_Request_CustomSubjectAndBody verifies the stored subject and body
+// template are what the recipient receives.
+func (s *WithSKAuthMagicLinkSuite) Test_Request_CustomSubjectAndBody() {
+	env, err := s.setupEnv()
+	s.Require().NoError(err)
+
+	err = skauth.NewStore().SaveProvider(context.Background(), skauth.SaveProviderArgs{
+		EnvID: env.ID,
+		AppID: s.app.ID,
+		Provider: &skauth.Provider{
+			Name:   skauth.ProviderMagicLink,
+			Status: true,
+			Data: skauth.ProviderData{
+				Subject: "Sign in to Acme",
+				Body:    `<a href="{{link}}">Continue</a>`,
+			},
+		},
+	})
+	s.Require().NoError(err)
+
+	res, err := hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), "/_stormkit/auth/magic?email=user@example.com"))
+
+	s.NoError(err)
+	s.Equal(http.StatusCreated, res.Status)
+
+	emails, err := buildconf.MailerStore().Emails(context.Background(), env.ID)
+	s.Require().NoError(err)
+	s.Require().Len(emails, 1)
+	s.Equal("Sign in to Acme", emails[0].Subject)
+	s.Regexp(`^<a href="https://my\.example\.com/_stormkit/auth/magic\?token=[^"]+">Continue</a>$`, emails[0].Body)
 }
 
 func (s *WithSKAuthMagicLinkSuite) Test_Request_CreatesNewUser() {

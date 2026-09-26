@@ -611,6 +611,8 @@ func mcpAllTools() []mcpToolDef {
 						"providerName": map[string]any{"type": "string", "description": "Provider to configure.", "enum": []string{"magiclink", "email", "google", "x"}},
 						"status":       map[string]any{"type": "boolean", "description": "Whether the provider is enabled. Omit to keep the current value; a provider created for the first time defaults to enabled."},
 						"fromAddress":  map[string]any{"type": "string", "description": "Sender address for magic-link emails. Required for the magiclink provider. Omit it to keep the stored address."},
+						"subject":      map[string]any{"type": "string", "description": "Subject of magic-link emails (magiclink only, max 200 characters). Omit it to keep the stored subject; an empty string restores the default \"Your magic link\"."},
+						"body":         map[string]any{"type": "string", "description": "HTML body template for magic-link emails (magiclink only). Must contain {{link}}, which is replaced by the sign-in URL. Omit it to keep the stored body; an empty string restores the default."},
 						"clientId":     map[string]any{"type": "string", "description": "OAuth client ID. Required for OAuth providers. Omit it to keep the stored ID."},
 						"clientSecret": map[string]any{"type": "string", "description": "OAuth client secret. Write-only: omit it to keep the stored secret."},
 					},
@@ -1587,6 +1589,8 @@ func mcpConfigureAuthProvider(req *RequestContextMCP, id any, args map[string]an
 		ClientID:     stringArg(args, "clientId"),
 		ClientSecret: stringArg(args, "clientSecret"),
 		FromAddress:  stringArg(args, "fromAddress"),
+		Subject:      stringPtrArg(args, "subject"),
+		Body:         stringPtrArg(args, "body"),
 		Status:       boolPtrArg(args, "status"),
 	}
 

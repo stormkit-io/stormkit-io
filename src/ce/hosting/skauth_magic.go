@@ -2,6 +2,7 @@ package hosting
 
 import (
 	"fmt"
+	"html"
 	"strings"
 	"time"
 
@@ -292,15 +293,52 @@ func generateMagicLinkToken(p generateMagicLinkTokenParams) (string, error) {
 	return user.JWT(claims, p.Env.AuthConf.Secret)
 }
 
+const defaultMagicLinkSubject = "Your magic link"
+
+// defaultMagicLinkBody is used when the provider has no custom body. Both
+// verbs are filled with HTML-escaped values: the host, then the sign-in URL.
+const defaultMagicLinkBody = `<p>Use the button below to sign in to %s. The link expires in 15 minutes.</p>` +
+	`<p><a href="%s" style="display:inline-block;padding:10px 20px;background:#111827;color:#ffffff;border-radius:6px;text-decoration:none;font-weight:600">Sign in</a></p>` +
+	`<p>If you did not request this email, you can safely ignore it.</p>`
+
+type magicLinkEmail struct {
+	Provider *skauth.Provider
+	Host     string
+	Link     string
+}
+
+// subject returns the configured subject, or the default when none is set.
+// Newlines are stripped so a stored subject cannot inject SMTP headers.
+func (m magicLinkEmail) subject() string {
+	return buildconf.SanitizeHeader(utils.GetString(m.Provider.Data.Subject, defaultMagicLinkSubject))
+}
+
+// body renders the configured template, or the default one. Only the link is
+// escaped: the template itself is HTML authored by the app owner.
+func (m magicLinkEmail) body() string {
+	link := html.EscapeString(m.Link)
+
+	if tpl := m.Provider.Data.Body; tpl != "" {
+		return strings.ReplaceAll(tpl, skauth.MagicLinkPlaceholder, link)
+	}
+
+	return fmt.Sprintf(defaultMagicLinkBody, html.EscapeString(m.Host), link)
+}
+
 func sendMagicLinkEmail(req *shttp.RequestContext, env *buildconf.Env, prv *skauth.Provider, email, token string) error {
 	u := req.URL()
-	link := fmt.Sprintf("%s://%s/_stormkit/auth/magic?token=%s", u.Scheme, u.Host, token)
+
+	msg := magicLinkEmail{
+		Provider: prv,
+		Host:     u.Host,
+		Link:     fmt.Sprintf("%s://%s/_stormkit/auth/magic?token=%s", u.Scheme, u.Host, token),
+	}
 
 	params := buildconf.SendEmailParams{
 		To:      email,
 		From:    prv.Data.FromAddress,
-		Subject: "Your magic link",
-		Body:    fmt.Sprintf(`<p>Click the link below to sign in. The link expires in 15 minutes.</p><p><a href="%s">%s</a></p>`, link, link),
+		Subject: msg.subject(),
+		Body:    msg.body(),
 	}
 
 	if err := buildconf.MailerStore().InsertEmail(req.Context(), buildconf.Email{

@@ -2,7 +2,9 @@ package skauthhandlers
 
 import (
 	"context"
+	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appcache"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
@@ -131,7 +133,15 @@ func providerDataFor(p providerDataForParams) (skauth.ProviderData, error) {
 			return skauth.ProviderData{}, &shttperr.ValidationError{Errors: map[string]string{"fromAddress": "From address is required"}}
 		}
 
-		return skauth.ProviderData{FromAddress: fromAddress}, nil
+		if data.ProviderName == skauth.ProviderEmail {
+			return skauth.ProviderData{FromAddress: fromAddress}, nil
+		}
+
+		return magicLinkData(magicLinkDataParams{
+			Data:        data,
+			Existing:    p.Existing,
+			FromAddress: fromAddress,
+		})
 	}
 
 	// An omitted or placeholder secret keeps the stored one, so a client that
@@ -159,6 +169,54 @@ func providerDataFor(p providerDataForParams) (skauth.ProviderData, error) {
 		ClientID:     data.ClientID,
 		ClientSecret: data.ClientSecret,
 	}, nil
+}
+
+const (
+	maxMagicLinkSubjectLength = 200
+	maxMagicLinkBodyLength    = 20_000
+)
+
+type magicLinkDataParams struct {
+	Data        AuthUpsertRequest
+	Existing    *skauth.Provider
+	FromAddress string
+}
+
+// magicLinkData validates the magic-link email subject and body. A nil field
+// keeps the stored value; an empty one falls back to the default.
+func magicLinkData(p magicLinkDataParams) (skauth.ProviderData, error) {
+	out := skauth.ProviderData{FromAddress: p.FromAddress}
+
+	if p.Existing != nil {
+		out.Subject = p.Existing.Data.Subject
+		out.Body = p.Existing.Data.Body
+	}
+
+	if p.Data.Subject != nil {
+		out.Subject = strings.TrimSpace(*p.Data.Subject)
+	}
+
+	if p.Data.Body != nil {
+		out.Body = strings.TrimSpace(*p.Data.Body)
+	}
+
+	errs := map[string]string{}
+
+	if utf8.RuneCountInString(out.Subject) > maxMagicLinkSubjectLength {
+		errs["subject"] = fmt.Sprintf("Subject must be at most %d characters", maxMagicLinkSubjectLength)
+	}
+
+	if utf8.RuneCountInString(out.Body) > maxMagicLinkBodyLength {
+		errs["body"] = fmt.Sprintf("Body must be at most %d characters", maxMagicLinkBodyLength)
+	} else if out.Body != "" && !strings.Contains(out.Body, skauth.MagicLinkPlaceholder) {
+		errs["body"] = fmt.Sprintf("Body must contain the %s placeholder", skauth.MagicLinkPlaceholder)
+	}
+
+	if len(errs) > 0 {
+		return skauth.ProviderData{}, &shttperr.ValidationError{Errors: errs}
+	}
+
+	return out, nil
 }
 
 type saveProviderParams struct {
