@@ -6,6 +6,7 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
 var hooksDescription = "Stormkit Deploy Hook"
@@ -56,7 +57,7 @@ func (b *Bitbucket) InstallWebhooks(a *App) error {
 	return err
 }
 
-// hooksInstalled checks if the hooks are already installed or not.
+// isHookInstalled checks whether a hook for this app is already installed.
 func (b *Bitbucket) isHookInstalled(a *App) bool {
 	response, err := b.get(b.hooksEndpoint(a))
 
@@ -70,8 +71,18 @@ func (b *Bitbucket) isHookInstalled(a *App) bool {
 		return false
 	}
 
+	prefix := admin.MustConfig().ApiURL(hooksPath) + "/"
+
 	for _, val := range hooks.Values {
-		if strings.HasPrefix(val.URL, admin.MustConfig().ApiURL(hooksPath)) {
+		secret, found := strings.CutPrefix(val.URL, prefix)
+
+		if !found {
+			continue
+		}
+
+		// Each app needs its own hook, since a verified webhook deploys
+		// only the app whose secret it carries.
+		if id, err := utils.DecryptID(secret); err == nil && id == a.ID {
 			return true
 		}
 	}

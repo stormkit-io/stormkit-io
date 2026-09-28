@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, waitFor, type RenderResult } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  waitFor,
+  type RenderResult,
+} from "@testing-library/react";
 import nock from "nock";
 import Git from "./Git";
 import { AuthContext } from "~/pages/auth/Auth.context";
@@ -124,6 +129,56 @@ describe("~/pages/admin/Git/Git.tsx", () => {
       );
 
       expect(checkIcons.length).toBe(3); // One for each provider
+    });
+  });
+
+  describe("webhook secret warning", () => {
+    const warning = /no webhook secret is configured/;
+
+    const renderWith = async (details: GitDetails) => {
+      const scope = nock(apiDomain)
+        .get("/admin/git/details")
+        .reply(200, details);
+
+      wrapper = render(
+        <AuthContext.Provider value={defaultAuthContext}>
+          <Git />
+        </AuthContext.Provider>
+      );
+
+      await waitFor(() => {
+        expect(scope.isDone()).toBe(true);
+        expect(
+          wrapper.container.querySelector('[data-testid="CheckIcon"]')
+        ).toBeTruthy();
+      });
+    };
+
+    it("should warn when GitHub has no webhook secret", async () => {
+      await renderWith(defaultGitDetails);
+
+      expect(wrapper.getByText(warning)).toBeTruthy();
+
+      fireEvent.click(wrapper.getByText("Configure the webhook secret"));
+
+      await waitFor(() => {
+        expect(wrapper.getByTestId("github-modal")).toBeTruthy();
+      });
+    });
+
+    it("should not warn when GitHub has a webhook secret", async () => {
+      await renderWith({
+        ...defaultGitDetails,
+        github: { ...defaultGitDetails.github!, hasWebhookSecret: true },
+      });
+
+      expect(wrapper.queryByText(warning)).toBeNull();
+    });
+
+    it("should not warn when GitHub is not configured", async () => {
+      await renderWith({ ...defaultGitDetails, github: undefined });
+
+      expect(wrapper.queryByText(warning)).toBeNull();
     });
   });
 

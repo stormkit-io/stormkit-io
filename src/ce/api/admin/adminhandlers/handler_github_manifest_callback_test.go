@@ -98,6 +98,7 @@ func (s *HandlerGitHubManifestCallbackSuite) Test_ManifestCallback_ValidState() 
 				"name": "test-app",
 				"client_id": "test-client-id",
 				"client_secret": "test-client-secret",
+				"webhook_secret": "test-webhook-secret",
 				"pem": "test-pem"
 			}`)),
 		},
@@ -120,6 +121,7 @@ func (s *HandlerGitHubManifestCallbackSuite) Test_ManifestCallback_ValidState() 
 	s.Equal("test-client-id", config.AuthConfig.Github.ClientID)
 	s.Equal("test-client-secret", config.AuthConfig.Github.ClientSecret)
 	s.Equal("test-pem", config.AuthConfig.Github.PrivateKey)
+	s.Equal("test-webhook-secret", config.AuthConfig.Github.WebhookSecret)
 }
 
 func TestHandlerGitHubManifestCallbackSuite(t *testing.T) {

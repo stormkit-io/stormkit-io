@@ -99,6 +99,9 @@ type GithubConfig struct {
 	RunnerRepo   string
 	RunnerToken  string
 	AppID        int
+
+	// WebhookSecret is the secret GitHub signs webhook payloads with.
+	WebhookSecret string
 }
 
 type GitlabConfig struct {
@@ -194,6 +197,7 @@ func (c *InstanceConfig) Scan(val any) error {
 		c.AuthConfig.Github.ClientSecret = utils.DecryptToString(c.AuthConfig.Github.ClientSecret)
 		c.AuthConfig.Github.PrivateKey = utils.DecryptToString(c.AuthConfig.Github.PrivateKey)
 		c.AuthConfig.Github.RunnerToken = utils.DecryptToString(c.AuthConfig.Github.RunnerToken)
+		c.AuthConfig.Github.WebhookSecret = utils.DecryptToString(c.AuthConfig.Github.WebhookSecret)
 		c.AuthConfig.Gitlab.ClientSecret = utils.DecryptToString(c.AuthConfig.Gitlab.ClientSecret)
 		c.AuthConfig.Bitbucket.ClientSecret = utils.DecryptToString(c.AuthConfig.Bitbucket.ClientSecret)
 		c.AuthConfig.Bitbucket.DeployKey = utils.DecryptToString(c.AuthConfig.Bitbucket.DeployKey)
@@ -227,6 +231,10 @@ func (c InstanceConfig) Value() (driver.Value, error) {
 
 		if c.AuthConfig.Github.RunnerToken != "" {
 			c.AuthConfig.Github.RunnerToken = utils.EncryptToString(c.AuthConfig.Github.RunnerToken)
+		}
+
+		if c.AuthConfig.Github.WebhookSecret != "" {
+			c.AuthConfig.Github.WebhookSecret = utils.EncryptToString(c.AuthConfig.Github.WebhookSecret)
 		}
 
 		if c.AuthConfig.Gitlab.ClientSecret != "" {
@@ -385,6 +393,18 @@ func (vc InstanceConfig) IsGithubEnabled() bool {
 		vc.AuthConfig.Github.PrivateKey != "" &&
 		vc.AuthConfig.Github.Account != "" &&
 		vc.AuthConfig.Github.AppID > 0
+}
+
+// GithubWebhookSecret returns the secret used to verify GitHub webhook
+// signatures. The stored configuration takes precedence, so a secret saved
+// from the admin panel is never shadowed by the GITHUB_WEBHOOK_SECRET
+// environment variable.
+func (vc InstanceConfig) GithubWebhookSecret() string {
+	if vc.AuthConfig != nil && vc.AuthConfig.Github.WebhookSecret != "" {
+		return vc.AuthConfig.Github.WebhookSecret
+	}
+
+	return config.Secrets()["GITHUB_WEBHOOK_SECRET"]
 }
 
 // SignUpMode returns the configured sign up mode.

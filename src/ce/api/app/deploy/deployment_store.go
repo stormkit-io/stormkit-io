@@ -327,11 +327,19 @@ type DeploymentStats struct {
 	RemainingDeploymentsThisMonth int `json:"remainingDeploymentsThisMonth"`
 }
 
+// IsDeploymentAlreadyBuiltParams represents the parameters for IsDeploymentAlreadyBuilt.
+type IsDeploymentAlreadyBuiltParams struct {
+	CommitID string
+
+	// AppID limits the check to a single app. Zero checks every app.
+	AppID types.ID
+}
+
 // IsDeploymentAlreadyBuilt checks if the deployment has been already built or not.
-func (s *Store) IsDeploymentAlreadyBuilt(ctx context.Context, commitID string) (bool, error) {
+func (s *Store) IsDeploymentAlreadyBuilt(ctx context.Context, p IsDeploymentAlreadyBuiltParams) (bool, error) {
 	var count int
 
-	row, err := s.QueryRow(ctx, stmt.isDeploymentAlreadyBuilt, commitID)
+	row, err := s.QueryRow(ctx, stmt.isDeploymentAlreadyBuilt, p.CommitID, p.AppID)
 
 	if err != nil {
 		return false, err

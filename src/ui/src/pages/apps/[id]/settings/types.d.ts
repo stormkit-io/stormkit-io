@@ -10,6 +10,7 @@ export type Runtime = "nodejs18.x" | "nodejs20.x" | "nodejs22.x";
 export interface AppSettings {
   envs: Array<string>;
   deployTrigger?: boolean;
+  inboundWebhook?: string;
 }
 
 export type AllowedMethod = "GET" | "POST" | "HEAD";

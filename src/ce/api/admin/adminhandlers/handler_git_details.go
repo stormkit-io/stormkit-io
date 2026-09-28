@@ -33,13 +33,14 @@ func handlerGitDetails(req *user.RequestContext) *shttp.Response {
 
 	if cnf.IsGithubEnabled() {
 		data["github"] = map[string]any{
-			"appId":           utils.Int64ToString(int64(auth.Github.AppID)),
-			"account":         auth.Github.Account,
-			"clientId":        auth.Github.ClientID,
-			"runnerRepo":      auth.Github.RunnerRepo,
-			"hasRunnerToken":  auth.Github.RunnerToken != "",
-			"hasPrivateKey":   true,
-			"hasClientSecret": true,
+			"appId":            utils.Int64ToString(int64(auth.Github.AppID)),
+			"account":          auth.Github.Account,
+			"clientId":         auth.Github.ClientID,
+			"runnerRepo":       auth.Github.RunnerRepo,
+			"hasRunnerToken":   auth.Github.RunnerToken != "",
+			"hasPrivateKey":    true,
+			"hasClientSecret":  true,
+			"hasWebhookSecret": cnf.GithubWebhookSecret() != "",
 		}
 	}
 

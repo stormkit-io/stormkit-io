@@ -55,6 +55,7 @@ export const useFetchAdditionalSettings = ({
         if (unmounted !== true) {
           setSettings({
             deployTrigger: res.deployTrigger,
+            inboundWebhook: res.inboundWebhook,
             runtime: res.runtime,
             envs: res.envs,
           });

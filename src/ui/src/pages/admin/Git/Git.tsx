@@ -1,6 +1,7 @@
 import { useState, useEffect, useContext } from "react";
 import { useSearchParams } from "react-router-dom";
 import Box from "@mui/material/Box";
+import Link from "@mui/material/Link";
 import CheckIcon from "@mui/icons-material/Check";
 import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
@@ -45,6 +46,8 @@ export default function Git() {
   const [error, setError] = useState<string>();
   const [success, setSuccess] = useState<string>();
   const { details, loading, error: fetchError } = useFetchGitDetails();
+  const isWebhookSecretMissing =
+    details?.github && !details.github.hasWebhookSecret;
 
   useEffect(() => {
     if (params.get("success") === "github_app_created") {
@@ -56,6 +59,22 @@ export default function Git() {
     <Card
       error={error || fetchError}
       success={success}
+      info={
+        isWebhookSecretMissing && (
+          <>
+            GitHub webhooks are rejected because no webhook secret is
+            configured, so pushes and pull requests do not trigger deployments.{" "}
+            <Link
+              component="button"
+              color="secondary"
+              onClick={() => setIsGitHubModalOpen(true)}
+            >
+              Configure the webhook secret
+            </Link>{" "}
+            of your GitHub App to enable automatic deployments.
+          </>
+        )
+      }
       loading={loading}
       sx={{ backgroundColor: "container.transparent" }}
     >
@@ -66,7 +85,7 @@ export default function Git() {
       <Box
         sx={{
           display: "flex",
-          mb: error || success ? 4 : 0,
+          mb: error || success || isWebhookSecretMissing ? 4 : 0,
           mx: "auto",
         }}
       >

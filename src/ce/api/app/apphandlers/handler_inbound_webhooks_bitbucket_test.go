@@ -127,6 +127,62 @@ func (s *InboundBitbucketSuite) app(autoDeploy bool) *factory.MockApp {
 	return appl
 }
 
+// post sends a Bitbucket webhook with the given event key to target.
+func (s *InboundBitbucketSuite) post(target, event string, payload map[string]any) shttptest.Response {
+	return shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(apphandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		target,
+		payload,
+		map[string]string{"X-Event-Key": event},
+	)
+}
+
+func (s *InboundBitbucketSuite) pushPayload() map[string]any {
+	payload := map[string]any{}
+	s.Require().NoError(json.Unmarshal([]byte(bitbucketPushExample), &payload))
+	return payload
+}
+
+// Test_Rejected_NoSecret verifies that webhooks without an app secret never trigger a deployment.
+func (s *InboundBitbucketSuite) Test_Rejected_NoSecret() {
+	s.app(true)
+
+	response := s.post("/app/webhooks/bitbucket", bitbucketPushEvent, s.pushPayload())
+
+	s.Equal(http.StatusForbidden, response.Code)
+	s.mockDeployer.AssertNotCalled(s.T(), "Deploy")
+}
+
+// Test_Rejected_SecretOfAnotherRepo verifies that a valid secret cannot be
+// used to trigger deployments for a repository its app is not connected to.
+func (s *InboundBitbucketSuite) Test_Rejected_SecretOfAnotherRepo() {
+	s.app(true)
+
+	other := s.MockApp(nil, map[string]any{"Repo": "bitbucket/attacker/other-repo"})
+
+	response := s.post(fmt.Sprintf("/app/webhooks/bitbucket/%s", other.Secret()), bitbucketPushEvent, s.pushPayload())
+
+	s.Equal(http.StatusForbidden, response.Code)
+	s.mockDeployer.AssertNotCalled(s.T(), "Deploy")
+}
+
+// Test_PullRequestCreated_Fork verifies that pull requests from forks are not built automatically.
+func (s *InboundBitbucketSuite) Test_PullRequestCreated_Fork() {
+	appl := s.app(true)
+
+	payload := map[string]any{}
+	s.Require().NoError(json.Unmarshal([]byte(bitbucketMergeExample("OPEN")), &payload))
+
+	source := payload["pullrequest"].(map[string]any)["source"].(map[string]any)
+	source["repository"].(map[string]any)["full_name"] = "attacker/test-repo"
+
+	response := s.post(fmt.Sprintf("/app/webhooks/bitbucket/%s", appl.Secret()), "pullrequest:created", payload)
+
+	s.Equal(http.StatusNoContent, response.Code)
+	s.mockDeployer.AssertNotCalled(s.T(), "Deploy")
+}
+
 func (s *InboundBitbucketSuite) Test_NoAutoDeploy() {
 	payload := map[string]any{}
 	s.NoError(json.Unmarshal([]byte(bitbucketPushExample), &payload))

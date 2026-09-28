@@ -220,6 +220,10 @@ services:
       # Make sure to enclose your variable with quotes.
       - GITHUB_PRIV_KEY=${GITHUB_PRIV_KEY:-}
 
+      # The webhook secret configured under the Webhook section of your GitHub App page.
+      # Webhooks from GitHub are rejected until this is set.
+      - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET:-}
+
       #########################################################################################
       #                                                                                       #
       # Configure these variables when Authentication method is BitBucket                     #

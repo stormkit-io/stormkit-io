@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
@@ -84,6 +85,12 @@ func (dd *DefaultDeployer) Deploy(ctx context.Context, a *app.App, d *deploy.Dep
 
 	if err != nil {
 		return err
+	}
+
+	// The credentials grant access to the app's repository. Never hand them to
+	// a build that checks out a different one, such as a fork.
+	if d.CheckoutRepo != "" && !strings.EqualFold(d.CheckoutRepo, a.Repo) {
+		gitCreds = ""
 	}
 
 	d.ConfigCopy, _ = d.MarshalConfigSnapshot()

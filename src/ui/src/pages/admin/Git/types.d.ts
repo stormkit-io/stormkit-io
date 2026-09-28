@@ -5,6 +5,7 @@ export interface GitDetails {
     clientId: string;
     hasClientSecret: boolean;
     hasPrivateKey: boolean;
+    hasWebhookSecret?: boolean;
   };
   gitlab?: {
     clientId: string;

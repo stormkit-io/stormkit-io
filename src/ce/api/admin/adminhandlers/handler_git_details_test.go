@@ -87,6 +87,8 @@ func (s *HandlerGitDetailsSuite) Test_GitDetails_GitHubConfigured() {
 			AppID:        12345,
 			RunnerRepo:   "test-runner-repo",
 			RunnerToken:  "test-runner-token",
+
+			WebhookSecret: "test-webhook-secret",
 		},
 	}
 	s.NoError(admin.Store().UpsertConfig(context.Background(), cnf))
@@ -110,7 +112,8 @@ func (s *HandlerGitDetailsSuite) Test_GitDetails_GitHubConfigured() {
 			"runnerRepo": "test-runner-repo",
 			"hasRunnerToken": true,
 			"hasPrivateKey": true,
-			"hasClientSecret": true
+			"hasClientSecret": true,
+			"hasWebhookSecret": true
 		}
 	}`, response.String())
 }
@@ -152,7 +155,8 @@ func (s *HandlerGitDetailsSuite) Test_GitDetails_GitHubPartialConfiguration() {
 			"runnerRepo": "test-runner-repo",
 			"hasRunnerToken": false,
 			"hasPrivateKey": true,
-			"hasClientSecret": true
+			"hasClientSecret": true,
+			"hasWebhookSecret": false
 		}
 	}`, response.String())
 }
@@ -306,6 +310,7 @@ func (s *HandlerGitDetailsSuite) Test_GitDetails_AllProvidersConfigured() {
 			"hasRunnerToken": true,
 			"hasPrivateKey": true,
 			"hasClientSecret": true,
+			"hasWebhookSecret": false,
 			"appId": "12345"
 		},
 		"gitlab": {

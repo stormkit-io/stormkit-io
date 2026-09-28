@@ -76,6 +76,8 @@ func handlerGitHubManifestCallback(req *shttp.RequestContext) *shttp.Response {
 		PrivateKey:   credentials.PEM,
 		AppID:        int(credentials.ID),
 		Account:      credentials.Name,
+
+		WebhookSecret: credentials.WebhookSecret,
 	}
 
 	if err := admin.Store().UpsertConfig(context.Background(), cnf); err != nil {

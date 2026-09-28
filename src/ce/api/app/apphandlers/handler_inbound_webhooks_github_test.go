@@ -1,16 +1,17 @@
 package apphandlers_test
 
 import (
+	"context"
 	"crypto/hmac"
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"hash"
 	"net/http"
 	"strings"
 	"testing"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apphandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
@@ -77,15 +78,17 @@ const githubPushExample = `{
   }
 }`
 
-// githubMac computes the hash value with the github secret. It is used
-// to authenticate a request.
-func githubMac(payload map[string]any) hash.Hash {
-	// Need to write the body by unmarshaling and marshaling to make sure
-	// that it mimics the request and the whitespaces do not create a problem.
-	mac := hmac.New(sha1.New, []byte("random-token"))
+const githubWebhookSecret = "random-token"
+
+// githubSignature computes the X-Hub-Signature-256 header GitHub sends
+// for the given payload.
+func githubSignature(payload map[string]any) string {
+	// Marshal the payload the same way the request body is built so that
+	// whitespace differences do not break the signature.
+	mac := hmac.New(sha256.New, []byte(githubWebhookSecret))
 	body, _ := json.Marshal(payload)
 	_, _ = mac.Write(body)
-	return mac
+	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
 }
 
 type InboundGithubSuite struct {
@@ -102,11 +105,74 @@ func (s *InboundGithubSuite) BeforeTest(suiteName, _ string) {
 	s.mockDeployer = &mocks.Deployer{}
 	s.mockDeployer.On("Deploy", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	deployservice.MockDeployer = s.mockDeployer
+	s.setWebhookSecret(githubWebhookSecret)
 }
 
 func (s *InboundGithubSuite) AfterTest(suiteName, _ string) {
 	s.conn.CloseTx()
 	deployservice.MockDeployer = nil
+	admin.ResetCache(context.Background())
+}
+
+// setWebhookSecret configures the secret GitHub webhooks are verified with.
+func (s *InboundGithubSuite) setWebhookSecret(secret string) {
+	cnf := admin.MustConfig()
+	cnf.AuthConfig = &admin.AuthConfig{Github: admin.GithubConfig{WebhookSecret: secret}}
+	admin.SetConfig(&cnf)
+}
+
+// push sends a push event to the webhook endpoint with the given headers.
+func (s *InboundGithubSuite) push(headers map[string]string) shttptest.Response {
+	payload := map[string]any{}
+	s.Require().NoError(json.Unmarshal([]byte(githubPushExample), &payload))
+
+	return shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(apphandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/app/webhooks/github/deploy",
+		payload,
+		headers,
+	)
+}
+
+// Test_Rejected_MissingSignature verifies that unsigned payloads never trigger a deployment.
+func (s *InboundGithubSuite) Test_Rejected_MissingSignature() {
+	s.app(nil)
+
+	response := s.push(map[string]string{"X-Github-Event": "push"})
+
+	s.Equal(http.StatusForbidden, response.Code)
+	s.mockDeployer.AssertNotCalled(s.T(), "Deploy")
+}
+
+func (s *InboundGithubSuite) Test_Rejected_InvalidSignature() {
+	s.app(nil)
+
+	response := s.push(map[string]string{
+		"X-Github-Event":      "push",
+		"X-Hub-Signature-256": "sha256=" + strings.Repeat("0", 64),
+	})
+
+	s.Equal(http.StatusForbidden, response.Code)
+	s.mockDeployer.AssertNotCalled(s.T(), "Deploy")
+}
+
+// Test_Rejected_NoSecretConfigured verifies that webhooks are rejected, rather
+// than accepted unverified, when the instance has no webhook secret.
+func (s *InboundGithubSuite) Test_Rejected_NoSecretConfigured() {
+	s.app(nil)
+	s.setWebhookSecret("")
+
+	payload := map[string]any{}
+	s.Require().NoError(json.Unmarshal([]byte(githubPushExample), &payload))
+
+	response := s.push(map[string]string{
+		"X-Github-Event":      "push",
+		"X-Hub-Signature-256": githubSignature(payload),
+	})
+
+	s.Equal(http.StatusForbidden, response.Code)
+	s.mockDeployer.AssertNotCalled(s.T(), "Deploy")
 }
 
 func (s *InboundGithubSuite) app(envOverwrite map[string]any) *factory.MockApp {
@@ -138,8 +204,8 @@ func (s *InboundGithubSuite) Test_NoAutoDeploy() {
 		fmt.Sprintf("/app/webhooks/github/%s", appl.Secret()),
 		payload,
 		map[string]string{
-			"X-Github-Event":  "push",
-			"X-Hub-Signature": fmt.Sprintf("sha1=%s", hex.EncodeToString(githubMac(payload).Sum(nil))),
+			"X-Github-Event":      "push",
+			"X-Hub-Signature-256": githubSignature(payload),
 		},
 	)
 
@@ -161,8 +227,8 @@ func (s *InboundGithubSuite) Test_ShouldNotDeployTags() {
 		"/app/webhooks/github",
 		payload,
 		map[string]string{
-			"X-Github-Event":  "push",
-			"X-Hub-Signature": fmt.Sprintf("sha1=%s", hex.EncodeToString(githubMac(payload).Sum(nil))),
+			"X-Github-Event":      "push",
+			"X-Hub-Signature-256": githubSignature(payload),
 		},
 	)
 
@@ -183,8 +249,8 @@ func (s *InboundGithubSuite) Test_PushEventSuccess_BranchNameMatches() {
 		fmt.Sprintf("/app/webhooks/github/%s", appl.Secret()),
 		payload,
 		map[string]string{
-			"X-Github-Event":  "push",
-			"X-Hub-Signature": fmt.Sprintf("sha1=%s", hex.EncodeToString(githubMac(payload).Sum(nil))),
+			"X-Github-Event":      "push",
+			"X-Hub-Signature-256": githubSignature(payload),
 		},
 	)
 
@@ -219,8 +285,8 @@ func (s *InboundGithubSuite) githubPush(appl *factory.MockApp, payload map[strin
 		fmt.Sprintf("/app/webhooks/github/%s", appl.Secret()),
 		payload,
 		map[string]string{
-			"X-Github-Event":  "push",
-			"X-Hub-Signature": fmt.Sprintf("sha1=%s", hex.EncodeToString(githubMac(payload).Sum(nil))),
+			"X-Github-Event":      "push",
+			"X-Hub-Signature-256": githubSignature(payload),
 		},
 	)
 
@@ -323,8 +389,8 @@ func (s *InboundGithubSuite) Test_PushEvent_BranchNameDoesNotMatch() {
 		fmt.Sprintf("/app/webhooks/github/%s", appl.Secret()),
 		payload,
 		map[string]string{
-			"X-Github-Event":  "push",
-			"X-Hub-Signature": fmt.Sprintf("sha1=%s", hex.EncodeToString(githubMac(payload).Sum(nil))),
+			"X-Github-Event":      "push",
+			"X-Hub-Signature-256": githubSignature(payload),
 		},
 	)
 
@@ -348,8 +414,8 @@ func (s *InboundGithubSuite) Test_PullRequestOpened() {
 		fmt.Sprintf("/app/webhooks/github/%s", appl.Secret()),
 		payload,
 		map[string]string{
-			"X-Github-Event":  "pull_request",
-			"X-Hub-Signature": fmt.Sprintf("sha1=%s", hex.EncodeToString(githubMac(payload).Sum(nil))),
+			"X-Github-Event":      "pull_request",
+			"X-Hub-Signature-256": githubSignature(payload),
 		},
 	)
 
@@ -367,6 +433,7 @@ func (s *InboundGithubSuite) Test_PullRequestOpened() {
 	)
 }
 
+// Test_PullRequestOpened_Fork verifies that pull requests from forks are not built automatically.
 func (s *InboundGithubSuite) Test_PullRequestOpened_Fork() {
 	a := assert.New(s.T())
 	appl := s.app(nil)
@@ -382,23 +449,13 @@ func (s *InboundGithubSuite) Test_PullRequestOpened_Fork() {
 		fmt.Sprintf("/app/webhooks/github/%s", appl.Secret()),
 		payload,
 		map[string]string{
-			"X-Github-Event":  "pull_request",
-			"X-Hub-Signature": fmt.Sprintf("sha1=%s", hex.EncodeToString(githubMac(payload).Sum(nil))),
+			"X-Github-Event":      "pull_request",
+			"X-Hub-Signature-256": githubSignature(payload),
 		},
 	)
 
-	a.Equal(http.StatusOK, response.Code)
-
-	s.mockDeployer.AssertCalled(s.T(), "Deploy",
-		mock.Anything, mock.MatchedBy(func(_appl *app.App) bool {
-			return a.Equal(appl.ID, _appl.ID)
-		}),
-		mock.MatchedBy(func(_depl *deploy.Deployment) bool {
-			return a.Equal(_depl.CheckoutRepo, "github/fork-repo/test-repo") &&
-				a.Equal(true, _depl.IsAutoDeploy) &&
-				a.Equal(int64(53), _depl.PullRequestNumber.ValueOrZero())
-		}),
-	)
+	a.Equal(http.StatusNoContent, response.Code)
+	s.mockDeployer.AssertNotCalled(s.T(), "Deploy")
 }
 
 func (s *InboundGithubSuite) Test_PullRequestMerged() {
@@ -416,8 +473,8 @@ func (s *InboundGithubSuite) Test_PullRequestMerged() {
 		fmt.Sprintf("/app/webhooks/github/%s", appl.Secret()),
 		payload,
 		map[string]string{
-			"X-Github-Event":  "pull_request",
-			"X-Hub-Signature": fmt.Sprintf("sha1=%s", hex.EncodeToString(githubMac(payload).Sum(nil))),
+			"X-Github-Event":      "pull_request",
+			"X-Hub-Signature-256": githubSignature(payload),
 		},
 	)
 

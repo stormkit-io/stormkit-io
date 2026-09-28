@@ -12,4 +12,8 @@ type Settings struct {
 	// Envs represent an array of environment names available
 	// for the application.
 	Envs []string `json:"envs,omitempty"`
+
+	// InboundWebhook is the URL a git provider must call to trigger
+	// deployments. It is only set when the webhook is registered manually.
+	InboundWebhook string `json:"inboundWebhook,omitempty"`
 }

@@ -157,7 +157,8 @@ var stmt = &statement{
 	`, tableDeploys),
 
 	isDeploymentAlreadyBuilt: `
-		SELECT COUNT(*) FROM deployments d WHERE d.commit_id = $1;
+		SELECT COUNT(*) FROM deployments d
+		WHERE d.commit_id = $1 AND ($2 = 0 OR d.app_id = $2);
 	`,
 
 	stopDeployment: `

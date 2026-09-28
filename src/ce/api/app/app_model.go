@@ -283,7 +283,7 @@ func (a *App) GitCreds(ctx context.Context) (string, error) {
 		}
 
 		// Ensure that webhooks are installed
-		if _, err := client.InstallWebhooks(a.Repo); err != nil {
+		if _, err := client.InstallWebhooks(gitlab.InstallWebhooksParams{Repo: a.Repo, AppID: a.ID}); err != nil {
 			return "", err
 		}
 

@@ -18,7 +18,12 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/github"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
+	"github.com/stormkit-io/stormkit-io/src/lib/types"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
+
+// ErrInvalidWebhookSecret is returned when an inbound webhook cannot be verified.
+var ErrInvalidWebhookSecret = errors.New("invalid webhook secret")
 
 const typeCommit = "commit"
 const typePullRequest = "pull_request"
@@ -36,6 +41,10 @@ type TriggerDeployInput struct {
 	PullRequestNumber int64
 	ChangedFiles      []string
 	ChangesComplete   bool
+
+	// AppID limits the deployment to a single app when the webhook was
+	// verified with a per-app secret. Zero means every app on the repo.
+	AppID types.ID
 
 	payload any // The payload that is sent by the provider - we store this in the database.
 }
@@ -57,7 +66,7 @@ func handlerInboundWebhooks(req *shttp.RequestContext) *shttp.Response {
 		return shttp.NoContent()
 	}
 
-	if input == nil && err != nil {
+	if err != nil {
 		return shttp.Forbidden().SetError(err)
 	}
 
@@ -75,20 +84,50 @@ func handlerInboundWebhooks(req *shttp.RequestContext) *shttp.Response {
 }
 
 func processMessage(req *shttp.RequestContext) (*TriggerDeployInput, error) {
-	provider := req.Vars()["provider"]
+	var input *TriggerDeployInput
+	var err error
 
-	switch provider {
+	switch req.Vars()["provider"] {
 	case "github":
 		return processGithubPayload(req)
 
 	case "bitbucket":
-		return processBitbucketPayload(req)
+		input, err = processBitbucketPayload(req)
 
 	case "gitlab":
-		return processGitlabPayload(req)
+		input, err = processGitlabPayload(req)
 	}
 
-	return nil, nil
+	if input == nil || err != nil {
+		return input, err
+	}
+
+	return webhookVerifier{req: req}.appSecret(input)
+}
+
+// webhookVerifier authenticates inbound webhooks before they trigger deployments.
+type webhookVerifier struct {
+	req *shttp.RequestContext
+}
+
+// appSecret accepts a parsed payload only when the webhook URL carries the
+// secret of an app connected to the payload's repository.
+func (v webhookVerifier) appSecret(input *TriggerDeployInput) (*TriggerDeployInput, error) {
+	appID, err := utils.DecryptID(v.req.Vars()["secret-id"])
+
+	if err != nil || appID == 0 {
+		return nil, ErrInvalidWebhookSecret
+	}
+
+	a, err := app.NewStore().AppByID(v.req.Context(), appID)
+
+	if err != nil || a == nil || !strings.EqualFold(a.Repo, input.Repo) {
+		return nil, ErrInvalidWebhookSecret
+	}
+
+	input.AppID = appID
+
+	return input, nil
 }
 
 // TriggerDeploy triggers a new deploy given the repository, and the branch name.
@@ -96,6 +135,12 @@ func processMessage(req *shttp.RequestContext) (*TriggerDeployInput, error) {
 func TriggerDeploy(ctx context.Context, input TriggerDeployInput) *shttp.Response {
 	// Do not deploy automatically sample projects
 	if input.Repo == app.SampleProjectRepo {
+		return nil
+	}
+
+	// Pull requests from forks run code that the repository owner has not
+	// reviewed, so they are never built automatically.
+	if input.IsFork {
 		return nil
 	}
 
@@ -120,8 +165,8 @@ func TriggerDeploy(ctx context.Context, input TriggerDeployInput) *shttp.Respons
 	numberOfBuilds := 0
 
 	for _, a := range FilterDeployCandidates(input, apps) {
-		if input.IsFork {
-			a.ShouldPublish = false
+		if input.AppID != 0 && a.ID != input.AppID {
+			continue
 		}
 
 		if a.EnvDefaultBranch != input.Branch {
@@ -313,7 +358,10 @@ func normalizeRepoPath(p string) string {
 
 // commitHasBeenBuilt checks whether there is already a build for the commit or not.
 func commitHasBeenBuilt(ctx context.Context, input TriggerDeployInput) (bool, error) {
-	return deploy.NewStore().IsDeploymentAlreadyBuilt(ctx, input.CommitSha)
+	return deploy.NewStore().IsDeploymentAlreadyBuilt(ctx, deploy.IsDeploymentAlreadyBuiltParams{
+		CommitID: input.CommitSha,
+		AppID:    input.AppID,
+	})
 }
 
 // MatchPattern matches the given branch name against the given glob pattern.

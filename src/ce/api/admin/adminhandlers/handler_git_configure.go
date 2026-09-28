@@ -21,6 +21,8 @@ type GitConfigureRequest struct {
 	DeployKey    string `json:"deployKey"`    // Bitbucket Deploy Key
 	RunnerRepo   string `json:"runnerRepo"`   // GitHub Runner Repository
 	RunnerToken  string `json:"runnerToken"`  // GitHub Runner Token
+
+	WebhookSecret string `json:"webhookSecret"` // GitHub App Webhook Secret
 }
 
 func handlerGitConfigure(req *user.RequestContext) *shttp.Response {
@@ -54,6 +56,10 @@ func handlerGitConfigure(req *user.RequestContext) *shttp.Response {
 		cnf.AuthConfig.Github.ClientSecret = data.ClientSecret
 		cnf.AuthConfig.Github.PrivateKey = data.PrivateKey
 		cnf.AuthConfig.Github.AppID = utils.StringToInt(data.AppID)
+
+		if data.WebhookSecret != "" {
+			cnf.AuthConfig.Github.WebhookSecret = data.WebhookSecret
+		}
 
 		if !cnf.IsGithubEnabled() {
 			return shttp.BadRequest(map[string]any{

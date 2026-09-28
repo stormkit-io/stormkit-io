@@ -70,6 +70,49 @@ func (s *HandlerGitConfigureSuite) Test_ConfigureGithub_Success() {
 	s.Equal(int(12345), config.AuthConfig.Github.AppID)
 }
 
+// configureGithub posts a manual GitHub configuration with the given webhook secret.
+func (s *HandlerGitConfigureSuite) configureGithub(webhookSecret string) shttptest.Response {
+	adminUser := s.MockUser(map[string]any{"IsAdmin": true})
+
+	return shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(adminhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/admin/git/configure",
+		map[string]any{
+			"appId":         "12345",
+			"provider":      "github",
+			"account":       "github-org",
+			"clientId":      "my-new-client-id",
+			"clientSecret":  "my-new-secret",
+			"privateKey":    "my-new-pem",
+			"webhookSecret": webhookSecret,
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(adminUser.ID),
+		},
+	)
+}
+
+func (s *HandlerGitConfigureSuite) Test_ConfigureGithub_WebhookSecret() {
+	s.Equal(http.StatusOK, s.configureGithub("my-webhook-secret").Code)
+
+	config, err := admin.Store().Config(context.Background())
+	s.NoError(err)
+	s.Equal("my-webhook-secret", config.AuthConfig.Github.WebhookSecret)
+	s.Equal("my-webhook-secret", config.GithubWebhookSecret())
+}
+
+// Test_ConfigureGithub_KeepsWebhookSecret verifies that saving the form without
+// a webhook secret does not erase the stored one.
+func (s *HandlerGitConfigureSuite) Test_ConfigureGithub_KeepsWebhookSecret() {
+	s.Equal(http.StatusOK, s.configureGithub("my-webhook-secret").Code)
+	s.Equal(http.StatusOK, s.configureGithub("").Code)
+
+	config, err := admin.Store().Config(context.Background())
+	s.NoError(err)
+	s.Equal("my-webhook-secret", config.AuthConfig.Github.WebhookSecret)
+}
+
 func (s *HandlerGitConfigureSuite) Test_ConfigureGitlab_Success() {
 	adminUser := s.MockUser(map[string]any{"IsAdmin": true})
 

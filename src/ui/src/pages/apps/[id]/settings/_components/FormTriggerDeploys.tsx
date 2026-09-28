@@ -54,6 +54,17 @@ const FormTriggerDeploys: React.FC<Props> = ({
         title="Deploy triggers"
         subtitle="Create endpoints to trigger deployments programmatically."
       />
+      {additionalSettings.inboundWebhook && (
+        <Box sx={{ mb: 4 }}>
+          <Typography sx={{ mb: 1 }}>Bitbucket webhook</Typography>
+          <CopyBox value={additionalSettings.inboundWebhook} />
+          <Typography color="text.secondary" sx={{ mt: 1 }}>
+            Register this URL as the webhook of your Bitbucket repository.
+            Webhooks without this app's secret are rejected. The URL is
+            generated anew on each visit; previously copied URLs keep working.
+          </Typography>
+        </Box>
+      )}
       <Box sx={{ mb: 4 }}>
         {!additionalSettings.deployTrigger ? (
           <Alert color="info">

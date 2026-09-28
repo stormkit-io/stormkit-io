@@ -180,6 +180,8 @@ func (s *store) Config(ctx context.Context) (InstanceConfig, error) {
 				PrivateKey:   ghPrivKey,
 				RunnerRepo:   utils.GetString(os.Getenv("GITHUB_RUNNER"), "stormkit-io/deployer-service"),
 				RunnerToken:  secrets["GITHUB_APP_TOKEN"],
+
+				WebhookSecret: secrets["GITHUB_WEBHOOK_SECRET"],
 			}
 		}
 

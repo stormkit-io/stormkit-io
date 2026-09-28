@@ -38,6 +38,13 @@ func processGitlabPayload(req *shttp.RequestContext) (*TriggerDeployInput, error
 		input.Repo = fmt.Sprintf("gitlab/%s", event.Project.PathWithNamespace)
 		input.CheckoutRepo = input.Repo
 		input.EventType = typeCommit
+
+		// Pushes without commits, such as a force-push to an existing commit,
+		// have nothing new to build.
+		if len(event.Commits) == 0 {
+			return nil, nil
+		}
+
 		input.Message = strings.Split(event.Commits[0].Message, "\n")[0]
 		input.IsFork = false
 		input.ChangesComplete = len(event.Commits) > 0 && int64(len(event.Commits)) == event.TotalCommitsCount
@@ -69,8 +76,8 @@ func processGitlabPayload(req *shttp.RequestContext) (*TriggerDeployInput, error
 		}
 
 		input.Repo = fmt.Sprintf("gitlab/%s", event.Project.PathWithNamespace)
-		input.IsFork = strings.Compare(input.CheckoutRepo, input.Repo) != 0
 		input.CheckoutRepo = fmt.Sprintf("gitlab/%s", event.ObjectAttributes.Source.PathWithNamespace)
+		input.IsFork = !strings.EqualFold(input.CheckoutRepo, input.Repo)
 		input.Message = strings.Split(event.ObjectAttributes.LastCommit.Message, "\n")[0]
 		input.PullRequestNumber = event.ObjectAttributes.IID
 		input.Branch = event.ObjectAttributes.SourceBranch

@@ -1,9 +1,16 @@
 package apphandlers
 
 import (
+	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"fmt"
+	"io"
 	"strings"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
@@ -19,8 +26,49 @@ var whiteList = []string{
 
 const githubPushCommitLimit = 2048
 
+// githubMaxPayloadSize is the largest payload GitHub delivers.
+const githubMaxPayloadSize = 25 << 20
+
+// ErrGithubWebhookSecretMissing is returned when no webhook secret is
+// configured, since the payload cannot be verified without one.
+var ErrGithubWebhookSecretMissing = errors.New("github webhook secret is not configured")
+
+// github verifies the X-Hub-Signature-256 header against the configured
+// webhook secret and restores the request body for parsing.
+func (v webhookVerifier) github() error {
+	secret := admin.MustConfig().GithubWebhookSecret()
+
+	if secret == "" {
+		return ErrGithubWebhookSecretMissing
+	}
+
+	body, err := io.ReadAll(io.LimitReader(v.req.Body, githubMaxPayloadSize))
+
+	if err != nil {
+		return err
+	}
+
+	v.req.Body = io.NopCloser(bytes.NewReader(body))
+
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(body)
+
+	expected := "sha256=" + hex.EncodeToString(mac.Sum(nil))
+
+	if !hmac.Equal([]byte(v.req.Header.Get("X-Hub-Signature-256")), []byte(expected)) {
+		return ErrInvalidWebhookSecret
+	}
+
+	return nil
+}
+
 // processGithubPayload processes a github payload and starts a new deployment.
 func processGithubPayload(req *shttp.RequestContext) (*TriggerDeployInput, error) {
+	if err := (webhookVerifier{req: req}).github(); err != nil {
+		slog.Errorf("github webhook rejected: %s", err.Error())
+		return nil, err
+	}
+
 	hook, _ := github.New()
 	eventType := req.Header.Get("X-GitHub-Event")
 
@@ -77,7 +125,7 @@ func processGithubPayload(req *shttp.RequestContext) (*TriggerDeployInput, error
 		input.EventType = typePullRequest
 		input.Repo = fmt.Sprintf("github/%s", event.Repository.FullName)
 		input.CheckoutRepo = fmt.Sprintf("github/%s", event.PullRequest.Head.Repo.FullName)
-		input.IsFork = event.PullRequest.Head.Repo.FullName != event.PullRequest.Base.Repo.FullName
+		input.IsFork = !strings.EqualFold(event.PullRequest.Head.Repo.FullName, event.PullRequest.Base.Repo.FullName)
 		input.PullRequestNumber = event.PullRequest.Number
 		input.Branch = event.PullRequest.Head.Ref
 

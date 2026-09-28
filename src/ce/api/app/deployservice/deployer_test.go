@@ -157,6 +157,31 @@ func (s *DeploySuite) deployAndReadMessage(a *app.App, d *deploy.Deployment) *de
 	return message
 }
 
+func (s *DeploySuite) Test_Deployment_GitCredentials_OwnRepo() {
+	app := s.MockApp(s.MockUser())
+	env := s.MockEnv(app)
+	depl := s.MockDeployment(env)
+
+	message := s.deployAndReadMessage(app.App, depl.Deployment)
+
+	s.Equal("some-token", message.Client.AccessToken)
+}
+
+// Test_Deployment_GitCredentials_OtherRepo verifies that the app's git
+// credentials are never sent to a build that checks out another repository.
+func (s *DeploySuite) Test_Deployment_GitCredentials_OtherRepo() {
+	app := s.MockApp(s.MockUser())
+	env := s.MockEnv(app)
+	depl := s.MockDeployment(env, map[string]any{
+		"CheckoutRepo": "github/attacker/test-repo",
+	})
+
+	message := s.deployAndReadMessage(app.App, depl.Deployment)
+
+	s.Equal("", message.Client.AccessToken)
+	s.Equal("https://github.com/attacker/test-repo.git", message.Client.Repo)
+}
+
 func (s *DeploySuite) Test_Deployment_BuildCache_SelfHosted() {
 	config.SetIsSelfHosted(true)
 

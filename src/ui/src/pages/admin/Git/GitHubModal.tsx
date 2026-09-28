@@ -30,6 +30,7 @@ export default function GitHubModal({ closeModal, onSuccess, details }: Props) {
   const [clientId, setClientId] = useState(gh?.clientId || "");
   const [clientSecret, setClientSecret] = useState("");
   const [privateKey, setPrivateKey] = useState("");
+  const [webhookSecret, setWebhookSecret] = useState("");
   const [isOrganization, setIsOrganization] = useState(false);
   const [organizationName, setOrganizationName] = useState("");
   const [redirectURL, setRedirectURL] = useState("");
@@ -78,6 +79,7 @@ export default function GitHubModal({ closeModal, onSuccess, details }: Props) {
                 clientId: clientId.trim(),
                 clientSecret: clientSecret.trim() || undefined,
                 privateKey: privateKey,
+                webhookSecret: webhookSecret.trim() || undefined,
               }
             : {
                 appName: appName.trim(),
@@ -303,6 +305,26 @@ export default function GitHubModal({ closeModal, onSuccess, details }: Props) {
               multiline
               minRows={privateKey ? Math.ceil(privateKey.length / 100) : 1}
               maxRows={10}
+              sx={{ mb: 4 }}
+              slotProps={{
+                inputLabel: {
+                  shrink: true,
+                },
+              }}
+            />
+
+            <TextField
+              label="Webhook secret"
+              variant="filled"
+              placeholder={
+                gh?.hasWebhookSecret
+                  ? "***************"
+                  : "The webhook secret of your GitHub App"
+              }
+              helperText="Webhooks from GitHub are rejected until a webhook secret is configured."
+              value={webhookSecret}
+              onChange={e => setWebhookSecret(e.target.value)}
+              fullWidth
               sx={{ mb: 4 }}
               slotProps={{
                 inputLabel: {
