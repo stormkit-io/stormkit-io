@@ -24,6 +24,16 @@
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.26.1...v2026.09.28.1)
 
+### 🔒 Security
+
+- Verify inbound Git webhooks: GitHub signatures (`X-Hub-Signature-256`) and GitLab/Bitbucket per-app secrets are now required. Pull requests from forks are no longer built automatically, and Git credentials are never sent to builds of another repository ([4225f90](https://github.com/stormkit-io/stormkit-io/commit/4225f906fca024cb9375ed9263d8854c67304d98))
+
+### ⚠️ Upgrade notes
+
+- **GitHub:** set your GitHub App's webhook secret in *Admin → Git → GitHub* or via `GITHUB_WEBHOOK_SECRET`. Until then, GitHub webhooks are rejected and automatic deployments don't run. On this release the form also asks you to re-enter the client secret and private key; `v2026.09.28.2` keeps them when left empty.
+- **Bitbucket with a deploy key:** update each repository's webhook to the URL shown in the app's settings under *Deploy triggers*.
+- **Several apps on one Bitbucket or GitLab repo:** trigger one manual deploy per app to register its own webhook.
+
 ### 🏡 Chore
 
 - Update changelog for v2026.09.26.1 ([#556](https://github.com/stormkit-io/stormkit-io/pull/556))
