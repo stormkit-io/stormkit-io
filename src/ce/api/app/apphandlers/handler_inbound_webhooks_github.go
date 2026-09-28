@@ -72,7 +72,7 @@ func (v webhookVerifier) github() error {
 // processGithubPayload processes a github payload and starts a new deployment.
 func processGithubPayload(req *shttp.RequestContext) (*TriggerDeployInput, error) {
 	if err := (webhookVerifier{req: req}).github(); err != nil {
-		slog.Errorf("github webhook rejected: %s", err.Error())
+		slog.Infof("github webhook rejected: %s", err.Error())
 		return nil, err
 	}
 

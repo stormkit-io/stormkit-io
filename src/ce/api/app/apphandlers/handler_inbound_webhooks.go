@@ -25,6 +25,15 @@ import (
 // ErrInvalidWebhookSecret is returned when an inbound webhook cannot be verified.
 var ErrInvalidWebhookSecret = errors.New("invalid webhook secret")
 
+// errWebhookAppLookup wraps failures to load the app a webhook secret points
+// to. These are server errors, not authentication failures, so providers retry
+// the delivery instead of treating the hook as misconfigured.
+var errWebhookAppLookup = errors.New("cannot load the webhook's app")
+
+// maxWebhookPayloadSize is the largest webhook payload accepted. It matches
+// GitHub's limit, the largest of the supported providers.
+const maxWebhookPayloadSize = 25 << 20
+
 const typeCommit = "commit"
 const typePullRequest = "pull_request"
 
@@ -59,11 +68,17 @@ func NewTriggerDeployInput(repo, branch string) TriggerDeployInput {
 }
 
 func handlerInboundWebhooks(req *shttp.RequestContext) *shttp.Response {
+	req.Body = http.MaxBytesReader(nil, req.Body, maxWebhookPayloadSize)
+
 	input, err := processMessage(req)
 
 	// no-op
 	if input == nil && err == nil {
 		return shttp.NoContent()
+	}
+
+	if errors.Is(err, errWebhookAppLookup) {
+		return shttp.Error(err)
 	}
 
 	if err != nil {
@@ -84,33 +99,38 @@ func handlerInboundWebhooks(req *shttp.RequestContext) *shttp.Response {
 }
 
 func processMessage(req *shttp.RequestContext) (*TriggerDeployInput, error) {
-	provider := req.Vars()["provider"]
+	v := webhookVerifier{req: req}
 
-	switch provider {
+	switch req.Vars()["provider"] {
 	case "github":
 		return processGithubPayload(req)
 
-	case "bitbucket", "gitlab":
+	case "bitbucket":
+		return v.appPayload(processBitbucketPayload)
 
-	default:
-		return nil, nil
+	case "gitlab":
+		return v.appPayload(processGitlabPayload)
 	}
 
-	// The URL secret is checked before the payload is parsed, so requests
-	// without a valid secret are rejected without reading their body.
-	verified, err := webhookVerifier{req: req}.app()
+	return nil, nil
+}
+
+// webhookVerifier authenticates inbound webhooks before they trigger deployments.
+type webhookVerifier struct {
+	req *shttp.RequestContext
+}
+
+// appPayload verifies the per-app secret in the webhook URL before parsing the
+// payload with parse, so requests without a valid secret are rejected without
+// reading their body. The payload must belong to the app's repository.
+func (v webhookVerifier) appPayload(parse func(*shttp.RequestContext) (*TriggerDeployInput, error)) (*TriggerDeployInput, error) {
+	verified, err := v.app()
 
 	if err != nil {
 		return nil, err
 	}
 
-	var input *TriggerDeployInput
-
-	if provider == "bitbucket" {
-		input, err = processBitbucketPayload(req)
-	} else {
-		input, err = processGitlabPayload(req)
-	}
+	input, err := parse(v.req)
 
 	if input == nil || err != nil {
 		return input, err
@@ -125,11 +145,6 @@ func processMessage(req *shttp.RequestContext) (*TriggerDeployInput, error) {
 	return input, nil
 }
 
-// webhookVerifier authenticates inbound webhooks before they trigger deployments.
-type webhookVerifier struct {
-	req *shttp.RequestContext
-}
-
 // app returns the app whose secret the webhook URL carries.
 func (v webhookVerifier) app() (*app.App, error) {
 	appID, err := utils.DecryptID(v.req.Vars()["secret-id"])
@@ -140,7 +155,11 @@ func (v webhookVerifier) app() (*app.App, error) {
 
 	a, err := app.NewStore().AppByID(v.req.Context(), appID)
 
-	if err != nil || a == nil {
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", errWebhookAppLookup, err)
+	}
+
+	if a == nil {
 		return nil, ErrInvalidWebhookSecret
 	}
 

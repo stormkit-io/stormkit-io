@@ -26,16 +26,23 @@ type readTracker struct {
 
 func (r *readTracker) Read(p []byte) (int, error) {
 	r.read = true
+
 	return r.Reader.Read(p)
+}
+
+// postWebhookParams represents the parameters for postWebhook.
+type postWebhookParams struct {
+	Target  string
+	Headers map[string]string
 }
 
 // postWebhook sends a webhook with a tracked body and returns the response
 // status and whether the body was read.
-func postWebhook(target string, headers map[string]string) (int, bool) {
+func postWebhook(p postWebhookParams) (int, bool) {
 	body := &readTracker{Reader: strings.NewReader(`{"not":"parsed"}`)}
-	req := httptest.NewRequest(http.MethodPost, target, body)
+	req := httptest.NewRequest(http.MethodPost, p.Target, body)
 
-	for key, value := range headers {
+	for key, value := range p.Headers {
 		req.Header.Set(key, value)
 	}
 
