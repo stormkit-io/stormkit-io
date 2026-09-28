@@ -113,6 +113,62 @@ func (s *HandlerGitConfigureSuite) Test_ConfigureGithub_KeepsWebhookSecret() {
 	s.Equal("my-webhook-secret", config.AuthConfig.Github.WebhookSecret)
 }
 
+// Test_ConfigureGithub_KeepsCredentials verifies that an existing GitHub App can
+// be updated, for instance to add a webhook secret, without re-entering its
+// client secret and private key.
+func (s *HandlerGitConfigureSuite) Test_ConfigureGithub_KeepsCredentials() {
+	s.Equal(http.StatusOK, s.configureGithub("").Code)
+
+	adminUser := s.MockUser(map[string]any{"IsAdmin": true})
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(adminhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/admin/git/configure",
+		map[string]any{
+			"appId":         "12345",
+			"provider":      "github",
+			"account":       "github-org",
+			"clientId":      "my-new-client-id",
+			"webhookSecret": "my-webhook-secret",
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(adminUser.ID),
+		},
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+
+	config, err := admin.Store().Config(context.Background())
+	s.NoError(err)
+	s.Equal("my-new-secret", config.AuthConfig.Github.ClientSecret)
+	s.Equal("my-new-pem", config.AuthConfig.Github.PrivateKey)
+	s.Equal("my-webhook-secret", config.AuthConfig.Github.WebhookSecret)
+}
+
+// Test_ConfigureGithub_MissingCredentials verifies that a first-time setup
+// still requires the client secret and private key.
+func (s *HandlerGitConfigureSuite) Test_ConfigureGithub_MissingCredentials() {
+	adminUser := s.MockUser(map[string]any{"IsAdmin": true})
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(adminhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/admin/git/configure",
+		map[string]any{
+			"appId":    "12345",
+			"provider": "github",
+			"account":  "github-org",
+			"clientId": "my-new-client-id",
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(adminUser.ID),
+		},
+	)
+
+	s.Equal(http.StatusBadRequest, response.Code)
+}
+
 func (s *HandlerGitConfigureSuite) Test_ConfigureGitlab_Success() {
 	adminUser := s.MockUser(map[string]any{"IsAdmin": true})
 

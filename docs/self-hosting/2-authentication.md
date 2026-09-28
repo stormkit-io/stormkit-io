@@ -50,7 +50,7 @@ If you configured the GitHub App manually, or created it before `v2026.09.28.1`,
 
 1. Open your GitHub App's settings on GitHub and, under **Webhook**, click **Change secret**
 2. Enter a random value, for instance the output of `openssl rand -hex 32`, and save
-3. In Stormkit, click **Configure GitHub** on `/admin/git`, paste the same value into **Webhook secret**, re-enter the app's **Client secret** and **Private key**, and click **Configure**
+3. In Stormkit, click **Configure GitHub** on `/admin/git`, paste the same value into **Webhook secret**, and click **Configure**. Fields left empty keep their current values
 
 Alternatively, provide the value through the `GITHUB_WEBHOOK_SECRET` environment variable. A secret saved from the admin interface takes precedence.
 

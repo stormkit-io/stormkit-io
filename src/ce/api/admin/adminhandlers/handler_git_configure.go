@@ -53,9 +53,17 @@ func handlerGitConfigure(req *user.RequestContext) *shttp.Response {
 	case "github":
 		cnf.AuthConfig.Github.Account = data.Account
 		cnf.AuthConfig.Github.ClientID = data.ClientID
-		cnf.AuthConfig.Github.ClientSecret = data.ClientSecret
-		cnf.AuthConfig.Github.PrivateKey = data.PrivateKey
 		cnf.AuthConfig.Github.AppID = utils.StringToInt(data.AppID)
+
+		// Stored secrets are never sent back to the client, so an empty value
+		// means "keep the current one".
+		if data.ClientSecret != "" {
+			cnf.AuthConfig.Github.ClientSecret = data.ClientSecret
+		}
+
+		if data.PrivateKey != "" {
+			cnf.AuthConfig.Github.PrivateKey = data.PrivateKey
+		}
 
 		if data.WebhookSecret != "" {
 			cnf.AuthConfig.Github.WebhookSecret = data.WebhookSecret

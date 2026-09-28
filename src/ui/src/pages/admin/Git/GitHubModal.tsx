@@ -78,7 +78,7 @@ export default function GitHubModal({ closeModal, onSuccess, details }: Props) {
                 account: appName.trim(),
                 clientId: clientId.trim(),
                 clientSecret: clientSecret.trim() || undefined,
-                privateKey: privateKey,
+                privateKey: privateKey || undefined,
                 webhookSecret: webhookSecret.trim() || undefined,
               }
             : {
@@ -275,13 +275,13 @@ export default function GitHubModal({ closeModal, onSuccess, details }: Props) {
               variant="filled"
               placeholder={
                 gh?.hasClientSecret
-                  ? "***************"
+                  ? "Leave empty to keep the current client secret"
                   : "The client secret of your GitHub App"
               }
               value={clientSecret}
               onChange={e => setClientSecret(e.target.value)}
               fullWidth
-              required
+              required={!gh?.hasClientSecret}
               sx={{ mb: 4 }}
               slotProps={{
                 inputLabel: {
@@ -295,13 +295,13 @@ export default function GitHubModal({ closeModal, onSuccess, details }: Props) {
               variant="filled"
               placeholder={
                 gh?.hasPrivateKey
-                  ? "***************"
+                  ? "Leave empty to keep the current private key"
                   : "The private key of your GitHub App"
               }
               value={privateKey}
               onChange={e => setPrivateKey(e.target.value)}
               fullWidth
-              required
+              required={!gh?.hasPrivateKey}
               multiline
               minRows={privateKey ? Math.ceil(privateKey.length / 100) : 1}
               maxRows={10}
@@ -318,7 +318,7 @@ export default function GitHubModal({ closeModal, onSuccess, details }: Props) {
               variant="filled"
               placeholder={
                 gh?.hasWebhookSecret
-                  ? "***************"
+                  ? "Leave empty to keep the current webhook secret"
                   : "The webhook secret of your GitHub App"
               }
               helperText="Webhooks from GitHub are rejected until a webhook secret is configured."
