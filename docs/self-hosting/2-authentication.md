@@ -36,11 +36,25 @@ GitHub authentication is the simplest to set up. Stormkit automatically creates 
 #### Setup Steps
 
 1. Navigate to `/admin/git` in your Stormkit instance
-2. Click **GitHub** button
+2. Click **Configure GitHub**
 3. Enter a unique **App Name** for your GitHub App
-4. Click **Create**
+4. Click **Continue on Github**
 
-Stormkit will automatically create the GitHub App with the correct permissions, webhook configurations, and callback URLs. Once created, GitHub authentication will be immediately enabled for your instance.
+Stormkit will automatically create the GitHub App with the correct permissions, webhook configuration, webhook secret, and callback URLs. Once created, GitHub authentication will be immediately enabled for your instance.
+
+#### Webhook Secret
+
+Stormkit verifies every webhook GitHub sends against the GitHub App's webhook secret, and rejects webhooks when no secret is configured. Apps created with the steps above store the secret automatically.
+
+If you configured the GitHub App manually, or created it before `v2026.09.28.1`, set the secret yourself:
+
+1. Open your GitHub App's settings on GitHub and, under **Webhook**, click **Change secret**
+2. Enter a random value, for instance the output of `openssl rand -hex 32`, and save
+3. In Stormkit, click **Configure GitHub** on `/admin/git`, paste the same value into **Webhook secret**, re-enter the app's **Client secret** and **Private key**, and click **Configure**
+
+Alternatively, provide the value through the `GITHUB_WEBHOOK_SECRET` environment variable. A secret saved from the admin interface takes precedence.
+
+Until a secret is configured, pushes and pull requests do not trigger deployments and `/admin/git` shows a warning.
 
 ### GitLab Authentication
 
@@ -68,7 +82,7 @@ To enable GitLab authentication, you need to create a GitLab Application first.
 4. Enter the following information from your GitLab Application:
    - **Client ID**: Your Application ID
    - **Client Secret**: The Secret key
-5. Click **Save** to complete the configuration
+5. Click **Configure** to complete the configuration
 
 GitLab authentication will be immediately enabled for your instance.
 
@@ -96,8 +110,10 @@ To enable Bitbucket authentication, you need to create a Bitbucket OAuth Consume
    - **Client ID**: Your OAuth consumer Key
    - **Client Secret**: The Secret key
    - **Deploy Key** (optional): If you want to use a specific deploy key for repository access
-4. Click **Save** to complete the configuration
+4. Click **Configure** to complete the configuration
 
 Bitbucket authentication will be immediately enabled for your instance.
+
+When a deploy key is configured, Stormkit does not register webhooks on your repositories. Add them yourself using the webhook URL shown in each app's settings under **Deploy triggers**. The URL carries a secret that identifies the app, and webhooks without it are rejected.
 
 </section>
