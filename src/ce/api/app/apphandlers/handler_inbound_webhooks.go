@@ -84,17 +84,31 @@ func handlerInboundWebhooks(req *shttp.RequestContext) *shttp.Response {
 }
 
 func processMessage(req *shttp.RequestContext) (*TriggerDeployInput, error) {
-	var input *TriggerDeployInput
-	var err error
+	provider := req.Vars()["provider"]
 
-	switch req.Vars()["provider"] {
+	switch provider {
 	case "github":
 		return processGithubPayload(req)
 
-	case "bitbucket":
-		input, err = processBitbucketPayload(req)
+	case "bitbucket", "gitlab":
 
-	case "gitlab":
+	default:
+		return nil, nil
+	}
+
+	// The URL secret is checked before the payload is parsed, so requests
+	// without a valid secret are rejected without reading their body.
+	verified, err := webhookVerifier{req: req}.app()
+
+	if err != nil {
+		return nil, err
+	}
+
+	var input *TriggerDeployInput
+
+	if provider == "bitbucket" {
+		input, err = processBitbucketPayload(req)
+	} else {
 		input, err = processGitlabPayload(req)
 	}
 
@@ -102,7 +116,13 @@ func processMessage(req *shttp.RequestContext) (*TriggerDeployInput, error) {
 		return input, err
 	}
 
-	return webhookVerifier{req: req}.appSecret(input)
+	if !strings.EqualFold(verified.Repo, input.Repo) {
+		return nil, ErrInvalidWebhookSecret
+	}
+
+	input.AppID = verified.ID
+
+	return input, nil
 }
 
 // webhookVerifier authenticates inbound webhooks before they trigger deployments.
@@ -110,9 +130,8 @@ type webhookVerifier struct {
 	req *shttp.RequestContext
 }
 
-// appSecret accepts a parsed payload only when the webhook URL carries the
-// secret of an app connected to the payload's repository.
-func (v webhookVerifier) appSecret(input *TriggerDeployInput) (*TriggerDeployInput, error) {
+// app returns the app whose secret the webhook URL carries.
+func (v webhookVerifier) app() (*app.App, error) {
 	appID, err := utils.DecryptID(v.req.Vars()["secret-id"])
 
 	if err != nil || appID == 0 {
@@ -121,13 +140,11 @@ func (v webhookVerifier) appSecret(input *TriggerDeployInput) (*TriggerDeployInp
 
 	a, err := app.NewStore().AppByID(v.req.Context(), appID)
 
-	if err != nil || a == nil || !strings.EqualFold(a.Repo, input.Repo) {
+	if err != nil || a == nil {
 		return nil, ErrInvalidWebhookSecret
 	}
 
-	input.AppID = appID
-
-	return input, nil
+	return a, nil
 }
 
 // TriggerDeploy triggers a new deploy given the repository, and the branch name.

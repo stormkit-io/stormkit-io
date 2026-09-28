@@ -144,6 +144,16 @@ func (s *InboundGitlabSuite) Test_Rejected_InvalidSecret() {
 	s.mockDeployer.AssertNotCalled(s.T(), "Deploy")
 }
 
+// Test_Rejected_InvalidSecret_BodyNotRead verifies that requests without a
+// valid app secret are rejected before their payload is parsed.
+func (s *InboundGitlabSuite) Test_Rejected_InvalidSecret_BodyNotRead() {
+	code, read := postWebhook("/app/webhooks/gitlab/not-a-secret", map[string]string{"X-Gitlab-Event": "Push Hook"})
+
+	s.Equal(http.StatusForbidden, code)
+	s.False(read)
+	s.mockDeployer.AssertNotCalled(s.T(), "Deploy")
+}
+
 // Test_Rejected_SecretOfAnotherRepo verifies that a valid secret cannot be
 // used to trigger deployments for a repository its app is not connected to.
 func (s *InboundGitlabSuite) Test_Rejected_SecretOfAnotherRepo() {
