@@ -1,5 +1,25 @@
 # Changelog
 
+## v2026.09.28.1...v2026.09.28.2
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.28.1...v2026.09.28.2)
+
+### 🩹 Fixes
+
+- Keep stored github secrets when left blank ([#559](https://github.com/stormkit-io/stormkit-io/pull/559))
+
+### 📖 Documentation
+
+- Document github webhook secret setup ([#558](https://github.com/stormkit-io/stormkit-io/pull/558))
+
+### 🏡 Chore
+
+- Update changelog for v2026.09.28.1 ([#557](https://github.com/stormkit-io/stormkit-io/pull/557))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.09.26.1...v2026.09.28.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.26.1...v2026.09.28.1)
