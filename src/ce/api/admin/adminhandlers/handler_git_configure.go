@@ -2,6 +2,7 @@ package adminhandlers
 
 import (
 	"context"
+	"strings"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
@@ -51,21 +52,31 @@ func handlerGitConfigure(req *user.RequestContext) *shttp.Response {
 
 	switch data.Provider {
 	case "github":
+		appID := utils.StringToInt(data.AppID)
+
+		// Stored secrets belong to the configured GitHub App. Switching to
+		// another app must not carry them over.
+		if cnf.AuthConfig.Github.AppID != appID || cnf.AuthConfig.Github.ClientID != data.ClientID {
+			cnf.AuthConfig.Github.ClientSecret = ""
+			cnf.AuthConfig.Github.PrivateKey = ""
+			cnf.AuthConfig.Github.WebhookSecret = ""
+		}
+
 		cnf.AuthConfig.Github.Account = data.Account
 		cnf.AuthConfig.Github.ClientID = data.ClientID
-		cnf.AuthConfig.Github.AppID = utils.StringToInt(data.AppID)
+		cnf.AuthConfig.Github.AppID = appID
 
-		// Stored secrets are never sent back to the client, so an empty value
+		// Stored secrets are never sent back to the client, so a blank value
 		// means "keep the current one".
-		if data.ClientSecret != "" {
+		if strings.TrimSpace(data.ClientSecret) != "" {
 			cnf.AuthConfig.Github.ClientSecret = data.ClientSecret
 		}
 
-		if data.PrivateKey != "" {
+		if strings.TrimSpace(data.PrivateKey) != "" {
 			cnf.AuthConfig.Github.PrivateKey = data.PrivateKey
 		}
 
-		if data.WebhookSecret != "" {
+		if strings.TrimSpace(data.WebhookSecret) != "" {
 			cnf.AuthConfig.Github.WebhookSecret = data.WebhookSecret
 		}
 

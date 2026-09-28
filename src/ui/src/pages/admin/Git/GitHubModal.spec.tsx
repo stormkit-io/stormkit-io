@@ -61,12 +61,29 @@ describe("~/pages/admin/Git/GitHubModal.tsx", () => {
       expect(findClientSecret().placeholder).toBe(
         "Leave empty to keep the current client secret"
       );
+      expect(findPrivateKey().placeholder).toBe(
+        "Leave empty to keep the current private key"
+      );
+    });
+
+    it("should require the secrets again when switching to another app", () => {
+      fireEvent.change(wrapper.getByLabelText(/App ID/), {
+        target: { value: "67890" },
+      });
+
+      expect(findClientSecret().required).toBe(true);
+      expect(findPrivateKey().required).toBe(true);
+      expect(findPrivateKey().placeholder).toBe(
+        "The private key of your GitHub App"
+      );
     });
 
     it("should submit only the webhook secret when the other secrets are left empty", async () => {
       fireEvent.change(findWebhookSecret(), {
         target: { value: "new-webhook-secret" },
       });
+
+      fireEvent.change(findPrivateKey(), { target: { value: "\n" } });
 
       const scope = nock(apiDomain)
         .post("/admin/git/configure", {

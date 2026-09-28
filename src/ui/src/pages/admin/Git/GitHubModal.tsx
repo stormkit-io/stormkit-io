@@ -36,6 +36,12 @@ export default function GitHubModal({ closeModal, onSuccess, details }: Props) {
   const [redirectURL, setRedirectURL] = useState("");
   const [manifest, setManifest] = useState("");
 
+  // Stored secrets are only kept for the same GitHub App.
+  const isSameApp =
+    Boolean(gh) && appId === gh?.appId && clientId === gh?.clientId;
+  const keepsClientSecret = isSameApp && gh?.hasClientSecret;
+  const keepsPrivateKey = isSameApp && gh?.hasPrivateKey;
+
   useEffect(() => {
     if (!manifest) {
       return;
@@ -78,7 +84,7 @@ export default function GitHubModal({ closeModal, onSuccess, details }: Props) {
                 account: appName.trim(),
                 clientId: clientId.trim(),
                 clientSecret: clientSecret.trim() || undefined,
-                privateKey: privateKey || undefined,
+                privateKey: privateKey.trim() ? privateKey : undefined,
                 webhookSecret: webhookSecret.trim() || undefined,
               }
             : {
@@ -274,14 +280,14 @@ export default function GitHubModal({ closeModal, onSuccess, details }: Props) {
               label="Client secret"
               variant="filled"
               placeholder={
-                gh?.hasClientSecret
+                keepsClientSecret
                   ? "Leave empty to keep the current client secret"
                   : "The client secret of your GitHub App"
               }
               value={clientSecret}
               onChange={e => setClientSecret(e.target.value)}
               fullWidth
-              required={!gh?.hasClientSecret}
+              required={!keepsClientSecret}
               sx={{ mb: 4 }}
               slotProps={{
                 inputLabel: {
@@ -294,14 +300,14 @@ export default function GitHubModal({ closeModal, onSuccess, details }: Props) {
               label="Private key"
               variant="filled"
               placeholder={
-                gh?.hasPrivateKey
+                keepsPrivateKey
                   ? "Leave empty to keep the current private key"
                   : "The private key of your GitHub App"
               }
               value={privateKey}
               onChange={e => setPrivateKey(e.target.value)}
               fullWidth
-              required={!gh?.hasPrivateKey}
+              required={!keepsPrivateKey}
               multiline
               minRows={privateKey ? Math.ceil(privateKey.length / 100) : 1}
               maxRows={10}

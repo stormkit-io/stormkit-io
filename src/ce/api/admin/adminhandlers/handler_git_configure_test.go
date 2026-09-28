@@ -70,103 +70,122 @@ func (s *HandlerGitConfigureSuite) Test_ConfigureGithub_Success() {
 	s.Equal(int(12345), config.AuthConfig.Github.AppID)
 }
 
-// configureGithub posts a manual GitHub configuration with the given webhook secret.
-func (s *HandlerGitConfigureSuite) configureGithub(webhookSecret string) shttptest.Response {
+// configureGithub posts a manual GitHub configuration. Fields in overrides
+// replace the defaults, and a nil value removes the field from the request.
+func (s *HandlerGitConfigureSuite) configureGithub(overrides map[string]any) shttptest.Response {
 	adminUser := s.MockUser(map[string]any{"IsAdmin": true})
+
+	payload := map[string]any{
+		"appId":        "12345",
+		"provider":     "github",
+		"account":      "github-org",
+		"clientId":     "my-new-client-id",
+		"clientSecret": "my-new-secret",
+		"privateKey":   "my-new-pem",
+	}
+
+	for key, value := range overrides {
+		if value == nil {
+			delete(payload, key)
+		} else {
+			payload[key] = value
+		}
+	}
 
 	return shttptest.RequestWithHeaders(
 		shttp.NewRouter().RegisterService(adminhandlers.Services).Router().Handler(),
 		shttp.MethodPost,
 		"/admin/git/configure",
-		map[string]any{
-			"appId":         "12345",
-			"provider":      "github",
-			"account":       "github-org",
-			"clientId":      "my-new-client-id",
-			"clientSecret":  "my-new-secret",
-			"privateKey":    "my-new-pem",
-			"webhookSecret": webhookSecret,
-		},
+		payload,
 		map[string]string{
 			"Authorization": usertest.Authorization(adminUser.ID),
 		},
 	)
 }
 
-func (s *HandlerGitConfigureSuite) Test_ConfigureGithub_WebhookSecret() {
-	s.Equal(http.StatusOK, s.configureGithub("my-webhook-secret").Code)
-
+// githubConfig returns the stored GitHub configuration.
+func (s *HandlerGitConfigureSuite) githubConfig() admin.GithubConfig {
 	config, err := admin.Store().Config(context.Background())
-	s.NoError(err)
-	s.Equal("my-webhook-secret", config.AuthConfig.Github.WebhookSecret)
-	s.Equal("my-webhook-secret", config.GithubWebhookSecret())
+	s.Require().NoError(err)
+	s.Require().NotNil(config.AuthConfig)
+
+	return config.AuthConfig.Github
+}
+
+func (s *HandlerGitConfigureSuite) Test_ConfigureGithub_WebhookSecret() {
+	s.Equal(http.StatusOK, s.configureGithub(map[string]any{"webhookSecret": "my-webhook-secret"}).Code)
+	s.Equal("my-webhook-secret", s.githubConfig().WebhookSecret)
 }
 
 // Test_ConfigureGithub_KeepsWebhookSecret verifies that saving the form without
 // a webhook secret does not erase the stored one.
 func (s *HandlerGitConfigureSuite) Test_ConfigureGithub_KeepsWebhookSecret() {
-	s.Equal(http.StatusOK, s.configureGithub("my-webhook-secret").Code)
-	s.Equal(http.StatusOK, s.configureGithub("").Code)
-
-	config, err := admin.Store().Config(context.Background())
-	s.NoError(err)
-	s.Equal("my-webhook-secret", config.AuthConfig.Github.WebhookSecret)
+	s.Equal(http.StatusOK, s.configureGithub(map[string]any{"webhookSecret": "my-webhook-secret"}).Code)
+	s.Equal(http.StatusOK, s.configureGithub(nil).Code)
+	s.Equal("my-webhook-secret", s.githubConfig().WebhookSecret)
 }
 
 // Test_ConfigureGithub_KeepsCredentials verifies that an existing GitHub App can
 // be updated, for instance to add a webhook secret, without re-entering its
-// client secret and private key.
+// client secret and private key. Whitespace-only values count as blank.
 func (s *HandlerGitConfigureSuite) Test_ConfigureGithub_KeepsCredentials() {
-	s.Equal(http.StatusOK, s.configureGithub("").Code)
+	s.Require().Equal(http.StatusOK, s.configureGithub(nil).Code)
 
-	adminUser := s.MockUser(map[string]any{"IsAdmin": true})
-
-	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(adminhandlers.Services).Router().Handler(),
-		shttp.MethodPost,
-		"/admin/git/configure",
-		map[string]any{
-			"appId":         "12345",
-			"provider":      "github",
-			"account":       "github-org",
-			"clientId":      "my-new-client-id",
-			"webhookSecret": "my-webhook-secret",
-		},
-		map[string]string{
-			"Authorization": usertest.Authorization(adminUser.ID),
-		},
-	)
+	response := s.configureGithub(map[string]any{
+		"clientSecret":  "  ",
+		"privateKey":    "\n",
+		"webhookSecret": "my-webhook-secret",
+	})
 
 	s.Equal(http.StatusOK, response.Code)
 
-	config, err := admin.Store().Config(context.Background())
-	s.NoError(err)
-	s.Equal("my-new-secret", config.AuthConfig.Github.ClientSecret)
-	s.Equal("my-new-pem", config.AuthConfig.Github.PrivateKey)
-	s.Equal("my-webhook-secret", config.AuthConfig.Github.WebhookSecret)
+	github := s.githubConfig()
+	s.Equal("my-new-secret", github.ClientSecret)
+	s.Equal("my-new-pem", github.PrivateKey)
+	s.Equal("my-webhook-secret", github.WebhookSecret)
+}
+
+// Test_ConfigureGithub_OtherAppNeedsCredentials verifies that the secrets of
+// one GitHub App are not kept when switching to another app.
+func (s *HandlerGitConfigureSuite) Test_ConfigureGithub_OtherAppNeedsCredentials() {
+	s.Require().Equal(http.StatusOK, s.configureGithub(map[string]any{"webhookSecret": "my-webhook-secret"}).Code)
+
+	response := s.configureGithub(map[string]any{
+		"appId":        "67890",
+		"clientId":     "other-client-id",
+		"clientSecret": nil,
+		"privateKey":   nil,
+	})
+
+	s.Equal(http.StatusBadRequest, response.Code)
+	s.Equal("my-new-secret", s.githubConfig().ClientSecret)
+
+	response = s.configureGithub(map[string]any{
+		"appId":        "67890",
+		"clientId":     "other-client-id",
+		"clientSecret": "other-secret",
+		"privateKey":   "other-pem",
+	})
+
+	s.Equal(http.StatusOK, response.Code)
+
+	github := s.githubConfig()
+	s.Equal("other-secret", github.ClientSecret)
+	s.Equal("other-pem", github.PrivateKey)
+	s.Empty(github.WebhookSecret)
 }
 
 // Test_ConfigureGithub_MissingCredentials verifies that a first-time setup
 // still requires the client secret and private key.
 func (s *HandlerGitConfigureSuite) Test_ConfigureGithub_MissingCredentials() {
-	adminUser := s.MockUser(map[string]any{"IsAdmin": true})
-
-	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(adminhandlers.Services).Router().Handler(),
-		shttp.MethodPost,
-		"/admin/git/configure",
-		map[string]any{
-			"appId":    "12345",
-			"provider": "github",
-			"account":  "github-org",
-			"clientId": "my-new-client-id",
-		},
-		map[string]string{
-			"Authorization": usertest.Authorization(adminUser.ID),
-		},
-	)
+	response := s.configureGithub(map[string]any{"clientSecret": nil, "privateKey": nil})
 
 	s.Equal(http.StatusBadRequest, response.Code)
+	s.Contains(response.String(), "GitHub App is not properly configured")
+
+	config, err := admin.Store().Config(context.Background())
+	s.Require().NoError(err)
+	s.Empty(config.AuthConfig.Github.ClientID)
 }
 
 func (s *HandlerGitConfigureSuite) Test_ConfigureGitlab_Success() {
