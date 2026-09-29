@@ -20,6 +20,9 @@ import (
 	"golang.org/x/oauth2"
 )
 
+// stateSecret signs the OAuth state of the suite's client.
+const stateSecret = "test-state-secret-padded-to-32!!"
+
 type ClientXSuite struct {
 	suite.Suite
 	conn                    databasetest.TestDB
@@ -34,7 +37,7 @@ func (s *ClientXSuite) BeforeTest(suiteName, _ string) {
 	s.originalTwitterAPIBase = skauth.TwitterAPIBase
 	s.conn = databasetest.InitTx(suiteName)
 	s.server = nil
-	s.client = skauth.NewXClient("test-client-id", "test-client-secret", "https://app.example.com/_stormkit/auth/callback", "")
+	s.client = skauth.NewXClient("test-client-id", "test-client-secret", "https://app.example.com/_stormkit/auth/callback", stateSecret)
 	admin.MustConfig().SetURL("localhost")
 }
 
@@ -143,6 +146,7 @@ func (s *ClientXSuite) Test_AuthCodeURL() {
 	url, err := s.client.AuthCodeURL(skauth.AuthCodeURLParams{
 		EnvID:        1,
 		ProviderName: skauth.ProviderX,
+		Secret:       stateSecret,
 	})
 
 	s.NoError(err)
@@ -170,7 +174,7 @@ func (s *ClientXSuite) Test_Exchange_WithPKCE() {
 		"prv":  "x",
 	}
 
-	state, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthOAuthState, Claims: claims})
+	state, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthOAuthState, Claims: claims, Secret: stateSecret})
 	s.NoError(err)
 
 	// Create a proper http.Request with form values
@@ -205,7 +209,7 @@ func (s *ClientXSuite) Test_Exchange_WithoutPKCE() {
 		// No PKCE
 	}
 
-	state, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthOAuthState, Claims: claims})
+	state, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthOAuthState, Claims: claims, Secret: stateSecret})
 	s.NoError(err)
 
 	// Create a proper http.Request with form values

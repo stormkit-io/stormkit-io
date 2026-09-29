@@ -94,7 +94,7 @@ func (s *HandlerGitHubManifestSuite) Test_GenerateManifest_Success() {
 	)
 
 	s.Equal(http.StatusUnauthorized, details.Code)
-	s.Nil(user.ParseJWT(&user.ParseJWTArgs{Bearer: state[1], Purposes: []user.Purpose{user.PurposeSession}}))
+	s.Nil(user.ParseJWT(&user.ParseJWTArgs{Bearer: state[1], Purposes: user.AllPurposes}))
 
 	ttl, err := rediscache.Client().TTL(context.Background(), "github-manifest-state:"+state[1]).Result()
 	s.Require().NoError(err)

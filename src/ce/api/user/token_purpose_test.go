@@ -79,6 +79,20 @@ func (s *TokenPurposeSuite) Test_LegacyTokenRejected() {
 	s.Nil(s.parse(token, user.PurposeSession))
 }
 
+// Test_SkAuthRequiresOwnSecret verifies that Stormkit Auth tokens are never
+// signed or verified with the instance secret, which every environment would
+// otherwise share.
+func (s *TokenPurposeSuite) Test_SkAuthRequiresOwnSecret() {
+	_, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthSession, Claims: jwt.MapClaims{"uid": "1"}})
+	s.ErrorIs(err, user.ErrMissingSecret)
+
+	token, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthSession, Claims: jwt.MapClaims{"uid": "1"}, Secret: "env-secret-padded-to-32-chars!!!"})
+	s.Require().NoError(err)
+
+	s.Nil(user.ParseJWT(&user.ParseJWTArgs{Bearer: token, Purposes: []user.Purpose{user.PurposeSkAuthSession}}))
+	s.NotNil(user.ParseJWT(&user.ParseJWTArgs{Bearer: token, Secret: "env-secret-padded-to-32-chars!!!", Purposes: []user.Purpose{user.PurposeSkAuthSession}}))
+}
+
 func TestTokenPurposeSuite(t *testing.T) {
 	suite.Run(t, new(TokenPurposeSuite))
 }

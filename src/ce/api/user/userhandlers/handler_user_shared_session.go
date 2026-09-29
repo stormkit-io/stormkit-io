@@ -19,6 +19,12 @@ type userSharedSessionArgs struct {
 // An optional `hours` field (1–24) controls the token lifetime; it defaults
 // to 1. Non-Enterprise users are clamped to 1h regardless of the requested value.
 func handlerUserSharedSession(req *user.RequestContext) *shttp.Response {
+	// Only a real login may share access. A shared session minting another
+	// would renew itself forever, defeating its lifetime.
+	if user.ParseJWT(&user.ParseJWTArgs{Bearer: user.BearerFromRequest(req.RequestContext), Purposes: []user.Purpose{user.PurposeSession}}) == nil {
+		return shttp.Forbidden()
+	}
+
 	body := userSharedSessionArgs{}
 
 	if err := req.Post(&body); err != nil {
@@ -36,7 +42,7 @@ func handlerUserSharedSession(req *user.RequestContext) *shttp.Response {
 		hours = 1
 	}
 
-	token, err := user.JWT(user.JWTParams{Purpose: user.PurposeSession, Claims: jwt.MapClaims{
+	token, err := user.JWT(user.JWTParams{Purpose: user.PurposeSharedSession, Claims: jwt.MapClaims{
 		"uid": req.User.ID,
 		"exp": time.Now().Add(time.Duration(hours) * time.Hour).Unix(),
 	}})

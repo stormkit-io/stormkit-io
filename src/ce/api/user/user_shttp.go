@@ -79,10 +79,18 @@ type JWTParams struct {
 // ErrMissingPurpose is returned when a token is issued without a purpose.
 var ErrMissingPurpose = errors.New("token purpose is required")
 
+// ErrMissingSecret is returned when a token whose purpose requires its own
+// secret is issued without one.
+var ErrMissingSecret = errors.New("token secret is required for this purpose")
+
 // JWT returns a signed JWT token string carrying the given purpose.
 func JWT(p JWTParams) (string, error) {
 	if p.Purpose == "" {
 		return "", ErrMissingPurpose
+	}
+
+	if p.Secret == "" && p.Purpose.requiresOwnSecret() {
+		return "", ErrMissingSecret
 	}
 
 	claims := make(jwt.MapClaims)
@@ -230,6 +238,14 @@ func ParseJWT(args *ParseJWTArgs) jwt.MapClaims {
 		return nil
 	}
 
+	if args.Secret == "" {
+		for _, purpose := range args.Purposes {
+			if purpose.requiresOwnSecret() {
+				return nil
+			}
+		}
+	}
+
 	token, err := jwt.Parse(args.Bearer, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
@@ -291,7 +307,7 @@ func ParseBearer(token string) string {
 // and returns the user ID extracted from the "uid" claim, or 0 if the token
 // is missing, invalid, or expired.
 func UIDFromBearer(bearer string) types.ID {
-	claims := ParseJWT(&ParseJWTArgs{Bearer: bearer, Purposes: []Purpose{PurposeSession}})
+	claims := ParseJWT(&ParseJWTArgs{Bearer: bearer, Purposes: []Purpose{PurposeSession, PurposeSharedSession}})
 
 	switch claims["uid"].(type) {
 	case int64:
@@ -305,14 +321,15 @@ func UIDFromBearer(bearer string) types.ID {
 
 // uidFromRequest returns the user id from the given request context.
 func uidFromRequest(req *shttp.RequestContext) types.ID {
-	var bearer string
-	auth := req.Headers().Get("Authorization")
+	return UIDFromBearer(BearerFromRequest(req))
+}
 
-	if auth == "" {
-		bearer = req.Query().Get("auth")
-	} else {
-		bearer = ParseBearer(auth)
+// BearerFromRequest returns the session token of the request, read from the
+// Authorization header or, when that is empty, the auth query parameter.
+func BearerFromRequest(req *shttp.RequestContext) string {
+	if auth := req.Headers().Get("Authorization"); auth != "" {
+		return ParseBearer(auth)
 	}
 
-	return UIDFromBearer(bearer)
+	return req.Query().Get("auth")
 }

@@ -513,13 +513,6 @@ func (o *oauthServer) sessionIdentity() (uid, eml string, ok bool) {
 		return "", "", false
 	}
 
-	// OAuth access tokens carry an audience and are bound to the client and
-	// scopes they were granted for. They are not browser sessions and must not
-	// approve new grants, or a client could widen its own access.
-	if _, hasAudience := claims["aud"]; hasAudience {
-		return "", "", false
-	}
-
 	uid, _ = claims["uid"].(string)
 
 	if uid == "" {
