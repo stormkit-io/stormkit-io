@@ -1,6 +1,7 @@
 package apphandlers
 
 import (
+	"crypto/subtle"
 	"strconv"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
@@ -30,7 +31,7 @@ func handlerAppHooksDeploy(req *app.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	if hash == "" || settings.DeployTrigger != hash {
+	if hash == "" || subtle.ConstantTimeCompare([]byte(settings.DeployTrigger), []byte(hash)) != 1 {
 		return shttp.NotAllowed()
 	}
 
@@ -64,12 +65,14 @@ func handlerAppHooksDeploy(req *app.RequestContext) *shttp.Response {
 		env, err = buildconf.NewStore().Environment(req.Context(), req.App.ID, envVar)
 	}
 
-	if env == nil {
-		return shttp.NotFound()
-	}
-
 	if err != nil {
 		return shttp.Error(err)
+	}
+
+	// The trigger hash only authorizes deployments of its own app, so an
+	// environment ID of another app must not be accepted.
+	if env == nil || env.AppID != req.App.ID {
+		return shttp.NotFound()
 	}
 
 	depl := deploy.New(req.App)
