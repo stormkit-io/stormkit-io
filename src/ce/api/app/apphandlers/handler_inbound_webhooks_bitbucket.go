@@ -1,6 +1,7 @@
 package apphandlers
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -18,6 +19,11 @@ func processBitbucketPayload(req *shttp.RequestContext) (*TriggerDeployInput, er
 		bitbucket.PullRequestCreatedEvent,
 		bitbucket.PullRequestMergedEvent,
 	)
+
+	// Events the hook was not registered for are not an error.
+	if errors.Is(err, bitbucket.ErrEventNotFound) {
+		return nil, nil
+	}
 
 	if err != nil {
 		event_type := req.Header.Get("X-Event-Key")

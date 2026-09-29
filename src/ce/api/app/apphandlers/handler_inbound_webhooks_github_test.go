@@ -157,6 +157,19 @@ func (s *InboundGithubSuite) Test_Rejected_InvalidSignature() {
 	s.mockDeployer.AssertNotCalled(s.T(), "Deploy")
 }
 
+// Test_Rejected_MissingSignature_BodyNotRead verifies that unsigned requests
+// are rejected before their body is read.
+func (s *InboundGithubSuite) Test_Rejected_MissingSignature_BodyNotRead() {
+	code, read := postWebhook(postWebhookParams{
+		Target:  "/app/webhooks/github/deploy",
+		Headers: map[string]string{"X-Github-Event": "push"},
+	})
+
+	s.Equal(http.StatusForbidden, code)
+	s.False(read)
+	s.mockDeployer.AssertNotCalled(s.T(), "Deploy")
+}
+
 // Test_Rejected_NoSecretConfigured verifies that webhooks are rejected, rather
 // than accepted unverified, when the instance has no webhook secret.
 func (s *InboundGithubSuite) Test_Rejected_NoSecretConfigured() {

@@ -1,6 +1,10 @@
 package apphandlers_test
 
 import (
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,7 +15,42 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apphandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
+	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 )
+
+// readTracker is a request body that records whether it has been read.
+type readTracker struct {
+	io.Reader
+	read bool
+}
+
+func (r *readTracker) Read(p []byte) (int, error) {
+	r.read = true
+
+	return r.Reader.Read(p)
+}
+
+// postWebhookParams represents the parameters for postWebhook.
+type postWebhookParams struct {
+	Target  string
+	Headers map[string]string
+}
+
+// postWebhook sends a webhook with a tracked body and returns the response
+// status and whether the body was read.
+func postWebhook(p postWebhookParams) (int, bool) {
+	body := &readTracker{Reader: strings.NewReader(`{"not":"parsed"}`)}
+	req := httptest.NewRequest(http.MethodPost, p.Target, body)
+
+	for key, value := range p.Headers {
+		req.Header.Set(key, value)
+	}
+
+	recorder := httptest.NewRecorder()
+	shttp.NewRouter().RegisterService(apphandlers.Services).Router().Handler().ServeHTTP(recorder, req)
+
+	return recorder.Code, body.read
+}
 
 type InboundWebhooksSuite struct {
 	suite.Suite

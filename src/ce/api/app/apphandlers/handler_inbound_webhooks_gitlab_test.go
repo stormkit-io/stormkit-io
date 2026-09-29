@@ -21,6 +21,8 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp/shttptest"
+	"github.com/stormkit-io/stormkit-io/src/lib/types"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
 var gitlabMergeExample = func(status string) string {
@@ -141,6 +143,41 @@ func (s *InboundGitlabSuite) Test_Rejected_InvalidSecret() {
 	response := s.post("/app/webhooks/gitlab/not-a-secret", "Push Hook", s.pushPayload())
 
 	s.Equal(http.StatusForbidden, response.Code)
+	s.mockDeployer.AssertNotCalled(s.T(), "Deploy")
+}
+
+// Test_Rejected_InvalidSecret_BodyNotRead verifies that requests without a
+// valid app secret are rejected before their payload is parsed.
+func (s *InboundGitlabSuite) Test_Rejected_InvalidSecret_BodyNotRead() {
+	code, read := postWebhook(postWebhookParams{
+		Target:  "/app/webhooks/gitlab/not-a-secret",
+		Headers: map[string]string{"X-Gitlab-Event": "Push Hook"},
+	})
+
+	s.Equal(http.StatusForbidden, code)
+	s.False(read)
+	s.mockDeployer.AssertNotCalled(s.T(), "Deploy")
+}
+
+// Test_Rejected_SecretOfUnknownApp verifies that a well-formed secret of an
+// app that does not exist is rejected.
+func (s *InboundGitlabSuite) Test_Rejected_SecretOfUnknownApp() {
+	s.app(true)
+
+	response := s.post(fmt.Sprintf("/app/webhooks/gitlab/%s", utils.EncryptID(types.ID(999999))), "Push Hook", s.pushPayload())
+
+	s.Equal(http.StatusForbidden, response.Code)
+	s.mockDeployer.AssertNotCalled(s.T(), "Deploy")
+}
+
+// Test_UnsupportedEvent verifies that events the hook was not registered for
+// are ignored instead of rejected, so GitLab does not disable the hook.
+func (s *InboundGitlabSuite) Test_UnsupportedEvent() {
+	appl := s.app(true)
+
+	response := s.post(fmt.Sprintf("/app/webhooks/gitlab/%s", appl.Secret()), "Pipeline Hook", s.pushPayload())
+
+	s.Equal(http.StatusNoContent, response.Code)
 	s.mockDeployer.AssertNotCalled(s.T(), "Deploy")
 }
 

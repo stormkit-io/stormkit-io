@@ -1,6 +1,7 @@
 package apphandlers
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -19,6 +20,11 @@ func processGitlabPayload(req *shttp.RequestContext) (*TriggerDeployInput, error
 		gitlab.MergeRequestEvents,
 		gitlab.CommentEvents,
 	)
+
+	// Events the hook was not registered for are not an error.
+	if errors.Is(err, gitlab.ErrEventNotFound) {
+		return nil, nil
+	}
 
 	if err != nil {
 		event_type := req.Header.Get("X-Gitlab-Event")

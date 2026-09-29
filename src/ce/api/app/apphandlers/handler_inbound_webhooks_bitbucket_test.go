@@ -154,6 +154,30 @@ func (s *InboundBitbucketSuite) Test_Rejected_NoSecret() {
 	s.mockDeployer.AssertNotCalled(s.T(), "Deploy")
 }
 
+// Test_Rejected_NoSecret_BodyNotRead verifies that requests without an app
+// secret are rejected before their payload is parsed.
+func (s *InboundBitbucketSuite) Test_Rejected_NoSecret_BodyNotRead() {
+	code, read := postWebhook(postWebhookParams{
+		Target:  "/app/webhooks/bitbucket",
+		Headers: map[string]string{"X-Event-Key": bitbucketPushEvent},
+	})
+
+	s.Equal(http.StatusForbidden, code)
+	s.False(read)
+	s.mockDeployer.AssertNotCalled(s.T(), "Deploy")
+}
+
+// Test_UnsupportedEvent verifies that events the hook was not registered for
+// are ignored instead of rejected.
+func (s *InboundBitbucketSuite) Test_UnsupportedEvent() {
+	appl := s.app(true)
+
+	response := s.post(fmt.Sprintf("/app/webhooks/bitbucket/%s", appl.Secret()), "repo:commit_status_updated", s.pushPayload())
+
+	s.Equal(http.StatusNoContent, response.Code)
+	s.mockDeployer.AssertNotCalled(s.T(), "Deploy")
+}
+
 // Test_Rejected_SecretOfAnotherRepo verifies that a valid secret cannot be
 // used to trigger deployments for a repository its app is not connected to.
 func (s *InboundBitbucketSuite) Test_Rejected_SecretOfAnotherRepo() {

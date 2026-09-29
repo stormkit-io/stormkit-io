@@ -42,6 +42,13 @@ func (v webhookVerifier) github() error {
 		return ErrGithubWebhookSecretMissing
 	}
 
+	signature := v.req.Header.Get("X-Hub-Signature-256")
+
+	// Unsigned requests are rejected before their body is read.
+	if !strings.HasPrefix(signature, "sha256=") {
+		return ErrInvalidWebhookSecret
+	}
+
 	body, err := io.ReadAll(io.LimitReader(v.req.Body, githubMaxPayloadSize))
 
 	if err != nil {
@@ -55,7 +62,7 @@ func (v webhookVerifier) github() error {
 
 	expected := "sha256=" + hex.EncodeToString(mac.Sum(nil))
 
-	if !hmac.Equal([]byte(v.req.Header.Get("X-Hub-Signature-256")), []byte(expected)) {
+	if !hmac.Equal([]byte(signature), []byte(expected)) {
 		return ErrInvalidWebhookSecret
 	}
 
@@ -65,7 +72,7 @@ func (v webhookVerifier) github() error {
 // processGithubPayload processes a github payload and starts a new deployment.
 func processGithubPayload(req *shttp.RequestContext) (*TriggerDeployInput, error) {
 	if err := (webhookVerifier{req: req}).github(); err != nil {
-		slog.Errorf("github webhook rejected: %s", err.Error())
+		slog.Infof("github webhook rejected: %s", err.Error())
 		return nil, err
 	}
 
