@@ -1,5 +1,32 @@
 # Changelog
 
+## v2026.09.29.3...v2026.09.29.4
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.29.3...v2026.09.29.4)
+
+### 🩹 Fixes
+
+- Tighten api key and token checks ([#568](https://github.com/stormkit-io/stormkit-io/pull/568))
+- Tighten key creation and auth wall ([#571](https://github.com/stormkit-io/stormkit-io/pull/571))
+
+### 📖 Documentation
+
+- Add manifest fix to changelog ([#569](https://github.com/stormkit-io/stormkit-io/pull/569))
+
+### 🏡 Chore
+
+- Update changelog for v2026.09.29.3 ([#567](https://github.com/stormkit-io/stormkit-io/pull/567))
+- Remove template deploy ([#570](https://github.com/stormkit-io/stormkit-io/pull/570))
+- ⚠️  Require a purpose on every token ([#572](https://github.com/stormkit-io/stormkit-io/pull/572))
+
+#### ⚠️ Breaking Changes
+
+- ⚠️  Require a purpose on every token ([#572](https://github.com/stormkit-io/stormkit-io/pull/572))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.09.29.2...v2026.09.29.3
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.29.2...v2026.09.29.3)
