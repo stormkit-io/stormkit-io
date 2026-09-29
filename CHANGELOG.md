@@ -36,6 +36,14 @@
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.28.2...v2026.09.29.1)
 
+### 🔒 Security
+
+- Require a single-use state bound to an admin for the GitHub App manifest callback. Before, anyone could complete the flow with a token the instance issues to anonymous visitors and overwrite the GitHub configuration ([GHSA-jm56-phmm-663q](https://github.com/stormkit-io/stormkit-io/security/advisories/GHSA-jm56-phmm-663q), [73eff23](https://github.com/stormkit-io/stormkit-io/commit/73eff232f7612592a0ddaacac35e212c9e61c9b5))
+
+### ⚠️ Upgrade notes
+
+- No configuration changes are needed. Check that *Admin → Git → GitHub* still shows your own GitHub App's App ID and account; if not, reconfigure it and rotate its webhook secret.
+
 ### 🩹 Fixes
 
 - Reject unverified webhooks before parsing ([#562](https://github.com/stormkit-io/stormkit-io/pull/562))
