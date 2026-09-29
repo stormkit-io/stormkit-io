@@ -4,9 +4,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/authwall"
 	"github.com/stormkit-io/stormkit-io/src/lib/html"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
@@ -29,15 +28,11 @@ func WithAuthWall(req *RequestContext) (*shttp.Response, error) {
 		return nil, nil
 	}
 
-	if cookie, err := req.Cookie(SESSION_COOKIE_NAME); cookie != nil && err == nil {
-		claims := user.ParseJWT(&user.ParseJWTArgs{
-			Bearer: cookie.Value,
-		})
+	tokens := authwall.Token{EnvID: req.Host.Config.EnvID}
 
-		// Already logged in for this endpoint
-		if claims != nil {
-			return nil, nil
-		}
+	// Already logged in for this environment
+	if cookie, err := req.Cookie(SESSION_COOKIE_NAME); cookie != nil && err == nil && tokens.IsValidSession(cookie.Value) {
+		return nil, nil
 	}
 
 	// User logged in successfully:
@@ -45,9 +40,7 @@ func WithAuthWall(req *RequestContext) (*shttp.Response, error) {
 	// - Create a server-side cookie to handle session management
 	// - Redirect the user back to the original page
 	if token := req.Query().Get("stormkit_success"); token != "" {
-		claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: token})
-
-		if claims != nil {
+		if tokens.IsValidSession(token) {
 			url := req.URL()
 			query := url.Query()
 			query.Del("stormkit_success")
@@ -70,7 +63,7 @@ func WithAuthWall(req *RequestContext) (*shttp.Response, error) {
 		}
 	}
 
-	token, _ := user.JWT(jwt.MapClaims{})
+	token, _ := tokens.Form()
 	content := html.MustRender(html.RenderArgs{
 		PageTitle:   "Stormkit - Password protected deployment",
 		PageContent: html.Templates["login"],
