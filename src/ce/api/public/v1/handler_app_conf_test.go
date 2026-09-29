@@ -2,12 +2,11 @@ package publicapiv1_test
 
 import (
 	"bytes"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
-	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"net/http"
 	"testing"
 	"text/template"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
 	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/mocks"
@@ -18,6 +17,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp/shttptest"
+	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/mise"
 )
 
@@ -82,15 +82,15 @@ func (s *HandlerAppConfSuite) Test_Success() {
 			"isEnterprise": true,
 			"billingUserId": "1",
 			"envVariables": {
-				"NODE_ENV": "production",
-				"MISE_GO_PATH": "my-path",
-				"SK_APP_ID": "{{ .AppID }}",
-				"SK_DEPLOYMENT_ID": "{{ .DeploymentID }}",
-				"SK_DEPLOYMENT_URL": "http://sample-project--{{ .DeploymentID }}.stormkit:8888",
-				"SK_ENV": "production",
-				"SK_ENV_ID": "{{ .EnvID }}",
-				"SK_ENV_URL": "http://sample-project.stormkit:8888",
-				"STORMKIT": "true"
+				"NODE_ENV": "",
+				"MISE_GO_PATH": "",
+				"SK_APP_ID": "",
+				"SK_DEPLOYMENT_ID": "",
+				"SK_DEPLOYMENT_URL": "",
+				"SK_ENV": "",
+				"SK_ENV_ID": "",
+				"SK_ENV_URL": "",
+				"STORMKIT": ""
 			}
 		}]
 	}`
@@ -148,7 +148,7 @@ func (s *HandlerAppConfSuite) Test_OtherAppsHost() {
 	attacker := s.MockUser()
 	attackerApp := s.MockApp(attacker, map[string]any{"DisplayName": "attacker-project"})
 	key := s.MockAPIKey(attackerApp, nil, map[string]any{
-		"UserID": attacker.ID,
+		"UserID": types.ID(0),
 		"EnvID":  types.ID(0),
 		"Scope":  apikey.SCOPE_APP,
 	})
@@ -166,7 +166,40 @@ func (s *HandlerAppConfSuite) Test_OtherAppsHost() {
 	)
 
 	s.Equal(http.StatusNoContent, response.Code)
-	s.NotContains(response.String(), "envVariables")
+	s.JSONEq(`{"error":"Config is not found. Did you publish your deployment?"}`, response.String())
+}
+
+// Test_OtherEnvironmentsHost verifies that an environment-level key cannot
+// read the config of a sibling environment of the same app.
+func (s *HandlerAppConfSuite) Test_OtherEnvironmentsHost() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr, map[string]any{"DisplayName": "sample-project"})
+	production := s.MockEnv(appl)
+	staging := s.MockEnv(appl, map[string]any{"Name": "staging", "Env": "staging"})
+	s.MockDeployment(production, map[string]any{
+		"Published": deploy.PublishedInfo{
+			{EnvID: production.ID},
+		},
+	})
+
+	key := s.MockAPIKey(appl, staging, map[string]any{
+		"UserID": types.ID(0),
+		"Scope":  apikey.SCOPE_ENV,
+	})
+
+	s.mockMise.On("BinPaths", mock.Anything).Return(map[string]string{}, nil).Maybe()
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodGet,
+		"/v1/app/config?hostName=sample-project.stormkit:8888",
+		nil,
+		map[string]string{
+			"Authorization": key.Value,
+		},
+	)
+
+	s.Equal(http.StatusNoContent, response.Code)
 }
 
 func TestHandlerAppConf(t *testing.T) {

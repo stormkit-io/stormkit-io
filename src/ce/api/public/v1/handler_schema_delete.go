@@ -28,14 +28,18 @@ func handlerSchemaDelete(req *app.RequestContext) *shttp.Response {
 		}
 	}
 
-	myTeam, err := team.NewStore().Team(req.Context(), req.App.TeamID, req.User.ID)
+	// API keys carry no user: WithAPIKey already limited them to this app.
+	// Logged-in users additionally need write access to the app's team.
+	if req.User != nil {
+		myTeam, err := team.NewStore().Team(req.Context(), req.App.TeamID, req.User.ID)
 
-	if err != nil {
-		return shttp.Error(err)
-	}
+		if err != nil {
+			return shttp.Error(err)
+		}
 
-	if myTeam == nil || !team.HasWriteAccess(myTeam.CurrentUserRole) {
-		return shttp.Forbidden()
+		if myTeam == nil || !team.HasWriteAccess(myTeam.CurrentUserRole) {
+			return shttp.Forbidden()
+		}
 	}
 
 	schemaName := env.SchemaConf.SchemaName

@@ -412,7 +412,7 @@
       "get": {
         "operationId": "getAppConfig",
         "summary": "Get the published configuration of a host",
-        "description": "Return the build and runtime configuration Stormkit serves for a host name, including the published deployment. Answers 204 when the host has no published deployment.",
+        "description": "Return the build and runtime configuration Stormkit serves for a host name of the key's app, including the published deployment. Environment variable values are left empty; read them with GET /v1/env/pull. Answers 204 when the host has no published deployment of the key's app or environment.",
         "tags": [
           "Apps"
         ],

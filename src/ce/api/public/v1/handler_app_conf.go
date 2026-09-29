@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 )
 
@@ -17,7 +18,9 @@ func handlerAppConf(req *RequestContext) *shttp.Response {
 
 	// The host name is chosen by the caller, so only configs of the caller's
 	// app, and of the key's environment for environment-level keys, are
-	// returned. Configs carry the deployment's environment variables.
+	// returned. Secrets are left out: environment variable values are only
+	// revealed through the audited /v1/env/pull, and the TLS key never leaves
+	// the server.
 	configs := []*appconf.Config{}
 
 	for _, cnf := range matches {
@@ -29,7 +32,12 @@ func handlerAppConf(req *RequestContext) *shttp.Response {
 			continue
 		}
 
-		configs = append(configs, cnf)
+		redacted := *cnf
+		redacted.EnvVariables = buildconf.MaskVars(cnf.EnvVariables)
+		redacted.CertKey = ""
+		redacted.CertValue = ""
+
+		configs = append(configs, &redacted)
 	}
 
 	if len(configs) == 0 {

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
@@ -17,6 +18,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp/shttptest"
+	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -77,6 +79,42 @@ func (s *HandlerSchemaDeleteSuite) Test_Success() {
 
 	s.NoError(err)
 	s.Len(audits, 0)
+}
+
+// Test_Success_APIKey verifies that an app-level API key, which carries no
+// user, can delete the schema of its own app.
+func (s *HandlerSchemaDeleteSuite) Test_Success_APIKey() {
+	admin.ResetMockLicense()
+	config.SetIsSelfHosted(true)
+	defer config.SetIsSelfHosted(false)
+
+	env := s.MockEnv(s.app, map[string]any{
+		"SchemaConf": &buildconf.SchemaConf{
+			SchemaName: "some_schema",
+		},
+	})
+
+	key := s.MockAPIKey(s.app, nil, map[string]any{
+		"UserID": types.ID(0),
+		"EnvID":  types.ID(0),
+		"Scope":  apikey.SCOPE_APP,
+	})
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodDelete,
+		fmt.Sprintf("/v1/schema?envId=%d", env.ID),
+		nil,
+		map[string]string{
+			"Authorization": key.Value,
+		},
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+
+	updatedEnv, err := buildconf.NewStore().EnvironmentByID(context.Background(), env.ID)
+	s.Require().NoError(err)
+	s.Nil(updatedEnv.SchemaConf)
 }
 
 func (s *HandlerSchemaDeleteSuite) Test_Success_AuditLogs() {
