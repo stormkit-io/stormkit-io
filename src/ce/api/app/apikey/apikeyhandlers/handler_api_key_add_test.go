@@ -1,6 +1,7 @@
 package apikeyhandlers_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey/apikeyhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
+	"github.com/stormkit-io/stormkit-io/src/ee/api/team"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -111,6 +113,35 @@ func (s *HandlerAPIKeySetSuite) Test_Success_TeamID() {
 	)
 
 	s.Equal(http.StatusCreated, response.Code)
+}
+
+// Test_Team_DeveloperForbidden verifies that a team member without write
+// access cannot create a team key, which would bypass role checks.
+func (s *HandlerAPIKeySetSuite) Test_Team_DeveloperForbidden() {
+	owner := s.MockUser()
+	developer := s.MockUser()
+
+	s.Require().NoError(team.NewStore().AddMemberToTeam(context.Background(), &team.Member{
+		TeamID: owner.DefaultTeamID,
+		UserID: developer.ID,
+		Role:   team.ROLE_DEVELOPER,
+		Status: true,
+	}))
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(apikeyhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/api-keys",
+		map[string]string{
+			"teamId": owner.DefaultTeamID.String(),
+			"name":   "Default",
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(developer.ID),
+		},
+	)
+
+	s.Equal(http.StatusForbidden, response.Code)
 }
 
 func (s *HandlerAPIKeySetSuite) Test_InvalidScope() {

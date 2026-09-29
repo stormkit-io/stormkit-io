@@ -114,20 +114,25 @@ func handlerAPIKeyAdd(req *user.RequestContext) *shttp.Response {
 	}
 
 	if data.TeamID != 0 {
-		teamStore := team.NewStore()
-		team, err := teamStore.Team(req.Context(), data.TeamID, req.User.ID)
+		myTeam, err := team.NewStore().Team(req.Context(), data.TeamID, req.User.ID)
 
 		if err != nil {
 			return shttp.Error(err)
 		}
 
-		if team == nil {
+		if myTeam == nil {
 			return &shttp.Response{
 				Status: http.StatusBadRequest,
 				Data: map[string]string{
 					"error": "Team not found.",
 				},
 			}
+		}
+
+		// A team key carries no user, so the endpoints it reaches cannot check
+		// a role. Only members who could act on the whole team may create one.
+		if !team.HasWriteAccess(myTeam.CurrentUserRole) {
+			return shttp.Forbidden()
 		}
 	}
 
