@@ -19,8 +19,8 @@ describe("~/utils/helpers/providers", () => {
   });
 
   test("getLogoForProvider: returns the correct logo for the provider", () => {
-    expect(getLogoForProvider("github")).toEqual("test-file-stub");
-    expect(getLogoForProvider("bitbucket")).toEqual("test-file-stub");
-    expect(getLogoForProvider("gitlab")).toEqual("test-file-stub");
+    expect(getLogoForProvider("github")).toContain("github");
+    expect(getLogoForProvider("bitbucket")).toContain("bitbucket");
+    expect(getLogoForProvider("gitlab")).toContain("gitlab");
   });
 });

@@ -1,4 +1,374 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`~/layouts/AppLayout/routes.ts > should match routes 1`] = `
+[
+  {
+    "element": {
+      "$$typeof": Symbol(react.transitional.element),
+      "_owner": null,
+      "_store": {},
+      "key": null,
+      "props": {},
+      "type": [Function],
+    },
+    "path": "/environments",
+  },
+  {
+    "element": {
+      "$$typeof": Symbol(react.transitional.element),
+      "_owner": null,
+      "_store": {},
+      "key": null,
+      "props": {
+        "children": {
+          "$$typeof": Symbol(react.transitional.element),
+          "_owner": null,
+          "_store": {},
+          "key": null,
+          "props": {},
+          "type": {
+            "$$typeof": Symbol(react.lazy),
+            "_debugInfo": [
+              {
+                "awaited": {
+                  "debugStack": [Error: react-stack-top-frame],
+                  "debugTask": null,
+                  "end": -1,
+                  "name": "lazy",
+                  "owner": null,
+                  "start": -1,
+                  "value": null,
+                },
+              },
+            ],
+            "_init": [Function],
+            "_payload": {
+              "_ioInfo": {
+                "debugStack": [Error: react-stack-top-frame],
+                "debugTask": null,
+                "end": -1,
+                "name": "lazy",
+                "owner": null,
+                "start": -1,
+                "value": null,
+              },
+              "_result": [Function],
+              "_status": -1,
+            },
+          },
+        },
+        "fallback": {
+          "$$typeof": Symbol(react.transitional.element),
+          "_owner": null,
+          "_store": {},
+          "key": null,
+          "props": {
+            "pageCenter": true,
+          },
+          "type": [Function],
+        },
+      },
+      "type": Symbol(react.suspense),
+    },
+    "path": "/environments/default",
+  },
+  {
+    "element": {
+      "$$typeof": Symbol(react.transitional.element),
+      "_owner": null,
+      "_store": {},
+      "key": null,
+      "props": {
+        "children": {
+          "$$typeof": Symbol(react.transitional.element),
+          "_owner": null,
+          "_store": {},
+          "key": null,
+          "props": {},
+          "type": {
+            "$$typeof": Symbol(react.lazy),
+            "_debugInfo": [
+              {
+                "awaited": {
+                  "debugStack": [Error: react-stack-top-frame],
+                  "debugTask": null,
+                  "end": -1,
+                  "name": "lazy",
+                  "owner": null,
+                  "start": -1,
+                  "value": null,
+                },
+              },
+            ],
+            "_init": [Function],
+            "_payload": {
+              "_ioInfo": {
+                "debugStack": [Error: react-stack-top-frame],
+                "debugTask": null,
+                "end": -1,
+                "name": "lazy",
+                "owner": null,
+                "start": -1,
+                "value": null,
+              },
+              "_result": [Function],
+              "_status": -1,
+            },
+          },
+        },
+        "fallback": {
+          "$$typeof": Symbol(react.transitional.element),
+          "_owner": null,
+          "_store": {},
+          "key": null,
+          "props": {
+            "pageCenter": true,
+          },
+          "type": [Function],
+        },
+      },
+      "type": Symbol(react.suspense),
+    },
+    "path": "/environments/:envId/*",
+  },
+  {
+    "element": {
+      "$$typeof": Symbol(react.transitional.element),
+      "_owner": null,
+      "_store": {},
+      "key": null,
+      "props": {
+        "children": {
+          "$$typeof": Symbol(react.transitional.element),
+          "_owner": null,
+          "_store": {},
+          "key": null,
+          "props": {},
+          "type": {
+            "$$typeof": Symbol(react.lazy),
+            "_debugInfo": [
+              {
+                "awaited": {
+                  "debugStack": [Error: react-stack-top-frame],
+                  "debugTask": null,
+                  "end": -1,
+                  "name": "lazy",
+                  "owner": null,
+                  "start": -1,
+                  "value": null,
+                },
+              },
+            ],
+            "_init": [Function],
+            "_payload": {
+              "_ioInfo": {
+                "debugStack": [Error: react-stack-top-frame],
+                "debugTask": null,
+                "end": -1,
+                "name": "lazy",
+                "owner": null,
+                "start": -1,
+                "value": null,
+              },
+              "_result": [Function],
+              "_status": -1,
+            },
+          },
+        },
+        "fallback": {
+          "$$typeof": Symbol(react.transitional.element),
+          "_owner": null,
+          "_store": {},
+          "key": null,
+          "props": {
+            "pageCenter": true,
+          },
+          "type": [Function],
+        },
+      },
+      "type": Symbol(react.suspense),
+    },
+    "path": "/settings",
+  },
+  {
+    "element": {
+      "$$typeof": Symbol(react.transitional.element),
+      "_owner": null,
+      "_store": {},
+      "key": null,
+      "props": {
+        "children": {
+          "$$typeof": Symbol(react.transitional.element),
+          "_owner": null,
+          "_store": {},
+          "key": null,
+          "props": {},
+          "type": {
+            "$$typeof": Symbol(react.lazy),
+            "_debugInfo": [
+              {
+                "awaited": {
+                  "debugStack": [Error: react-stack-top-frame],
+                  "debugTask": null,
+                  "end": -1,
+                  "name": "lazy",
+                  "owner": null,
+                  "start": -1,
+                  "value": null,
+                },
+              },
+            ],
+            "_init": [Function],
+            "_payload": {
+              "_ioInfo": {
+                "debugStack": [Error: react-stack-top-frame],
+                "debugTask": null,
+                "end": -1,
+                "name": "lazy",
+                "owner": null,
+                "start": -1,
+                "value": null,
+              },
+              "_result": [Function],
+              "_status": -1,
+            },
+          },
+        },
+        "fallback": {
+          "$$typeof": Symbol(react.transitional.element),
+          "_owner": null,
+          "_store": {},
+          "key": null,
+          "props": {
+            "pageCenter": true,
+          },
+          "type": [Function],
+        },
+      },
+      "type": Symbol(react.suspense),
+    },
+    "path": "/deployments",
+  },
+  {
+    "element": {
+      "$$typeof": Symbol(react.transitional.element),
+      "_owner": null,
+      "_store": {},
+      "key": null,
+      "props": {
+        "children": {
+          "$$typeof": Symbol(react.transitional.element),
+          "_owner": null,
+          "_store": {},
+          "key": null,
+          "props": {},
+          "type": {
+            "$$typeof": Symbol(react.lazy),
+            "_debugInfo": [
+              {
+                "awaited": {
+                  "debugStack": [Error: react-stack-top-frame],
+                  "debugTask": null,
+                  "end": -1,
+                  "name": "lazy",
+                  "owner": null,
+                  "start": -1,
+                  "value": null,
+                },
+              },
+            ],
+            "_init": [Function],
+            "_payload": {
+              "_ioInfo": {
+                "debugStack": [Error: react-stack-top-frame],
+                "debugTask": null,
+                "end": -1,
+                "name": "lazy",
+                "owner": null,
+                "start": -1,
+                "value": null,
+              },
+              "_result": [Function],
+              "_status": -1,
+            },
+          },
+        },
+        "fallback": {
+          "$$typeof": Symbol(react.transitional.element),
+          "_owner": null,
+          "_store": {},
+          "key": null,
+          "props": {
+            "pageCenter": true,
+          },
+          "type": [Function],
+        },
+      },
+      "type": Symbol(react.suspense),
+    },
+    "path": "/deployments/:deploymentId",
+  },
+  {
+    "element": {
+      "$$typeof": Symbol(react.transitional.element),
+      "_owner": null,
+      "_store": {},
+      "key": null,
+      "props": {
+        "children": {
+          "$$typeof": Symbol(react.transitional.element),
+          "_owner": null,
+          "_store": {},
+          "key": null,
+          "props": {},
+          "type": {
+            "$$typeof": Symbol(react.lazy),
+            "_debugInfo": [
+              {
+                "awaited": {
+                  "debugStack": [Error: react-stack-top-frame],
+                  "debugTask": null,
+                  "end": -1,
+                  "name": "lazy",
+                  "owner": null,
+                  "start": -1,
+                  "value": null,
+                },
+              },
+            ],
+            "_init": [Function],
+            "_payload": {
+              "_ioInfo": {
+                "debugStack": [Error: react-stack-top-frame],
+                "debugTask": null,
+                "end": -1,
+                "name": "lazy",
+                "owner": null,
+                "start": -1,
+                "value": null,
+              },
+              "_result": [Function],
+              "_status": -1,
+            },
+          },
+        },
+        "fallback": {
+          "$$typeof": Symbol(react.transitional.element),
+          "_owner": null,
+          "_store": {},
+          "key": null,
+          "props": {
+            "pageCenter": true,
+          },
+          "type": [Function],
+        },
+      },
+      "type": Symbol(react.suspense),
+    },
+    "path": "/feed",
+  },
+]
+`;
 
 exports[`~/layouts/AppLayout/routes.ts should match routes 1`] = `
 [
