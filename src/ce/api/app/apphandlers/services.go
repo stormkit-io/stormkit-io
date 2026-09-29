@@ -10,6 +10,8 @@ import (
 func Services(r *shttp.Router) *shttp.Service {
 	s := r.NewService()
 
+	s.NewEndpoint("/deploy").Handler(shttp.MethodGet, "", handlerDeployRemoved)
+
 	s.NewEndpoint("/app").
 		Handler(shttp.MethodPut, "", app.WithApp(handlerAppUpdate)).
 		Handler(shttp.MethodPost, "", user.WithAuth(handlerAppInsert)).
