@@ -54,7 +54,7 @@ var responseTmpl = template.Must(template.New("oauthResponse").Parse(`
 			<h1>{{.message}}</h1>
 		</div>
 		<script>
-			window.opener && window.opener.postMessage({{.json}}, "*");
+			{{if .targetOrigin}}window.opener && window.opener.postMessage({{.json}}, {{.targetOrigin}});{{end}}
 		</script>
 	</body>
 </html>
