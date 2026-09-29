@@ -34,14 +34,14 @@ func handlerAuth(req *shttp.RequestContext) *shttp.Response {
 	envID := utils.StringToID(req.FormValue("envId"))
 	referrer := req.Referer()
 
-	if email == "" || password == "" || envID == 0 {
-		return failedLoginResponse(referrer, "invalid_credentials")
-	}
-
 	tokens := authwall.Token{EnvID: envID}
 
 	if !tokens.IsValidForm(req.FormValue("token")) {
 		return failedLoginResponse(referrer, "invalid_token")
+	}
+
+	if email == "" || password == "" {
+		return failedLoginResponse(referrer, "invalid_credentials")
 	}
 
 	aw := &authwall.AuthWall{

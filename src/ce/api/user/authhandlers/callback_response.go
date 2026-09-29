@@ -2,10 +2,10 @@ package authhandlers
 
 import (
 	"bytes"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"net/http"
 	"net/url"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 )
 
@@ -57,11 +57,17 @@ func (cr *callbackResponse) send() *shttp.Response {
 		}
 	}
 
+	targetOrigin := cr.targetOrigin()
+
+	if targetOrigin == "" {
+		cr.htmlMessage = "The Stormkit app URL is not configured, so the result cannot be sent back to Stormkit."
+	}
+
 	buf := &bytes.Buffer{}
 	err := responseTmpl.Execute(buf, map[string]any{
 		"message":      cr.htmlMessage,
 		"json":         cr.postMessage,
-		"targetOrigin": cr.targetOrigin(),
+		"targetOrigin": targetOrigin,
 	})
 
 	data, execErr := buf.String(), err

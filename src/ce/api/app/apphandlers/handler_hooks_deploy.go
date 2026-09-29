@@ -56,22 +56,26 @@ func handlerAppHooksDeploy(req *app.RequestContext) *shttp.Response {
 		}
 	}
 
-	var envID int
 	var env *buildconf.Env
 
-	if envID, err = strconv.Atoi(envVar); err == nil {
+	if envID, convErr := strconv.Atoi(envVar); convErr == nil {
 		env, err = buildconf.NewStore().EnvironmentByID(req.Context(), types.ID(envID))
-	} else {
-		env, err = buildconf.NewStore().Environment(req.Context(), req.App.ID, envVar)
+
+		if err != nil {
+			return shttp.Error(err)
+		}
 	}
 
-	if err != nil {
-		return shttp.Error(err)
-	}
-
-	// The trigger hash only authorizes deployments of its own app, so an
-	// environment ID of another app must not be accepted.
+	// The trigger hash only authorizes deployments of its own app. When the
+	// segment is not one of the app's environment IDs, it is an environment
+	// name, which may itself be numeric.
 	if env == nil || env.AppID != req.App.ID {
+		if env, err = buildconf.NewStore().Environment(req.Context(), req.App.ID, envVar); err != nil {
+			return shttp.Error(err)
+		}
+	}
+
+	if env == nil {
 		return shttp.NotFound()
 	}
 

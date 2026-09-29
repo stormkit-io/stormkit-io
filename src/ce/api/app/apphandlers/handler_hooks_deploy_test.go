@@ -93,6 +93,24 @@ func (s *AppHooksSuite) Test_OtherAppsEnvironment() {
 	s.mockDeployer.AssertNotCalled(s.T(), "Deploy")
 }
 
+// Test_NumericEnvironmentName verifies that an environment whose name is numeric
+// can still be deployed by name.
+func (s *AppHooksSuite) Test_NumericEnvironmentName() {
+	tken := utils.RandomToken(48)
+	appl := s.MockApp(nil, map[string]any{"DeployTrigger": tken})
+	s.MockEnv(appl, map[string]any{"Name": "2025", "Env": "2025"})
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(apphandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		fmt.Sprintf("/hooks/app/%d/deploy/%s/2025", appl.ID, tken),
+		nil,
+		nil,
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+}
+
 // Test_OwnEnvironmentByID verifies that an app's own environment can still be
 // deployed by its numeric ID.
 func (s *AppHooksSuite) Test_OwnEnvironmentByID() {

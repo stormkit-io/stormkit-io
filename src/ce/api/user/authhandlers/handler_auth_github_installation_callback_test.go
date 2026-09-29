@@ -51,7 +51,10 @@ func (s *HandlerAuthGithubInstallationCallbackSuite) Test_NoAppURL() {
 	cnf.DomainConfig = &admin.DomainConfig{}
 	admin.SetConfig(&cnf)
 
-	s.NotContains(s.installationCallback(), "postMessage")
+	body := s.installationCallback()
+
+	s.NotContains(body, "postMessage")
+	s.Contains(body, "The Stormkit app URL is not configured")
 }
 
 func TestHandlerAuthGithubInstallationCallbackSuite(t *testing.T) {
