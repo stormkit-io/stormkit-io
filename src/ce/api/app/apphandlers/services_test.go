@@ -23,6 +23,7 @@ func (s *ServicesSuite) Test_Services() {
 		"GET:/app/{did:[0-9]+}/outbound-webhooks",
 		"GET:/app/{did:[0-9]+}/outbound-webhooks/{wid:[0-9]+}/trigger",
 		"GET:/app/{did:[0-9]+}/settings",
+		"GET:/deploy",
 		"GET:/hooks/app/{did:[0-9]+}/deploy/{hash}/{env}",
 		"POST:/app",
 		"POST:/app/outbound-webhooks",
