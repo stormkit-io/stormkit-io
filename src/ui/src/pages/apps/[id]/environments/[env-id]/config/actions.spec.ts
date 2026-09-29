@@ -8,10 +8,39 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/actions.tsx", () => {
   const env = mockEnvironments({ app })[0];
 
   describe("buildFormValues", () => {
+    // Every field the form sends. Any field added to or leaking into the
+    // payload has to be added here deliberately.
+    const expectedFields = [
+      "autoDeploy",
+      "autoDeployBranches",
+      "autoDeployCommits",
+      "autoPublish",
+      "branch",
+      "build.apiFolder",
+      "build.apiPathPrefix",
+      "build.buildCmd",
+      "build.distFolder",
+      "build.headers",
+      "build.headersFile",
+      "build.installCmd",
+      "build.previewLinks",
+      "build.priorityPattern",
+      "build.redirects",
+      "build.redirectsFile",
+      "build.serverCmd",
+      "build.skipUnchangedBuildRoot",
+      "build.statusChecks",
+      "build.vars",
+      "build.watchPaths",
+      "build.workDir",
+      "name",
+    ];
+
     it("should match the default state", () => {
       const values = buildFormValues(env, document.createElement("form"));
 
-      expect(values).toEqual({
+      expect(Object.keys(values).sort()).toEqual(expectedFields);
+      expect(values).toMatchObject({
         name: env.name,
         branch: env.branch,
         autoDeploy: "disabled",
@@ -60,7 +89,8 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/actions.tsx", () => {
 
       const values = buildFormValues(env, form);
 
-      expect(values).toEqual({
+      expect(Object.keys(values).sort()).toEqual(expectedFields);
+      expect(values).toMatchObject({
         name: "my-new-env",
         branch: env.branch,
         autoDeploy: "custom",
@@ -82,70 +112,72 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/actions.tsx", () => {
   });
 
   describe("validateRedirects", () => {
-    const setError = vi.fn();
-    let redirects = `{}`;
+    it("should validate the redirects format", () => {
+      const setError = vi.fn();
+      let redirects = `{}`;
 
-    expect(validateRedirects(redirects, setError)).toBe(false);
-    expect(setError).toHaveBeenCalledWith(
-      "Invalid format for redirects: expected an array of objects."
-    );
+      expect(validateRedirects(redirects, setError)).toBe(false);
+      expect(setError).toHaveBeenCalledWith(
+        "Invalid format for redirects: expected an array of objects."
+      );
 
-    setError.mockClear();
-    redirects = `[ 
-      { "from": 1 } 
-    ]`;
+      setError.mockClear();
+      redirects = `[ 
+        { "from": 1 } 
+      ]`;
 
-    expect(validateRedirects(redirects, setError)).toBe(false);
-    expect(setError).toHaveBeenCalledWith(
-      "Invalid format for redirects: `from` needs to be type of string."
-    );
+      expect(validateRedirects(redirects, setError)).toBe(false);
+      expect(setError).toHaveBeenCalledWith(
+        "Invalid format for redirects: `from` needs to be type of string."
+      );
 
-    setError.mockClear();
-    redirects = `[ 
-      { "from": "/", "to": 2 } 
-    ]`;
+      setError.mockClear();
+      redirects = `[ 
+        { "from": "/", "to": 2 } 
+      ]`;
 
-    expect(validateRedirects(redirects, setError)).toBe(false);
-    expect(setError).toHaveBeenCalledWith(
-      "Invalid format for redirects: `to` needs to be type of string."
-    );
+      expect(validateRedirects(redirects, setError)).toBe(false);
+      expect(setError).toHaveBeenCalledWith(
+        "Invalid format for redirects: `to` needs to be type of string."
+      );
 
-    setError.mockClear();
-    redirects = `[ 
-      { "from": "/", "to": "/", "status": 400 } 
-    ]`;
+      setError.mockClear();
+      redirects = `[ 
+        { "from": "/", "to": "/", "status": 400 } 
+      ]`;
 
-    expect(validateRedirects(redirects, setError)).toBe(false);
-    expect(setError).toHaveBeenCalledWith(
-      "Invalid format for redirects: `status` needs to be either 200 or 3xx."
-    );
+      expect(validateRedirects(redirects, setError)).toBe(false);
+      expect(setError).toHaveBeenCalledWith(
+        "Invalid format for redirects: `status` needs to be either 200 or 3xx."
+      );
 
-    setError.mockClear();
-    redirects = `[ 
-      { "from": "/", "to": "/", "status": 200, "assets": "true" } 
-    ]`;
+      setError.mockClear();
+      redirects = `[ 
+        { "from": "/", "to": "/", "status": 200, "assets": "true" } 
+      ]`;
 
-    expect(validateRedirects(redirects, setError)).toBe(false);
-    expect(setError).toHaveBeenCalledWith(
-      "Invalid format for redirects: `assets` needs to be either true, false or undefined."
-    );
+      expect(validateRedirects(redirects, setError)).toBe(false);
+      expect(setError).toHaveBeenCalledWith(
+        "Invalid format for redirects: `assets` needs to be either true, false or undefined."
+      );
 
-    setError.mockClear();
-    redirects = `[ 
-      { "from": "/", "to": "/", "status": 200, "assets": true, "hosts": "abc.com" } 
-    ]`;
+      setError.mockClear();
+      redirects = `[ 
+        { "from": "/", "to": "/", "status": 200, "assets": true, "hosts": "abc.com" } 
+      ]`;
 
-    expect(validateRedirects(redirects, setError)).toBe(false);
-    expect(setError).toHaveBeenCalledWith(
-      "Invalid format for redirects: `hosts` needs an array of strings."
-    );
+      expect(validateRedirects(redirects, setError)).toBe(false);
+      expect(setError).toHaveBeenCalledWith(
+        "Invalid format for redirects: `hosts` needs an array of strings."
+      );
 
-    setError.mockClear();
-    redirects = `[ 
-      { "from": "/", "to": "/", "status": 200, "assets": true, "hosts": ["abc.com"] } 
-    ]`;
+      setError.mockClear();
+      redirects = `[ 
+        { "from": "/", "to": "/", "status": 200, "assets": true, "hosts": ["abc.com"] } 
+      ]`;
 
-    expect(validateRedirects(redirects, setError)).toBe(true);
-    expect(setError).not.toHaveBeenCalled();
+      expect(validateRedirects(redirects, setError)).toBe(true);
+      expect(setError).not.toHaveBeenCalled();
+    });
   });
 });

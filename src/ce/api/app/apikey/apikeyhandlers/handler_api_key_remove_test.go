@@ -256,6 +256,40 @@ func (s *HandlerAPIKeyRemoveSuite) Test_Forbidden_PersonalKeyOfTeammate() {
 	s.Equal(http.StatusForbidden, s.removeKey(removeKeyParams{Remover: teammate, App: appl, Owner: owner}).Code)
 }
 
+// Test_Forbidden_TeamKeyDeveloper verifies that a team member without write
+// access cannot delete the team's keys.
+func (s *HandlerAPIKeyRemoveSuite) Test_Forbidden_TeamKeyDeveloper() {
+	owner := s.MockUser()
+	developer := s.MockUser()
+
+	s.Require().NoError(team.NewStore().AddMemberToTeam(context.Background(), &team.Member{
+		TeamID: owner.DefaultTeamID,
+		UserID: developer.ID,
+		Role:   team.ROLE_DEVELOPER,
+		Status: true,
+	}))
+
+	key := s.MockAPIKey(s.MockApp(owner), nil, map[string]any{
+		"UserID": types.ID(0),
+		"AppID":  types.ID(0),
+		"EnvID":  types.ID(0),
+		"TeamID": owner.DefaultTeamID,
+		"Scope":  apikey.SCOPE_TEAM,
+	})
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(apikeyhandlers.Services).Router().Handler(),
+		shttp.MethodDelete,
+		fmt.Sprintf("/api-keys?keyId=%s", key.ID.String()),
+		nil,
+		map[string]string{
+			"Authorization": usertest.Authorization(developer.ID),
+		},
+	)
+
+	s.Equal(http.StatusForbidden, response.Code)
+}
+
 func TestHandlerAPIKeyRemove(t *testing.T) {
 	suite.Run(t, &HandlerAPIKeyRemoveSuite{})
 }

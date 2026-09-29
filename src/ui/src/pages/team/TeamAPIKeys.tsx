@@ -5,6 +5,14 @@ interface Props {
 }
 
 export default function TeamAPIKeys({ team }: Props) {
+  // Team keys act on the whole team, so only owners and admins manage them.
+  const hasWriteAccess =
+    team.currentUserRole === "owner" || team.currentUserRole === "admin";
+
+  if (!hasWriteAccess) {
+    return null;
+  }
+
   return (
     <APIKeyList
       cardSx={{ mb: 2 }}

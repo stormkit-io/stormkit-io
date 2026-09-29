@@ -2,6 +2,7 @@ package authwallhandlers
 
 import (
 	"net/url"
+	"strings"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/authwall"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -32,11 +33,22 @@ func handlerAuth(req *shttp.RequestContext) *shttp.Response {
 	email := req.FormValue("email")
 	password := req.FormValue("password")
 	envID := utils.StringToID(req.FormValue("envId"))
-	referrer := req.Referer()
-
 	tokens := authwall.Token{EnvID: envID}
+	form := tokens.ParseForm(req.FormValue("token"))
 
-	if !tokens.IsValidForm(req.FormValue("token")) {
+	if form == nil {
+		return shttp.BadRequest(map[string]any{
+			"error": "The login form has expired. Go back, reload the page and try again.",
+		})
+	}
+
+	// The form token carries the protected page's URL. The Referer header
+	// only upgrades it to https when a proxy in front terminated TLS; it is
+	// never used as the target, since a form on another site could otherwise
+	// have the visitor, and on success their session, sent there.
+	referrer := loginRedirect{returnTo: form.ReturnTo, referer: req.Referer()}.target()
+
+	if form.Expired {
 		return failedLoginResponse(referrer, "invalid_token")
 	}
 
@@ -69,4 +81,26 @@ func handlerAuth(req *shttp.RequestContext) *shttp.Response {
 	return &shttp.Response{
 		Redirect: addQueryParamToURL(referrer, "stormkit_success", jwtToken),
 	}
+}
+
+// loginRedirect decides where a visitor goes after submitting the login form.
+type loginRedirect struct {
+	returnTo string
+	referer  string
+}
+
+// target returns the return URL, upgraded to https when the Referer names the
+// same host over https.
+func (r loginRedirect) target() string {
+	target, err := url.Parse(r.returnTo)
+
+	if err != nil {
+		return r.returnTo
+	}
+
+	if referer, err := url.Parse(r.referer); err == nil && referer.Scheme == "https" && strings.EqualFold(referer.Host, target.Host) {
+		target.Scheme = "https"
+	}
+
+	return target.String()
 }

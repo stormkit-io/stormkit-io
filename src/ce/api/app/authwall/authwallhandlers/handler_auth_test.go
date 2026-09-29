@@ -45,16 +45,36 @@ func (s *HandlerAuthSuite) AfterTest(_, _ string) {
 	s.conn.CloseTx()
 }
 
-// login posts the Auth Wall login form with the given password and form token.
-func (s *HandlerAuthSuite) login(password, token string) shttptest.Response {
+const (
+	protectedPage = "https://site.example.org/page?a=b"
+	attackerPage  = "https://attacker.example.com/form"
+)
+
+type loginParams struct {
+	Password string
+	Token    string
+
+	// Referer defaults to a page on another site.
+	Referer string
+}
+
+// login posts the Auth Wall login form from another site, whose Referer must
+// never be used as the redirect target.
+func (s *HandlerAuthSuite) login(p loginParams) shttptest.Response {
 	requestBody, contentType, err := shttptest.MultipartForm(map[string][]byte{
 		"email":    []byte(s.aw.LoginEmail),
-		"password": []byte(password),
+		"password": []byte(p.Password),
 		"envId":    []byte(s.aw.EnvID.String()),
-		"token":    []byte(token),
+		"token":    []byte(p.Token),
 	}, nil)
 
 	s.Require().NoError(err)
+
+	referer := p.Referer
+
+	if referer == "" {
+		referer = attackerPage
+	}
 
 	return shttptest.RequestWithHeaders(
 		shttp.NewRouter().RegisterService(authwallhandlers.Services).Router().Handler(),
@@ -63,9 +83,16 @@ func (s *HandlerAuthSuite) login(password, token string) shttptest.Response {
 		requestBody,
 		map[string]string{
 			"Content-Type": contentType,
-			"Referer":      "http://example.org",
+			"Referer":      referer,
 		},
 	)
+}
+
+func (s *HandlerAuthSuite) formToken() string {
+	token, err := authwall.Token{EnvID: s.aw.EnvID}.Form(protectedPage)
+	s.Require().NoError(err)
+
+	return token
 }
 
 // Test_Auth_RejectsOtherTokens verifies that the login form only accepts the
@@ -74,51 +101,36 @@ func (s *HandlerAuthSuite) Test_Auth_RejectsOtherTokens() {
 	anonymous, err := user.JWT(jwt.MapClaims{})
 	s.Require().NoError(err)
 
-	otherEnv, err := authwall.Token{EnvID: s.aw.EnvID + 1}.Form()
+	otherEnv, err := authwall.Token{EnvID: s.aw.EnvID + 1}.Form(protectedPage)
 	s.Require().NoError(err)
 
 	for _, token := range []string{anonymous, otherEnv} {
-		response := s.login(s.aw.LoginPassword, token)
+		response := s.login(loginParams{Password: s.aw.LoginPassword, Token: token})
 
-		s.Equal(http.StatusFound, response.Code)
-		s.Equal("http://example.org?stormkit_error=invalid_token", response.Header().Get("Location"))
+		s.Equal(http.StatusBadRequest, response.Code)
+		s.Empty(response.Header().Get("Location"))
 	}
 }
 
+// Test_Auth_Success verifies that a successful login returns the visitor, with
+// the session, to the protected page carried by the form token, not to the
+// Referer.
 func (s *HandlerAuthSuite) Test_Auth_Success() {
 	now := time.Now().UTC().Unix()
-	token, err := authwall.Token{EnvID: s.aw.EnvID}.Form()
-
-	s.NoError(err)
-
-	requestBody, contentType, err := shttptest.MultipartForm(map[string][]byte{
-		"email":    []byte(s.aw.LoginEmail),
-		"password": []byte(s.aw.LoginPassword),
-		"envId":    []byte(s.aw.EnvID.String()),
-		"token":    []byte(token),
-	}, nil)
-
-	s.NoError(err)
-
-	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(authwallhandlers.Services).Router().Handler(),
-		shttp.MethodPost,
-		"/auth-wall/login",
-		requestBody,
-		map[string]string{
-			"Content-Type": contentType,
-			"Referer":      "http://example.org",
-		},
-	)
+	response := s.login(loginParams{Password: s.aw.LoginPassword, Token: s.formToken()})
 
 	s.Equal(http.StatusFound, response.Code)
 
 	location, err := url.Parse(response.Header().Get("Location"))
 	s.Require().NoError(err)
+	s.Equal("site.example.org", location.Host)
+	s.Equal("/page", location.Path)
+	s.Equal("b", location.Query().Get("a"))
 
 	session := location.Query().Get("stormkit_success")
 	s.True(authwall.Token{EnvID: s.aw.EnvID}.IsValidSession(session))
-	s.False(authwall.Token{EnvID: s.aw.EnvID}.IsValidForm(session))
+
+	s.Nil(authwall.Token{EnvID: s.aw.EnvID}.ParseForm(session))
 
 	logins, err := authwall.Store().Logins(context.Background(), s.aw.EnvID)
 	s.NoError(err)
@@ -127,33 +139,42 @@ func (s *HandlerAuthSuite) Test_Auth_Success() {
 	s.GreaterOrEqual(now, logins[0].LastLogin.Unix())
 }
 
-func (s *HandlerAuthSuite) Test_Auth_FailPassword() {
-	token, err := authwall.Token{EnvID: s.aw.EnvID}.Form()
+// Test_Auth_HTTPSBehindProxy verifies that the return URL is upgraded to https
+// when the browser was on https, as behind a proxy that terminates TLS.
+func (s *HandlerAuthSuite) Test_Auth_HTTPSBehindProxy() {
+	token, err := authwall.Token{EnvID: s.aw.EnvID}.Form("http://site.example.org/page")
+	s.Require().NoError(err)
 
-	s.NoError(err)
+	response := s.login(loginParams{Password: s.aw.LoginPassword, Token: token, Referer: "https://site.example.org/"})
 
-	requestBody, contentType, err := shttptest.MultipartForm(map[string][]byte{
-		"email":    []byte(s.aw.LoginEmail),
-		"password": []byte("some-password"),
-		"envId":    []byte(s.aw.EnvID.String()),
-		"token":    []byte(token),
-	}, nil)
+	location, err := url.Parse(response.Header().Get("Location"))
+	s.Require().NoError(err)
+	s.Equal("https", location.Scheme)
+	s.Equal("site.example.org", location.Host)
+}
 
-	s.NoError(err)
+// Test_Auth_ExpiredForm verifies that a form submitted too late sends the
+// visitor back to the page with an error instead of logging them in.
+func (s *HandlerAuthSuite) Test_Auth_ExpiredForm() {
+	token, err := user.JWT(jwt.MapClaims{
+		"purpose":  "auth-wall-form",
+		"envId":    s.aw.EnvID.String(),
+		"returnTo": protectedPage,
+		"issued":   time.Now().Add(-10 * time.Minute).Unix(),
+	})
+	s.Require().NoError(err)
 
-	response := shttptest.RequestWithHeaders(
-		shttp.NewRouter().RegisterService(authwallhandlers.Services).Router().Handler(),
-		shttp.MethodPost,
-		"/auth-wall/login",
-		requestBody,
-		map[string]string{
-			"Content-Type": contentType,
-			"Referer":      "http://example.org",
-		},
-	)
+	response := s.login(loginParams{Password: s.aw.LoginPassword, Token: token})
 
 	s.Equal(http.StatusFound, response.Code)
-	s.Equal("http://example.org?stormkit_error=invalid_credentials", response.Header().Get("Location"))
+	s.Equal(protectedPage+"&stormkit_error=invalid_token", response.Header().Get("Location"))
+}
+
+func (s *HandlerAuthSuite) Test_Auth_FailPassword() {
+	response := s.login(loginParams{Password: "some-password", Token: s.formToken()})
+
+	s.Equal(http.StatusFound, response.Code)
+	s.Equal(protectedPage+"&stormkit_error=invalid_credentials", response.Header().Get("Location"))
 
 	logins, err := authwall.Store().Logins(context.Background(), s.aw.EnvID)
 	s.NoError(err)

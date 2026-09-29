@@ -1,102 +1,13 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`~/layouts/AppLayout/routes.ts should match routes 1`] = `
+exports[`~/layouts/AppLayout/routes.ts > should match routes 1`] = `
 [
-  {
-    "element": <React.Suspense
-      fallback={
-        <Spinner
-          pageCenter={true}
-        />
-      }
-    >
-      <UNDEFINED />
-    </React.Suspense>,
-    "path": "/environments",
-  },
-  {
-    "element": <React.Suspense
-      fallback={
-        <Spinner
-          pageCenter={true}
-        />
-      }
-    >
-      <UNDEFINED />
-    </React.Suspense>,
-    "path": "/environments/default",
-  },
-  {
-    "element": <React.Suspense
-      fallback={
-        <Spinner
-          pageCenter={true}
-        />
-      }
-    >
-      <UNDEFINED />
-    </React.Suspense>,
-    "path": "/environments/:envId/*",
-  },
-  {
-    "element": <React.Suspense
-      fallback={
-        <Spinner
-          pageCenter={true}
-        />
-      }
-    >
-      <UNDEFINED />
-    </React.Suspense>,
-    "path": "/settings",
-  },
-  {
-    "element": <React.Suspense
-      fallback={
-        <Spinner
-          pageCenter={true}
-        />
-      }
-    >
-      <UNDEFINED />
-    </React.Suspense>,
-    "path": "/deployments",
-  },
-  {
-    "element": <React.Suspense
-      fallback={
-        <Spinner
-          pageCenter={true}
-        />
-      }
-    >
-      <UNDEFINED />
-    </React.Suspense>,
-    "path": "/deployments/:deploymentId",
-  },
-  {
-    "element": <React.Suspense
-      fallback={
-        <Spinner
-          pageCenter={true}
-        />
-      }
-    >
-      <UNDEFINED />
-    </React.Suspense>,
-    "path": "/feed",
-  },
-  {
-    "element": <React.Suspense
-      fallback={
-        <Spinner
-          pageCenter={true}
-        />
-      }
-    >
-      <UNDEFINED />
-    </React.Suspense>,
-    "path": "/usage",
-  },
+  "/environments",
+  "/environments/default",
+  "/environments/:envId/*",
+  "/settings",
+  "/deployments",
+  "/deployments/:deploymentId",
+  "/feed",
 ]
 `;
