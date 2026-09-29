@@ -232,6 +232,26 @@ func (s *OAuthSuite) Test_Grant_RequiresAuth() {
 	s.Equal("access_denied", s.json(res)["error"])
 }
 
+// Test_Grant_RejectsAccessToken verifies that an OAuth access token, which is
+// bound to a client and scopes, cannot approve a new grant as if it were the
+// user's browser session.
+func (s *OAuthSuite) Test_Grant_RejectsAccessToken() {
+	tok, err := user.JWT(jwt.MapClaims{
+		"uid":   "user-1",
+		"aud":   "https://app.example.com",
+		"scope": "email",
+	}, oauthSecret)
+	s.Require().NoError(err)
+
+	header := make(http.Header)
+	header.Set("Authorization", "Bearer "+tok)
+
+	res := hosting.HandleOAuthGrant(s.req(s.host(true), http.MethodPost, "/_stormkit/oauth/authorize", s.authzQuery(pkce("v")), header, nil))
+
+	s.Equal(http.StatusUnauthorized, res.Status)
+	s.Equal("access_denied", s.json(res)["error"])
+}
+
 // hostLogin returns an OAuth-enabled host with a configured delegation login URL.
 func (s *OAuthSuite) hostLogin(loginURL string) *hosting.Host {
 	host := s.host(true)
