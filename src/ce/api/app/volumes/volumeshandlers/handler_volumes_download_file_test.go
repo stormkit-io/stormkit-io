@@ -81,12 +81,12 @@ func (s *HandlerVolumesDownloadSuite) prepareFile(authToken string, appID, envID
 	s.NoError(os.WriteFile(file.FullPath(), content, 0664))
 	s.NoError(volumes.Store().Insert(ctx, []*volumes.File{file}, envID))
 
-	return user.JWT(jwt.MapClaims{
+	return user.JWT(user.JWTParams{Purpose: user.PurposeVolumeDownload, Claims: jwt.MapClaims{
 		"token":  strings.Replace(authToken, "Bearer ", "", 1),
 		"appId":  appID.String(),
 		"envId":  envID.String(),
 		"fileId": file.ID.String(),
-	})
+	}})
 }
 
 func (s *HandlerVolumesDownloadSuite) Test_Success() {

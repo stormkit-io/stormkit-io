@@ -19,11 +19,11 @@ func HandlerVolumesDownloadURL(req *app.RequestContext) *shttp.Response {
 		return shttp.BadRequest()
 	}
 
-	token, err := user.JWT(jwt.MapClaims{
+	token, err := user.JWT(user.JWTParams{Purpose: user.PurposeVolumeDownload, Claims: jwt.MapClaims{
 		"appId":  req.App.ID.String(),
 		"envId":  req.EnvID.String(),
 		"fileId": fileId.String(),
-	})
+	}})
 
 	if err != nil {
 		return shttp.Error(err)

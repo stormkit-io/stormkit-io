@@ -18,8 +18,9 @@ func HandlerVolumesDownloadFile(req *shttp.RequestContext) *shttp.Response {
 	}
 
 	jwt := user.ParseJWT(&user.ParseJWTArgs{
-		Bearer:  token,
-		MaxMins: 5,
+		Bearer:   token,
+		MaxMins:  5,
+		Purposes: []user.Purpose{user.PurposeVolumeDownload},
 	})
 
 	for _, arg := range []string{"fileId", "appId", "envId"} {

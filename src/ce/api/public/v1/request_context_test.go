@@ -251,14 +251,14 @@ func (s *RequestContextSuite) Test_Success_WithRequestBody() {
 
 // jwtToken mints a JWT bearer token encoding the given user's ID.
 func (s *RequestContextSuite) jwtToken(usr *factory.MockUser) string {
-	tok, err := user.JWT(jwt.MapClaims{"uid": usr.ID.String()})
+	tok, err := user.JWT(user.JWTParams{Purpose: user.PurposeSession, Claims: jwt.MapClaims{"uid": usr.ID.String()}})
 	s.Require().NoError(err)
 
 	return tok
 }
 
 func (s *RequestContextSuite) Test_Forbidden_JWT() {
-	unknownUIDTok, err := user.JWT(jwt.MapClaims{"uid": "999999999"})
+	unknownUIDTok, err := user.JWT(user.JWTParams{Purpose: user.PurposeSession, Claims: jwt.MapClaims{"uid": "999999999"}})
 	s.Require().NoError(err)
 
 	tests := []struct {

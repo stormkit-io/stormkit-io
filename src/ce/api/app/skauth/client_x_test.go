@@ -170,7 +170,7 @@ func (s *ClientXSuite) Test_Exchange_WithPKCE() {
 		"prv":  "x",
 	}
 
-	state, err := user.JWT(claims)
+	state, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthOAuthState, Claims: claims})
 	s.NoError(err)
 
 	// Create a proper http.Request with form values
@@ -205,7 +205,7 @@ func (s *ClientXSuite) Test_Exchange_WithoutPKCE() {
 		// No PKCE
 	}
 
-	state, err := user.JWT(claims)
+	state, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthOAuthState, Claims: claims})
 	s.NoError(err)
 
 	// Create a proper http.Request with form values
@@ -273,11 +273,11 @@ func (s *ClientXSuite) Test_Exchange_SendsCodeVerifier_WhenStateSecretMatches() 
 	verifier, err := utils.SecureRandomToken(64)
 	s.NoError(err)
 
-	state, err := user.JWT(jwt.MapClaims{
+	state, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthOAuthState, Claims: jwt.MapClaims{
 		"pkce": utils.EncryptToString(verifier),
 		"eid":  1,
 		"prv":  "x",
-	}, secret)
+	}, Secret: secret})
 	s.NoError(err)
 
 	req := s.exchangeRequest("auth-code", state)
@@ -306,11 +306,11 @@ func (s *ClientXSuite) Test_Exchange_DropsVerifier_WhenStateSecretMismatches() {
 
 	client := skauth.NewXClient("id", "secret", "https://app.example.com/cb", "the-right-secret")
 
-	state, err := user.JWT(jwt.MapClaims{
+	state, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthOAuthState, Claims: jwt.MapClaims{
 		"pkce": utils.EncryptToString("some-verifier"),
 		"eid":  1,
 		"prv":  "x",
-	}, "a-different-secret")
+	}, Secret: "a-different-secret"})
 	s.NoError(err)
 
 	req := s.exchangeRequest("auth-code", state)

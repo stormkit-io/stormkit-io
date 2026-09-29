@@ -36,10 +36,10 @@ func handlerUserSharedSession(req *user.RequestContext) *shttp.Response {
 		hours = 1
 	}
 
-	token, err := user.JWT(jwt.MapClaims{
+	token, err := user.JWT(user.JWTParams{Purpose: user.PurposeSession, Claims: jwt.MapClaims{
 		"uid": req.User.ID,
 		"exp": time.Now().Add(time.Duration(hours) * time.Hour).Unix(),
-	})
+	}})
 
 	if err != nil {
 		return shttp.Error(err)

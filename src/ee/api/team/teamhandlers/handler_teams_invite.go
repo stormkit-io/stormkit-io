@@ -76,12 +76,12 @@ func handlerTeamsInvite(req *user.RequestContext) *shttp.Response {
 		return shttp.NotAllowed()
 	}
 
-	token, err := req.JWT(jwt.MapClaims{
+	token, err := user.JWT(user.JWTParams{Purpose: user.PurposeTeamInvite, Claims: jwt.MapClaims{
 		"inviterId": req.User.ID.String(),
 		"teamId":    data.TeamID.String(),
 		"email":     data.Email,
 		"role":      data.Role,
-	})
+	}})
 
 	if err != nil {
 		return shttp.Error(err)

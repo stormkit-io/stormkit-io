@@ -52,7 +52,7 @@ func (s *UserSharedSessionSuite) Test_Success_DefaultsToOneHour() {
 	s.True(ok)
 	s.NotEmpty(token)
 
-	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: token})
+	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: token, Purposes: []user.Purpose{user.PurposeSession}})
 	s.NotNil(claims)
 	s.Equal(usr.ID.String(), claims["uid"])
 
@@ -78,7 +78,7 @@ func (s *UserSharedSessionSuite) Test_Success_CustomHours() {
 
 	s.Equal(http.StatusOK, response.Code)
 
-	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: response.Map()["token"].(string)})
+	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: response.Map()["token"].(string), Purposes: []user.Purpose{user.PurposeSession}})
 	s.NotNil(claims)
 
 	exp, _ := claims["exp"].(float64)
@@ -100,7 +100,7 @@ func (s *UserSharedSessionSuite) Test_OutOfRangeHoursClampsToOne() {
 
 	s.Equal(http.StatusOK, response.Code)
 
-	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: response.Map()["token"].(string)})
+	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: response.Map()["token"].(string), Purposes: []user.Purpose{user.PurposeSession}})
 	s.NotNil(claims)
 
 	exp, _ := claims["exp"].(float64)
@@ -111,10 +111,10 @@ func (s *UserSharedSessionSuite) Test_TokenExpiresAfterOneHour() {
 	usr := s.MockUser()
 
 	// Generate a shared session token with exp set 1h in the past.
-	expired, err := user.JWT(jwt.MapClaims{
+	expired, err := user.JWT(user.JWTParams{Purpose: user.PurposeSession, Claims: jwt.MapClaims{
 		"uid": usr.ID,
 		"exp": time.Now().Add(-time.Hour).Unix(),
-	})
+	}})
 	s.NoError(err)
 
 	response := shttptest.RequestWithHeaders(
@@ -148,7 +148,7 @@ func (s *UserSharedSessionSuite) Test_EnterpriseLicenseClampsTo24h() {
 
 	s.Equal(http.StatusOK, response.Code)
 
-	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: response.Map()["token"].(string)})
+	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: response.Map()["token"].(string), Purposes: []user.Purpose{user.PurposeSession}})
 	s.NotNil(claims)
 
 	exp, _ := claims["exp"].(float64)
@@ -173,7 +173,7 @@ func (s *UserSharedSessionSuite) Test_NonEnterpriseIgnoresHoursAndClampsToOne() 
 
 	s.Equal(http.StatusOK, response.Code)
 
-	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: response.Map()["token"].(string)})
+	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: response.Map()["token"].(string), Purposes: []user.Purpose{user.PurposeSession}})
 	s.NotNil(claims)
 
 	exp, _ := claims["exp"].(float64)

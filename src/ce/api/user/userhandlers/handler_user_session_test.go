@@ -197,10 +197,9 @@ func (s *UserSessionSuite) Test_Success_Cloud_FreeUser() {
 }
 
 func (s *UserSessionSuite) Test_NotAllowedBecauseExpired() {
-	req := &user.RequestContext{}
-	tkn, _ := req.JWT(map[string]any{
+	tkn, _ := user.JWT(user.JWTParams{Purpose: user.PurposeSession, Claims: map[string]any{
 		"issued": time.Now().Add(-30 * time.Hour).Unix(),
-	})
+	}})
 
 	response := shttptest.RequestWithHeaders(
 		shttp.NewRouter().RegisterService(userhandlers.Services).Router().Handler(),

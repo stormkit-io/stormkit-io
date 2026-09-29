@@ -31,9 +31,9 @@ func Services(r *shttp.Router) *shttp.Service {
 	s := r.NewService()
 
 	if config.IsDevelopment() {
-		token, _ := user.JWT(jwt.MapClaims{
+		token, _ := user.JWT(user.JWTParams{Purpose: user.PurposeSession, Claims: jwt.MapClaims{
 			"uid": "1",
-		})
+		}})
 
 		slog.Info("open console and type:")
 		slog.Info("localStorage.setItem('skit_provider', JSON.stringify('github'))")

@@ -86,7 +86,7 @@ func (s *HandlerVolumesDownloadURLSuite) Test_Success() {
 	token := regexp.MustCompile(`token=([^"]+)`).FindStringSubmatch(body)
 	s.Require().Len(token, 2)
 
-	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: token[1]})
+	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: token[1], Purposes: []user.Purpose{user.PurposeVolumeDownload}})
 	s.Require().NotNil(claims)
 	s.NotContains(claims, "token")
 	s.NotContains(claims, "uid")

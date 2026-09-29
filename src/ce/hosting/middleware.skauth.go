@@ -458,6 +458,8 @@ func injectUserHeaders(req *RequestContext) {
 		Bearer:  bearer,
 		Secret:  secret,
 		MaxMins: req.Host.Config.SKAuth.TTL,
+		// Both end-user sessions and OAuth access tokens authenticate requests.
+		Purposes: []user.Purpose{user.PurposeSkAuthSession, user.PurposeSkAuthAccessToken},
 	})
 
 	if claims == nil {
@@ -514,9 +516,10 @@ func (m *skAuthMiddleware) handleRefresh() (*shttp.Response, error) {
 	}
 
 	claims := user.ParseJWT(&user.ParseJWTArgs{
-		Bearer:  bearer,
-		Secret:  m.req.Host.Config.SKAuth.Secret,
-		MaxMins: m.req.Host.Config.SKAuth.TTL,
+		Bearer:   bearer,
+		Secret:   m.req.Host.Config.SKAuth.Secret,
+		MaxMins:  m.req.Host.Config.SKAuth.TTL,
+		Purposes: []user.Purpose{user.PurposeSkAuthSession},
 	})
 
 	if claims == nil {
@@ -547,7 +550,7 @@ func (m *skAuthMiddleware) handleRefresh() (*shttp.Response, error) {
 
 	newClaims := jwt.MapClaims{"uid": uid, "eml": claims["eml"]}
 
-	token, err := user.JWT(newClaims, m.req.Host.Config.SKAuth.Secret)
+	token, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthSession, Claims: newClaims, Secret: m.req.Host.Config.SKAuth.Secret})
 
 	if err != nil {
 		return &shttp.Response{

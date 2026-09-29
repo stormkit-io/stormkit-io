@@ -98,7 +98,7 @@ func (s *HandlerAuthSuite) formToken() string {
 // Test_Auth_RejectsOtherTokens verifies that the login form only accepts the
 // form token of its own environment.
 func (s *HandlerAuthSuite) Test_Auth_RejectsOtherTokens() {
-	anonymous, err := user.JWT(jwt.MapClaims{})
+	anonymous, err := user.JWT(user.JWTParams{Purpose: user.PurposeOAuthState, Claims: jwt.MapClaims{}})
 	s.Require().NoError(err)
 
 	otherEnv, err := authwall.Token{EnvID: s.aw.EnvID + 1}.Form(protectedPage)
@@ -156,12 +156,11 @@ func (s *HandlerAuthSuite) Test_Auth_HTTPSBehindProxy() {
 // Test_Auth_ExpiredForm verifies that a form submitted too late sends the
 // visitor back to the page with an error instead of logging them in.
 func (s *HandlerAuthSuite) Test_Auth_ExpiredForm() {
-	token, err := user.JWT(jwt.MapClaims{
-		"purpose":  "auth-wall-form",
+	token, err := user.JWT(user.JWTParams{Purpose: user.PurposeAuthWallForm, Claims: jwt.MapClaims{
 		"envId":    s.aw.EnvID.String(),
 		"returnTo": protectedPage,
 		"issued":   time.Now().Add(-10 * time.Minute).Unix(),
-	})
+	}})
 	s.Require().NoError(err)
 
 	response := s.login(loginParams{Password: s.aw.LoginPassword, Token: token})

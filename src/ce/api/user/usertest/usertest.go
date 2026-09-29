@@ -10,9 +10,9 @@ import (
 
 // Authorization returns the session token required to login for the given user id.
 func Authorization(userID types.ID) string {
-	token, _ := user.JWT(jwt.MapClaims{
+	token, _ := user.JWT(user.JWTParams{Purpose: user.PurposeSession, Claims: jwt.MapClaims{
 		"uid": userID.String(),
-	})
+	}})
 
 	return fmt.Sprintf("Bearer %s", token)
 }

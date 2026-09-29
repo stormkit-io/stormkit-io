@@ -237,7 +237,7 @@ func (s *OAuthSuite) Test_Refresh_RotatesToken() {
 	s.Require().True(ok)
 	s.NotEqual(refresh, rotated, "refresh token must rotate")
 
-	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: d["access_token"].(string), Secret: oauthSecret, MaxMins: 10})
+	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: d["access_token"].(string), Secret: oauthSecret, MaxMins: 10, Purposes: []user.Purpose{user.PurposeSkAuthAccessToken}})
 	s.Require().NotNil(claims)
 	s.Equal("user-42", claims["uid"])
 
@@ -324,7 +324,7 @@ func (s *OAuthSuite) Test_Token_AudienceFromResourceIndicator() {
 	res := s.exchange(host, code, verifier)
 	s.Equal(http.StatusOK, res.Status)
 
-	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: s.json(res)["access_token"].(string), Secret: oauthSecret, MaxMins: 10})
+	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: s.json(res)["access_token"].(string), Secret: oauthSecret, MaxMins: 10, Purposes: []user.Purpose{user.PurposeSkAuthAccessToken}})
 	s.Require().NotNil(claims)
 	s.Equal(resource, claims["aud"], "aud must echo the requested resource")
 }
@@ -358,7 +358,7 @@ func (s *OAuthSuite) Test_Token_AudienceDefaultsToResourceID() {
 	res := s.exchange(host, code, verifier)
 	s.Equal(http.StatusOK, res.Status)
 
-	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: s.json(res)["access_token"].(string), Secret: oauthSecret, MaxMins: 10})
+	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: s.json(res)["access_token"].(string), Secret: oauthSecret, MaxMins: 10, Purposes: []user.Purpose{user.PurposeSkAuthAccessToken}})
 	s.Require().NotNil(claims)
 	s.Equal("https://app.example.com/mcp", claims["aud"])
 }

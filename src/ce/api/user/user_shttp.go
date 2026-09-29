@@ -1,8 +1,10 @@
 package user
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -21,11 +23,6 @@ import (
 type RequestContext struct {
 	*shttp.RequestContext
 	User *User
-}
-
-// JWT returns a new JWT token instance.
-func (r *RequestContext) JWT(values jwt.MapClaims) (string, error) {
-	return JWT(values)
 }
 
 // License returns the license associated with the user in the request context.
@@ -67,27 +64,46 @@ func WithEE(req *shttp.RequestContext) *shttp.Response {
 	return nil
 }
 
-// JWT returns a signed JWT token string.
-func JWT(values jwt.MapClaims, secret ...string) (string, error) {
+// JWTParams represents the parameters for JWT.
+type JWTParams struct {
+	// Purpose is what the token is issued for. Required.
+	Purpose Purpose
+
+	// Claims are the token's claims. They cannot override the purpose.
+	Claims jwt.MapClaims
+
+	// Secret signs the token. Defaults to the instance secret.
+	Secret string
+}
+
+// ErrMissingPurpose is returned when a token is issued without a purpose.
+var ErrMissingPurpose = errors.New("token purpose is required")
+
+// JWT returns a signed JWT token string carrying the given purpose.
+func JWT(p JWTParams) (string, error) {
+	if p.Purpose == "" {
+		return "", ErrMissingPurpose
+	}
+
 	claims := make(jwt.MapClaims)
 	claims["issued"] = time.Now().Unix()
 
-	for k, v := range values {
+	for k, v := range p.Claims {
 		claims[k] = v
 	}
+
+	claims[purposeClaim] = string(p.Purpose)
 
 	token := jwt.New(jwt.GetSigningMethod("HS256"))
 	token.Claims = claims
 
-	var tokenSecret string
+	secret := p.Secret
 
-	if len(secret) == 0 {
-		tokenSecret = config.AppSecret()
-	} else {
-		tokenSecret = secret[0]
+	if secret == "" {
+		secret = config.AppSecret()
 	}
 
-	return token.SignedString([]byte(tokenSecret))
+	return token.SignedString([]byte(secret))
 }
 
 // FromContext fetches the user object from the request.
@@ -201,10 +217,19 @@ type ParseJWTArgs struct {
 	Bearer  string
 	Secret  string
 	MaxMins int
+
+	// Purposes are the purposes the token may have been issued for. Required:
+	// a token is rejected when its purpose is not one of them.
+	Purposes []Purpose
 }
 
-// ParseJWT parses the given token and returns the claims.
+// ParseJWT parses the given token and returns the claims. It returns nil when
+// the token is invalid, expired, or was not issued for one of args.Purposes.
 func ParseJWT(args *ParseJWTArgs) jwt.MapClaims {
+	if len(args.Purposes) == 0 {
+		return nil
+	}
+
 	token, err := jwt.Parse(args.Bearer, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
@@ -239,6 +264,12 @@ func ParseJWT(args *ParseJWTArgs) jwt.MapClaims {
 			return nil
 		}
 
+		purpose, _ := claims[purposeClaim].(string)
+
+		if !slices.Contains(args.Purposes, Purpose(purpose)) {
+			return nil
+		}
+
 		return claims
 	}
 
@@ -260,7 +291,7 @@ func ParseBearer(token string) string {
 // and returns the user ID extracted from the "uid" claim, or 0 if the token
 // is missing, invalid, or expired.
 func UIDFromBearer(bearer string) types.ID {
-	claims := ParseJWT(&ParseJWTArgs{Bearer: bearer})
+	claims := ParseJWT(&ParseJWTArgs{Bearer: bearer, Purposes: []Purpose{PurposeSession}})
 
 	switch claims["uid"].(type) {
 	case int64:
