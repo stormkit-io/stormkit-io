@@ -23,7 +23,7 @@ func handlerTeamsInvitationAccept(req *user.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: data.Token, MaxMins: 24 * 60 * 7})
+	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: data.Token, MaxMins: 24 * 60 * 7, Purposes: []user.Purpose{user.PurposeTeamInvite}})
 
 	if claims == nil {
 		return &shttp.Response{

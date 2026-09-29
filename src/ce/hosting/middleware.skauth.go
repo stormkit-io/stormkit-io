@@ -458,6 +458,8 @@ func injectUserHeaders(req *RequestContext) {
 		Bearer:  bearer,
 		Secret:  secret,
 		MaxMins: req.Host.Config.SKAuth.TTL,
+		// Both end-user sessions and OAuth access tokens authenticate requests.
+		Purposes: []user.Purpose{user.PurposeSkAuthSession, user.PurposeSkAuthAccessToken},
 	})
 
 	if claims == nil {
@@ -517,6 +519,9 @@ func (m *skAuthMiddleware) handleRefresh() (*shttp.Response, error) {
 		Bearer:  bearer,
 		Secret:  m.req.Host.Config.SKAuth.Secret,
 		MaxMins: m.req.Host.Config.SKAuth.TTL,
+		// Only end-user sessions are refreshable. Refreshing an OAuth access
+		// token would strip its client and scope binding.
+		Purposes: []user.Purpose{user.PurposeSkAuthSession},
 	})
 
 	if claims == nil {
@@ -535,19 +540,9 @@ func (m *skAuthMiddleware) handleRefresh() (*shttp.Response, error) {
 		}, nil
 	}
 
-	// Only session tokens are refreshable. An OAuth-issued access token carries
-	// an `aud` (and often `scope`); refreshing it here would strip that binding
-	// and hand back an unrestricted session token, so reject it outright.
-	if aud, ok := claims["aud"].(string); ok && aud != "" {
-		return &shttp.Response{
-			Status: http.StatusUnauthorized,
-			Data:   map[string]any{"errors": []string{"token is not refreshable"}},
-		}, nil
-	}
-
 	newClaims := jwt.MapClaims{"uid": uid, "eml": claims["eml"]}
 
-	token, err := user.JWT(newClaims, m.req.Host.Config.SKAuth.Secret)
+	token, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthSession, Claims: newClaims, Secret: m.req.Host.Config.SKAuth.Secret})
 
 	if err != nil {
 		return &shttp.Response{

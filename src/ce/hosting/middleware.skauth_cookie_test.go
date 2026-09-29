@@ -40,7 +40,7 @@ func (s *SkAuthCookieSuite) host() *hosting.Host {
 }
 
 func (s *SkAuthCookieSuite) token(uid string) string {
-	tok, err := user.JWT(jwt.MapClaims{"uid": uid}, cookieSecret)
+	tok, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthSession, Claims: jwt.MapClaims{"uid": uid}, Secret: cookieSecret})
 	s.Require().NoError(err)
 
 	return tok

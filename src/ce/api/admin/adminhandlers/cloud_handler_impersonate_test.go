@@ -64,7 +64,8 @@ func (s *HandlerImpersonateSuite) Test_Success() {
 	s.True(ok, "Token should be a string")
 
 	claims := user.ParseJWT(&user.ParseJWTArgs{
-		Bearer: tokenString,
+		Bearer:   tokenString,
+		Purposes: []user.Purpose{user.PurposeSession},
 	})
 
 	s.Equal(targetUser.ID.String(), claims["uid"])

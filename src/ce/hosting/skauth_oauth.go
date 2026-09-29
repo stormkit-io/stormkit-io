@@ -126,7 +126,7 @@ func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
 
 	// State is signed with the environment secret, so a token minted for another
 	// tenant, or one past its short expiry, fails to parse and is rejected.
-	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: req.FormValue("state"), Secret: env.AuthConf.Secret})
+	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: req.FormValue("state"), Secret: env.AuthConf.Secret, Purposes: []user.Purpose{user.PurposeSkAuthOAuthState}})
 
 	provider, ok := claims["prv"].(string)
 	refer, refOK := claims["ref"].(string)
@@ -237,12 +237,12 @@ func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
 		slog.Errorf("oauth callback: failed to update last login: %s", err.Error())
 	}
 
-	sessionToken, err := user.JWT(jwt.MapClaims{
+	sessionToken, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthSession, Claims: jwt.MapClaims{
 		"uid": usr.UUID,
 		"eml": utils.EncryptToString(usr.Email, emlKey(env.AuthConf.Secret)),
 		"eid": fmt.Sprintf("%d", env.ID),
 		"prv": provider,
-	}, env.AuthConf.Secret)
+	}, Secret: env.AuthConf.Secret})
 
 	if err != nil {
 		slog.Errorf("oauth callback: failed to generate session token: %s", err.Error())

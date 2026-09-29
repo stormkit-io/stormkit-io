@@ -239,7 +239,7 @@ func (s *WithSKAuthSuite) Test_MagicPath_VerifyInvalidToken() {
 }
 
 func (s *WithSKAuthSuite) generateBearer(userID types.ID, secret string) string {
-	token, err := user.JWT(jwt.MapClaims{"uid": userID}, secret)
+	token, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthSession, Claims: jwt.MapClaims{"uid": userID}, Secret: secret})
 	s.Require().NoError(err)
 	return fmt.Sprintf("Bearer %s", token)
 }
@@ -334,7 +334,7 @@ func (s *WithSKAuthSuite) hostWithOAuthResource() *hosting.Host {
 }
 
 func (s *WithSKAuthSuite) generateBearerWithAud(userID types.ID, secret, aud string) string {
-	token, err := user.JWT(jwt.MapClaims{"uid": userID, "aud": aud}, secret)
+	token, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthAccessToken, Claims: jwt.MapClaims{"uid": userID, "aud": aud}, Secret: secret})
 	s.Require().NoError(err)
 	return fmt.Sprintf("Bearer %s", token)
 }
@@ -382,10 +382,10 @@ func (s *WithSKAuthSuite) Test_UserIDNotInjectedWhenNoAuthHeader() {
 // generateBearerWithEmail signs a JWT carrying both uid and an encrypted eml
 // claim — mirrors what the login/register/verify/magic-link handlers issue.
 func (s *WithSKAuthSuite) generateBearerWithEmail(userID types.ID, email, secret string) string {
-	token, err := user.JWT(jwt.MapClaims{
+	token, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthSession, Claims: jwt.MapClaims{
 		"uid": userID,
 		"eml": utils.EncryptToString(email, []byte(secret)),
-	}, secret)
+	}, Secret: secret})
 	s.Require().NoError(err)
 	return fmt.Sprintf("Bearer %s", token)
 }
@@ -464,9 +464,10 @@ func (s *WithSKAuthSuite) Test_Refresh_ValidToken() {
 	s.NotEmpty(newToken)
 
 	claims := user.ParseJWT(&user.ParseJWTArgs{
-		Bearer:  newToken,
-		Secret:  "test-secret-padded-to-32-chars!!",
-		MaxMins: 10,
+		Bearer:   newToken,
+		Secret:   "test-secret-padded-to-32-chars!!",
+		MaxMins:  10,
+		Purposes: []user.Purpose{user.PurposeSkAuthSession},
 	})
 	s.Require().NotNil(claims)
 	s.Equal("42", claims["uid"])
@@ -490,9 +491,10 @@ func (s *WithSKAuthSuite) Test_Refresh_PreservesEmail() {
 	newToken := data["token"].(string)
 
 	claims := user.ParseJWT(&user.ParseJWTArgs{
-		Bearer:  newToken,
-		Secret:  secret,
-		MaxMins: 10,
+		Bearer:   newToken,
+		Secret:   secret,
+		MaxMins:  10,
+		Purposes: []user.Purpose{user.PurposeSkAuthSession},
 	})
 	s.Require().NotNil(claims)
 

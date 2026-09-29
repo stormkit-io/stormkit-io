@@ -52,7 +52,7 @@ func (s *UserSharedSessionSuite) Test_Success_DefaultsToOneHour() {
 	s.True(ok)
 	s.NotEmpty(token)
 
-	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: token})
+	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: token, Purposes: []user.Purpose{user.PurposeSharedSession}})
 	s.NotNil(claims)
 	s.Equal(usr.ID.String(), claims["uid"])
 
@@ -78,7 +78,7 @@ func (s *UserSharedSessionSuite) Test_Success_CustomHours() {
 
 	s.Equal(http.StatusOK, response.Code)
 
-	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: response.Map()["token"].(string)})
+	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: response.Map()["token"].(string), Purposes: []user.Purpose{user.PurposeSharedSession}})
 	s.NotNil(claims)
 
 	exp, _ := claims["exp"].(float64)
@@ -100,7 +100,7 @@ func (s *UserSharedSessionSuite) Test_OutOfRangeHoursClampsToOne() {
 
 	s.Equal(http.StatusOK, response.Code)
 
-	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: response.Map()["token"].(string)})
+	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: response.Map()["token"].(string), Purposes: []user.Purpose{user.PurposeSharedSession}})
 	s.NotNil(claims)
 
 	exp, _ := claims["exp"].(float64)
@@ -111,10 +111,10 @@ func (s *UserSharedSessionSuite) Test_TokenExpiresAfterOneHour() {
 	usr := s.MockUser()
 
 	// Generate a shared session token with exp set 1h in the past.
-	expired, err := user.JWT(jwt.MapClaims{
+	expired, err := user.JWT(user.JWTParams{Purpose: user.PurposeSharedSession, Claims: jwt.MapClaims{
 		"uid": usr.ID,
 		"exp": time.Now().Add(-time.Hour).Unix(),
-	})
+	}})
 	s.NoError(err)
 
 	response := shttptest.RequestWithHeaders(
@@ -148,7 +148,7 @@ func (s *UserSharedSessionSuite) Test_EnterpriseLicenseClampsTo24h() {
 
 	s.Equal(http.StatusOK, response.Code)
 
-	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: response.Map()["token"].(string)})
+	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: response.Map()["token"].(string), Purposes: []user.Purpose{user.PurposeSharedSession}})
 	s.NotNil(claims)
 
 	exp, _ := claims["exp"].(float64)
@@ -173,11 +173,57 @@ func (s *UserSharedSessionSuite) Test_NonEnterpriseIgnoresHoursAndClampsToOne() 
 
 	s.Equal(http.StatusOK, response.Code)
 
-	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: response.Map()["token"].(string)})
+	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: response.Map()["token"].(string), Purposes: []user.Purpose{user.PurposeSharedSession}})
 	s.NotNil(claims)
 
 	exp, _ := claims["exp"].(float64)
 	s.InDelta(time.Now().Add(time.Hour).Unix(), int64(exp), 5)
+}
+
+// Test_SharedSessionSignsIn verifies that a shared session works as a login.
+func (s *UserSharedSessionSuite) Test_SharedSessionSignsIn() {
+	shared := s.sharedSession(s.MockUser())
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(userhandlers.Services).Router().Handler(),
+		shttp.MethodGet,
+		"/user",
+		nil,
+		map[string]string{"Authorization": "Bearer " + shared},
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+}
+
+// Test_Forbidden_FromSharedSession verifies that a shared session cannot mint
+// another one, which would let it renew itself forever.
+func (s *UserSharedSessionSuite) Test_Forbidden_FromSharedSession() {
+	shared := s.sharedSession(s.MockUser())
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(userhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/user/shared-session",
+		nil,
+		map[string]string{"Authorization": "Bearer " + shared},
+	)
+
+	s.Equal(http.StatusForbidden, response.Code)
+}
+
+// sharedSession mints a shared session for usr through the endpoint.
+func (s *UserSharedSessionSuite) sharedSession(usr *factory.MockUser) string {
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(userhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/user/shared-session",
+		nil,
+		map[string]string{"Authorization": usertest.Authorization(usr.ID)},
+	)
+
+	s.Require().Equal(http.StatusOK, response.Code)
+
+	return response.Map()["token"].(string)
 }
 
 func (s *UserSharedSessionSuite) Test_NotAllowedWithoutAuth() {

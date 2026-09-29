@@ -504,16 +504,12 @@ func (o *oauthServer) sessionIdentity() (uid, eml string, ok bool) {
 		Bearer:  sessionBearer(o.req),
 		Secret:  o.secret(),
 		MaxMins: o.req.Host.Config.SKAuth.TTL,
+		// Only end-user sessions: OAuth access tokens are bound to a client
+		// and scopes, and must not approve new grants.
+		Purposes: []user.Purpose{user.PurposeSkAuthSession},
 	})
 
 	if claims == nil {
-		return "", "", false
-	}
-
-	// OAuth access tokens carry an audience and are bound to the client and
-	// scopes they were granted for. They are not browser sessions and must not
-	// approve new grants, or a client could widen its own access.
-	if _, hasAudience := claims["aud"]; hasAudience {
 		return "", "", false
 	}
 
@@ -812,7 +808,7 @@ func (o *oauthServer) issueTokens(g oauthTokenGrant) *shttp.Response {
 		claims["scope"] = g.scope
 	}
 
-	accessToken, err := user.JWT(claims, o.secret())
+	accessToken, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthAccessToken, Claims: claims, Secret: o.secret()})
 
 	if err != nil {
 		return oauthJSON(http.StatusInternalServerError, oauthErr("server_error", ""))

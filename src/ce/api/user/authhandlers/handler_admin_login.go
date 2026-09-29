@@ -100,9 +100,9 @@ func handlerAdminLogin(req *shttp.RequestContext) *shttp.Response {
 		return errorResponse(err, 0)
 	}
 
-	jwt, err := user.JWT(jwt.MapClaims{
+	jwt, err := user.JWT(user.JWTParams{Purpose: user.PurposeSession, Claims: jwt.MapClaims{
 		"uid": usr.ID.String(),
-	})
+	}})
 
 	// Creating new token failed
 	if err != nil {

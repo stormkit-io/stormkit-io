@@ -131,10 +131,10 @@ func (s *HandlerGitHubManifestCallbackSuite) assertRejected(state string) {
 // instance can complete the flow: not the states issued to anonymous visitors
 // by the OAuth login routes, and not an admin's own session token.
 func (s *HandlerGitHubManifestCallbackSuite) Test_ManifestCallback_SignedTokens() {
-	anonymous, err := user.JWT(jwt.MapClaims{"provider": "github"})
+	anonymous, err := user.JWT(user.JWTParams{Purpose: user.PurposeOAuthState, Claims: jwt.MapClaims{"provider": "github"}})
 	s.Require().NoError(err)
 
-	session, err := user.JWT(jwt.MapClaims{"uid": s.MockUser(map[string]any{"IsAdmin": true}).ID.String()})
+	session, err := user.JWT(user.JWTParams{Purpose: user.PurposeSession, Claims: jwt.MapClaims{"uid": s.MockUser(map[string]any{"IsAdmin": true}).ID.String()}})
 	s.Require().NoError(err)
 
 	s.assertRejected(anonymous)

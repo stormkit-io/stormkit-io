@@ -100,9 +100,9 @@ func handlerAdminRegister(req *shttp.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	jwt, err := user.JWT(jwt.MapClaims{
+	jwt, err := user.JWT(user.JWTParams{Purpose: user.PurposeSession, Claims: jwt.MapClaims{
 		"uid": usr.ID.String(),
-	})
+	}})
 
 	if err != nil {
 		return shttp.Error(err)

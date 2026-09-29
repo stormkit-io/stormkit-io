@@ -123,8 +123,9 @@ func (x *XClient) Exchange(ctx context.Context, req *shttp.RequestContext) (*oau
 	// it must be verified with the same secret here — otherwise the claims are
 	// dropped and the PKCE verifier is lost.
 	claims := user.ParseJWT(&user.ParseJWTArgs{
-		Bearer: req.FormValue("state"),
-		Secret: x.stateSecret,
+		Bearer:   req.FormValue("state"),
+		Secret:   x.stateSecret,
+		Purposes: []user.Purpose{user.PurposeSkAuthOAuthState},
 	})
 
 	// Extract and decrypt the PKCE verifier if present
@@ -165,7 +166,7 @@ func (x *XClient) AuthCodeURL(params AuthCodeURLParams) (string, error) {
 	claims := params.Claims()
 	claims["pkce"] = utils.EncryptToString(token)
 
-	state, err := user.JWT(claims, params.Secret)
+	state, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthOAuthState, Claims: claims, Secret: params.Secret})
 
 	if err != nil {
 		return "", err

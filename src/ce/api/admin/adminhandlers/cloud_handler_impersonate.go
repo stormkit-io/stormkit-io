@@ -40,9 +40,9 @@ func handlerImpersonate(req *user.RequestContext) *shttp.Response {
 		return shttp.NotAllowed()
 	}
 
-	jwt, err := user.JWT(jwt.MapClaims{
+	jwt, err := user.JWT(user.JWTParams{Purpose: user.PurposeSession, Claims: jwt.MapClaims{
 		"uid": data.UserID.String(),
-	})
+	}})
 
 	if err != nil {
 		return shttp.Error(err)

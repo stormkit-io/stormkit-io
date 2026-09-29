@@ -326,9 +326,10 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_UIDClaimIsUUID() {
 
 	sessionToken := res.Cookies[0].Value
 	claims := user.ParseJWT(&user.ParseJWTArgs{
-		Bearer:  sessionToken,
-		Secret:  env.AuthConf.Secret,
-		MaxMins: 0,
+		Bearer:   sessionToken,
+		Secret:   env.AuthConf.Secret,
+		MaxMins:  0,
+		Purposes: []user.Purpose{user.PurposeSkAuthSession},
 	})
 
 	s.Require().NotNil(claims, "session token should be parseable")
@@ -545,8 +546,9 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_NativeScheme_CodeInRedirect() {
 	s.Require().True(ok)
 
 	claims := user.ParseJWT(&user.ParseJWTArgs{
-		Bearer: data["token"].(string),
-		Secret: env.AuthConf.Secret,
+		Bearer:   data["token"].(string),
+		Secret:   env.AuthConf.Secret,
+		Purposes: []user.Purpose{user.PurposeSkAuthSession},
 	})
 
 	s.Require().NotNil(claims, "the exchanged token must be a valid session JWT")
@@ -654,11 +656,11 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_NativeScheme_ExpiredToken_ErrorOn
 	env, err := s.setupEnvWithOrigins([]string{"triplan://auth"})
 	s.Require().NoError(err)
 
-	expired, err := user.JWT(jwt.MapClaims{
+	expired, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthMagicLink, Claims: jwt.MapClaims{
 		"exp": time.Now().Add(-time.Hour).Unix(),
 		"prv": skauth.ProviderMagicLink,
 		"rdr": "triplan://auth",
-	}, env.AuthConf.Secret)
+	}, Secret: env.AuthConf.Secret})
 	s.Require().NoError(err)
 
 	res, err := hosting.ServeAuth(s.magicRequest(
@@ -679,11 +681,11 @@ func (s *WithSKAuthMagicLinkSuite) Test_Verify_ExpiredToken_ForgedRedirect_Stays
 	env, err := s.setupEnvWithOrigins([]string{"triplan://auth"})
 	s.Require().NoError(err)
 
-	forged, err := user.JWT(jwt.MapClaims{
+	forged, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthMagicLink, Claims: jwt.MapClaims{
 		"exp": time.Now().Add(-time.Hour).Unix(),
 		"prv": skauth.ProviderMagicLink,
 		"rdr": "evil://auth",
-	}, env.AuthConf.Secret)
+	}, Secret: env.AuthConf.Secret})
 	s.Require().NoError(err)
 
 	res, err := hosting.ServeAuth(s.magicRequest(

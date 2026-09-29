@@ -154,7 +154,7 @@ func (m *skAuthMiddleware) magicLinkVerify() *shttp.Response {
 		return shttp.NotFound()
 	}
 
-	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: token, Secret: env.AuthConf.Secret})
+	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: token, Secret: env.AuthConf.Secret, Purposes: []user.Purpose{user.PurposeSkAuthMagicLink}})
 
 	if claims == nil {
 		// Expiry is the ordinary way a magic link fails, and the user is often in a
@@ -210,12 +210,12 @@ func (m *skAuthMiddleware) magicLinkVerify() *shttp.Response {
 		slog.Errorf("magic link verify: failed to update last login: %s", err.Error())
 	}
 
-	sessionToken, err := user.JWT(jwt.MapClaims{
+	sessionToken, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthSession, Claims: jwt.MapClaims{
 		"uid": authUser.UUID,
 		"eml": utils.EncryptToString(authUser.Email, emlKey(env.AuthConf.Secret)),
 		"eid": fmt.Sprintf("%d", envID),
 		"prv": skauth.ProviderMagicLink,
-	}, env.AuthConf.Secret)
+	}, Secret: env.AuthConf.Secret})
 
 	if err != nil {
 		return shttp.Error(err, fmt.Sprintf("failed to generate session token: %s", err.Error()))
@@ -290,7 +290,7 @@ func generateMagicLinkToken(p generateMagicLinkTokenParams) (string, error) {
 		claims["cha"] = p.CodeChallenge
 	}
 
-	return user.JWT(claims, p.Env.AuthConf.Secret)
+	return user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthMagicLink, Claims: claims, Secret: p.Env.AuthConf.Secret})
 }
 
 const defaultMagicLinkSubject = "Your magic link"

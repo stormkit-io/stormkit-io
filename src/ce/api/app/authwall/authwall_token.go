@@ -9,9 +9,6 @@ import (
 )
 
 const (
-	formPurpose    = "auth-wall-form"
-	sessionPurpose = "auth-wall-session"
-
 	// formMaxMins is how long a visitor has to submit the login form.
 	formMaxMins = 5
 
@@ -34,16 +31,21 @@ type Token struct {
 // the protected page, the only place the visitor is sent back to after
 // submitting the form.
 func (t Token) Form(returnTo string) (string, error) {
-	return user.JWT(jwt.MapClaims{
-		"purpose":  formPurpose,
-		"envId":    t.EnvID.String(),
-		"returnTo": returnTo,
+	return user.JWT(user.JWTParams{
+		Purpose: user.PurposeAuthWallForm,
+		Claims: jwt.MapClaims{
+			"envId":    t.EnvID.String(),
+			"returnTo": returnTo,
+		},
 	})
 }
 
 // Session returns the token issued after a successful login.
 func (t Token) Session() (string, error) {
-	return t.issue(sessionPurpose)
+	return user.JWT(user.JWTParams{
+		Purpose: user.PurposeAuthWallSession,
+		Claims:  jwt.MapClaims{"envId": t.EnvID.String()},
+	})
 }
 
 // Form is a verified login form token of an environment.
@@ -58,7 +60,7 @@ type Form struct {
 // ParseForm verifies a login form token of this environment. It returns nil
 // when the token is not one, or is too old to trust its return URL.
 func (t Token) ParseForm(token string) *Form {
-	claims := t.verify(verifyParams{token: token, purpose: formPurpose, maxMins: formReturnMaxMins})
+	claims := t.verify(verifyParams{token: token, purpose: user.PurposeAuthWallForm, maxMins: formReturnMaxMins})
 
 	if claims == nil {
 		return nil
@@ -81,19 +83,12 @@ func (t Token) ParseForm(token string) *Form {
 
 // IsValidSession reports whether token is a session of this environment.
 func (t Token) IsValidSession(token string) bool {
-	return t.verify(verifyParams{token: token, purpose: sessionPurpose, maxMins: sessionMaxMins}) != nil
-}
-
-func (t Token) issue(purpose string) (string, error) {
-	return user.JWT(jwt.MapClaims{
-		"purpose": purpose,
-		"envId":   t.EnvID.String(),
-	})
+	return t.verify(verifyParams{token: token, purpose: user.PurposeAuthWallSession, maxMins: sessionMaxMins}) != nil
 }
 
 type verifyParams struct {
 	token   string
-	purpose string
+	purpose user.Purpose
 	maxMins int
 }
 
@@ -104,9 +99,9 @@ func (t Token) verify(p verifyParams) jwt.MapClaims {
 		return nil
 	}
 
-	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: p.token, MaxMins: p.maxMins})
+	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: p.token, MaxMins: p.maxMins, Purposes: []user.Purpose{p.purpose}})
 
-	if claims == nil || claims["purpose"] != p.purpose || claims["envId"] != t.EnvID.String() {
+	if claims == nil || claims["envId"] != t.EnvID.String() {
 		return nil
 	}
 

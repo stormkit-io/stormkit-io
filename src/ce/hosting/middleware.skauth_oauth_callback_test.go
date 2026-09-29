@@ -38,7 +38,7 @@ func (s *WithSKAuthOAuthSuite) stateTokenWithChallenge(provider, ref, challenge 
 		claims["cha"] = challenge
 	}
 
-	token, err := user.JWT(claims, "test-secret-padded-to-32-chars!!")
+	token, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthOAuthState, Claims: claims, Secret: "test-secret-padded-to-32-chars!!"})
 
 	s.Require().NoError(err)
 
@@ -290,10 +290,10 @@ func (s *WithSKAuthOAuthSuite) Test_Callback_InvalidState() {
 func (s *WithSKAuthOAuthSuite) Test_Callback_ForeignSecretState_Rejected() {
 	host := s.setupCallbackEnv(true)
 
-	foreign, err := user.JWT(jwt.MapClaims{
+	foreign, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthOAuthState, Claims: jwt.MapClaims{
 		"prv": skauth.ProviderGoogle,
 		"ref": "https://app.example.com/login",
-	}, "a-completely-different-tenant-secret!!")
+	}, Secret: "a-completely-different-tenant-secret!!"})
 	s.Require().NoError(err)
 
 	res, err := hosting.ServeAuth(s.oauthRequest(

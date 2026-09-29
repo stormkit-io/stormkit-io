@@ -78,7 +78,7 @@ func handlerAuthCallback(req *shttp.RequestContext) *shttp.Response {
 	query := req.Query()
 	state := query.Get("state")
 	code := query.Get("code")
-	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: state})
+	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: state, Purposes: []user.Purpose{user.PurposeOAuthState}})
 	providerName := req.Vars()["provider"]
 
 	if claims == nil || claims["provider"] != providerName {
@@ -166,9 +166,9 @@ func Login(ctx context.Context, authUser *oauth.User) *shttp.Response {
 		return errorResponse(err, 0)
 	}
 
-	jwt, err := user.JWT(jwt.MapClaims{
+	jwt, err := user.JWT(user.JWTParams{Purpose: user.PurposeSession, Claims: jwt.MapClaims{
 		"uid": usr.ID.String(),
-	})
+	}})
 
 	// Creating new token failed
 	if err != nil {

@@ -147,12 +147,12 @@ func (m *skAuthMiddleware) login() *shttp.Response {
 		slog.Errorf("email login: failed to update last login: %s", err.Error())
 	}
 
-	sessionToken, err := user.JWT(jwt.MapClaims{
+	sessionToken, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthSession, Claims: jwt.MapClaims{
 		"uid": authUser.UUID,
 		"eml": utils.EncryptToString(ctx.email, emlKey(ctx.env.AuthConf.Secret)),
 		"eid": fmt.Sprintf("%d", ctx.envID),
 		"prv": skauth.ProviderEmail,
-	}, ctx.env.AuthConf.Secret)
+	}, Secret: ctx.env.AuthConf.Secret})
 
 	if err != nil {
 		return shttp.Error(err, fmt.Sprintf("failed to generate session token: %s", err.Error()))
@@ -225,12 +225,12 @@ func (m *skAuthMiddleware) register() *shttp.Response {
 		}
 	}
 
-	sessionToken, err := user.JWT(jwt.MapClaims{
+	sessionToken, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthSession, Claims: jwt.MapClaims{
 		"uid": usr.UUID,
 		"eml": utils.EncryptToString(ctx.email, emlKey(ctx.env.AuthConf.Secret)),
 		"eid": fmt.Sprintf("%d", ctx.envID),
 		"prv": skauth.ProviderEmail,
-	}, ctx.env.AuthConf.Secret)
+	}, Secret: ctx.env.AuthConf.Secret})
 
 	if err != nil {
 		return shttp.Error(err, fmt.Sprintf("failed to generate session token: %s", err.Error()))
@@ -277,7 +277,7 @@ func (m *skAuthMiddleware) verifyEmail() *shttp.Response {
 		return shttp.NotFound()
 	}
 
-	if claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: token, Secret: env.AuthConf.Secret}); claims == nil {
+	if claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: token, Secret: env.AuthConf.Secret, Purposes: []user.Purpose{user.PurposeSkAuthEmailVerification}}); claims == nil {
 		return shttp.BadRequest(map[string]any{"errors": []string{"invalid or expired verification token"}})
 	}
 
@@ -311,12 +311,12 @@ func (m *skAuthMiddleware) verifyEmail() *shttp.Response {
 		slog.Errorf("email verify: failed to update last login: %s", err.Error())
 	}
 
-	sessionToken, err := user.JWT(jwt.MapClaims{
+	sessionToken, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthSession, Claims: jwt.MapClaims{
 		"uid": authUser.UUID,
 		"eml": utils.EncryptToString(authUser.Email, emlKey(env.AuthConf.Secret)),
 		"eid": fmt.Sprintf("%d", envID),
 		"prv": skauth.ProviderEmail,
-	}, env.AuthConf.Secret)
+	}, Secret: env.AuthConf.Secret})
 
 	if err != nil {
 		return shttp.Error(err, fmt.Sprintf("failed to generate session token: %s", err.Error()))
@@ -348,11 +348,11 @@ func generateEmailVerificationToken(env *buildconf.Env) (string, error) {
 		return "", err
 	}
 
-	return user.JWT(jwt.MapClaims{
+	return user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthEmailVerification, Claims: jwt.MapClaims{
 		"exp": time.Now().Add(24 * time.Hour).Unix(),
 		"prv": skauth.ProviderEmail,
 		"jti": jti,
-	}, env.AuthConf.Secret)
+	}, Secret: env.AuthConf.Secret})
 }
 
 func sendVerificationEmail(req *shttp.RequestContext, env *buildconf.Env, email, token string) error {

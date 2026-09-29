@@ -51,12 +51,12 @@ func (s *HandlerTeamsInvitationAcceptSuite) TestAcceptInvitation_Success() {
 
 	s.NoError(store.CreateTeam(context.Background(), &newTeam, &member))
 
-	token, err := user.JWT(jwt.MapClaims{
+	token, err := user.JWT(user.JWTParams{Purpose: user.PurposeTeamInvite, Claims: jwt.MapClaims{
 		"inviterId": user1.ID.String(),
 		"teamId":    newTeam.ID.String(),
 		"email":     user2.PrimaryEmail(),
 		"role":      team.ROLE_ADMIN,
-	})
+	}})
 
 	s.NoError(err)
 
@@ -89,12 +89,12 @@ func (s *HandlerTeamsInvitationAcceptSuite) TestAcceptInvitation_FailInvalidEmai
 
 	newTeam := team.Team{Name: "My Awesome Team"}
 
-	token, err := user.JWT(jwt.MapClaims{
+	token, err := user.JWT(user.JWTParams{Purpose: user.PurposeTeamInvite, Claims: jwt.MapClaims{
 		"inviterId": user1.ID.String(),
 		"teamId":    newTeam.ID.String(),
 		"email":     "random@mail.com",
 		"role":      team.ROLE_ADMIN,
-	})
+	}})
 
 	s.NoError(err)
 
@@ -121,11 +121,11 @@ func (s *HandlerTeamsInvitationAcceptSuite) TestAcceptInvitation_FailInvalidRole
 		},
 	})
 
-	token, err := user.JWT(jwt.MapClaims{
+	token, err := user.JWT(user.JWTParams{Purpose: user.PurposeTeamInvite, Claims: jwt.MapClaims{
 		"inviterId": user1.ID.String(),
 		"email":     user2.PrimaryEmail(),
 		"role":      "invalid-role",
-	})
+	}})
 
 	s.NoError(err)
 

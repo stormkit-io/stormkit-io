@@ -80,7 +80,7 @@ func (g *GoogleClient) Exchange(ctx context.Context, req *shttp.RequestContext) 
 
 func (g *GoogleClient) AuthCodeURL(params AuthCodeURLParams) (string, error) {
 	claims := params.Claims()
-	state, err := user.JWT(claims, params.Secret)
+	state, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthOAuthState, Claims: claims, Secret: params.Secret})
 
 	if err != nil {
 		return "", err

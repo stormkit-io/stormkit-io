@@ -85,7 +85,7 @@ func (s *OAuthSuite) req(host *hosting.Host, method, path, query string, header 
 
 // bearer signs a SkAuth session token the way the login handlers do.
 func (s *OAuthSuite) bearer(uid string) string {
-	tok, err := user.JWT(jwt.MapClaims{"uid": uid}, oauthSecret)
+	tok, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthSession, Claims: jwt.MapClaims{"uid": uid}, Secret: oauthSecret})
 	s.Require().NoError(err)
 
 	return "Bearer " + tok
@@ -95,7 +95,7 @@ func (s *OAuthSuite) bearer(uid string) string {
 // cookie-mode browser navigation to /authorize would. The consent screen now
 // requires a readable session; without it /authorize delegates to login.
 func (s *OAuthSuite) session(uid string) http.Header {
-	tok, err := user.JWT(jwt.MapClaims{"uid": uid}, oauthSecret)
+	tok, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthSession, Claims: jwt.MapClaims{"uid": uid}, Secret: oauthSecret})
 	s.Require().NoError(err)
 
 	h := make(http.Header)
@@ -236,11 +236,11 @@ func (s *OAuthSuite) Test_Grant_RequiresAuth() {
 // bound to a client and scopes, cannot approve a new grant as if it were the
 // user's browser session.
 func (s *OAuthSuite) Test_Grant_RejectsAccessToken() {
-	tok, err := user.JWT(jwt.MapClaims{
+	tok, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthAccessToken, Claims: jwt.MapClaims{
 		"uid":   "user-1",
 		"aud":   "https://app.example.com",
 		"scope": "email",
-	}, oauthSecret)
+	}, Secret: oauthSecret})
 	s.Require().NoError(err)
 
 	header := make(http.Header)
@@ -396,7 +396,7 @@ func (s *OAuthSuite) Test_Token_ExchangeSucceeds() {
 
 	// The access token is in the SkAuth format, so the edge validation accepts
 	// it: it must carry the resource-owner uid and this app's audience.
-	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: accessToken, Secret: oauthSecret, MaxMins: 10})
+	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: accessToken, Secret: oauthSecret, MaxMins: 10, Purposes: []user.Purpose{user.PurposeSkAuthAccessToken}})
 	s.Require().NotNil(claims)
 	s.Equal("user-uuid-42", claims["uid"])
 	s.Equal("https://app.example.com", claims["aud"])

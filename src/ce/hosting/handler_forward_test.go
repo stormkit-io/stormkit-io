@@ -1447,7 +1447,7 @@ func (s *HandlerForwardSuite) Test_AuthWall_RejectsOtherTokens() {
 	formToken := regexp.MustCompile(`name="token" value="([^"]+)"`).FindStringSubmatch(page)
 	s.Require().Len(formToken, 2)
 
-	anonymous, err := user.JWT(jwt.MapClaims{"provider": "github"})
+	anonymous, err := user.JWT(user.JWTParams{Purpose: user.PurposeOAuthState, Claims: jwt.MapClaims{"provider": "github"}})
 	s.Require().NoError(err)
 
 	otherEnv, err := authwall.Token{EnvID: types.ID(6)}.Session()

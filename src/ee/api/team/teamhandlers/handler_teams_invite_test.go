@@ -61,7 +61,7 @@ func (s *HandlerTeamsInviteSuite) TestInviteNewMember_Success() {
 	s.Equal(http.StatusOK, response.Code)
 	s.NoError(json.Unmarshal(response.Byte(), &resp))
 
-	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: resp["token"]})
+	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: resp["token"], Purposes: []user.Purpose{user.PurposeTeamInvite}})
 	s.Equal("test@stormkit.io", claims["email"])
 	s.Equal(newTeam.ID.String(), claims["teamId"])
 	s.Equal(usr.ID.String(), claims["inviterId"])

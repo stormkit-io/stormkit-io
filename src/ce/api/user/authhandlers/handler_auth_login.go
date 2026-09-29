@@ -16,9 +16,9 @@ import (
 func handlerAuthLogin(req *shttp.RequestContext) *shttp.Response {
 	provider := req.Vars()["provider"]
 
-	state, err := user.JWT(jwt.MapClaims{
+	state, err := user.JWT(user.JWTParams{Purpose: user.PurposeOAuthState, Claims: jwt.MapClaims{
 		"provider": provider,
-	})
+	}})
 
 	if err != nil {
 		return shttp.UnexpectedError(err)
