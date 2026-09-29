@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.09.29.1...v2026.09.29.2
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.29.1...v2026.09.29.2)
+
+### 🩹 Fixes
+
+- Tighten authorization checks ([#564](https://github.com/stormkit-io/stormkit-io/pull/564))
+
+### 🏡 Chore
+
+- Update changelog for v2026.09.29.1 ([#563](https://github.com/stormkit-io/stormkit-io/pull/563))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.09.28.2...v2026.09.29.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.28.2...v2026.09.29.1)
