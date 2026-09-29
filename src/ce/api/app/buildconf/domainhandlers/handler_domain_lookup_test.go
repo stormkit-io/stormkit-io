@@ -108,6 +108,44 @@ func (s *HandlerDomainLookupSuite) Test_DomainNotVerified() {
 	s.Contains(resString, expected2)
 }
 
+// Test_OtherAppsDomain verifies that a domain of another app cannot be looked
+// up by passing its ID along with the caller's own app.
+func (s *HandlerDomainLookupSuite) Test_OtherAppsDomain() {
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+
+	victimApp := s.MockApp(s.MockUser())
+	victimEnv := s.MockEnv(victimApp)
+	domain := &buildconf.DomainModel{
+		AppID:      victimApp.ID,
+		EnvID:      victimEnv.ID,
+		Name:       "victim.example.org",
+		Verified:   true,
+		VerifiedAt: utils.NewUnix(),
+	}
+
+	s.Require().NoError(buildconf.DomainStore().Insert(context.Background(), domain))
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(domainhandlers.Services).Router().Handler(),
+		shttp.MethodGet,
+		fmt.Sprintf(
+			"/domains/lookup?appId=%s&envId=%s&domainId=%d",
+			app.ID.String(),
+			env.ID.String(),
+			domain.ID,
+		),
+		nil,
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusNoContent, response.Code)
+	s.NotContains(response.String(), "victim.example.org")
+}
+
 func TestHandlerDomainLookup(t *testing.T) {
 	suite.Run(t, &HandlerDomainLookupSuite{})
 }
