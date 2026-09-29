@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.09.29.2...v2026.09.29.3
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.29.2...v2026.09.29.3)
+
+### 🩹 Fixes
+
+- Scope app api keys and app config ([#566](https://github.com/stormkit-io/stormkit-io/pull/566))
+
+### 🏡 Chore
+
+- Update changelog for v2026.09.29.2 ([#565](https://github.com/stormkit-io/stormkit-io/pull/565))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.09.29.1...v2026.09.29.2
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.29.1...v2026.09.29.2)
