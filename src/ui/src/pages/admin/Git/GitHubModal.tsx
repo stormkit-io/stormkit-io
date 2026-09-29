@@ -41,6 +41,7 @@ export default function GitHubModal({ closeModal, onSuccess, details }: Props) {
     Boolean(gh) && appId === gh?.appId && clientId === gh?.clientId;
   const keepsClientSecret = isSameApp && gh?.hasClientSecret;
   const keepsPrivateKey = isSameApp && gh?.hasPrivateKey;
+  const keepsWebhookSecret = isSameApp && gh?.hasWebhookSecret;
 
   useEffect(() => {
     if (!manifest) {
@@ -323,11 +324,15 @@ export default function GitHubModal({ closeModal, onSuccess, details }: Props) {
               label="Webhook secret"
               variant="filled"
               placeholder={
-                gh?.hasWebhookSecret
+                keepsWebhookSecret
                   ? "Leave empty to keep the current webhook secret"
                   : "The webhook secret of your GitHub App"
               }
-              helperText="Webhooks from GitHub are rejected until a webhook secret is configured."
+              helperText={
+                keepsWebhookSecret
+                  ? undefined
+                  : "Webhooks from GitHub are rejected until a webhook secret is configured."
+              }
               value={webhookSecret}
               onChange={e => setWebhookSecret(e.target.value)}
               fullWidth
