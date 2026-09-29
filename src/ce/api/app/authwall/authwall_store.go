@@ -2,6 +2,7 @@ package authwall
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 
 	"github.com/lib/pq"
@@ -112,7 +113,7 @@ func (s *store) Login(ctx context.Context, aw *AuthWall) (bool, error) {
 		return false, err
 	}
 
-	return utils.DecryptToString(password) == aw.LoginPassword, nil
+	return subtle.ConstantTimeCompare([]byte(utils.DecryptToString(password)), []byte(aw.LoginPassword)) == 1, nil
 }
 
 // UpdateLastLogin updates the last login time.
