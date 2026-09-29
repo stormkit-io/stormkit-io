@@ -290,12 +290,21 @@ func (env Env) JSON() map[string]any {
 		envName = env.Name
 	}
 
+	// The auth secret signs end-user sessions, so it never leaves the server.
+	var authConf *SKAuthConf
+
+	if env.AuthConf != nil {
+		masked := *env.AuthConf
+		masked.Secret = ""
+		authConf = &masked
+	}
+
 	m := map[string]any{
 		"name":        env.Name,
 		"env":         envName,
 		"branch":      env.Branch,
 		"build":       build,
-		"authConf":    env.AuthConf,
+		"authConf":    authConf,
 		"autoPublish": env.AutoPublish,
 		"autoDeploy":  env.AutoDeploy,
 		"domain":      domain{},
