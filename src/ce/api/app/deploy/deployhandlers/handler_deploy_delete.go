@@ -28,7 +28,8 @@ func handlerDeployDelete(req *app.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	if depl == nil {
+	// Deployments of other apps are treated as missing.
+	if depl == nil || depl.AppID != req.App.ID {
 		return shttp.NoContent()
 	}
 

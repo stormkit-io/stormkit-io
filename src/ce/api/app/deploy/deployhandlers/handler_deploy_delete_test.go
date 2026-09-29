@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
@@ -68,6 +69,36 @@ func (s *HandlerDeployDeleteSuite) Test_Success() {
 	d, err := deploy.NewStore().DeploymentByID(context.Background(), depl.ID)
 	a.Nil(d)
 	a.NoError(err)
+}
+
+// Test_OtherAppsDeployment verifies that a deployment of another app cannot be
+// deleted by passing its ID along with the caller's own app.
+func (s *HandlerDeployDeleteSuite) Test_OtherAppsDeployment() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+
+	victimApp := s.MockApp(s.MockUser())
+	victimDepl := s.MockDeployment(s.MockEnv(victimApp))
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(deployhandlers.Services).Router().Handler(),
+		shttp.MethodDelete,
+		"/app/deploy",
+		map[string]any{
+			"appId":        appl.ID.String(),
+			"deploymentId": victimDepl.ID.String(),
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusNoContent, response.Code)
+	s.mockCache.AssertNotCalled(s.T(), "Reset", mock.Anything)
+
+	d, err := deploy.NewStore().DeploymentByID(context.Background(), victimDepl.ID)
+	s.Require().NoError(err)
+	s.NotNil(d)
 }
 
 func (s *HandlerDeployDeleteSuite) Test_Fail204() {
