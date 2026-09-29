@@ -169,6 +169,12 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 				return shttp.Forbidden()
 			}
 
+			// App- and environment-level keys only grant access to their own
+			// app, whichever environment the caller asks for.
+			if key.AppID != 0 && request.App.ID != key.AppID {
+				return shttp.Forbidden()
+			}
+
 			// If this is a team level key, let's check if the app belongs to the team.
 			if key.TeamID != 0 && request.App.TeamID != key.TeamID {
 				return shttp.Forbidden()
