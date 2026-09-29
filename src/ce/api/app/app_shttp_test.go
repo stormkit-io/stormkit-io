@@ -249,6 +249,40 @@ func (s *AppSHTTPSuite) Test_WithAPIKey_TeamAPIKey_Success() {
 	s.Equal(appl.ID.String(), (res.Data.(map[string]string))["appId"])
 }
 
+// Test_WithAPIKey_AppAPIKey_OtherAppsEnv verifies that an app-level key cannot
+// reach another app by passing one of its environment IDs.
+func (s *AppSHTTPSuite) Test_WithAPIKey_AppAPIKey_OtherAppsEnv() {
+	appl := s.MockApp(s.MockUser())
+	key := s.MockAPIKey(nil, nil, map[string]any{
+		"AppID":  appl.ID,
+		"EnvID":  types.ID(0),
+		"TeamID": types.ID(0),
+		"UserID": types.ID(0),
+		"Scope":  apikey.SCOPE_APP,
+	})
+
+	victimEnv := s.MockEnv(s.MockApp(s.MockUser()))
+
+	fn := app.WithAPIKey(func(rc *app.RequestContext) *shttp.Response {
+		return shttp.OK()
+	})
+
+	body, err := json.Marshal(map[string]string{"envId": victimEnv.ID.String()})
+	s.Require().NoError(err)
+
+	res := fn(&shttp.RequestContext{
+		Request: &http.Request{
+			Header: http.Header{
+				"Content-Type":  []string{"application/json"},
+				"Authorization": []string{key.Value},
+			},
+			Body: io.NopCloser(bytes.NewReader(body)),
+		},
+	})
+
+	s.Equal(http.StatusForbidden, res.Status)
+}
+
 func (s *AppSHTTPSuite) Test_WithAPIKey_TeamAPIKey_ErrPermission() {
 	usr := s.MockUser()
 	usr2 := s.MockUser()
