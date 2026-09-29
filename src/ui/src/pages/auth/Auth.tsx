@@ -21,16 +21,10 @@ export default function Auth() {
 
   useEffect(() => {
     if (user) {
-      const { redirect = "/", template } = qs.parse(
-        location.search.replace("?", "")
-      );
+      const { redirect = "/" } = qs.parse(location.search.replace("?", ""));
 
       if (typeof redirect === "string") {
-        if (template !== undefined) {
-          navigate(`/clone?template=${template}`);
-        } else {
-          navigate(redirect);
-        }
+        navigate(redirect);
       }
     }
   }, [user]);

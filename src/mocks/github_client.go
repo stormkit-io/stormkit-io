@@ -16,45 +16,6 @@ type GithubClient struct {
 	mock.Mock
 }
 
-// CreateFromTemplate provides a mock function with given fields: _a0, _a1, _a2, _a3
-func (_m *GithubClient) CreateFromTemplate(_a0 context.Context, _a1 string, _a2 string, _a3 *github.TemplateRepoRequest) (*github.Repository, *github.Response, error) {
-	ret := _m.Called(_a0, _a1, _a2, _a3)
-
-	if len(ret) == 0 {
-		panic("no return value specified for CreateFromTemplate")
-	}
-
-	var r0 *github.Repository
-	var r1 *github.Response
-	var r2 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, *github.TemplateRepoRequest) (*github.Repository, *github.Response, error)); ok {
-		return rf(_a0, _a1, _a2, _a3)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, *github.TemplateRepoRequest) *github.Repository); ok {
-		r0 = rf(_a0, _a1, _a2, _a3)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*github.Repository)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string, string, *github.TemplateRepoRequest) *github.Response); ok {
-		r1 = rf(_a0, _a1, _a2, _a3)
-	} else {
-		if ret.Get(1) != nil {
-			r1 = ret.Get(1).(*github.Response)
-		}
-	}
-
-	if rf, ok := ret.Get(2).(func(context.Context, string, string, *github.TemplateRepoRequest) error); ok {
-		r2 = rf(_a0, _a1, _a2, _a3)
-	} else {
-		r2 = ret.Error(2)
-	}
-
-	return r0, r1, r2
-}
-
 // GetUser provides a mock function with given fields: _a0, _a1
 func (_m *GithubClient) GetUser(_a0 context.Context, _a1 string) (*github.User, *github.Response, error) {
 	ret := _m.Called(_a0, _a1)
