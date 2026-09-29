@@ -45,8 +45,31 @@ func handlerGitHubManifestCallback(req *shttp.RequestContext) *shttp.Response {
 		})
 	}
 
-	if claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: state}); claims == nil {
-		return shttp.NotAllowed()
+	// GitHub has created the app by now, so an invalid state sends the admin
+	// back to the admin panel with an explanation rather than a bare error.
+	invalidState := &shttp.Response{
+		Status:   http.StatusFound,
+		Redirect: utils.Ptr(admin.MustConfig().AppURL("/admin/git?error=github_app_state_invalid")),
+	}
+
+	adminID, err := githubManifestState{ctx: req.Context()}.redeem(state)
+
+	if err != nil {
+		return shttp.Error(err)
+	}
+
+	if adminID == 0 {
+		return invalidState
+	}
+
+	adminUser, err := user.NewStore().UserByID(adminID)
+
+	if err != nil {
+		return shttp.Error(err)
+	}
+
+	if adminUser == nil || !adminUser.IsAdmin {
+		return invalidState
 	}
 
 	// Exchange the code for app credentials

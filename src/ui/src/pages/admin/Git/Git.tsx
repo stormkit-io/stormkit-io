@@ -53,6 +53,12 @@ export default function Git() {
     if (params.get("success") === "github_app_created") {
       logout?.();
     }
+
+    if (params.get("error") === "github_app_state_invalid") {
+      setError(
+        "The GitHub App setup link expired or was already used, so the app was not configured. Delete the app on GitHub if it was created, then start again."
+      );
+    }
   }, [params]);
 
   return (

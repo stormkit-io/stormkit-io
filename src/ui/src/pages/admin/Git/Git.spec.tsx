@@ -229,6 +229,35 @@ describe("~/pages/admin/Git/Git.tsx", () => {
     });
   });
 
+  it("should explain an expired or reused GitHub App setup link", async () => {
+    const scope = nock(apiDomain)
+      .get("/admin/git/details")
+      .reply(200, defaultGitDetails);
+
+    mockUseSearchParams.mockReturnValue([
+      {
+        get: vi.fn().mockImplementation((key: string) => {
+          if (key === "error") return "github_app_state_invalid";
+          return null;
+        }),
+      },
+      vi.fn(),
+    ]);
+
+    wrapper = render(
+      <AuthContext.Provider value={defaultAuthContext}>
+        <Git />
+      </AuthContext.Provider>
+    );
+
+    await waitFor(() => {
+      expect(scope.isDone()).toBe(true);
+      expect(
+        wrapper.getByText(/GitHub App setup link expired or was already used/)
+      ).toBeTruthy();
+    });
+  });
+
   it("should not call logout when success query parameter has different value", async () => {
     const scope = nock(apiDomain)
       .get("/admin/git/details")

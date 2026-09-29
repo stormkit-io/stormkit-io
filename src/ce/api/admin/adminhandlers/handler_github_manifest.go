@@ -1,20 +1,72 @@
 package adminhandlers
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
+	"github.com/redis/go-redis/v9"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
+	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
+	"github.com/stormkit-io/stormkit-io/src/lib/types"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
 // GitHubManifestRequest represents the request for generating a GitHub App manifest
 type GitHubManifestRequest struct {
 	AppName      string `json:"appName"`      // GitHub App name
 	Organization string `json:"organization"` // GitHub organization (optional)
+}
+
+// githubManifestStatePrefix namespaces manifest flow states in Redis.
+const githubManifestStatePrefix = "github-manifest-state:"
+
+// githubManifestStateTTL is how long an admin has to complete the flow.
+const githubManifestStateTTL = 30 * time.Minute
+
+// githubManifestState issues and redeems the state of the GitHub App manifest
+// flow. The state is a random, single-use code bound to the admin who started
+// the flow, so it cannot be forged, replayed or used as a session token, and
+// it carries nothing readable in the URL sent to GitHub.
+type githubManifestState struct {
+	ctx context.Context
+}
+
+// issue returns a new state for the given admin.
+func (s githubManifestState) issue(adminID types.ID) (string, error) {
+	code, err := utils.SecureRandomToken(48)
+
+	if err != nil {
+		return "", err
+	}
+
+	if err := rediscache.Client().Set(s.ctx, githubManifestStatePrefix+code, adminID.String(), githubManifestStateTTL).Err(); err != nil {
+		return "", err
+	}
+
+	return code, nil
+}
+
+// redeem consumes the state and returns the admin it was issued to. It
+// returns zero when the state is unknown, expired or already used.
+func (s githubManifestState) redeem(code string) (types.ID, error) {
+	adminID, err := rediscache.Client().GetDel(s.ctx, githubManifestStatePrefix+code).Result()
+
+	if errors.Is(err, redis.Nil) {
+		return 0, nil
+	}
+
+	if err != nil {
+		return 0, err
+	}
+
+	return utils.StringToID(adminID), nil
 }
 
 // handlerGitHubGenerateManifest generates a GitHub App manifest and returns the GitHub creation URL
@@ -31,8 +83,7 @@ func handlerGitHubGenerateManifest(req *user.RequestContext) *shttp.Response {
 		})
 	}
 
-	// Generate a random state for security
-	state, err := user.JWT(nil)
+	state, err := githubManifestState{ctx: req.Context()}.issue(req.User.ID)
 
 	if err != nil {
 		return shttp.Error(err)

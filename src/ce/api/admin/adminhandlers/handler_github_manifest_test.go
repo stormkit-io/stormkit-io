@@ -1,14 +1,18 @@
 package adminhandlers_test
 
 import (
+	"context"
 	"net/http"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin/adminhandlers"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
+	"github.com/stormkit-io/stormkit-io/src/lib/rediscache"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp/shttptest"
 	"github.com/stretchr/testify/suite"
@@ -71,8 +75,31 @@ func (s *HandlerGitHubManifestSuite) Test_GenerateManifest_Success() {
 		"url": "https://github.com/organizations/test-org/settings/apps/new?state=some-token"
 	}`
 
-	s.JSONEq(expected, regexp.MustCompile(`state=[^"]+`).ReplaceAllString(response.String(), `state=some-token`))
+	body := response.String()
+
+	s.JSONEq(expected, regexp.MustCompile(`state=[^"]+`).ReplaceAllString(body, `state=some-token`))
 	s.Equal(http.StatusOK, response.Code)
+
+	// The state is a random, single-use code: it must not work as a session
+	// token for the admin who started the flow.
+	state := regexp.MustCompile(`state=([^"]+)`).FindStringSubmatch(body)
+	s.Require().Len(state, 2)
+
+	details := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(adminhandlers.Services).Router().Handler(),
+		shttp.MethodGet,
+		"/admin/git/details",
+		nil,
+		map[string]string{"Authorization": "Bearer " + state[1]},
+	)
+
+	s.Equal(http.StatusUnauthorized, details.Code)
+	s.Nil(user.ParseJWT(&user.ParseJWTArgs{Bearer: state[1]}))
+
+	ttl, err := rediscache.Client().TTL(context.Background(), "github-manifest-state:"+state[1]).Result()
+	s.Require().NoError(err)
+	s.Greater(ttl, time.Duration(0))
+	s.LessOrEqual(ttl, 30*time.Minute)
 }
 
 func (s *HandlerGitHubManifestSuite) Test_GenerateManifest_PersonalApp() {
