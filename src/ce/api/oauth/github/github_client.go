@@ -22,7 +22,6 @@ type ListOptions = github.ListOptions
 type ListRepositories = github.ListRepositories
 type Repository = github.Repository
 type Installation = github.Installation
-type TemplateRepoRequest = github.TemplateRepoRequest
 type Response = github.Response
 type User = github.User
 
@@ -30,7 +29,6 @@ type GithubClient interface {
 	// Github methods
 	ListRepos(context.Context, *ListOptions) (*ListRepositories, *Response, error)
 	ListUserInstallations(context.Context, *ListOptions) ([]*Installation, *Response, error)
-	CreateFromTemplate(context.Context, string, string, *TemplateRepoRequest) (*Repository, *Response, error)
 	GetUser(context.Context, string) (*User, *Response, error)
 
 	// Custom methods
@@ -49,10 +47,6 @@ func (gc *githubClient) ListRepos(ctx context.Context, opts *github.ListOptions)
 
 func (gc *githubClient) ListUserInstallations(ctx context.Context, opts *github.ListOptions) ([]*github.Installation, *github.Response, error) {
 	return gc.Apps.ListUserInstallations(ctx, opts)
-}
-
-func (gc *githubClient) CreateFromTemplate(ctx context.Context, owner, repo string, template *TemplateRepoRequest) (*Repository, *Response, error) {
-	return gc.Repositories.CreateFromTemplate(ctx, owner, repo, template)
 }
 
 func (gc *githubClient) GetUser(ctx context.Context, login string) (*User, *Response, error) {
