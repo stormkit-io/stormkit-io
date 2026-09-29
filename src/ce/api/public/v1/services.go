@@ -47,13 +47,13 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodGet, "", WithAPIKey(handlerAccessLogsGet, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	s.NewEndpoint("/v1/env").
-		Handler(shttp.MethodPost, "", WithAPIKey(handlerEnvAdd, &Opts{MinimumScope: apikey.SCOPE_APP})).
+		Handler(shttp.MethodPost, "", WithAPIKey(handlerEnvAdd, &Opts{MinimumScope: apikey.SCOPE_APP, DenyEnvKeys: true})).
 		Handler(shttp.MethodPut, "", WithAPIKey(handlerEnvUpdate, &Opts{MinimumScope: apikey.SCOPE_ENV})).
 		Handler(shttp.MethodDelete, "", WithAPIKey(handlerEnvDel, &Opts{MinimumScope: apikey.SCOPE_ENV})).
 		Handler(shttp.MethodGet, "/pull", WithAPIKey(handlerEnvPull, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	s.NewEndpoint("/v1/envs").
-		Handler(shttp.MethodGet, "", WithAPIKey(handlerEnvList, &Opts{MinimumScope: apikey.SCOPE_APP}))
+		Handler(shttp.MethodGet, "", WithAPIKey(handlerEnvList, &Opts{MinimumScope: apikey.SCOPE_APP, DenyEnvKeys: true}))
 
 	s.NewEndpoint("/v1/snippets").
 		Handler(shttp.MethodGet, "", WithAPIKey(handlerSnippetsGet, &Opts{MinimumScope: apikey.SCOPE_ENV})).

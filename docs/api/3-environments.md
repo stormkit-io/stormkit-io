@@ -19,7 +19,7 @@ Returns all environments configured for an application. At most 50 environments 
 
 **Base URL:** `https://api.stormkit.io`
 
-**Authentication:** At least an app-level API key passed as the `Authorization` header. When using a team- or user-level key, `appId` must be provided as a query parameter.
+**Authentication:** An app-, team- or user-level API key passed as the `Authorization` header. Environment-level keys are rejected. When using a team- or user-level key, `appId` must be provided as a query parameter.
 
 ### Query parameters
 
@@ -78,7 +78,7 @@ Creates a new environment for an application.
 
 **Base URL:** `https://api.stormkit.io`
 
-**Authentication:** API key with at least environment-level scope. Environment-, app-, team-, or user-level keys are accepted as long as they have access to the app that owns the environment and a valid `envId` is provided.
+**Authentication:** An app-, team- or user-level API key with access to the app. Environment-level keys are rejected.
 
 ### Request body
 

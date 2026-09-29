@@ -39,7 +39,7 @@ func (s *HandlerEnvAddSuite) AfterTest(_, _ string) {
 
 func (s *HandlerEnvAddSuite) Test_BadRequest() {
 	app := s.MockApp(nil)
-	key := s.MockAPIKey(app, nil)
+	key := s.MockAPIKey(app, nil, map[string]any{"EnvID": types.ID(0), "Scope": apikey.SCOPE_APP})
 
 	response := shttptest.RequestWithHeaders(
 		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
@@ -160,6 +160,24 @@ func (s *HandlerEnvAddSuite) Test_Success() {
 			},
 		},
 	}, audits[0])
+}
+
+// Test_Forbidden_EnvKey verifies that an environment-level key cannot create
+// environments for its app.
+func (s *HandlerEnvAddSuite) Test_Forbidden_EnvKey() {
+	app := s.MockApp(nil)
+	env := s.MockEnv(app)
+	key := s.MockAPIKey(app, env, map[string]any{"Scope": apikey.SCOPE_ENV})
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/v1/env",
+		map[string]any{"branch": "my-branch", "name": "development"},
+		map[string]string{"Authorization": key.Value},
+	)
+
+	s.Equal(http.StatusForbidden, response.Code)
 }
 
 func TestHandlerEnvInsert(t *testing.T) {

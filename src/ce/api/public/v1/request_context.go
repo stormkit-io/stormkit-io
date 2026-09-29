@@ -153,6 +153,11 @@ func (req *RequestContext) asAppContext() *app.RequestContext {
 
 type Opts struct {
 	MinimumScope string // apikey.SCOPE_*
+
+	// DenyEnvKeys rejects environment-level keys on app-level endpoints that
+	// reach beyond the key's own environment, such as listing or creating
+	// environments.
+	DenyEnvKeys bool
 }
 
 func getOpts(opts ...*Opts) *Opts {
@@ -210,6 +215,10 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 			}
 
 			request.Token = key
+		}
+
+		if options.DenyEnvKeys && request.Token.EnvID != 0 {
+			return shttp.ForbiddenAPIKey()
 		}
 
 		switch options.MinimumScope {
