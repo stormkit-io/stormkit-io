@@ -61,7 +61,8 @@ func handlerDomainLookup(req *app.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	if domain == nil {
+	// Domains of other apps or environments are treated as missing.
+	if domain == nil || domain.AppID != req.App.ID || domain.EnvID != req.EnvID {
 		return shttp.NoContent()
 	}
 

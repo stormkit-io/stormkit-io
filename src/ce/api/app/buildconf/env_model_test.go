@@ -106,6 +106,24 @@ func (s *EnvModelSuite) Test_JSON_MasksMailerPassword() {
 	s.Equal("super-secret", env.MailerConf.Password)
 }
 
+func (s *EnvModelSuite) Test_JSON_MasksAuthSecret() {
+	env := buildconf.Env{
+		Name: "production",
+		AuthConf: &buildconf.SKAuthConf{
+			Secret: "auth-signing-secret",
+			Status: true,
+		},
+	}
+
+	serialized, err := json.Marshal(env)
+	s.NoError(err)
+	s.NotContains(string(serialized), "auth-signing-secret")
+	s.Contains(string(serialized), `"Status":true`)
+
+	// The original Env keeps the real value for internal use.
+	s.Equal("auth-signing-secret", env.AuthConf.Secret)
+}
+
 func TestEnvModelSuite(t *testing.T) {
 	suite.Run(t, &EnvModelSuite{})
 }

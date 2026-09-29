@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
@@ -17,6 +18,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp/shttptest"
+	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -77,6 +79,77 @@ func (s *HandlerSchemaDeleteSuite) Test_Success() {
 
 	s.NoError(err)
 	s.Len(audits, 0)
+}
+
+// deleteSchemaWithKey creates an environment with a schema and deletes it with
+// the given key overrides.
+func (s *HandlerSchemaDeleteSuite) deleteSchemaWithKey(overrides map[string]any) shttptest.Response {
+	admin.ResetMockLicense()
+
+	env := s.MockEnv(s.app, map[string]any{
+		"SchemaConf": &buildconf.SchemaConf{
+			SchemaName: "some_schema",
+		},
+	})
+
+	key := s.MockAPIKey(s.app, nil, overrides)
+
+	return shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodDelete,
+		fmt.Sprintf("/v1/schema?envId=%d", env.ID),
+		nil,
+		map[string]string{
+			"Authorization": key.Value,
+		},
+	)
+}
+
+// Test_Success_UserKey verifies that a user-level key of a team owner can
+// delete the schema.
+func (s *HandlerSchemaDeleteSuite) Test_Success_UserKey() {
+	response := s.deleteSchemaWithKey(map[string]any{
+		"UserID": s.usr.ID,
+		"AppID":  types.ID(0),
+		"EnvID":  types.ID(0),
+		"Scope":  apikey.SCOPE_USER,
+	})
+
+	s.Equal(http.StatusOK, response.Code)
+}
+
+// Test_Forbidden_UserKeyNoWriteAccess verifies that a key minted by a team
+// member without write access cannot delete the schema.
+func (s *HandlerSchemaDeleteSuite) Test_Forbidden_UserKeyNoWriteAccess() {
+	developer := s.MockUser(nil)
+
+	s.Require().NoError(team.NewStore().AddMemberToTeam(context.Background(), &team.Member{
+		TeamID: s.app.TeamID,
+		UserID: developer.ID,
+		Role:   team.ROLE_DEVELOPER,
+		Status: true,
+	}))
+
+	response := s.deleteSchemaWithKey(map[string]any{
+		"UserID": developer.ID,
+		"AppID":  types.ID(0),
+		"EnvID":  types.ID(0),
+		"Scope":  apikey.SCOPE_USER,
+	})
+
+	s.Equal(http.StatusForbidden, response.Code)
+}
+
+// Test_Forbidden_AppKey verifies that a key without a user, which has no team
+// role to check, cannot delete the schema.
+func (s *HandlerSchemaDeleteSuite) Test_Forbidden_AppKey() {
+	response := s.deleteSchemaWithKey(map[string]any{
+		"UserID": types.ID(0),
+		"EnvID":  types.ID(0),
+		"Scope":  apikey.SCOPE_APP,
+	})
+
+	s.Equal(http.StatusForbidden, response.Code)
 }
 
 func (s *HandlerSchemaDeleteSuite) Test_Success_AuditLogs() {

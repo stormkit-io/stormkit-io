@@ -153,6 +153,11 @@ func (req *RequestContext) asAppContext() *app.RequestContext {
 
 type Opts struct {
 	MinimumScope string // apikey.SCOPE_*
+
+	// AllowEnvKeys lets environment-level keys use an app-level endpoint. They
+	// are rejected by default, since app-level endpoints reach beyond the
+	// key's own environment; only endpoints that stay within it opt in.
+	AllowEnvKeys bool
 }
 
 func getOpts(opts ...*Opts) *Opts {
@@ -233,6 +238,10 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 				}
 			}
 		case apikey.SCOPE_APP:
+			if !options.AllowEnvKeys && isEnvKey(request.Token) {
+				return shttp.ForbiddenAPIKey()
+			}
+
 			appID := request.Token.AppID
 
 			if appID == 0 {
@@ -393,4 +402,12 @@ func getTeamIDFromRequest(req *shttp.RequestContext) types.ID {
 	}
 
 	return data.TeamID
+}
+
+// isEnvKey reports whether the token is an environment-level key: one that
+// carries an environment and no team or user. Keys are typed by the
+// identifiers they carry, and team- and user-level keys may also name an
+// environment.
+func isEnvKey(token *apikey.Token) bool {
+	return token.EnvID != 0 && token.TeamID == 0 && token.UserID == 0
 }

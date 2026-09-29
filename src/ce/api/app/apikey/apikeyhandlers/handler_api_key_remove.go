@@ -3,6 +3,7 @@ package apikeyhandlers
 import (
 	"net/http"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
@@ -43,9 +44,22 @@ func handlerAPIKeyRemove(req *user.RequestContext) *shttp.Response {
 			return shttp.Forbidden()
 		}
 	} else if key.UserID != 0 {
+		// Personal keys, even those that also name an app, belong to their owner.
 		if key.UserID != req.User.ID {
 			return shttp.Forbidden()
 		}
+	} else if key.AppID != 0 {
+		myApp, err := app.NewStore().AppByID(req.Context(), key.AppID)
+
+		if err != nil {
+			return shttp.Error(err)
+		}
+
+		if myApp == nil || !team.NewStore().IsMember(req.Context(), req.User.ID, myApp.TeamID) {
+			return shttp.Forbidden()
+		}
+	} else {
+		return shttp.Forbidden()
 	}
 
 	if err := apikey.NewStore().RemoveAPIKey(req.Context(), keyID); err != nil {

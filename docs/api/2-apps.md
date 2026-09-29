@@ -278,7 +278,7 @@ curl -X GET \
 
 ## GET /v1/app/config
 
-Returns the runtime configuration for published deployment matching a given hostname. This endpoint is primarily used to debug the application config.
+Returns the runtime configuration for the published deployment matching a given hostname. This endpoint is primarily used to debug the application config. Only hostnames of the API key's application are answered, and for environment-level keys only the key's environment. Environment variable values are not included; use [`GET /v1/env/pull`](/docs/api/environments) to read them.
 
 **Base URL:** `https://api.stormkit.io`
 
@@ -309,16 +309,16 @@ Returns an array of configuration objects for all matching published deployments
 | `apiPathPrefix` | string     | URL path prefix under which serverless API functions are served.               |
 | `domains`       | `string[]` | Custom domains associated with this deployment. `null` if none are configured. |
 | `staticFiles`   | object     | Map of URL paths to static file metadata.                                      |
-| `envVariables`  | object     | Map of environment variable names to their values injected at runtime.         |
+| `envVariables`  | object     | Environment variable names injected at runtime. Values are always empty.       |
 | `updatedAt`     | string     | Unix timestamp (seconds) of the last configuration update. `null` if not set.  |
 
 ### Error responses
 
-| Status | Condition                                       |
-| ------ | ----------------------------------------------- |
-| `204`  | No published deployment found for the hostname. |
-| `403`  | Missing or invalid API key.                     |
-| `500`  | Internal server error.                          |
+| Status | Condition                                                                               |
+| ------ | --------------------------------------------------------------------------------------- |
+| `204`  | No published deployment of the key's application or environment found for the hostname. |
+| `403`  | Missing or invalid API key.                                                             |
+| `500`  | Internal server error.                                                                  |
 
 ### Example
 

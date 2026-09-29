@@ -1,6 +1,7 @@
 package apikeyhandlers_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey/apikeyhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
+	"github.com/stormkit-io/stormkit-io/src/ee/api/team"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -183,6 +185,75 @@ func (s *HandlerAPIKeyRemoveSuite) Test_BadRequest() {
 	)
 
 	s.Equal(http.StatusBadRequest, response.Code)
+}
+
+type removeKeyParams struct {
+	// Remover is the user asking to delete the key.
+	Remover *factory.MockUser
+
+	// App is the app the key belongs to.
+	App *factory.MockApp
+
+	// Owner is the user a personal key belongs to. Nil for app-level keys.
+	Owner *factory.MockUser
+}
+
+// removeKey creates a key of p.App and asks p.Remover to delete it.
+func (s *HandlerAPIKeyRemoveSuite) removeKey(p removeKeyParams) shttptest.Response {
+	overrides := map[string]any{
+		"UserID": types.ID(0),
+		"TeamID": types.ID(0),
+		"EnvID":  types.ID(0),
+		"Scope":  apikey.SCOPE_APP,
+	}
+
+	if p.Owner != nil {
+		overrides["UserID"] = p.Owner.ID
+		overrides["Scope"] = apikey.SCOPE_USER
+	}
+
+	key := s.MockAPIKey(p.App, nil, overrides)
+
+	return shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(apikeyhandlers.Services).Router().Handler(),
+		shttp.MethodDelete,
+		fmt.Sprintf("/api-keys?keyId=%s", key.ID.String()),
+		nil,
+		map[string]string{
+			"Authorization": usertest.Authorization(p.Remover.ID),
+		},
+	)
+}
+
+func (s *HandlerAPIKeyRemoveSuite) Test_Success_ScopeApp() {
+	usr := s.MockUser()
+
+	s.Equal(http.StatusOK, s.removeKey(removeKeyParams{Remover: usr, App: s.MockApp(usr)}).Code)
+}
+
+// Test_Forbidden_ScopeApp verifies that an app-level key of another team's app
+// cannot be deleted.
+func (s *HandlerAPIKeyRemoveSuite) Test_Forbidden_ScopeApp() {
+	victimApp := s.MockApp(s.MockUser())
+
+	s.Equal(http.StatusForbidden, s.removeKey(removeKeyParams{Remover: s.MockUser(), App: victimApp}).Code)
+}
+
+// Test_Forbidden_PersonalKeyOfTeammate verifies that a personal key which also
+// names an app can only be deleted by its owner, not by other team members.
+func (s *HandlerAPIKeyRemoveSuite) Test_Forbidden_PersonalKeyOfTeammate() {
+	owner := s.MockUser()
+	appl := s.MockApp(owner)
+	teammate := s.MockUser()
+
+	s.Require().NoError(team.NewStore().AddMemberToTeam(context.Background(), &team.Member{
+		TeamID: appl.TeamID,
+		UserID: teammate.ID,
+		Role:   team.ROLE_OWNER,
+		Status: true,
+	}))
+
+	s.Equal(http.StatusForbidden, s.removeKey(removeKeyParams{Remover: teammate, App: appl, Owner: owner}).Code)
 }
 
 func TestHandlerAPIKeyRemove(t *testing.T) {

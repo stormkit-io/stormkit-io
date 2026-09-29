@@ -128,7 +128,7 @@ func (s *RequestContextSuite) Test_NotOwnedIsIndistinguishableFromMissing() {
 func (s *RequestContextSuite) Test_Success_WithTokenScope() {
 	usr := s.MockUser()
 	envKey := s.MockAPIKey(nil, nil)
-	appKey := s.MockAPIKey(nil, nil)
+	appKey := s.MockAPIKey(nil, nil, map[string]any{"EnvID": types.ID(0), "Scope": apikey.SCOPE_APP})
 	userKey := s.MockAPIKey(nil, nil, map[string]any{"UserID": usr.ID, "AppID": types.ID(0), "EnvID": types.ID(0)})
 	teamKey := s.MockAPIKey(nil, nil, map[string]any{"TeamID": usr.DefaultTeamID, "AppID": types.ID(0), "EnvID": types.ID(0)})
 
@@ -140,6 +140,7 @@ func (s *RequestContextSuite) Test_Success_WithTokenScope() {
 		{"no scope", envKey.Value, nil},
 		{"SCOPE_ENV satisfied by key", envKey.Value, &publicapiv1.Opts{MinimumScope: apikey.SCOPE_ENV}},
 		{"SCOPE_APP satisfied by key", appKey.Value, &publicapiv1.Opts{MinimumScope: apikey.SCOPE_APP}},
+		{"SCOPE_APP satisfied by env key when allowed", envKey.Value, &publicapiv1.Opts{MinimumScope: apikey.SCOPE_APP, AllowEnvKeys: true}},
 		{"SCOPE_USER satisfied by key", userKey.Value, &publicapiv1.Opts{MinimumScope: apikey.SCOPE_USER}},
 		{"SCOPE_TEAM satisfied by key", teamKey.Value, &publicapiv1.Opts{MinimumScope: apikey.SCOPE_TEAM}},
 	}
@@ -150,6 +151,16 @@ func (s *RequestContextSuite) Test_Success_WithTokenScope() {
 			s.Equal(http.StatusOK, resp.Status)
 		})
 	}
+}
+
+// Test_Forbidden_EnvKeyOnAppScope verifies that environment-level keys are
+// rejected on app-level endpoints unless the endpoint allows them.
+func (s *RequestContextSuite) Test_Forbidden_EnvKeyOnAppScope() {
+	envKey := s.MockAPIKey(nil, nil)
+
+	resp := s.invoke(http.MethodGet, "/", "", "", envKey.Value, &publicapiv1.Opts{MinimumScope: apikey.SCOPE_APP})
+
+	s.Equal(http.StatusForbidden, resp.Status)
 }
 
 func (s *RequestContextSuite) Test_Success_WithQueryParams() {
