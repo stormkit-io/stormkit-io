@@ -66,6 +66,29 @@ describe("~/pages/admin/Git/GitHubModal.tsx", () => {
       );
     });
 
+    it("should only warn about the webhook secret when none is stored", () => {
+      expect(
+        wrapper.queryByText(/Webhooks from GitHub are rejected/)
+      ).toBeTruthy();
+
+      wrapper.rerender(
+        <GitHubModal
+          closeModal={mockCloseModal}
+          onSuccess={mockOnSuccess}
+          details={{
+            github: { ...existingDetails.github!, hasWebhookSecret: true },
+          }}
+        />
+      );
+
+      expect(
+        wrapper.queryByText(/Webhooks from GitHub are rejected/)
+      ).toBeNull();
+      expect(findWebhookSecret().placeholder).toBe(
+        "Leave empty to keep the current webhook secret"
+      );
+    });
+
     it("should require the secrets again when switching to another app", () => {
       fireEvent.change(wrapper.getByLabelText(/App ID/), {
         target: { value: "67890" },
