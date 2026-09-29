@@ -185,6 +185,40 @@ func (s *HandlerAPIKeyRemoveSuite) Test_BadRequest() {
 	s.Equal(http.StatusBadRequest, response.Code)
 }
 
+// removeAppKey creates an app-level key of appl and asks usr to delete it.
+func (s *HandlerAPIKeyRemoveSuite) removeAppKey(usr *factory.MockUser, appl *factory.MockApp) shttptest.Response {
+	key := s.MockAPIKey(appl, nil, map[string]any{
+		"UserID": types.ID(0),
+		"TeamID": types.ID(0),
+		"EnvID":  types.ID(0),
+		"Scope":  apikey.SCOPE_APP,
+	})
+
+	return shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(apikeyhandlers.Services).Router().Handler(),
+		shttp.MethodDelete,
+		fmt.Sprintf("/api-keys?keyId=%s", key.ID.String()),
+		nil,
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+}
+
+func (s *HandlerAPIKeyRemoveSuite) Test_Success_ScopeApp() {
+	usr := s.MockUser()
+
+	s.Equal(http.StatusOK, s.removeAppKey(usr, s.MockApp(usr)).Code)
+}
+
+// Test_Forbidden_ScopeApp verifies that an app-level key of another team's app
+// cannot be deleted.
+func (s *HandlerAPIKeyRemoveSuite) Test_Forbidden_ScopeApp() {
+	victimApp := s.MockApp(s.MockUser())
+
+	s.Equal(http.StatusForbidden, s.removeAppKey(s.MockUser(), victimApp).Code)
+}
+
 func TestHandlerAPIKeyRemove(t *testing.T) {
 	suite.Run(t, &HandlerAPIKeyRemoveSuite{})
 }
