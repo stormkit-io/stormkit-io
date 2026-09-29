@@ -8,6 +8,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/team"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
+	"github.com/stormkit-io/stormkit-io/src/lib/types"
 )
 
 // handlerSchemaDelete drops the environment's schema and clears its
@@ -28,18 +29,29 @@ func handlerSchemaDelete(req *app.RequestContext) *shttp.Response {
 		}
 	}
 
-	// API keys carry no user: WithAPIKey already limited them to this app.
-	// Logged-in users additionally need write access to the app's team.
+	// Dropping a schema needs a person with write access on the team: the
+	// logged-in user, or the owner of a user-level key. Keys that carry no
+	// user have no team role to check, so they are refused.
+	var userID types.ID
+
 	if req.User != nil {
-		myTeam, err := team.NewStore().Team(req.Context(), req.App.TeamID, req.User.ID)
+		userID = req.User.ID
+	} else if req.Token != nil {
+		userID = req.Token.UserID
+	}
 
-		if err != nil {
-			return shttp.Error(err)
-		}
+	if userID == 0 {
+		return shttp.Forbidden()
+	}
 
-		if myTeam == nil || !team.HasWriteAccess(myTeam.CurrentUserRole) {
-			return shttp.Forbidden()
-		}
+	myTeam, err := team.NewStore().Team(req.Context(), req.App.TeamID, userID)
+
+	if err != nil {
+		return shttp.Error(err)
+	}
+
+	if myTeam == nil || !team.HasWriteAccess(myTeam.CurrentUserRole) {
+		return shttp.Forbidden()
 	}
 
 	schemaName := env.SchemaConf.SchemaName

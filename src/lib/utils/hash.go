@@ -42,15 +42,16 @@ func RandomToken(n int) string {
 	buf := make([]byte, n)
 
 	for len(token) < n {
-		// crypto/rand does not fail on supported platforms; a failure here
-		// would mean the system has no secure randomness to offer.
-		if _, err := crand.Read(buf); err != nil {
-			panic(err)
-		}
+		// crypto/rand.Read always fills buf and never returns an error.
+		_, _ = crand.Read(buf)
 
 		// Rejection sampling keeps every character equally likely.
 		for _, c := range buf {
-			if idx := int(c & letterIdxMask); idx < len(letterBytes) && len(token) < n {
+			if len(token) == n {
+				break
+			}
+
+			if idx := int(c & letterIdxMask); idx < len(letterBytes) {
 				token = append(token, letterBytes[idx])
 			}
 		}

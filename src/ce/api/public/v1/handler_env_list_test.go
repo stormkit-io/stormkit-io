@@ -75,6 +75,25 @@ func (s *HandlerEnvListSuite) Test_Forbidden_EnvKey() {
 	s.Equal(http.StatusForbidden, response.Code)
 }
 
+// Test_Success_UserKeyWithEnv verifies that a user-level key which also names
+// an environment is not treated as an environment-level key.
+func (s *HandlerEnvListSuite) Test_Success_UserKeyWithEnv() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	env := s.MockEnv(appl, map[string]any{"Name": "production"})
+	key := s.MockAPIKey(appl, env, map[string]any{"UserID": usr.ID, "Scope": apikey.SCOPE_USER})
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodGet,
+		fmt.Sprintf("/v1/envs?appId=%s", appl.ID.String()),
+		nil,
+		map[string]string{"Authorization": key.Value},
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+}
+
 // Test_IsolatedByApp verifies that environments from other apps are not returned.
 func (s *HandlerEnvListSuite) Test_IsolatedByApp() {
 	usr := s.MockUser()

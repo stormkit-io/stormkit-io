@@ -23,9 +23,9 @@ func Services(r *shttp.Router) *shttp.Service {
 
 	s.NewEndpoint("/v1/app").
 		Handler(shttp.MethodPost, "", WithAPIKey(handlerAppCreate, &Opts{MinimumScope: apikey.SCOPE_TEAM})).
-		Handler(shttp.MethodGet, "", WithAPIKey(handlerAppGet, &Opts{MinimumScope: apikey.SCOPE_APP})).                // With API Key
-		Handler(shttp.MethodGet, "/{appId:[0-9]+}", WithAPIKey(handlerAppGet, &Opts{MinimumScope: apikey.SCOPE_APP})). // Without API Key
-		Handler(shttp.MethodGet, "/config", WithAPIKey(handlerAppConf, &Opts{MinimumScope: apikey.SCOPE_APP}))
+		Handler(shttp.MethodGet, "", WithAPIKey(handlerAppGet, &Opts{MinimumScope: apikey.SCOPE_APP, AllowEnvKeys: true})).                // With API Key
+		Handler(shttp.MethodGet, "/{appId:[0-9]+}", WithAPIKey(handlerAppGet, &Opts{MinimumScope: apikey.SCOPE_APP, AllowEnvKeys: true})). // Without API Key
+		Handler(shttp.MethodGet, "/config", WithAPIKey(handlerAppConf, &Opts{MinimumScope: apikey.SCOPE_APP, AllowEnvKeys: true}))
 
 	s.NewEndpoint("/v1/deploy").
 		Handler(shttp.MethodPost, "", WithAPIKey(handlerDeploymentCreate, &Opts{MinimumScope: apikey.SCOPE_ENV}))
@@ -47,13 +47,13 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodGet, "", WithAPIKey(handlerAccessLogsGet, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	s.NewEndpoint("/v1/env").
-		Handler(shttp.MethodPost, "", WithAPIKey(handlerEnvAdd, &Opts{MinimumScope: apikey.SCOPE_APP, DenyEnvKeys: true})).
+		Handler(shttp.MethodPost, "", WithAPIKey(handlerEnvAdd, &Opts{MinimumScope: apikey.SCOPE_APP})).
 		Handler(shttp.MethodPut, "", WithAPIKey(handlerEnvUpdate, &Opts{MinimumScope: apikey.SCOPE_ENV})).
 		Handler(shttp.MethodDelete, "", WithAPIKey(handlerEnvDel, &Opts{MinimumScope: apikey.SCOPE_ENV})).
 		Handler(shttp.MethodGet, "/pull", WithAPIKey(handlerEnvPull, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	s.NewEndpoint("/v1/envs").
-		Handler(shttp.MethodGet, "", WithAPIKey(handlerEnvList, &Opts{MinimumScope: apikey.SCOPE_APP, DenyEnvKeys: true}))
+		Handler(shttp.MethodGet, "", WithAPIKey(handlerEnvList, &Opts{MinimumScope: apikey.SCOPE_APP}))
 
 	s.NewEndpoint("/v1/snippets").
 		Handler(shttp.MethodGet, "", WithAPIKey(handlerSnippetsGet, &Opts{MinimumScope: apikey.SCOPE_ENV})).

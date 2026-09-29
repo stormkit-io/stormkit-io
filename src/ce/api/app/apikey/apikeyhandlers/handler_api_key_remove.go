@@ -43,6 +43,11 @@ func handlerAPIKeyRemove(req *user.RequestContext) *shttp.Response {
 		if !team.NewStore().IsMember(req.Context(), req.User.ID, key.TeamID) {
 			return shttp.Forbidden()
 		}
+	} else if key.UserID != 0 {
+		// Personal keys, even those that also name an app, belong to their owner.
+		if key.UserID != req.User.ID {
+			return shttp.Forbidden()
+		}
 	} else if key.AppID != 0 {
 		myApp, err := app.NewStore().AppByID(req.Context(), key.AppID)
 
@@ -51,10 +56,6 @@ func handlerAPIKeyRemove(req *user.RequestContext) *shttp.Response {
 		}
 
 		if myApp == nil || !team.NewStore().IsMember(req.Context(), req.User.ID, myApp.TeamID) {
-			return shttp.Forbidden()
-		}
-	} else if key.UserID != 0 {
-		if key.UserID != req.User.ID {
 			return shttp.Forbidden()
 		}
 	} else {
