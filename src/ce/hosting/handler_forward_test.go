@@ -1415,9 +1415,27 @@ func (s *HandlerForwardSuite) Test_AuthWall_FormReturnsToPage() {
 	formToken := regexp.MustCompile(`name="token" value="([^"]+)"`).FindStringSubmatch(page)
 	s.Require().Len(formToken, 2)
 
-	returnTo, ok := authwall.Token{EnvID: types.ID(5)}.FormReturnTo(formToken[1])
-	s.True(ok)
-	s.Equal("http://www.stormkit.io/my-page?a=b", returnTo)
+	form := authwall.Token{EnvID: types.ID(5)}.ParseForm(formToken[1])
+	s.Require().NotNil(form)
+	s.False(form.Expired)
+	s.Equal("http://www.stormkit.io/my-page?a=b", form.ReturnTo)
+}
+
+// Test_AuthWall_FormKeepsQueryOrder verifies that the page's own parameters
+// keep their order, while a stale login result is removed.
+func (s *HandlerForwardSuite) Test_AuthWall_FormKeepsQueryOrder() {
+	for target, expected := range map[string]string{
+		"/search?z=1&a=2":                      "http://www.stormkit.io/search?z=1&a=2",
+		"/search?z=1&stormkit_success=expired": "http://www.stormkit.io/search?z=1",
+	} {
+		page := string(hosting.HandlerForward(s.newRequest(s.authWallHost(), target)).Data.([]byte))
+		formToken := regexp.MustCompile(`name="token" value="([^"]+)"`).FindStringSubmatch(page)
+		s.Require().Len(formToken, 2)
+
+		form := authwall.Token{EnvID: types.ID(5)}.ParseForm(formToken[1])
+		s.Require().NotNil(form)
+		s.Equal(expected, form.ReturnTo)
+	}
 }
 
 // Test_AuthWall_RejectsOtherTokens verifies that only a session of the

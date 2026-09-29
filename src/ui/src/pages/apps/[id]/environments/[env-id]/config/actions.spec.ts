@@ -8,9 +8,38 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/actions.tsx", () => {
   const env = mockEnvironments({ app })[0];
 
   describe("buildFormValues", () => {
+    // Every field the form sends. Any field added to or leaking into the
+    // payload has to be added here deliberately.
+    const expectedFields = [
+      "autoDeploy",
+      "autoDeployBranches",
+      "autoDeployCommits",
+      "autoPublish",
+      "branch",
+      "build.apiFolder",
+      "build.apiPathPrefix",
+      "build.buildCmd",
+      "build.distFolder",
+      "build.headers",
+      "build.headersFile",
+      "build.installCmd",
+      "build.previewLinks",
+      "build.priorityPattern",
+      "build.redirects",
+      "build.redirectsFile",
+      "build.serverCmd",
+      "build.skipUnchangedBuildRoot",
+      "build.statusChecks",
+      "build.vars",
+      "build.watchPaths",
+      "build.workDir",
+      "name",
+    ];
+
     it("should match the default state", () => {
       const values = buildFormValues(env, document.createElement("form"));
 
+      expect(Object.keys(values).sort()).toEqual(expectedFields);
       expect(values).toMatchObject({
         name: env.name,
         branch: env.branch,
@@ -60,6 +89,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/actions.tsx", () => {
 
       const values = buildFormValues(env, form);
 
+      expect(Object.keys(values).sort()).toEqual(expectedFields);
       expect(values).toMatchObject({
         name: "my-new-env",
         branch: env.branch,

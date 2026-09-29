@@ -53,6 +53,9 @@ const (
 type loginParams struct {
 	Password string
 	Token    string
+
+	// Referer defaults to a page on another site.
+	Referer string
 }
 
 // login posts the Auth Wall login form from another site, whose Referer must
@@ -67,6 +70,12 @@ func (s *HandlerAuthSuite) login(p loginParams) shttptest.Response {
 
 	s.Require().NoError(err)
 
+	referer := p.Referer
+
+	if referer == "" {
+		referer = attackerPage
+	}
+
 	return shttptest.RequestWithHeaders(
 		shttp.NewRouter().RegisterService(authwallhandlers.Services).Router().Handler(),
 		shttp.MethodPost,
@@ -74,7 +83,7 @@ func (s *HandlerAuthSuite) login(p loginParams) shttptest.Response {
 		requestBody,
 		map[string]string{
 			"Content-Type": contentType,
-			"Referer":      attackerPage,
+			"Referer":      referer,
 		},
 	)
 }
@@ -121,14 +130,44 @@ func (s *HandlerAuthSuite) Test_Auth_Success() {
 	session := location.Query().Get("stormkit_success")
 	s.True(authwall.Token{EnvID: s.aw.EnvID}.IsValidSession(session))
 
-	_, isForm := authwall.Token{EnvID: s.aw.EnvID}.FormReturnTo(session)
-	s.False(isForm)
+	s.Nil(authwall.Token{EnvID: s.aw.EnvID}.ParseForm(session))
 
 	logins, err := authwall.Store().Logins(context.Background(), s.aw.EnvID)
 	s.NoError(err)
 	s.Len(logins, 1)
 	s.Equal(s.aw.LoginEmail, logins[0].LoginEmail)
 	s.GreaterOrEqual(now, logins[0].LastLogin.Unix())
+}
+
+// Test_Auth_HTTPSBehindProxy verifies that the return URL is upgraded to https
+// when the browser was on https, as behind a proxy that terminates TLS.
+func (s *HandlerAuthSuite) Test_Auth_HTTPSBehindProxy() {
+	token, err := authwall.Token{EnvID: s.aw.EnvID}.Form("http://site.example.org/page")
+	s.Require().NoError(err)
+
+	response := s.login(loginParams{Password: s.aw.LoginPassword, Token: token, Referer: "https://site.example.org/"})
+
+	location, err := url.Parse(response.Header().Get("Location"))
+	s.Require().NoError(err)
+	s.Equal("https", location.Scheme)
+	s.Equal("site.example.org", location.Host)
+}
+
+// Test_Auth_ExpiredForm verifies that a form submitted too late sends the
+// visitor back to the page with an error instead of logging them in.
+func (s *HandlerAuthSuite) Test_Auth_ExpiredForm() {
+	token, err := user.JWT(jwt.MapClaims{
+		"purpose":  "auth-wall-form",
+		"envId":    s.aw.EnvID.String(),
+		"returnTo": protectedPage,
+		"issued":   time.Now().Add(-10 * time.Minute).Unix(),
+	})
+	s.Require().NoError(err)
+
+	response := s.login(loginParams{Password: s.aw.LoginPassword, Token: token})
+
+	s.Equal(http.StatusFound, response.Code)
+	s.Equal(protectedPage+"&stormkit_error=invalid_token", response.Header().Get("Location"))
 }
 
 func (s *HandlerAuthSuite) Test_Auth_FailPassword() {

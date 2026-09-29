@@ -1,6 +1,8 @@
 package authwall
 
 import (
+	"time"
+
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
@@ -12,6 +14,10 @@ const (
 
 	// formMaxMins is how long a visitor has to submit the login form.
 	formMaxMins = 5
+
+	// formReturnMaxMins is how long an expired form still sends the visitor
+	// back to their page, with an error, instead of failing outright.
+	formReturnMaxMins = 24 * 60
 
 	// sessionMaxMins is how long a visitor stays logged in.
 	sessionMaxMins = 24 * 60
@@ -40,18 +46,37 @@ func (t Token) Session() (string, error) {
 	return t.issue(sessionPurpose)
 }
 
-// FormReturnTo returns the page URL of this environment's login form token,
-// and false when the token is not a valid form token of this environment.
-func (t Token) FormReturnTo(token string) (string, bool) {
-	claims := t.verify(verifyParams{token: token, purpose: formPurpose, maxMins: formMaxMins})
+// Form is a verified login form token of an environment.
+type Form struct {
+	// ReturnTo is the URL of the protected page the form was shown on.
+	ReturnTo string
+
+	// Expired is true when the form was not submitted in time.
+	Expired bool
+}
+
+// ParseForm verifies a login form token of this environment. It returns nil
+// when the token is not one, or is too old to trust its return URL.
+func (t Token) ParseForm(token string) *Form {
+	claims := t.verify(verifyParams{token: token, purpose: formPurpose, maxMins: formReturnMaxMins})
 
 	if claims == nil {
-		return "", false
+		return nil
 	}
 
 	returnTo, _ := claims["returnTo"].(string)
 
-	return returnTo, returnTo != ""
+	if returnTo == "" {
+		return nil
+	}
+
+	issued, _ := claims["issued"].(float64)
+	age := time.Since(time.Unix(int64(issued), 0))
+
+	return &Form{
+		ReturnTo: returnTo,
+		Expired:  age > formMaxMins*time.Minute,
+	}
 }
 
 // IsValidSession reports whether token is a session of this environment.
