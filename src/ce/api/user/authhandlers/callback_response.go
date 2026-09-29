@@ -3,7 +3,9 @@ package authhandlers
 import (
 	"bytes"
 	"net/http"
+	"net/url"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 )
 
@@ -55,10 +57,17 @@ func (cr *callbackResponse) send() *shttp.Response {
 		}
 	}
 
+	targetOrigin := cr.targetOrigin()
+
+	if targetOrigin == "" {
+		cr.htmlMessage = "The Stormkit app URL is not configured, so the result cannot be sent back to Stormkit."
+	}
+
 	buf := &bytes.Buffer{}
 	err := responseTmpl.Execute(buf, map[string]any{
-		"message": cr.htmlMessage,
-		"json":    cr.postMessage,
+		"message":      cr.htmlMessage,
+		"json":         cr.postMessage,
+		"targetOrigin": targetOrigin,
 	})
 
 	data, execErr := buf.String(), err
@@ -77,4 +86,19 @@ func (cr *callbackResponse) send() *shttp.Response {
 		Error:   cr.err,
 		Data:    data,
 	}
+}
+
+// targetOrigin returns the origin of the Stormkit app, the only window allowed
+// to receive the result. The result carries a session token, so posting it to
+// any other opener would hand the session to whichever site opened the login
+// window. It returns an empty string, and nothing is posted, when the app URL
+// is not configured.
+func (cr *callbackResponse) targetOrigin() string {
+	appURL, err := url.Parse(admin.MustConfig().AppURL(""))
+
+	if err != nil || appURL.Scheme == "" || appURL.Host == "" {
+		return ""
+	}
+
+	return appURL.Scheme + "://" + appURL.Host
 }

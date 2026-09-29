@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -19,6 +20,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/authwall"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/redirects"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
@@ -1350,16 +1352,22 @@ func (s *HandlerForwardSuite) Test_AuthWall_DevDomainOnly() {
 	s.Contains(data, `method="POST"`)
 }
 
-func (s *HandlerForwardSuite) Test_AuthWall_LoginSuccess() {
-	host := &hosting.Host{
+// authWallHost returns a host protected by the Auth Wall of env 5.
+func (s *HandlerForwardSuite) authWallHost() *hosting.Host {
+	return &hosting.Host{
 		Name: "www.stormkit.io",
 		Config: &appconf.Config{
+			EnvID:    types.ID(5),
 			AuthWall: "all",
 		},
 	}
+}
 
-	token, err := user.JWT(jwt.MapClaims{})
-	s.NoError(err)
+func (s *HandlerForwardSuite) Test_AuthWall_LoginSuccess() {
+	host := s.authWallHost()
+
+	token, err := authwall.Token{EnvID: types.ID(5)}.Session()
+	s.Require().NoError(err)
 
 	req := s.newRequest(host, fmt.Sprintf("/my-page?a=b&stormkit_success=%s", token))
 	res := hosting.HandlerForward(req)
@@ -1379,15 +1387,10 @@ func (s *HandlerForwardSuite) Test_AuthWall_LoginSuccess() {
 }
 
 func (s *HandlerForwardSuite) Test_AuthWall_AlreadyLoggedIn() {
-	host := &hosting.Host{
-		Name: "www.stormkit.io",
-		Config: &appconf.Config{
-			AuthWall: "all",
-		},
-	}
+	host := s.authWallHost()
 
-	token, err := user.JWT(jwt.MapClaims{})
-	s.NoError(err)
+	token, err := authwall.Token{EnvID: types.ID(5)}.Session()
+	s.Require().NoError(err)
 
 	req := s.newRequest(host, "/my-page?a=b")
 	req.Header.Set("Cookie", fmt.Sprintf("%s=%s", hosting.SESSION_COOKIE_NAME, token))
@@ -1398,6 +1401,37 @@ func (s *HandlerForwardSuite) Test_AuthWall_AlreadyLoggedIn() {
 	s.Equal(http.StatusNotFound, res.Status)
 	s.Equal("text/html; charset=utf-8", res.Headers.Get("Content-Type"))
 	s.Contains(data, "Whoops! We've got nothing under this link.")
+}
+
+// Test_AuthWall_RejectsOtherTokens verifies that only a session of the
+// protected environment opens the Auth Wall: not the login page's own token,
+// not other tokens signed by the instance, and not another environment's
+// session.
+func (s *HandlerForwardSuite) Test_AuthWall_RejectsOtherTokens() {
+	page := string(hosting.HandlerForward(s.newRequest(s.authWallHost(), "/my-page")).Data.([]byte))
+	formToken := regexp.MustCompile(`name="token" value="([^"]+)"`).FindStringSubmatch(page)
+	s.Require().Len(formToken, 2)
+
+	anonymous, err := user.JWT(jwt.MapClaims{"provider": "github"})
+	s.Require().NoError(err)
+
+	otherEnv, err := authwall.Token{EnvID: types.ID(6)}.Session()
+	s.Require().NoError(err)
+
+	for _, token := range []string{formToken[1], anonymous, otherEnv} {
+		res := hosting.HandlerForward(s.newRequest(s.authWallHost(), "/my-page?stormkit_success="+token))
+
+		s.Equal(http.StatusOK, res.Status)
+		s.Empty(res.Cookies)
+		s.Contains(string(res.Data.([]byte)), `name="token"`)
+
+		req := s.newRequest(s.authWallHost(), "/my-page")
+		req.Header.Set("Cookie", fmt.Sprintf("%s=%s", hosting.SESSION_COOKIE_NAME, token))
+		res = hosting.HandlerForward(req)
+
+		s.Equal(http.StatusOK, res.Status)
+		s.Contains(string(res.Data.([]byte)), `name="token"`)
+	}
 }
 
 func TestHandlerForward(t *testing.T) {

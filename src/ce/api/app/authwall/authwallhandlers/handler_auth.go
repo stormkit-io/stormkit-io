@@ -3,9 +3,7 @@ package authwallhandlers
 import (
 	"net/url"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/authwall"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
@@ -36,16 +34,13 @@ func handlerAuth(req *shttp.RequestContext) *shttp.Response {
 	envID := utils.StringToID(req.FormValue("envId"))
 	referrer := req.Referer()
 
-	token := user.ParseJWT(&user.ParseJWTArgs{
-		Bearer:  req.FormValue("token"),
-		MaxMins: 5,
-	})
+	tokens := authwall.Token{EnvID: envID}
 
-	if token == nil {
+	if !tokens.IsValidForm(req.FormValue("token")) {
 		return failedLoginResponse(referrer, "invalid_token")
 	}
 
-	if email == "" || password == "" || envID == 0 {
+	if email == "" || password == "" {
 		return failedLoginResponse(referrer, "invalid_credentials")
 	}
 
@@ -55,7 +50,7 @@ func handlerAuth(req *shttp.RequestContext) *shttp.Response {
 		EnvID:         envID,
 	}
 
-	jwtToken, err := user.JWT(jwt.MapClaims{})
+	jwtToken, err := tokens.Session()
 
 	if err != nil || jwtToken == "" {
 		return failedLoginResponse(referrer, "token_generation_failed")

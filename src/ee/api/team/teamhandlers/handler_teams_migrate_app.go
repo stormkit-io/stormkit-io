@@ -33,7 +33,7 @@ func handlerTeamsMigrateApp(req *user.RequestContext) *shttp.Response {
 	}
 
 	store := team.NewStore()
-	sourceTeam, err := store.Team(req.Context(), data.TeamID, req.User.ID)
+	sourceTeam, err := store.Team(req.Context(), myApp.TeamID, req.User.ID)
 
 	if err != nil {
 		return shttp.Error(err)

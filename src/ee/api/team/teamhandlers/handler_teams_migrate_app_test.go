@@ -93,6 +93,37 @@ func (s *HandlerTeamsMigrateAppSuite) Test_FailPermission() {
 	s.Equal(http.StatusUnauthorized, response.Code)
 }
 
+// Test_FailNotMemberOfSourceTeam verifies that an app cannot be moved into the
+// caller's team unless the caller has write access to the app's current team.
+func (s *HandlerTeamsMigrateAppSuite) Test_FailNotMemberOfSourceTeam() {
+	victim := s.MockUser()
+	victimApp := s.MockApp(victim)
+
+	attacker := s.MockUser()
+	attackerTeam := team.Team{Name: "Attacker Team"}
+	member := team.Member{UserID: attacker.ID, Role: team.ROLE_OWNER, Status: true}
+	s.Require().NoError(team.NewStore().CreateTeam(context.Background(), &attackerTeam, &member))
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(teamhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/team/migrate",
+		map[string]string{
+			"appId":  victimApp.ID.String(),
+			"teamId": attackerTeam.ID.String(),
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(attacker.ID),
+		},
+	)
+
+	s.Equal(http.StatusUnauthorized, response.Code)
+
+	unchanged, err := app.NewStore().AppByID(context.Background(), victimApp.ID)
+	s.Require().NoError(err)
+	s.Equal(victimApp.TeamID, unchanged.TeamID)
+}
+
 func TestHandlerTeamsMigrateApp(t *testing.T) {
 	suite.Run(t, &HandlerTeamsMigrateAppSuite{})
 }

@@ -33,9 +33,15 @@ const openPopup = ({
       "left=100,top=100"
   );
 
-  // The listener that will be triggered on postMessage
+  // The listener that will be triggered on postMessage. Only the popup opened
+  // here may report the result: messages from any other window could carry a
+  // session token planted by another site.
   const listener = (e: MessageEvent) => {
-    if (typeof e.data.success !== "undefined") {
+    if (!popup || e.source !== popup) {
+      return;
+    }
+
+    if (typeof e.data?.success !== "undefined") {
       // Show the status for longer for better UX
       setTimeout(() => {
         if (typeof popup?.close !== "undefined") {

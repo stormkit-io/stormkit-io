@@ -3,7 +3,6 @@ package volumeshandlers
 import (
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
@@ -21,7 +20,6 @@ func HandlerVolumesDownloadURL(req *app.RequestContext) *shttp.Response {
 	}
 
 	token, err := user.JWT(jwt.MapClaims{
-		"token":  strings.Replace(req.Header.Get("Authorization"), "Bearer ", "", 1),
 		"appId":  req.App.ID.String(),
 		"envId":  req.EnvID.String(),
 		"fileId": fileId.String(),

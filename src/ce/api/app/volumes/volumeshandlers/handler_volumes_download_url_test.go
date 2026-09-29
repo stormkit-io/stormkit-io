@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"regexp"
 	"testing"
 	"time"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/volumes"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/volumes/volumeshandlers"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
@@ -74,8 +76,21 @@ func (s *HandlerVolumesDownloadURLSuite) Test_Success() {
 		},
 	)
 
+	body := response.String()
+
 	s.Equal(http.StatusOK, response.Code)
-	s.Contains(response.String(), "http://api.stormkit:8888/volumes/download?token=ey")
+	s.Contains(body, "http://api.stormkit:8888/volumes/download?token=ey")
+
+	// The download URL may be logged or shared, so its token must not carry
+	// the caller's session or authenticate as them.
+	token := regexp.MustCompile(`token=([^"]+)`).FindStringSubmatch(body)
+	s.Require().Len(token, 2)
+
+	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: token[1]})
+	s.Require().NotNil(claims)
+	s.NotContains(claims, "token")
+	s.NotContains(claims, "uid")
+	s.Equal(types.ID(0), user.UIDFromBearer(token[1]))
 }
 
 func TestHandlerVolumesDownloadURL(t *testing.T) {
