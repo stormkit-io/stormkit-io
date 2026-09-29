@@ -2,6 +2,8 @@ package publicapiv1_test
 
 import (
 	"bytes"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
+	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"net/http"
 	"testing"
 	"text/template"
@@ -130,6 +132,41 @@ func (s *HandlerAppConfSuite) Test_NoContent() {
 
 	s.Equal(http.StatusNoContent, response.Code)
 	s.JSONEq(expected, response.String())
+}
+
+// Test_OtherAppsHost verifies that a key of one app cannot read the config,
+// including the environment variables, of another app's host name.
+func (s *HandlerAppConfSuite) Test_OtherAppsHost() {
+	victim := s.MockApp(s.MockUser(), map[string]any{"DisplayName": "sample-project"})
+	victimEnv := s.MockEnv(victim)
+	s.MockDeployment(victimEnv, map[string]any{
+		"Published": deploy.PublishedInfo{
+			{EnvID: victimEnv.ID},
+		},
+	})
+
+	attacker := s.MockUser()
+	attackerApp := s.MockApp(attacker, map[string]any{"DisplayName": "attacker-project"})
+	key := s.MockAPIKey(attackerApp, nil, map[string]any{
+		"UserID": attacker.ID,
+		"EnvID":  types.ID(0),
+		"Scope":  apikey.SCOPE_APP,
+	})
+
+	s.mockMise.On("BinPaths", mock.Anything).Return(map[string]string{}, nil).Maybe()
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodGet,
+		"/v1/app/config?hostName=sample-project.stormkit:8888",
+		nil,
+		map[string]string{
+			"Authorization": key.Value,
+		},
+	)
+
+	s.Equal(http.StatusNoContent, response.Code)
+	s.NotContains(response.String(), "envVariables")
 }
 
 func TestHandlerAppConf(t *testing.T) {
