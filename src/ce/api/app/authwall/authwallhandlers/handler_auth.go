@@ -1,6 +1,7 @@
 package authwallhandlers
 
 import (
+	"net/http"
 	"net/url"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/authwall"
@@ -32,12 +33,18 @@ func handlerAuth(req *shttp.RequestContext) *shttp.Response {
 	email := req.FormValue("email")
 	password := req.FormValue("password")
 	envID := utils.StringToID(req.FormValue("envId"))
-	referrer := req.Referer()
-
 	tokens := authwall.Token{EnvID: envID}
 
-	if !tokens.IsValidForm(req.FormValue("token")) {
-		return failedLoginResponse(referrer, "invalid_token")
+	// The form token carries the protected page's URL. The Referer header is
+	// ignored: a form on another site could otherwise have the visitor, and
+	// on success their session, sent there.
+	referrer, ok := tokens.FormReturnTo(req.FormValue("token"))
+
+	if !ok {
+		return &shttp.Response{
+			Status: http.StatusBadRequest,
+			Data:   "The login form has expired. Go back, reload the page and try again.",
+		}
 	}
 
 	if email == "" || password == "" {

@@ -38,8 +38,9 @@ func (s *ServicesSuite) Test_EE() {
 			Request: &http.Request{},
 		})
 
+		// Login is not EE-gated; without a valid form token it is rejected.
 		if k == "POST:/auth-wall/login" {
-			s.NotNil(res.Redirect, "redirect should be set for handler %s", k)
+			s.Equal(http.StatusBadRequest, res.Status, "handler %s should reject a missing form token", k)
 			continue
 		}
 

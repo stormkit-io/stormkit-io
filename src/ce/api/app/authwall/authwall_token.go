@@ -24,9 +24,15 @@ type Token struct {
 	EnvID types.ID
 }
 
-// Form returns the token embedded in the login form.
-func (t Token) Form() (string, error) {
-	return t.issue(formPurpose)
+// Form returns the token embedded in the login form. It carries the URL of
+// the protected page, the only place the visitor is sent back to after
+// submitting the form.
+func (t Token) Form(returnTo string) (string, error) {
+	return user.JWT(jwt.MapClaims{
+		"purpose":  formPurpose,
+		"envId":    t.EnvID.String(),
+		"returnTo": returnTo,
+	})
 }
 
 // Session returns the token issued after a successful login.
@@ -34,14 +40,23 @@ func (t Token) Session() (string, error) {
 	return t.issue(sessionPurpose)
 }
 
-// IsValidForm reports whether token is this environment's login form token.
-func (t Token) IsValidForm(token string) bool {
-	return t.verify(verifyParams{token: token, purpose: formPurpose, maxMins: formMaxMins})
+// FormReturnTo returns the page URL of this environment's login form token,
+// and false when the token is not a valid form token of this environment.
+func (t Token) FormReturnTo(token string) (string, bool) {
+	claims := t.verify(verifyParams{token: token, purpose: formPurpose, maxMins: formMaxMins})
+
+	if claims == nil {
+		return "", false
+	}
+
+	returnTo, _ := claims["returnTo"].(string)
+
+	return returnTo, returnTo != ""
 }
 
 // IsValidSession reports whether token is a session of this environment.
 func (t Token) IsValidSession(token string) bool {
-	return t.verify(verifyParams{token: token, purpose: sessionPurpose, maxMins: sessionMaxMins})
+	return t.verify(verifyParams{token: token, purpose: sessionPurpose, maxMins: sessionMaxMins}) != nil
 }
 
 func (t Token) issue(purpose string) (string, error) {
@@ -57,12 +72,18 @@ type verifyParams struct {
 	maxMins int
 }
 
-func (t Token) verify(p verifyParams) bool {
+// verify returns the token's claims when it is valid for the given purpose and
+// this environment, and nil otherwise.
+func (t Token) verify(p verifyParams) jwt.MapClaims {
 	if p.token == "" || t.EnvID == 0 {
-		return false
+		return nil
 	}
 
 	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: p.token, MaxMins: p.maxMins})
 
-	return claims != nil && claims["purpose"] == p.purpose && claims["envId"] == t.EnvID.String()
+	if claims == nil || claims["purpose"] != p.purpose || claims["envId"] != t.EnvID.String() {
+		return nil
+	}
+
+	return claims
 }

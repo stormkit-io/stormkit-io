@@ -63,7 +63,14 @@ func WithAuthWall(req *RequestContext) (*shttp.Response, error) {
 		}
 	}
 
-	token, _ := tokens.Form()
+	// The page URL, without a previous login error, is where the visitor
+	// returns after submitting the form.
+	returnTo := *req.URL()
+	query := returnTo.Query()
+	query.Del("stormkit_error")
+	returnTo.RawQuery = query.Encode()
+
+	token, _ := tokens.Form(returnTo.String())
 	content := html.MustRender(html.RenderArgs{
 		PageTitle:   "Stormkit - Password protected deployment",
 		PageContent: html.Templates["login"],

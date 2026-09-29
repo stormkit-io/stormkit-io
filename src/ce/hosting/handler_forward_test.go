@@ -1403,6 +1403,23 @@ func (s *HandlerForwardSuite) Test_AuthWall_AlreadyLoggedIn() {
 	s.Contains(data, "Whoops! We've got nothing under this link.")
 }
 
+// Test_AuthWall_FormReturnsToPage verifies that the login form token carries
+// the protected page's URL, without a previous login error, while the page
+// still shows that error.
+func (s *HandlerForwardSuite) Test_AuthWall_FormReturnsToPage() {
+	res := hosting.HandlerForward(s.newRequest(s.authWallHost(), "/my-page?a=b&stormkit_error=invalid_credentials"))
+	page := string(res.Data.([]byte))
+
+	s.Contains(page, "Credentials are invalid")
+
+	formToken := regexp.MustCompile(`name="token" value="([^"]+)"`).FindStringSubmatch(page)
+	s.Require().Len(formToken, 2)
+
+	returnTo, ok := authwall.Token{EnvID: types.ID(5)}.FormReturnTo(formToken[1])
+	s.True(ok)
+	s.Equal("http://www.stormkit.io/my-page?a=b", returnTo)
+}
+
 // Test_AuthWall_RejectsOtherTokens verifies that only a session of the
 // protected environment opens the Auth Wall: not the login page's own token,
 // not other tokens signed by the instance, and not another environment's
