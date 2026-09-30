@@ -1,5 +1,22 @@
 # Changelog
 
+## v2026.09.29.4...v2026.09.29.5
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.29.4...v2026.09.29.5)
+
+### 🩹 Fixes
+
+- Hide webhook secret hint once configured ([#575](https://github.com/stormkit-io/stormkit-io/pull/575))
+
+### 🏡 Chore
+
+- Explain removed deploy button ([#574](https://github.com/stormkit-io/stormkit-io/pull/574))
+- Update changelog for v2026.09.29.4 ([#573](https://github.com/stormkit-io/stormkit-io/pull/573))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.09.29.3...v2026.09.29.4
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.29.3...v2026.09.29.4)
