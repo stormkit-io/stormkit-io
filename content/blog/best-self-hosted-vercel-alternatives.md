@@ -1,6 +1,6 @@
 ---
 title: Best self-hosted Vercel alternatives in 2026
-description: An honest comparison of the open source platforms you can run on your own server instead of Vercel or Netlify - Coolify, Dokploy, Dokku, CapRover, Kamal and Stormkit - with what each is actually good at and who should pick which.
+description: An honest comparison of the platforms you can run on your own server instead of Vercel or Netlify - Coolify, Dokploy, Easypanel, Dokku, CapRover, Kamal and Stormkit - with what each is actually good at and who should pick which.
 date: 2026-08-13
 author-name: Savas Vedova
 author-tw: @savasvedova
@@ -19,9 +19,9 @@ infrastructure. That trade is worth making deliberately, not on a bad billing
 day.
 
 The important thing to sort out first is which kind of tool you are looking for,
-because these six are not really competing with each other:
+because these seven are not really competing with each other:
 
-- **Container platforms** — Coolify, Dokploy, CapRover. Somewhere to run any
+- **Container platforms** — Coolify, Dokploy, Easypanel, CapRover. Somewhere to run any
   Docker image, including off-the-shelf software you did not write.
 - **An application platform** — Stormkit. The database, authentication, email
   and scheduled jobs your product needs, provided by the platform.
@@ -34,6 +34,7 @@ because these six are not really competing with each other:
 | --- | --- | --- | --- | --- |
 | [Coolify](https://coolify.io) | Apache-2.0 | PHP | ~60,500 | General self-hosted PaaS |
 | [Dokploy](https://dokploy.com) | Apache-2.0 + proprietary parts | TypeScript | ~36,500 | General self-hosted PaaS |
+| [Easypanel](https://easypanel.io) | Proprietary, free tier | Not published | Closed source | General self-hosted PaaS |
 | [Dokku](https://dokku.com) | MIT | Shell | ~32,000 | Minimal Heroku-style PaaS |
 | [CapRover](https://caprover.com) | Apache-2.0 with added restrictions | TypeScript | ~15,100 | Docker + nginx PaaS with a UI |
 | [Kamal](https://kamal-deploy.org) | MIT | Ruby | ~14,500 | Deployment tool, not a platform |
@@ -42,7 +43,8 @@ because these six are not really competing with each other:
 Star counts are included because they are a rough proxy for how much community
 and documentation sits behind a project — useful context, not a ranking. The
 container platforms have been around longer and address a broader audience than
-an application platform does.
+an application platform does. Easypanel has no star count because its core is
+not on GitHub; its reach comes through VPS providers instead.
 
 ## Coolify
 
@@ -77,6 +79,30 @@ we use, and worth checking against your own requirements in both cases.
 
 **Pick it if** you like Coolify's scope but prefer Dokploy's interface, or you
 need multi-server orchestration without reaching for Kubernetes.
+
+## Easypanel
+
+The only closed-source option in this list, installed on your own server like
+the others. Easypanel covers much the same ground as Coolify and Dokploy — Git and
+Docker Compose deployments, databases, backups, team access and a large
+catalogue of one-click templates — on top of Docker Swarm. Several VPS
+providers, Hostinger among them, offer it as a pre-installed image.
+
+```bash
+curl -sSL https://get.easypanel.io | sh
+```
+
+Worth knowing: its template repository is public, but the panel itself is not,
+so you cannot audit or fork it. The free plan is
+limited to three projects; beyond that it is licensed per server, from $10.90 a
+month on annual billing.
+
+**Pick it if** you want a container platform, your VPS provider already offers
+it pre-installed, and a per-server licence fee is fine.
+
+**Look elsewhere if** you need to read or modify the source, or you want more
+than three projects without paying — Coolify and Dokploy cover similar ground
+for free.
 
 ## Dokku
 
@@ -162,7 +188,7 @@ migration.
 
 ## Which one should you pick
 
-- **Running everything on one box, including off-the-shelf apps you did not write** — Coolify, or Dokploy if you prefer its UI. This is the common case, and where most people arriving from Vercel should start.
+- **Running everything on one box, including off-the-shelf apps you did not write** — Coolify, Dokploy or Easypanel, depending on which UI and licence you prefer. This is the common case, and where most people arriving from Vercel should start.
 - **Terminal-first, minimal, `git push` and nothing else** — Dokku.
 - **Proven and boring, with a UI** — CapRover.
 - **You have servers and only want deployment automation** — Kamal.
