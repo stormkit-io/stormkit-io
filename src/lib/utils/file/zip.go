@@ -31,6 +31,38 @@ type ZipArgs struct {
 	WorkingDir    string   // The absolute path to the working directory
 	IncludeParent bool     // Whether to include the parent folder when zipping directories
 	GlobPattern   string   // Optional: only include files matching this pattern (e.g., "*.sql")
+	Exclude       []string // Optional: directory names to exclude at any depth (e.g., ".git")
+}
+
+// zipExcludeArgs builds the `zip -x` exclusion flags for the given directory
+// names, matching each directory both at the archive root and at any nested
+// depth.
+func zipExcludeArgs(dirs []string) string {
+	parts := make([]string, 0, len(dirs)*2)
+
+	for _, dir := range dirs {
+		// First pair excludes the directory's contents; second excludes a plain
+		// file of the same name (e.g. a `.git` gitfile in a submodule/worktree
+		// checkout), matching the find path which prunes by name.
+		parts = append(parts,
+			fmt.Sprintf("-x '%s/*' -x '*/%s/*'", dir, dir),
+			fmt.Sprintf("-x '%s' -x '*/%s'", dir, dir),
+		)
+	}
+
+	return strings.Join(parts, " ")
+}
+
+// findPruneExpr builds a `find` expression that prunes the given directory names
+// so their contents are never handed to zip.
+func findPruneExpr(dirs []string) string {
+	names := make([]string, 0, len(dirs))
+
+	for _, dir := range dirs {
+		names = append(names, fmt.Sprintf("-name '%s'", dir))
+	}
+
+	return fmt.Sprintf(`\( %s \) -prune -o`, strings.Join(names, " -o "))
 }
 
 // ZipInMemory creates a zip archive in memory from the given files.
@@ -158,6 +190,34 @@ func sanitizeGlobPattern(pattern string) (string, error) {
 	return pattern, nil
 }
 
+// sanitizeExcludeDirs ensures each exclude entry is a plain directory name safe
+// for shell commands (no path separators or metacharacters).
+func sanitizeExcludeDirs(dirs []string) ([]string, error) {
+	sanitized := make([]string, 0, len(dirs))
+
+	for _, dir := range dirs {
+		dir = strings.TrimSpace(dir)
+
+		if dir == "" {
+			continue
+		}
+
+		matched, err := regexp.MatchString(`^[a-zA-Z0-9._-]+$`, dir)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to validate exclude dir: %w", err)
+		}
+
+		if !matched || dir == "." || dir == ".." {
+			return nil, fmt.Errorf("invalid exclude dir: %s", dir)
+		}
+
+		sanitized = append(sanitized, dir)
+	}
+
+	return sanitized, nil
+}
+
 // ZipV2 the source folder/file to the target zip file.
 // If the zip file already exists, this function will open and
 // re-use that.
@@ -175,10 +235,17 @@ func ZipV2(args ZipArgs) error {
 		return fmt.Errorf("invalid glob pattern: %w", err)
 	}
 
+	sanitizedExclude, err := sanitizeExcludeDirs(args.Exclude)
+
+	if err != nil {
+		return fmt.Errorf("invalid exclude dir: %w", err)
+	}
+
 	// Create sanitized args copy
 	sanitizedArgs := args
 	sanitizedArgs.ZipName = sanitizedZipName
 	sanitizedArgs.GlobPattern = sanitizedPattern
+	sanitizedArgs.Exclude = sanitizedExclude
 
 	for _, dirOrFile := range args.Source {
 		absolutePath := path.Join(args.WorkingDir, dirOrFile)
@@ -229,13 +296,20 @@ func buildZipCommand(isDir bool, args ZipArgs, dirOrFile string) string {
 	if args.IncludeParent {
 		baseCmd := fmt.Sprintf("zip -r -y -9 %s %s", args.ZipName, dirOrFile)
 		if args.GlobPattern != "" {
-			return fmt.Sprintf("%s -i '%s'", baseCmd, args.GlobPattern)
+			baseCmd = fmt.Sprintf("%s -i '%s'", baseCmd, args.GlobPattern)
+		}
+		if len(args.Exclude) > 0 {
+			baseCmd = fmt.Sprintf("%s %s", baseCmd, zipExcludeArgs(args.Exclude))
 		}
 		return baseCmd
 	}
 
 	// Directory without parent - use find
 	findFilter := `\( -type f -o -type l \)`
+
+	if len(args.Exclude) > 0 {
+		findFilter = findPruneExpr(args.Exclude) + " " + findFilter
+	}
 
 	if args.GlobPattern != "" {
 		findFilter += fmt.Sprintf(` -name '%s'`, args.GlobPattern)

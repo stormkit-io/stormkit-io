@@ -45,6 +45,26 @@ const StormkitServerFolder = ".stormkit/server"
 const StormkitPublicFolder = ".stormkit/public"
 const StormkitAPIFolder = ".stormkit/api"
 
+// DeployExcludeDirs are version-control and editor directories that must never
+// end up in a deployment artifact. Most importantly `.git`, whose config holds
+// the clone token in its remote URL; shipping it would publish that token (and
+// the full history) to the CDN. They are stripped from both the upload zip and
+// the deployment manifest.
+var DeployExcludeDirs = []string{".git", ".idea", ".github"}
+
+// isExcludedDeployPath reports whether the given path has any segment matching
+// one of DeployExcludeDirs. The path may start with a leading slash (e.g.
+// "/.git/config").
+func isExcludedDeployPath(p string) bool {
+	for segment := range strings.SplitSeq(p, "/") {
+		if slices.Contains(DeployExcludeDirs, segment) {
+			return true
+		}
+	}
+
+	return false
+}
+
 type BundlerInterface interface {
 	Zip(*Artifacts) error
 	Bundle(context.Context) (*Artifacts, error)
@@ -186,6 +206,14 @@ func (a *Artifacts) CDNFiles() []deploy.CDNFile {
 			}
 
 			fileName := strings.Replace(pathToFile, fullPath, "", 1)
+
+			if isExcludedDeployPath(fileName) {
+				if info.IsDir() {
+					return fs.SkipDir
+				}
+
+				return nil
+			}
 
 			if pathToFile == dir || info.IsDir() || fileName == "" {
 				return nil
@@ -831,6 +859,7 @@ func (b Bundler) Zip(artifacts *Artifacts) error {
 			WorkingDir:    workingDir,
 			IncludeParent: includeParent,
 			GlobPattern:   globPattern,
+			Exclude:       DeployExcludeDirs,
 		})
 	}
 

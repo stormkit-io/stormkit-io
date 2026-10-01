@@ -719,6 +719,43 @@ func (s *BundlerSuite) Test_CDNFiles() {
 	}, cdnFiles)
 }
 
+// Test_CDNFiles_ExcludesVCSDirs verifies that version-control and editor
+// directories (most importantly .git, whose config leaks the clone token) are
+// kept out of the deployment manifest when the whole repo is deployed.
+func (s *BundlerSuite) Test_CDNFiles_ExcludesVCSDirs() {
+	root := s.config.Repo.Dir
+
+	s.NoError(os.MkdirAll(path.Join(root, ".git"), 0774))
+	s.NoError(os.WriteFile(path.Join(root, ".git", "config"), []byte("[remote]"), 0664))
+	s.NoError(os.MkdirAll(path.Join(root, ".idea"), 0774))
+	s.NoError(os.WriteFile(path.Join(root, ".idea", "workspace.xml"), []byte("x"), 0664))
+	s.NoError(os.MkdirAll(path.Join(root, ".github", "workflows"), 0774))
+	s.NoError(os.WriteFile(path.Join(root, ".github", "workflows", "ci.yml"), []byte("y"), 0664))
+	s.NoError(os.WriteFile(path.Join(root, "index.html"), []byte("hello"), 0664))
+	s.NoError(os.MkdirAll(path.Join(root, "static"), 0774))
+	// Guards against over-eager matching: a file whose name merely contains an
+	// excluded dir name must still be deployed.
+	s.NoError(os.WriteFile(path.Join(root, "static", "github.js"), []byte("js"), 0664))
+
+	artifacts := runner.NewArtifacts(root)
+	artifacts.ClientDirs = []string{"."}
+
+	names := []string{}
+
+	for _, f := range artifacts.CDNFiles() {
+		names = append(names, f.Name)
+	}
+
+	s.Contains(names, "/index.html")
+	s.Contains(names, "/static/github.js")
+
+	for _, name := range names {
+		s.False(strings.HasPrefix(name, "/.git/"), "manifest must not include .git files: %s", name)
+		s.False(strings.HasPrefix(name, "/.idea/"), "manifest must not include .idea files: %s", name)
+		s.False(strings.HasPrefix(name, "/.github/"), "manifest must not include .github files: %s", name)
+	}
+}
+
 func (s *BundlerSuite) Test_RegexpPattern() {
 	contents := []string{
 		// Invalid import:
