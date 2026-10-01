@@ -82,6 +82,7 @@ func newRegistry(opts PrometheusOpts) *prometheus.Registry {
 
 	if opts.Apdex {
 		reg.MustRegister(RTHistogramProdEndpoints)
+		reg.MustRegister(RTTotalHistogramProdEndpoints)
 	}
 
 	// Both binaries hold a pool, so both report their own saturation.

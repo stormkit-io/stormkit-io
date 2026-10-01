@@ -49,9 +49,15 @@ func (s *PrometheusSuite) Test_ApdexRegisteredOnlyWhenEnabled() {
 	// A histogram vec with no observations exports no series at all, so the
 	// metric has to be touched before it can be seen in the output.
 	RTHistogramProdEndpoints.WithLabelValues(http.MethodGet, "200").Observe(1)
+	RTTotalHistogramProdEndpoints.WithLabelValues(http.MethodGet, "200").Observe(1)
 
-	s.Contains(s.gathered(PrometheusOpts{Apdex: true}), "stormkit_lb_response_time_ms")
-	s.NotContains(s.gathered(PrometheusOpts{Apdex: false}), "stormkit_lb_response_time_ms")
+	enabled := s.gathered(PrometheusOpts{Apdex: true})
+	s.Contains(enabled, "stormkit_lb_response_time_ms")
+	s.Contains(enabled, "stormkit_lb_request_total_ms")
+
+	disabled := s.gathered(PrometheusOpts{Apdex: false})
+	s.NotContains(disabled, "stormkit_lb_response_time_ms")
+	s.NotContains(disabled, "stormkit_lb_request_total_ms")
 }
 
 // Registration is easy to get wrong silently: a collector left out of

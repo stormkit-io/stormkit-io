@@ -113,9 +113,20 @@ what the server sees; it cannot tell you that Stormkit is queuing for a slot in
 its own pool. A sustained wait rate means the pool is undersized, and it can
 happen while PostgreSQL itself looks completely idle.
 
-Stormkit also exports HTTP response time (`stormkit_lb_response_time_ms`, the
-histogram behind the Requests dashboard) and
-the usual Go runtime metrics.
+Stormkit also exports two request-time histograms and the usual Go runtime
+metrics:
+
+- `stormkit_lb_response_time_ms` covers the work of producing a response and
+  stops when it is ready to be written. It measures the server rather than the
+  visitor's connection, so it is the one to watch after a release.
+- `stormkit_lb_request_total_ms` covers the whole request, until the body has
+  been handed to the connection. The difference between the two is dominated
+  by the time spent getting the body to the client, which grows with slow
+  links and large assets rather than with anything the server does. Encoding
+  the body and compressing it on the way out also fall in that gap; on a
+  typical asset that is about a millisecond.
+
+The Requests dashboard shows both.
 
 ## Using your own Prometheus
 
