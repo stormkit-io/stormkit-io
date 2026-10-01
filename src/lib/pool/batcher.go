@@ -155,16 +155,25 @@ func newTicker(interval time.Duration) (<-chan time.Time, func()) {
 }
 
 // New creates a new buffer instance with the provided options.
+//
+// The data channel holds one batch worth of items. A flush runs on the
+// consuming goroutine, so with an unbuffered channel every Push made during a
+// flush blocks for as long as the flusher takes; under a burst that is a pile
+// of blocked callers for every round trip to the destination. The buffer
+// absorbs a flush's worth of pushes instead, and a caller only waits once it is
+// a full batch ahead of the consumer.
 func New(opts ...Option) *Buffer {
+	options := resolveOptions(opts...)
+
 	buffer := &Buffer{
-		dataCh:  make(chan any),
+		dataCh:  make(chan any, options.Size),
 		flushCh: make(chan struct{}),
 		closeCh: make(chan struct{}),
 		doneCh:  make(chan struct{}),
-		options: resolveOptions(opts...),
+		options: options,
 	}
 
-	buffer.items = make([]any, buffer.options.Size)
+	buffer.items = make([]any, options.Size)
 
 	go buffer.consume()
 

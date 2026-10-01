@@ -22,7 +22,17 @@ var (
 	artifactsWG   sync.WaitGroup
 )
 
+// Queue hands a record to the batcher that ships it to the workerserver.
+//
+// The lock only guards the lazy initialisation. It must not be held across
+// Push: a push waits while the batcher flushes to Redis, and holding the lock
+// through that wait lined every concurrent request up behind a single round
+// trip.
 func Queue(record *jobs.HostingRecord) error {
+	return batcher().Push(record)
+}
+
+func batcher() *pool.Buffer {
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -61,5 +71,5 @@ func Queue(record *jobs.HostingRecord) error {
 		)
 	}
 
-	return Batcher.Push(record)
+	return Batcher
 }
