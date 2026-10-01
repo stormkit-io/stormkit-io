@@ -234,6 +234,131 @@ func (s *ZipSuite) Test_ZipV2_WithGlobPattern_IncludeParent() {
 	}
 }
 
+func (s *ZipSuite) createRepoWithVCSDirs() {
+	root := filepath.Join(s.tmpDir, "repo")
+
+	s.NoError(os.MkdirAll(filepath.Join(root, ".git"), 0755))
+	s.NoError(os.WriteFile(filepath.Join(root, ".git", "config"), []byte("[remote]"), 0644))
+	s.NoError(os.MkdirAll(filepath.Join(root, ".idea"), 0755))
+	s.NoError(os.WriteFile(filepath.Join(root, ".idea", "workspace.xml"), []byte("x"), 0644))
+	s.NoError(os.MkdirAll(filepath.Join(root, ".github", "workflows"), 0755))
+	s.NoError(os.WriteFile(filepath.Join(root, ".github", "workflows", "ci.yml"), []byte("y"), 0644))
+	s.NoError(os.WriteFile(filepath.Join(root, "index.html"), []byte("hello"), 0644))
+	s.NoError(os.MkdirAll(filepath.Join(root, "static"), 0755))
+	s.NoError(os.WriteFile(filepath.Join(root, "static", "app.js"), []byte("app"), 0644))
+}
+
+func (s *ZipSuite) assertNoVCSDirs(fileNames map[string]bool, prefix string) {
+	for name := range fileNames {
+		s.False(strings.Contains(name, ".git/"), "zip must not include .git: %s", name)
+		s.False(strings.Contains(name, ".idea/"), "zip must not include .idea: %s", name)
+		s.False(strings.Contains(name, ".github/"), "zip must not include .github: %s", name)
+	}
+
+	s.True(fileNames[prefix+"index.html"], "zip must include index.html")
+	s.True(fileNames[prefix+"static/app.js"], "zip must include nested content")
+}
+
+// Test_ZipV2_ExcludesVCSDirs_WithoutParent covers the whole-repo client bundle
+// path: find-based, no parent. This is the path that leaked .git to the CDN.
+func (s *ZipSuite) Test_ZipV2_ExcludesVCSDirs_WithoutParent() {
+	s.createRepoWithVCSDirs()
+
+	zipFile := filepath.Join(s.tmpDir, "client.zip")
+
+	err := file.ZipV2(file.ZipArgs{
+		Source:        []string{"repo"},
+		ZipName:       zipFile,
+		WorkingDir:    s.tmpDir,
+		IncludeParent: false,
+		Exclude:       []string{".git", ".idea", ".github"},
+	})
+
+	s.NoError(err)
+	s.assertNoVCSDirs(s.listFilesInZip(zipFile), "")
+}
+
+// Test_ZipV2_ExcludesVCSDirs_IncludeParent covers the whole-repo server bundle
+// path (e.g. a start-command runtime), which zips "." with the parent included.
+func (s *ZipSuite) Test_ZipV2_ExcludesVCSDirs_IncludeParent() {
+	s.createRepoWithVCSDirs()
+
+	zipFile := filepath.Join(s.tmpDir, "server.zip")
+
+	err := file.ZipV2(file.ZipArgs{
+		Source:        []string{"repo"},
+		ZipName:       zipFile,
+		WorkingDir:    s.tmpDir,
+		IncludeParent: true,
+		Exclude:       []string{".git", ".idea", ".github"},
+	})
+
+	s.NoError(err)
+	s.assertNoVCSDirs(s.listFilesInZip(zipFile), "repo/")
+}
+
+// Test_ZipV2_NoExclude_KeepsDotDirs verifies the utility stays generic: with no
+// Exclude, dot-directories are zipped like any other content.
+func (s *ZipSuite) Test_ZipV2_NoExclude_KeepsDotDirs() {
+	s.createRepoWithVCSDirs()
+
+	zipFile := filepath.Join(s.tmpDir, "all.zip")
+
+	err := file.ZipV2(file.ZipArgs{
+		Source:     []string{"repo"},
+		ZipName:    zipFile,
+		WorkingDir: s.tmpDir,
+	})
+
+	s.NoError(err)
+
+	fileNames := s.listFilesInZip(zipFile)
+	s.True(fileNames[".git/config"], "without Exclude, .git should be kept")
+	s.True(fileNames["index.html"], "normal content should be kept")
+}
+
+// Test_ZipV2_ExcludesGitFile covers a submodule/worktree checkout where .git is
+// a plain file (a "gitdir:" pointer) rather than a directory.
+func (s *ZipSuite) Test_ZipV2_ExcludesGitFile() {
+	root := filepath.Join(s.tmpDir, "repo")
+
+	s.NoError(os.MkdirAll(root, 0755))
+	s.NoError(os.WriteFile(filepath.Join(root, ".git"), []byte("gitdir: /elsewhere"), 0644))
+	s.NoError(os.WriteFile(filepath.Join(root, "index.html"), []byte("hello"), 0644))
+
+	for _, includeParent := range []bool{true, false} {
+		zipFile := filepath.Join(s.tmpDir, "out.zip")
+		s.NoError(os.RemoveAll(zipFile))
+
+		err := file.ZipV2(file.ZipArgs{
+			Source:        []string{"repo"},
+			ZipName:       zipFile,
+			WorkingDir:    s.tmpDir,
+			IncludeParent: includeParent,
+			Exclude:       []string{".git"},
+		})
+
+		s.NoError(err)
+
+		for name := range s.listFilesInZip(zipFile) {
+			s.NotEqual(".git", filepath.Base(name), "gitfile must be excluded (includeParent=%v)", includeParent)
+		}
+	}
+}
+
+func (s *ZipSuite) Test_ZipV2_RejectsInvalidExclude() {
+	s.createRepoWithVCSDirs()
+
+	err := file.ZipV2(file.ZipArgs{
+		Source:     []string{"repo"},
+		ZipName:    filepath.Join(s.tmpDir, "out.zip"),
+		WorkingDir: s.tmpDir,
+		Exclude:    []string{"../etc"},
+	})
+
+	s.Error(err)
+}
+
 func TestZipSuite(t *testing.T) {
 	suite.Run(t, &ZipSuite{})
 }
