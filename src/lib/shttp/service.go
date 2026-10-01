@@ -146,15 +146,25 @@ func (se *ServiceEndpoint) CatchAll(handler RequestFunc, devDomain string) *Serv
 		start := time.Now()
 		req := requestContext(w, r)
 		res := handler(req)
+
+		// The clock stops once the response is ready, before it is written.
+		// Writing waits on the client (HTTP/2 flow control, a slow link), and
+		// how much of that wait lands inside the handler depends on the body:
+		// one compressed on the way out is mostly flushed after the handler
+		// returns, while a pre-compressed one goes straight to the connection.
+		// Timing the write made the metric track that difference instead of
+		// server work.
+		elapsed := time.Since(start)
+
 		se.Send(w, req, res)
 
-		elapsed := time.Since(start)
 		isDevHost := devDomain != "" && strings.HasSuffix(req.HostName(), devDomain)
 
 		// Record the response time if tracking is enabled
 		// and the request is not for the dev domain.
 		if trackingEnabled && !isDevHost {
 			tracking.RecordResponseTime(r, res.Status, elapsed)
+			trackRequestTotal(r.Context(), res.Status)
 		}
 
 		if slowThresholdMs > 0 && !isDevHost && elapsed.Milliseconds() >= int64(slowThresholdMs) {

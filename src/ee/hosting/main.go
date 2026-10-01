@@ -89,7 +89,7 @@ func handler() http.Handler {
 	}))
 	r.RegisterService(hosting.Services)
 
-	return r.WithGzip().Handler()
+	return r.WithGzip().WithRequestTiming().Handler()
 }
 
 func main() {

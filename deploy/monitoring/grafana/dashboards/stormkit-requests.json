@@ -182,11 +182,51 @@
       }
     },
     {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Total request time percentiles (transfer included)",
+      "description": "Same requests as the response time panel, timed from outside every middleware so the transfer of the body to the client is included. The gap to the response time panel is what visitors spend downloading: it grows with slow connections and large assets, not with server work. Top bucket is 30s.",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "p50",
+          "expr": "histogram_quantile(0.5, sum(rate(stormkit_lb_request_total_ms_bucket{method=~\"GET|POST\",status_code=~\"2..|3..\"}[5m])) by (le))",
+          "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" }
+        },
+        {
+          "refId": "B",
+          "legendFormat": "p95",
+          "expr": "histogram_quantile(0.95, sum(rate(stormkit_lb_request_total_ms_bucket{method=~\"GET|POST\",status_code=~\"2..|3..\"}[5m])) by (le))",
+          "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" }
+        },
+        {
+          "refId": "C",
+          "legendFormat": "p99",
+          "expr": "histogram_quantile(0.99, sum(rate(stormkit_lb_request_total_ms_bucket{method=~\"GET|POST\",status_code=~\"2..|3..\"}[5m])) by (le))",
+          "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" }
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "min": 0,
+          "custom": { "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" }
+        },
+        "overrides": []
+      }
+    },
+    {
       "id": 5,
       "type": "timeseries",
       "title": "Request rate by method",
       "description": "PUT, PATCH and DELETE are recorded as POST; anything else as OTHER.",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
       "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" },
       "targets": [
         {
@@ -213,7 +253,7 @@
       "id": 6,
       "type": "timeseries",
       "title": "Request rate by method and status",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
       "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" },
       "targets": [
         {
@@ -241,7 +281,7 @@
       "type": "timeseries",
       "title": "Average response time by method and status",
       "description": "The mean is shown per method and status class, which the percentile panel deliberately collapses. Useful for spotting one status class getting slower while the overall percentiles stay flat.",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 32 },
       "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" },
       "targets": [
         {
