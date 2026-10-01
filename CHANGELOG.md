@@ -1,5 +1,22 @@
 # Changelog
 
+## v2026.10.01.1...v2026.10.01.2
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.10.01.1...v2026.10.01.2)
+
+### 🩹 Fixes
+
+- Measure server time and transfer separately ([#579](https://github.com/stormkit-io/stormkit-io/pull/579))
+- Stop access-log pushes piling up behind a flush ([#580](https://github.com/stormkit-io/stormkit-io/pull/580))
+
+### 🏡 Chore
+
+- Update changelog for v2026.10.01.1 ([#578](https://github.com/stormkit-io/stormkit-io/pull/578))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.09.29.5...v2026.10.01.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.29.5...v2026.10.01.1)
