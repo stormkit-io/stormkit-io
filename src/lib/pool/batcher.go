@@ -122,20 +122,22 @@ func (buffer *Buffer) consume() {
 			count++
 			mustFlush = count >= len(buffer.items)
 		case <-ticker:
+			count = buffer.drain(count)
 			mustFlush = count > 0
 		case <-buffer.flushCh:
+			count = buffer.drain(count)
 			mustFlush = count > 0
 		case <-buffer.closeCh:
 			isOpen = false
+			count = buffer.drain(count)
 			mustFlush = count > 0
 		}
 
 		if mustFlush {
 			stopTicker()
-			buffer.options.Flusher.Write(buffer.items[:count])
+			buffer.flush(count)
 
 			count = 0
-			buffer.items = make([]any, buffer.options.Size)
 			mustFlush = false
 			ticker, stopTicker = newTicker(buffer.options.FlushInterval)
 		}
@@ -143,6 +145,32 @@ func (buffer *Buffer) consume() {
 
 	stopTicker()
 	close(buffer.doneCh)
+}
+
+// drain moves every item already accepted into the data channel into the
+// batch, writing full batches on the way, and returns the new count. A flush
+// or close has to cover everything whose Push has returned, and with a
+// buffered channel those items can still be sitting in it.
+func (buffer *Buffer) drain(count int) int {
+	for {
+		select {
+		case item := <-buffer.dataCh:
+			buffer.items[count] = item
+			count++
+
+			if count >= len(buffer.items) {
+				buffer.flush(count)
+				count = 0
+			}
+		default:
+			return count
+		}
+	}
+}
+
+func (buffer *Buffer) flush(count int) {
+	buffer.options.Flusher.Write(buffer.items[:count])
+	buffer.items = make([]any, buffer.options.Size)
 }
 
 func newTicker(interval time.Duration) (<-chan time.Time, func()) {

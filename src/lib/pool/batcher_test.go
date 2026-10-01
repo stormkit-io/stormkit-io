@@ -137,6 +137,36 @@ func (s *BatcherSuite) Test_BatchByTime_NotFulfill() {
 	s.Equal(int32(0), recorded.Load())
 }
 
+// Test_CloseFlushesQueuedItems verifies that items accepted while a flush was
+// running are written on Close, not discarded with the channel.
+func (s *BatcherSuite) Test_CloseFlushesQueuedItems() {
+	const size = 50
+	const queued = 30
+	const flushTakes = 200 * time.Millisecond
+
+	var written atomic.Int32
+
+	buf := pool.New(
+		pool.WithSize(size),
+		pool.WithFlusher(pool.FlusherFunc(func(items []any) {
+			written.Add(int32(len(items)))
+			time.Sleep(flushTakes)
+		})),
+	)
+
+	for i := 0; i < size; i++ {
+		s.NoError(buf.Push(i))
+	}
+
+	// These land in the channel while the first flush is still running.
+	for i := 0; i < queued; i++ {
+		s.NoError(buf.Push(i))
+	}
+
+	s.NoError(buf.Close())
+	s.Equal(int32(size+queued), written.Load())
+}
+
 func TestBatcher(t *testing.T) {
 	suite.Run(t, &BatcherSuite{})
 }
