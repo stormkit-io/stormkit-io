@@ -16,6 +16,7 @@ type statement struct {
 	selectTimedOutDeployments       string
 	selectOldOrDeletedDeployments   string
 	removeOldLogs                   string
+	removeOldTriggerLogs            string
 	removeOldAnalytics              string
 	removeOldAnalyticsEvents        string
 	syncAnalyticsVisitors           string
@@ -48,6 +49,15 @@ var stmt = &statement{
        WHERE
          to_timestamp(timestamp)::date < now() - interval '30 days'
 	`, tableLogs),
+	removeOldTriggerLogs: `
+		DELETE FROM function_trigger_logs
+		WHERE ctid IN (
+			SELECT ctid
+			FROM function_trigger_logs
+			WHERE created_at < timezone('utc', now()) - make_interval(days => $1)
+			LIMIT $2
+		)
+	`,
 	removeOldAnalytics: `
 		DELETE FROM analytics
 		WHERE ctid IN (

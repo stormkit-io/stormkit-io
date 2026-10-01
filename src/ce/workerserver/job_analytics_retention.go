@@ -10,8 +10,8 @@ import (
 
 const (
 	defaultAnalyticsRetentionDays = 180
-	analyticsRetentionBatchSize   = 10000
-	analyticsRetentionMaxBatches  = 1000
+	retentionBatchSize            = 10000
+	retentionMaxBatches           = 1000
 )
 
 // RemoveOldAnalytics deletes raw analytics and custom-event rows older than the
@@ -51,13 +51,13 @@ func RemoveOldAnalytics(ctx context.Context) error {
 // batchDeleteOldRows repeatedly invokes a batched delete until a batch comes
 // back smaller than the batch size (i.e. the backlog is drained) or the per-run
 // cap is reached, returning the total number of rows deleted.
-func batchDeleteOldRows(ctx context.Context, days int, del func(context.Context, RemoveOldAnalyticsParams) (int64, error)) (int64, error) {
+func batchDeleteOldRows(ctx context.Context, days int, del func(context.Context, RemoveOldRowsParams) (int64, error)) (int64, error) {
 	var total int64
 
-	for range analyticsRetentionMaxBatches {
-		deleted, err := del(ctx, RemoveOldAnalyticsParams{
+	for range retentionMaxBatches {
+		deleted, err := del(ctx, RemoveOldRowsParams{
 			RetentionDays: days,
-			BatchSize:     analyticsRetentionBatchSize,
+			BatchSize:     retentionBatchSize,
 		})
 
 		if err != nil {
@@ -66,7 +66,7 @@ func batchDeleteOldRows(ctx context.Context, days int, del func(context.Context,
 
 		total += deleted
 
-		if deleted < analyticsRetentionBatchSize {
+		if deleted < retentionBatchSize {
 			break
 		}
 	}
