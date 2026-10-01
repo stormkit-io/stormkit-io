@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.09.29.5...v2026.10.01.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.29.5...v2026.10.01.1)
+
+### 🩹 Fixes
+
+- Keep .git and editor dirs out of deploys ([#577](https://github.com/stormkit-io/stormkit-io/pull/577))
+
+### 🏡 Chore
+
+- Update changelog for v2026.09.29.5 ([#576](https://github.com/stormkit-io/stormkit-io/pull/576))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.09.29.4...v2026.09.29.5
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.09.29.4...v2026.09.29.5)
