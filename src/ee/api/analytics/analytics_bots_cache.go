@@ -7,8 +7,9 @@ import (
 
 const (
 	// defaultVerdictCacheSize bounds the memo. A busy edge sees a few hundred
-	// distinct user agents an hour; the rest of the room absorbs scanners that
-	// rotate agents without letting them evict the ones real visitors use.
+	// distinct user agents an hour, so the room is mostly slack for scanners
+	// that rotate agents. One that burns through all of it between two visits
+	// from the same real agent only costs that agent one re-classification.
 	defaultVerdictCacheSize = 4096
 
 	// maxCachedUserAgentLen keeps a client from parking large strings in the
