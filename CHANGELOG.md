@@ -1,5 +1,25 @@
 # Changelog
 
+## v2026.10.01.2...v2026.10.02.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.10.01.2...v2026.10.02.1)
+
+### 🔥 Performance
+
+- Memoise bot detection per user agent ([#583](https://github.com/stormkit-io/stormkit-io/pull/583))
+
+### 📖 Documentation
+
+- Add easypanel to self-hosted alternatives ([#582](https://github.com/stormkit-io/stormkit-io/pull/582))
+
+### 🏡 Chore
+
+- Update changelog for v2026.10.01.2 ([#581](https://github.com/stormkit-io/stormkit-io/pull/581))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.10.01.1...v2026.10.01.2
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.10.01.1...v2026.10.01.2)
