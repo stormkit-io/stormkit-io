@@ -72,16 +72,24 @@ var keywordPatterns = []*regexp.Regexp{
 // botDetector classifies user agents as bots using three independent layers:
 // the vendored crawler dataset, a hand-curated supplementary list, and generic
 // keyword heuristics. Any layer matching is sufficient.
+//
+// Verdicts are memoised per user agent. The crawler layer is one regex built
+// from about a thousand vendored patterns, which is far too large for Go's fast
+// matchers, so a single classification costs milliseconds of NFA simulation.
+// Real traffic repeats a few hundred user agents, so remembering the answer
+// turns almost every call into a map lookup.
 type botDetector struct {
 	crawlerPattern  *regexp.Regexp
 	keywordPatterns []*regexp.Regexp
 	knownBots       []string
+	verdicts        *verdictCache
 }
 
 func newBotDetector() *botDetector {
 	d := &botDetector{
 		keywordPatterns: keywordPatterns,
 		knownBots:       make([]string, len(knownBots)),
+		verdicts:        newVerdictCache(defaultVerdictCacheSize),
 	}
 
 	for i, bot := range knownBots {
@@ -142,6 +150,18 @@ func (d *botDetector) isBot(userAgent string) bool {
 		return true
 	}
 
+	if verdict, ok := d.verdicts.get(userAgent); ok {
+		return verdict
+	}
+
+	verdict := d.classify(userAgent)
+	d.verdicts.put(userAgent, verdict)
+
+	return verdict
+}
+
+// classify runs the three detection layers. It is the uncached path.
+func (d *botDetector) classify(userAgent string) bool {
 	if d.crawlerPattern != nil && d.crawlerPattern.MatchString(userAgent) {
 		return true
 	}
