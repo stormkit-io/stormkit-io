@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.10.02.1...v2026.10.02.2
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.10.02.1...v2026.10.02.2)
+
+### 🩹 Fixes
+
+- Strip display name from smtp envelope sender ([#585](https://github.com/stormkit-io/stormkit-io/pull/585))
+
+### 🏡 Chore
+
+- Update changelog for v2026.10.02.1 ([#584](https://github.com/stormkit-io/stormkit-io/pull/584))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.10.01.2...v2026.10.02.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.10.01.2...v2026.10.02.1)
