@@ -98,11 +98,13 @@ type InboundBitbucketSuite struct {
 	suite.Suite
 	*factory.Factory
 
-	conn         databasetest.TestDB
-	mockDeployer *mocks.Deployer
+	conn          databasetest.TestDB
+	mockDeployer  *mocks.Deployer
+	restoreRunner func()
 }
 
 func (s *InboundBitbucketSuite) BeforeTest(suiteName, _ string) {
+	s.restoreRunner = apphandlers.RunWebhookDeploysSync()
 	s.conn = databasetest.InitTx(suiteName)
 	s.Factory = factory.New(s.conn)
 	s.mockDeployer = &mocks.Deployer{}
@@ -111,6 +113,7 @@ func (s *InboundBitbucketSuite) BeforeTest(suiteName, _ string) {
 }
 
 func (s *InboundBitbucketSuite) AfterTest(_, _ string) {
+	s.restoreRunner()
 	deployservice.MockDeployer = nil
 	s.conn.CloseTx()
 }

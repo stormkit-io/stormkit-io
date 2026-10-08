@@ -79,11 +79,13 @@ type InboundGitlabSuite struct {
 	suite.Suite
 	*factory.Factory
 
-	conn         databasetest.TestDB
-	mockDeployer *mocks.Deployer
+	conn          databasetest.TestDB
+	mockDeployer  *mocks.Deployer
+	restoreRunner func()
 }
 
 func (s *InboundGitlabSuite) BeforeTest(suiteName, _ string) {
+	s.restoreRunner = apphandlers.RunWebhookDeploysSync()
 	s.conn = databasetest.InitTx(suiteName)
 	s.Factory = factory.New(s.conn)
 	s.mockDeployer = &mocks.Deployer{}
@@ -92,6 +94,7 @@ func (s *InboundGitlabSuite) BeforeTest(suiteName, _ string) {
 }
 
 func (s *InboundGitlabSuite) AfterTest(_, _ string) {
+	s.restoreRunner()
 	s.conn.CloseTx()
 	deployservice.MockDeployer = nil
 }
