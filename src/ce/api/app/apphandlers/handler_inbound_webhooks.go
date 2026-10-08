@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+	"runtime/debug"
 	"strings"
+	"time"
 
 	"github.com/dlclark/regexp2"
 
@@ -198,56 +200,113 @@ func TriggerDeploy(ctx context.Context, input TriggerDeployInput) *shttp.Respons
 		return shttp.Error(err, fmt.Sprintf("error while fetching deploy candidates: %s", err.Error()))
 	}
 
-	numberOfBuilds := 0
+	candidates := []*app.DeployCandidate{}
 
 	for _, a := range FilterDeployCandidates(input, apps) {
-		if input.AppID != 0 && a.ID != input.AppID {
-			continue
+		if input.AppID == 0 || a.ID == input.AppID {
+			candidates = append(candidates, a)
 		}
-
-		if a.EnvDefaultBranch != input.Branch {
-			a.ShouldPublish = false
-		}
-
-		depl := deploy.New(a.App)
-		depl.PopulateFromDeployCandidate(a, deploy.DeployCandidatePayload{
-			Branch:            input.Branch,
-			CommitSha:         input.CommitSha,
-			WebhookEvent:      input.payload,
-			CheckoutRepo:      input.CheckoutRepo,
-			IsFork:            input.IsFork,
-			PullRequestNumber: input.PullRequestNumber,
-		})
-
-		if err := deployservice.New().Deploy(ctx, a.App, depl); err != nil {
-			isContextCanceled := errors.Is(err, context.Canceled)
-
-			if !isContextCanceled {
-				slog.Errorf("auto deployment failed for app id=%d, clone url:%s, err=%v", a.ID, depl.CheckoutRepo, err)
-			}
-
-			return shttp.Error(err)
-		}
-
-		// Post the status check if it's a github repo.
-		cnf := admin.MustConfig()
-
-		if a.IsGithub() && cnf.IsGithubEnabled() {
-			err = github.CreateStatus(a.Repo, depl.Branch, cnf.DeploymentLogsURL(depl.AppID, depl.ID), github.StatusPending)
-
-			if err != nil {
-				slog.Errorf("error while updating github status: %s", err.Error())
-			}
-		}
-
-		numberOfBuilds = numberOfBuilds + 1
 	}
 
-	if numberOfBuilds > 0 {
-		return shttp.OK()
+	if len(candidates) == 0 {
+		return shttp.NoContent()
 	}
 
-	return shttp.NoContent()
+	// Each deployment calls the git provider and takes a few seconds, while
+	// providers give up on a webhook after ~10s and cancel the request. The
+	// deployments are therefore created after the webhook is acknowledged,
+	// detached from the request so a cancellation cannot drop environments.
+	wd := webhookDeployer{input: input, candidates: candidates}
+	bg, cancel := context.WithTimeout(context.WithoutCancel(ctx), webhookDeployTimeout)
+
+	runWebhookDeploys(func() {
+		defer cancel()
+		wd.deployAll(bg)
+	})
+
+	return shttp.OK()
+}
+
+// webhookDeployTimeout bounds the background work a single webhook triggers.
+const webhookDeployTimeout = 5 * time.Minute
+
+// runWebhookDeploys runs the deployments of a webhook. Tests replace it to
+// run them synchronously.
+var runWebhookDeploys = func(fn func()) { go fn() }
+
+// webhookDeployer creates the deployments a webhook resolved to.
+type webhookDeployer struct {
+	input      TriggerDeployInput
+	candidates []*app.DeployCandidate
+}
+
+// createGithubStatus posts a commit status. Tests replace it to avoid
+// calling GitHub.
+var createGithubStatus = github.CreateStatus
+
+// deployAll deploys every candidate. A failing environment is logged and
+// does not prevent the remaining ones from deploying.
+func (w webhookDeployer) deployAll(ctx context.Context) {
+	for _, a := range w.candidates {
+		if err := w.deploy(ctx, a); err != nil {
+			slog.Errorf("auto deployment failed for app id=%d, env=%s, err=%v", a.ID, a.EnvName, err)
+		}
+	}
+}
+
+func (w webhookDeployer) deploy(ctx context.Context, a *app.DeployCandidate) (err error) {
+	// This runs outside the HTTP server, which would otherwise recover a
+	// panic. An unrecovered panic in a goroutine exits the whole process.
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic: %v\n%s", r, debug.Stack())
+		}
+	}()
+
+	if a.EnvDefaultBranch != w.input.Branch {
+		a.ShouldPublish = false
+	}
+
+	depl := deploy.New(a.App)
+	depl.PopulateFromDeployCandidate(a, deploy.DeployCandidatePayload{
+		Branch:            w.input.Branch,
+		CommitSha:         w.input.CommitSha,
+		WebhookEvent:      w.input.payload,
+		CheckoutRepo:      w.input.CheckoutRepo,
+		IsFork:            w.input.IsFork,
+		PullRequestNumber: w.input.PullRequestNumber,
+	})
+
+	if err := deployservice.New().Deploy(ctx, a.App, depl); err != nil {
+		// The webhook has already been acknowledged, so the commit status is
+		// the only place the failure shows up for the user.
+		w.postStatus(a, depl, github.StatusFailure)
+		return err
+	}
+
+	w.postStatus(a, depl, github.StatusPending)
+
+	return nil
+}
+
+// postStatus posts a GitHub commit status for the deployment.
+func (w webhookDeployer) postStatus(a *app.DeployCandidate, depl *deploy.Deployment, status string) {
+	cnf := admin.MustConfig()
+
+	if !a.IsGithub() || !cnf.IsGithubEnabled() {
+		return
+	}
+
+	// A deployment that failed before it was inserted has no logs page.
+	url := cnf.AppURL(path.Join("app", a.ID.String(), "deployments"))
+
+	if depl.ID != 0 {
+		url = cnf.DeploymentLogsURL(depl.AppID, depl.ID)
+	}
+
+	if err := createGithubStatus(a.Repo, depl.Branch, url, status); err != nil {
+		slog.Errorf("error while updating github status: %s", err.Error())
+	}
 }
 
 // FilterDeployCandidates checks the following conditions and determines

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -95,11 +96,13 @@ type InboundGithubSuite struct {
 	suite.Suite
 	*factory.Factory
 
-	conn         databasetest.TestDB
-	mockDeployer *mocks.Deployer
+	conn          databasetest.TestDB
+	mockDeployer  *mocks.Deployer
+	restoreRunner func()
 }
 
 func (s *InboundGithubSuite) BeforeTest(suiteName, _ string) {
+	s.restoreRunner = apphandlers.RunWebhookDeploysSync()
 	s.conn = databasetest.InitTx(suiteName)
 	s.Factory = factory.New(s.conn)
 	s.mockDeployer = &mocks.Deployer{}
@@ -109,6 +112,7 @@ func (s *InboundGithubSuite) BeforeTest(suiteName, _ string) {
 }
 
 func (s *InboundGithubSuite) AfterTest(suiteName, _ string) {
+	s.restoreRunner()
 	s.conn.CloseTx()
 	deployservice.MockDeployer = nil
 	admin.ResetCache(context.Background())
@@ -497,4 +501,126 @@ func (s *InboundGithubSuite) Test_PullRequestMerged() {
 
 func TestInboundGithub(t *testing.T) {
 	suite.Run(t, &InboundGithubSuite{})
+}
+
+// pushInput returns the TriggerDeployInput of a push to main on the test repo.
+func (s *InboundGithubSuite) pushInput(appl *factory.MockApp) apphandlers.TriggerDeployInput {
+	return apphandlers.TriggerDeployInput{
+		Repo:         appl.Repo,
+		CheckoutRepo: appl.Repo,
+		Branch:       "main",
+		Message:      "chore: release",
+		EventType:    "commit",
+		AppID:        appl.ID,
+	}
+}
+
+// Test_PushEvent_DeploysAfterRequestCanceled verifies that deployments are
+// created after the webhook is acknowledged, and that a provider closing the
+// connection does not cancel them.
+func (s *InboundGithubSuite) Test_PushEvent_DeploysAfterRequestCanceled() {
+	appl := s.app(nil)
+	s.MockEnv(appl, map[string]any{"Name": "staging"})
+	s.MockEnv(appl, map[string]any{"Name": "preview"})
+
+	var scheduled func()
+
+	restore := apphandlers.SetRunWebhookDeploys(func(fn func()) { scheduled = fn })
+	defer restore()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	response := apphandlers.TriggerDeploy(ctx, s.pushInput(appl))
+	cancel()
+
+	s.Equal(http.StatusOK, response.Status)
+	s.mockDeployer.AssertNotCalled(s.T(), "Deploy", mock.Anything, mock.Anything, mock.Anything)
+	s.Require().NotNil(scheduled)
+
+	s.mockDeployer.ExpectedCalls = nil
+	s.mockDeployer.On("Deploy", mock.MatchedBy(func(c context.Context) bool {
+		return c.Err() == nil
+	}), mock.Anything, mock.Anything).Return(nil)
+
+	scheduled()
+
+	s.mockDeployer.AssertNumberOfCalls(s.T(), "Deploy", 3)
+}
+
+// Test_PushEvent_FailingEnvDoesNotStopOthers verifies that an environment
+// failing to deploy does not drop the remaining ones.
+func (s *InboundGithubSuite) Test_PushEvent_FailingEnvDoesNotStopOthers() {
+	appl := s.app(nil)
+	s.MockEnv(appl, map[string]any{"Name": "staging"})
+	s.MockEnv(appl, map[string]any{"Name": "preview"})
+
+	s.mockDeployer.ExpectedCalls = nil
+	s.mockDeployer.On("Deploy", mock.Anything, mock.Anything, mock.Anything).Return(errors.New("provider timeout")).Once()
+	s.mockDeployer.On("Deploy", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	response := apphandlers.TriggerDeploy(context.Background(), s.pushInput(appl))
+
+	s.Equal(http.StatusOK, response.Status)
+	s.mockDeployer.AssertNumberOfCalls(s.T(), "Deploy", 3)
+}
+
+// recordStatuses enables the GitHub integration and records the commit
+// statuses posted instead of sending them.
+func (s *InboundGithubSuite) recordStatuses() *[]string {
+	cnf := admin.MustConfig()
+	cnf.AuthConfig = &admin.AuthConfig{Github: admin.GithubConfig{
+		WebhookSecret: githubWebhookSecret,
+		ClientID:      "client-id",
+		ClientSecret:  "client-secret",
+		PrivateKey:    "private-key",
+		Account:       "stormkit-test-acc",
+		AppID:         1,
+	}}
+	admin.SetConfig(&cnf)
+
+	statuses := []string{}
+	restore := apphandlers.SetCreateGithubStatus(func(_, _, _, status string) error {
+		statuses = append(statuses, status)
+		return nil
+	})
+
+	s.T().Cleanup(restore)
+
+	return &statuses
+}
+
+// Test_PushEvent_FailedDeployPostsFailureStatus verifies that a deployment
+// failing after the webhook is acknowledged is reported on the commit.
+func (s *InboundGithubSuite) Test_PushEvent_FailedDeployPostsFailureStatus() {
+	appl := s.app(nil)
+	s.MockEnv(appl, map[string]any{"Name": "staging"})
+	statuses := s.recordStatuses()
+
+	s.mockDeployer.ExpectedCalls = nil
+	s.mockDeployer.On("Deploy", mock.Anything, mock.Anything, mock.Anything).Return(errors.New("provider timeout")).Once()
+	s.mockDeployer.On("Deploy", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	response := apphandlers.TriggerDeploy(context.Background(), s.pushInput(appl))
+
+	s.Equal(http.StatusOK, response.Status)
+	s.Equal([]string{"failure", "pending"}, *statuses)
+}
+
+// Test_PushEvent_PanickingEnvDoesNotStopOthers verifies that a panic while
+// deploying one environment is recovered and the others still deploy.
+func (s *InboundGithubSuite) Test_PushEvent_PanickingEnvDoesNotStopOthers() {
+	appl := s.app(nil)
+	s.MockEnv(appl, map[string]any{"Name": "staging"})
+	s.MockEnv(appl, map[string]any{"Name": "preview"})
+
+	s.mockDeployer.ExpectedCalls = nil
+	s.mockDeployer.On("Deploy", mock.Anything, mock.Anything, mock.Anything).Run(func(mock.Arguments) {
+		panic("boom")
+	}).Return(nil).Once()
+	s.mockDeployer.On("Deploy", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	s.NotPanics(func() {
+		apphandlers.TriggerDeploy(context.Background(), s.pushInput(appl))
+	})
+
+	s.mockDeployer.AssertNumberOfCalls(s.T(), "Deploy", 3)
 }
