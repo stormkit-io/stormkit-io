@@ -1,5 +1,22 @@
 # Changelog
 
+## v2026.10.02.2...v2026.10.08.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.10.02.2...v2026.10.08.1)
+
+### 🩹 Fixes
+
+- Create webhook deployments asynchronously ([#588](https://github.com/stormkit-io/stormkit-io/pull/588))
+
+### 🏡 Chore
+
+- Replace intro video assets with a 5s clip ([#587](https://github.com/stormkit-io/stormkit-io/pull/587))
+- Update changelog for v2026.10.02.2 ([#586](https://github.com/stormkit-io/stormkit-io/pull/586))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.10.02.1...v2026.10.02.2
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.10.02.1...v2026.10.02.2)
