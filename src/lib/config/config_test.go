@@ -29,6 +29,7 @@ func (s *PackageSuite) AfterTest(_, _ string) {
 	os.Unsetenv("STORMKIT_HTTP_IDLE_TIMEOUT")
 	os.Unsetenv("STORMKIT_HTTP_PROXY_TIMEOUT")
 	os.Unsetenv("STORMKIT_HTTP_CLIENT_BODY_TIMEOUT")
+	os.Unsetenv("STORMKIT_PROXY_LOCAL_DIAL")
 }
 
 func (s *PackageSuite) Test_HTTPTimeouts_Defaults() {
@@ -63,6 +64,22 @@ func (s *PackageSuite) Test_HTTPTimeouts_InvalidValue_FallsBackToDefault() {
 	s.Equal(30*time.Second, c.HTTPTimeouts.ReadTimeout)
 	s.Equal(60*time.Second, c.HTTPTimeouts.IdleTimeout)
 	s.Equal(60*time.Second, c.HTTPTimeouts.ClientBodyTimeout)
+}
+
+func (s *PackageSuite) Test_ProxyLocalDial_OnByDefault() {
+	s.True(config.New().ProxyLocalDial)
+
+	for _, v := range []string{"true", "1", "on"} {
+		os.Setenv("STORMKIT_PROXY_LOCAL_DIAL", v)
+		s.True(config.New().ProxyLocalDial, v)
+	}
+}
+
+func (s *PackageSuite) Test_ProxyLocalDial_TurnedOff() {
+	for _, v := range []string{"false", "False", "0", "no", "off", "OFF"} {
+		os.Setenv("STORMKIT_PROXY_LOCAL_DIAL", v)
+		s.False(config.New().ProxyLocalDial, v)
+	}
 }
 
 func TestPackages(t *testing.T) {

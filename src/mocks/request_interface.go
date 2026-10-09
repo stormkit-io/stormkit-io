@@ -18,6 +18,26 @@ type RequestInterface struct {
 	mock.Mock
 }
 
+// DialAddr provides a mock function with given fields: addr
+func (_m *RequestInterface) DialAddr(addr string) shttp.RequestInterface {
+	ret := _m.Called(addr)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DialAddr")
+	}
+
+	var r0 shttp.RequestInterface
+	if rf, ok := ret.Get(0).(func(string) shttp.RequestInterface); ok {
+		r0 = rf(addr)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(shttp.RequestInterface)
+		}
+	}
+
+	return r0
+}
+
 // Do provides a mock function with no fields
 func (_m *RequestInterface) Do() (*shttp.HTTPResponse, error) {
 	ret := _m.Called()
