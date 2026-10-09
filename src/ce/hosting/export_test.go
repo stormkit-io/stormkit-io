@@ -173,3 +173,9 @@ func InvalidateAppCache(hostName string) {
 	delete(appCache, hostName)
 	appCacheMu.Unlock()
 }
+
+// SetLocalProxyAddr sets the address proxy rules dial for locally served
+// domains. Empty disables local dialling.
+func SetLocalProxyAddr(addr string) {
+	localProxyAddr = addr
+}

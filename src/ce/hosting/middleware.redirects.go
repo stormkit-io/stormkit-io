@@ -1,8 +1,10 @@
 package hosting
 
 import (
+	"net/url"
 	"strings"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/redirects"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
@@ -44,7 +46,10 @@ func WithRedirect(req *RequestContext) (*shttp.Response, error) {
 	}
 
 	if match.Proxy {
-		return shttp.Proxy(req.RequestContext, shttp.ProxyArgs{Target: match.Redirect}), nil
+		return shttp.Proxy(req.RequestContext, shttp.ProxyArgs{
+			Target:   match.Redirect,
+			DialAddr: localDialAddr(match.Redirect),
+		}), nil
 	}
 
 	if match.Rewrite != "" {
@@ -66,4 +71,41 @@ func WithRedirect(req *RequestContext) (*shttp.Response, error) {
 		Redirect: &match.Redirect,
 		Status:   match.Status,
 	}, nil
+}
+
+// localProxyAddr is where this process accepts HTTPS connections, set when the
+// server starts. Empty disables local dialling.
+var localProxyAddr string
+
+// localDialAddr returns localProxyAddr when target is an HTTPS URL on one of
+// this instance's dev domains, so the proxied request is handled on this
+// machine. Resolving such a domain through DNS sends the request out to the
+// load balancer and back in, which costs public bandwidth and can hang when the
+// balancer preserves client IPs and routes the request back to this node.
+//
+// Custom domains are left alone: they can be pointed somewhere else while still
+// registered here, and only DNS knows where they live now.
+func localDialAddr(target string) string {
+	if localProxyAddr == "" {
+		return ""
+	}
+
+	u, err := url.Parse(target)
+
+	if err != nil || u.Scheme != "https" || (u.Port() != "" && u.Port() != "443") {
+		return ""
+	}
+
+	if !appconf.IsStormkitDev(u.Hostname()) {
+		return ""
+	}
+
+	confs, err := FetchAppConf(u.Hostname())
+
+	// A custom domain can sit under the dev domain; DomainID tells them apart.
+	if err != nil || len(confs) == 0 || confs[0].DeploymentID == 0 || confs[0].DomainID != 0 {
+		return ""
+	}
+
+	return localProxyAddr
 }

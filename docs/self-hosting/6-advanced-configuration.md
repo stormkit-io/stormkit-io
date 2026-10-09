@@ -45,12 +45,20 @@ TCP load balancers forward connections at the network level and cannot inject HT
 
 > **Security note:** It is not advised to enable `STORMKIT_PROXY_PROTOCOL` and `STORMKIT_TRUST_PROXY_HEADERS` at the same time as it will allow a client to spoof its source IP by injecting arbitrary `X-Forwarded-For` headers alongside a PROXY protocol header.
 
+### Proxy rules to your own domains
+
+A redirect rule with an absolute target URL proxies the request. When that target is on this instance's dev domain (for example `my-landing.stormkit.example.com`), the proxied request connects to the same server over loopback instead of resolving the domain through DNS. It stays on the machine that received the visitor's request, so it doesn't go out through your load balancer and back in. The TLS server name and `Host` header are unchanged. Custom domains are always resolved through DNS, since they may point somewhere other than this instance, and so are `http` targets. Local dialling is skipped when `STORMKIT_PROXY_PROTOCOL=true`.
+
+| Variable                    | Default | Description                                                                                   |
+| --------------------------- | ------- | --------------------------------------------------------------------------------------------- |
+| `STORMKIT_PROXY_LOCAL_DIAL` | `true`  | Set to `false` to proxy every redirect target over the network, including dev-domain targets. |
+
 ## Page Data Loaders
 
 A [data loader](/docs/features/redirects-and-path-rewrites#dynamic-pages) on a rewrite rule fetches JSON from your API on every matching request. To stop a rule from reaching your cloud provider's metadata service or other internal services, loaders only accept `https` URLs and only connect to public IP addresses.
 
-| Variable                      | Default | Description                                                                                                                                                                   |
-| ----------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Variable                      | Default | Description                                                                                                                                                                     |
+| ----------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `STORMKIT_PAGE_DATA_INSECURE` | `false` | Set to `true` to allow loaders to use plain `http` URLs and connect to private, loopback and link-local addresses. Use it when your API is only reachable on a private network. |
 
 > **Security note:** With this enabled, anyone who can edit redirect rules can make Stormkit send requests to any service on its network. Only enable it when everyone with that access is trusted.

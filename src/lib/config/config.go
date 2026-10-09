@@ -231,8 +231,14 @@ type Config struct {
 	Secrets           map[string]string
 	TrustProxyHeaders bool
 	ProxyProtocol     bool
-	HTTPTimeouts      *HttpTimeoutsConfig
-	DbConfigTimeouts  *DbConfigTimeouts
+
+	// ProxyLocalDial lets proxy rules that target one of this instance's dev
+	// domains connect over loopback instead of through DNS. On by default;
+	// STORMKIT_PROXY_LOCAL_DIAL=false turns it off.
+	ProxyLocalDial bool
+
+	HTTPTimeouts     *HttpTimeoutsConfig
+	DbConfigTimeouts *DbConfigTimeouts
 }
 
 var (
@@ -317,6 +323,7 @@ func New() *Config {
 
 		TrustProxyHeaders: isTrueString(os.Getenv("STORMKIT_TRUST_PROXY_HEADERS")),
 		ProxyProtocol:     isTrueString(os.Getenv("STORMKIT_PROXY_PROTOCOL")),
+		ProxyLocalDial:    !isFalseString(os.Getenv("STORMKIT_PROXY_LOCAL_DIAL")),
 
 		HTTPTimeouts: &HttpTimeoutsConfig{
 			ReadTimeout:       getDuration(os.Getenv("STORMKIT_HTTP_READ_TIMEOUT"), 30*time.Second),
@@ -713,6 +720,10 @@ func getInt(val string, def int) int {
 
 func isTrueString(s string) bool {
 	return strings.EqualFold(s, "true") || strings.EqualFold(s, "1") || strings.EqualFold(s, "yes")
+}
+
+func isFalseString(s string) bool {
+	return strings.EqualFold(s, "false") || strings.EqualFold(s, "0") || strings.EqualFold(s, "no") || strings.EqualFold(s, "off")
 }
 
 type Runtime struct {

@@ -140,6 +140,13 @@ func Magic(opts MagicOpts) {
 
 	slog.Infof("external server listening on :%d (https) and :%d (http)", certmagic.HTTPSPort, certmagic.HTTPPort)
 
+	// A PROXY protocol listener expects a header that a loopback dial does not
+	// send, so proxied requests keep going through the network there.
+	if config.Get().ProxyLocalDial && !config.Get().ProxyProtocol {
+		localProxyAddr = fmt.Sprintf("127.0.0.1:%d", certmagic.HTTPSPort)
+		slog.Infof("proxy rules targeting dev domains dial %s", localProxyAddr)
+	}
+
 	if err := httpsServe(certmagic.NewDefault(), opts.Handler); err != nil {
 		slog.Errorf("encountered following error while launching https server: %s", err.Error())
 	}

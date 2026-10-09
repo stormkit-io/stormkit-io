@@ -48,11 +48,10 @@ type HandlerForwardSuite struct {
 	mockRequest *mocks.RequestInterface
 	host        *hosting.Host
 	tmpDir      string
+	adminConfig *admin.InstanceConfig
 }
 
 func (s *HandlerForwardSuite) SetupSuite() {
-	s.mockRequest = &mocks.RequestInterface{}
-
 	tmpDir, err := os.MkdirTemp("", "tmp-test-handler-forward-")
 
 	if err != nil {
@@ -79,6 +78,7 @@ func (s *HandlerForwardSuite) BeforeTest(_, _ string) {
 	))
 
 	s.mockClient = &mocks.ClientInterface{}
+	s.mockRequest = &mocks.RequestInterface{}
 
 	integrations.SetDefaultClient(s.mockClient)
 
@@ -117,6 +117,13 @@ func (s *HandlerForwardSuite) BeforeTest(_, _ string) {
 func (s *HandlerForwardSuite) AfterTest(_, _ string) {
 	admin.ResetMockLicense()
 	hosting.QueueName = jobs.HostingQueueName
+	hosting.SetLocalProxyAddr("")
+	hosting.ResetFetchConfigFn()
+
+	if s.adminConfig != nil {
+		admin.SetConfig(s.adminConfig)
+		s.adminConfig = nil
+	}
 	config.Get().TrustProxyHeaders = false
 }
 
@@ -693,6 +700,144 @@ func (s *HandlerForwardSuite) Test_Redirects_RedirectingToDifferentDomain_ProxyW
 	s.Equal([]byte("my-response"), data)
 	s.Equal(http.StatusOK, res.Status)
 	s.mockRequest.AssertExpectations(s.T())
+}
+
+// mockProxyCall sets up the request mock for a proxied GET to target.
+func (s *HandlerForwardSuite) mockProxyCall(req *hosting.RequestContext, target string) {
+	s.mockRequest.On("URL", target).Return(s.mockRequest).Once()
+	s.mockRequest.On("Method", "").Return(s.mockRequest).Once()
+	s.mockRequest.On("Headers", shttp.HeadersFromMap(map[string]string{})).Return(s.mockRequest).Once()
+	s.mockRequest.On("Stream", req.Body, int64(0)).Return(s.mockRequest).Once()
+	s.mockRequest.On("Do").Return(&shttp.HTTPResponse{
+		Response: &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader("my-response")),
+			Header:     make(http.Header),
+		},
+	}, nil).Once()
+}
+
+// servedHosts makes the config lookup report the given host names as served
+// by this instance, each with the given config.
+func (s *HandlerForwardSuite) servedHosts(confs map[string]*appconf.Config) {
+	hosting.SetFetchConfigFn(func(name string) ([]*appconf.Config, error) {
+		if c, ok := confs[name]; ok {
+			return []*appconf.Config{c}, nil
+		}
+
+		return nil, nil
+	})
+}
+
+// localDial turns on local dialling with stormkit.dev as the dev domain.
+func (s *HandlerForwardSuite) localDial() {
+	original := admin.MustConfig().Clone()
+	s.adminConfig = &original
+
+	cnf := original.Clone()
+	cnf.DomainConfig = &admin.DomainConfig{Dev: "https://stormkit.dev"}
+	admin.SetConfig(&cnf)
+
+	hosting.SetLocalProxyAddr("127.0.0.1:8443")
+}
+
+// proxyRule adds a proxy rule from /<prefix>/* to target and returns a request
+// that matches it.
+func (s *HandlerForwardSuite) proxyRule(prefix, target string) *hosting.RequestContext {
+	s.host.Config.Redirects = append(s.host.Config.Redirects, deploy.Redirect{
+		From: "/" + prefix + "/*", To: target + "/$1", Status: 200, Assets: true,
+	})
+
+	req := s.newRequest(s.host, "/"+prefix+"/img.png")
+	req.Body = io.NopCloser(strings.NewReader(""))
+
+	return req
+}
+
+// Test_Redirects_ProxyToDevDomain_DialsLocally verifies a proxy rule whose
+// target is a dev domain served here is dialled on the local address.
+func (s *HandlerForwardSuite) Test_Redirects_ProxyToDevDomain_DialsLocally() {
+	s.localDial()
+	s.servedHosts(map[string]*appconf.Config{"landing.stormkit.dev": {DeploymentID: 1}})
+
+	req := s.proxyRule("landing", "https://landing.stormkit.dev")
+
+	s.mockProxyCall(req, "https://landing.stormkit.dev/img.png")
+	s.mockRequest.On("DialAddr", "127.0.0.1:8443").Return(s.mockRequest).Once()
+
+	res := hosting.HandlerForward(req)
+
+	s.Equal(http.StatusOK, res.Status)
+	s.Equal([]byte("my-response"), res.Data)
+	s.mockRequest.AssertExpectations(s.T())
+}
+
+// Test_Redirects_ProxyToCustomDomain_DialsNormally verifies a custom domain is
+// resolved through DNS even when it is served here: it may point elsewhere now.
+func (s *HandlerForwardSuite) Test_Redirects_ProxyToCustomDomain_DialsNormally() {
+	s.localDial()
+	s.servedHosts(map[string]*appconf.Config{"landing.example.org": {DeploymentID: 1, DomainID: 5}})
+
+	req := s.proxyRule("landing", "https://landing.example.org")
+
+	s.mockProxyCall(req, "https://landing.example.org/img.png")
+
+	res := hosting.HandlerForward(req)
+
+	s.Equal(http.StatusOK, res.Status)
+	s.mockRequest.AssertExpectations(s.T())
+	s.mockRequest.AssertNotCalled(s.T(), "DialAddr", mock.Anything)
+}
+
+// Test_Redirects_ProxyToCustomDomainUnderDevDomain_DialsNormally verifies a
+// custom domain that happens to end with the dev domain is not treated as one.
+func (s *HandlerForwardSuite) Test_Redirects_ProxyToCustomDomainUnderDevDomain_DialsNormally() {
+	s.localDial()
+	s.servedHosts(map[string]*appconf.Config{"www.stormkit.dev": {DeploymentID: 1, DomainID: 7}})
+
+	req := s.proxyRule("www", "https://www.stormkit.dev")
+
+	s.mockProxyCall(req, "https://www.stormkit.dev/img.png")
+
+	res := hosting.HandlerForward(req)
+
+	s.Equal(http.StatusOK, res.Status)
+	s.mockRequest.AssertExpectations(s.T())
+	s.mockRequest.AssertNotCalled(s.T(), "DialAddr", mock.Anything)
+}
+
+// Test_Redirects_ProxyToExternalDomain_DialsNormally verifies a proxy rule
+// whose target is not served here goes through the network as before.
+func (s *HandlerForwardSuite) Test_Redirects_ProxyToExternalDomain_DialsNormally() {
+	s.localDial()
+	s.servedHosts(map[string]*appconf.Config{})
+
+	req := s.newRequest(s.host, "/api/v2/external-dial")
+	req.Body = io.NopCloser(strings.NewReader(""))
+
+	s.mockProxyCall(req, "https://test-api.example.com/api/v2/external-dial")
+
+	res := hosting.HandlerForward(req)
+
+	s.Equal(http.StatusOK, res.Status)
+	s.mockRequest.AssertExpectations(s.T())
+	s.mockRequest.AssertNotCalled(s.T(), "DialAddr", mock.Anything)
+}
+
+// Test_Redirects_ProxyLocalDialDisabled verifies nothing is dialled locally
+// when the local address is not set, e.g. STORMKIT_PROXY_LOCAL_DIAL=false.
+func (s *HandlerForwardSuite) Test_Redirects_ProxyLocalDialDisabled() {
+	s.servedHosts(map[string]*appconf.Config{"landing.stormkit.dev": {DeploymentID: 1}})
+
+	req := s.proxyRule("landing", "https://landing.stormkit.dev")
+
+	s.mockProxyCall(req, "https://landing.stormkit.dev/img.png")
+
+	res := hosting.HandlerForward(req)
+
+	s.Equal(http.StatusOK, res.Status)
+	s.mockRequest.AssertExpectations(s.T())
+	s.mockRequest.AssertNotCalled(s.T(), "DialAddr", mock.Anything)
 }
 
 func (s *HandlerForwardSuite) Test_Redirects_UI_Defined_Redirects() {
