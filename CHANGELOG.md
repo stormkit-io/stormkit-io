@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.10.09.1...v2026.10.10.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.10.09.1...v2026.10.10.1)
+
+### 🚀 Enhancements
+
+- Keep visitor ip on loopback proxy hops ([#592](https://github.com/stormkit-io/stormkit-io/pull/592))
+
+### 🏡 Chore
+
+- Update changelog for v2026.10.09.1 ([#591](https://github.com/stormkit-io/stormkit-io/pull/591))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.10.08.1...v2026.10.09.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.10.08.1...v2026.10.09.1)
