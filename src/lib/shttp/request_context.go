@@ -249,9 +249,11 @@ func (r *RequestContext) Redirect(url string, status int) {
 
 // RemoteAddr returns the remote address. When STORMKIT_TRUST_PROXY_HEADERS is
 // true it reads from X-Forwarded-For / X-Real-IP set by an upstream proxy.
-// Otherwise it always uses the real socket address so clients cannot spoof it.
+// Otherwise it uses the real socket address so clients cannot spoof it, except
+// on loopback connections: those come from this server proxying a request to
+// a site it serves itself, and carry the visitor's address in the headers.
 func RemoteAddr(r *http.Request) string {
-	if !config.Get().TrustProxyHeaders {
+	if !config.Get().TrustProxyHeaders && !isLoopback(r.RemoteAddr) {
 		return r.RemoteAddr
 	}
 
@@ -275,4 +277,17 @@ func RemoteAddr(r *http.Request) string {
 	}
 
 	return fmt.Sprintf("%s:%s", addr, port)
+}
+
+// isLoopback reports whether addr (host:port) is a loopback address.
+func isLoopback(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+
+	if err != nil {
+		return false
+	}
+
+	ip := net.ParseIP(host)
+
+	return ip != nil && ip.IsLoopback()
 }

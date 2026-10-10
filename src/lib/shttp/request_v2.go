@@ -340,6 +340,19 @@ func Proxy(req *RequestContext, args ProxyArgs) *Response {
 		}
 	}
 
+	// A loopback hop reaches the target from 127.0.0.1, so it carries the
+	// visitor's address for the target to restore. A chain already set by a
+	// trusted upstream proxy is passed on unchanged.
+	if args.DialAddr != "" {
+		if headers.Get("X-Forwarded-For") == "" && req.RemoteIP() != "" {
+			headers.Set("X-Forwarded-For", req.RemoteIP())
+		}
+
+		if headers.Get("X-Forwarded-Port") == "" && req.RemotePort() != "" {
+			headers.Set("X-Forwarded-Port", req.RemotePort())
+		}
+	}
+
 	client := NewRequestV2(req.Method, args.Target).Headers(headers)
 
 	if args.FollowRedirects != nil && !*args.FollowRedirects {

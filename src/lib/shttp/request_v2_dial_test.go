@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -20,6 +21,7 @@ type RequestV2DialSuite struct {
 	hits         atomic.Int32
 	host         atomic.Value
 	serverName   atomic.Value
+	headers      atomic.Value
 	originalTLS  *tls.Config
 	redirectedTo string
 }
@@ -32,6 +34,7 @@ func (s *RequestV2DialSuite) SetupTest() {
 		s.hits.Add(1)
 		s.host.Store(r.Host)
 		s.serverName.Store(r.TLS.ServerName)
+		s.headers.Store(r.Header.Clone())
 
 		if s.redirectedTo != "" {
 			http.Redirect(w, r, s.redirectedTo, http.StatusFound)
@@ -99,6 +102,51 @@ func (s *RequestV2DialSuite) Test_DialAddr_RedirectToOtherHostDialsNormally() {
 
 	s.Equal(int32(1), s.hits.Load())
 	s.True(strings.HasPrefix(string(body), "other 127.0.0.1:"))
+}
+
+// proxyRequest returns a request from visitor 198.51.100.9:40000 with the
+// given headers.
+func (s *RequestV2DialSuite) proxyRequest(headers map[string]string) *RequestContext {
+	r := httptest.NewRequest(http.MethodGet, "https://site.stormkit.dev/landing/", nil)
+	r.RemoteAddr = "198.51.100.9:40000"
+
+	for k, v := range headers {
+		r.Header.Set(k, v)
+	}
+
+	return &RequestContext{Request: r}
+}
+
+// Test_Proxy_LocalDial_ForwardsVisitor verifies a loopback hop carries the
+// visitor's address.
+func (s *RequestV2DialSuite) Test_Proxy_LocalDial_ForwardsVisitor() {
+	res := Proxy(s.proxyRequest(nil), ProxyArgs{
+		Target:   "https://example.com/landing/",
+		DialAddr: s.server.Listener.Addr().String(),
+	})
+
+	s.Equal(http.StatusOK, res.Status)
+
+	h := s.headers.Load().(http.Header)
+
+	s.Equal("198.51.100.9", h.Get("X-Forwarded-For"))
+	s.Equal("40000", h.Get("X-Forwarded-Port"))
+}
+
+// Test_Proxy_LocalDial_TrustedChainUnchanged verifies a chain from a trusted
+// upstream proxy reaches the target as it would on a direct request.
+func (s *RequestV2DialSuite) Test_Proxy_LocalDial_TrustedChainUnchanged() {
+	config.Get().TrustProxyHeaders = true
+
+	defer func() { config.Get().TrustProxyHeaders = false }()
+
+	res := Proxy(s.proxyRequest(map[string]string{"X-Forwarded-For": "203.0.113.7, 10.0.0.5"}), ProxyArgs{
+		Target:   "https://example.com/landing/",
+		DialAddr: s.server.Listener.Addr().String(),
+	})
+
+	s.Equal(http.StatusOK, res.Status)
+	s.Equal("203.0.113.7, 10.0.0.5", s.headers.Load().(http.Header).Get("X-Forwarded-For"))
 }
 
 func TestRequestV2DialSuite(t *testing.T) {
