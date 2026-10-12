@@ -275,7 +275,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (mode) (rate(node_cpu_seconds_total{mode!=\"idle\"}[5m])) / on() group_left() count(count by (cpu) (node_cpu_seconds_total))",
+          "expr": "sum by (mode) (rate(node_cpu_seconds_total{mode!=\"idle\"}[5m])) / on() group_left() count(node_cpu_seconds_total{mode=\"idle\"})",
           "legendFormat": "{{mode}}",
           "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" }
         }
@@ -338,25 +338,25 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "node_load1",
+          "expr": "sum(node_load1)",
           "legendFormat": "1m",
           "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" }
         },
         {
           "refId": "B",
-          "expr": "node_load5",
+          "expr": "sum(node_load5)",
           "legendFormat": "5m",
           "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" }
         },
         {
           "refId": "C",
-          "expr": "node_load15",
+          "expr": "sum(node_load15)",
           "legendFormat": "15m",
           "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" }
         },
         {
           "refId": "D",
-          "expr": "count(count by (cpu) (node_cpu_seconds_total))",
+          "expr": "count(node_cpu_seconds_total{mode=\"idle\"})",
           "legendFormat": "cores",
           "datasource": { "type": "prometheus", "uid": "stormkit-prometheus" }
         }
