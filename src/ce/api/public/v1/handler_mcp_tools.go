@@ -626,16 +626,17 @@ func mcpAllTools() []mcpToolDef {
 				InputSchema: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"envId":              map[string]any{"type": "string", "description": "Environment ID."},
-						"status":             map[string]any{"type": "boolean", "description": "Enable or disable Stormkit Auth for the environment."},
-						"successUrl":         map[string]any{"type": "string", "description": "Relative URL the browser is redirected to after a successful sign-in (e.g. /auth/success)."},
-						"tokenTtl":           map[string]any{"type": "integer", "description": "Session token lifetime in minutes."},
-						"allowedOrigins":     map[string]any{"type": "array", "description": "Origins (scheme + host, no path) allowed to initiate cross-origin sign-in. Replaces the existing list.", "items": map[string]any{"type": "string"}},
-						"cookieDomain":       map[string]any{"type": "string", "description": "Parent domain to scope the session cookie to (e.g. .example.com) for sharing across subdomains. Empty for a host-only cookie."},
-						"loginUrl":           map[string]any{"type": "string", "description": "App-owned login page the OAuth server redirects unauthenticated users to. Relative path or absolute URL."},
-						"oauthServerEnabled": map[string]any{"type": "boolean", "description": "Turn the OAuth 2.1 authorization server (for MCP connectors) on or off. Requires Stormkit Auth enabled."},
-						"oauthResourcePath":  map[string]any{"type": "string", "description": "Path the environment serves its MCP endpoint on (e.g. /mcp). Must equal the path in the connector URL."},
-						"oauthAllowLoopback": map[string]any{"type": "boolean", "description": "Allow RFC 8252 loopback (localhost) redirects for native/CLI OAuth clients."},
+						"envId":               map[string]any{"type": "string", "description": "Environment ID."},
+						"status":              map[string]any{"type": "boolean", "description": "Enable or disable Stormkit Auth for the environment."},
+						"successUrl":          map[string]any{"type": "string", "description": "Relative URL the browser is redirected to after a successful sign-in (e.g. /auth/success)."},
+						"tokenTtl":            map[string]any{"type": "integer", "description": "Session token lifetime in minutes."},
+						"allowedOrigins":      map[string]any{"type": "array", "description": "Origins (scheme + host, no path) allowed to initiate cross-origin sign-in. Replaces the existing list.", "items": map[string]any{"type": "string"}},
+						"cookieDomain":        map[string]any{"type": "string", "description": "Parent domain to scope the session cookie to (e.g. .example.com) for sharing across subdomains. Empty for a host-only cookie."},
+						"loginUrl":            map[string]any{"type": "string", "description": "App-owned login page the OAuth server redirects unauthenticated users to. Relative path or absolute URL."},
+						"oauthServerEnabled":  map[string]any{"type": "boolean", "description": "Turn the OAuth 2.1 authorization server (for MCP connectors) on or off. Requires Stormkit Auth enabled."},
+						"oauthResourcePath":   map[string]any{"type": "string", "description": "Path the environment serves its MCP endpoint on (e.g. /mcp). Must equal the path in the connector URL."},
+						"oauthAllowLoopback":  map[string]any{"type": "boolean", "description": "Allow RFC 8252 loopback (localhost) redirects for native/CLI OAuth clients."},
+						"oauthAccessTokenTtl": map[string]any{"type": "integer", "description": "OAuth access token lifetime in minutes, independent of tokenTtl. Keep it short (a few hours); clients renew with refresh tokens. 0 uses tokenTtl."},
 					},
 					"required":             []string{"envId"},
 					"additionalProperties": false,
@@ -1509,6 +1510,7 @@ func mcpConfigureAuth(req *RequestContextMCP, id any, args map[string]any) *shtt
 		OAuthServerEnabled: boolPtrArg(args, "oauthServerEnabled"),
 		OAuthResourcePath:  stringPtrArg(args, "oauthResourcePath"),
 		OAuthAllowLoopback: boolPtrArg(args, "oauthAllowLoopback"),
+		OAuthAccessTTL:     intPtrArg(args, "oauthAccessTokenTtl"),
 	}
 
 	if resp := req.setBody(id, body); resp != nil {

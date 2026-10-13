@@ -406,6 +406,7 @@ and are available on self-hosted installations only.
 | `oauthServerEnabled` | boolean | Turn the [OAuth 2.1 server](/docs/features/oauth-server) on or off. |
 | `oauthResourcePath` | string | MCP resource path (e.g. `/mcp`). |
 | `oauthAllowLoopback` | boolean | Allow loopback redirects for native/CLI OAuth clients. |
+| `oauthAccessTokenTtl` | integer | OAuth access-token lifetime, in minutes. Independent of `tokenTtl`; `0` falls back to it. |
 
 Example:
 

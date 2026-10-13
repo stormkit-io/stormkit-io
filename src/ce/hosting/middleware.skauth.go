@@ -452,15 +452,28 @@ func injectUserHeaders(req *RequestContext) {
 		return
 	}
 
-	secret := req.Host.Config.SKAuth.Secret
+	conf := req.Host.Config.SKAuth
+	secret := conf.Secret
 
+	// Both end-user sessions and OAuth access tokens authenticate requests, but
+	// each expires on its own lifetime.
 	claims := user.ParseJWT(&user.ParseJWTArgs{
-		Bearer:  bearer,
-		Secret:  secret,
-		MaxMins: req.Host.Config.SKAuth.TTL,
-		// Both end-user sessions and OAuth access tokens authenticate requests.
-		Purposes: []user.Purpose{user.PurposeSkAuthSession, user.PurposeSkAuthAccessToken},
+		Bearer:   bearer,
+		Secret:   secret,
+		MaxMins:  conf.SessionTTLMinutes(),
+		Purposes: []user.Purpose{user.PurposeSkAuthSession},
 	})
+
+	// Turning the OAuth server off must cut connectors off, so access tokens it
+	// already issued stop authenticating too.
+	if claims == nil && conf.OAuthServerEnabled() {
+		claims = user.ParseJWT(&user.ParseJWTArgs{
+			Bearer:   bearer,
+			Secret:   secret,
+			MaxMins:  conf.AccessTokenTTLMinutes(),
+			Purposes: []user.Purpose{user.PurposeSkAuthAccessToken},
+		})
+	}
 
 	if claims == nil {
 		return

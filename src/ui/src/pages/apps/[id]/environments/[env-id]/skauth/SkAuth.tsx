@@ -248,6 +248,18 @@ export default function SkAuth() {
             return;
           }
 
+          const accessTtlField = data.get("oauthAccessTokenTtl");
+          const accessTtlInput = ((accessTtlField as string) || "").trim();
+          const accessTtl = accessTtlInput ? parseDuration(accessTtlInput) : 0;
+
+          if (accessTtlInput && accessTtl === null) {
+            setSaveError(
+              "Access token TTL must be a duration like 1h, 4h, or 30min.",
+            );
+            setSaving(false);
+            return;
+          }
+
           saveConfig({
             envId: env.id!,
             successUrl: (data.get("successUrl") as string) || "",
@@ -259,6 +271,8 @@ export default function SkAuth() {
               (data.get("oauthResourcePath") as string) || ""
             ).trim(),
             oauthAllowLoopback,
+            oauthAccessTokenTtl:
+              accessTtlField === null ? undefined : accessTtl || 0,
             cookieDomain: ((data.get("cookieDomain") as string) || "").trim(),
             loginUrl: ((data.get("loginUrl") as string) || "").trim(),
           })
@@ -323,7 +337,9 @@ export default function SkAuth() {
           <TextField
             label="Allowed origins"
             name="allowedOrigins"
-            placeholder={"https://app.example.com\nhttps://dev.example.com\nmyapp://auth"}
+            placeholder={
+              "https://app.example.com\nhttps://dev.example.com\nmyapp://auth"
+            }
             fullWidth
             multiline
             minRows={3}
@@ -398,6 +414,27 @@ export default function SkAuth() {
                   variant="filled"
                   autoComplete="off"
                   helperText="The path this environment serves its MCP server on. Connectors require the resource identifier to match the URL you enter (path included), so set this to the connector URL's path — e.g. /mcp for https://your-app.com/mcp."
+                  slotProps={{
+                    inputLabel: {
+                      shrink: true,
+                    },
+                  }}
+                />
+              </Box>
+              <Box sx={{ mt: 3 }}>
+                <TextField
+                  label="Access token TTL"
+                  name="oauthAccessTokenTtl"
+                  placeholder="4h"
+                  fullWidth
+                  defaultValue={
+                    config?.oauthAccessTokenTtl
+                      ? formatDuration(config.oauthAccessTokenTtl)
+                      : ""
+                  }
+                  variant="filled"
+                  autoComplete="off"
+                  helperText="Lifetime of access tokens issued to connectors, separate from the session TTL. Access tokens cannot be revoked, so keep this short (a few hours); connectors renew them with refresh tokens. Leave empty to use the session TTL."
                   slotProps={{
                     inputLabel: {
                       shrink: true,

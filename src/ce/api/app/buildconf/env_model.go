@@ -86,6 +86,12 @@ type OAuthServerConf struct {
 	// When on, a redirect_uri whose host is a loopback literal is matched on
 	// scheme+path only, ignoring the port.
 	AllowLoopback bool
+
+	// AccessTokenTTL is the OAuth access-token lifetime in minutes. Access
+	// tokens are stateless JWTs that cannot be revoked, so they are best kept
+	// short and renewed with refresh tokens. Zero falls back to the session
+	// lifetime (SKAuthConf.TTL).
+	AccessTokenTTL int
 }
 
 // OAuthServerEnabled reports whether the OAuth authorization server is active.
@@ -116,6 +122,27 @@ func (ac *SKAuthConf) ResourcePath() string {
 // loopback redirects are permitted for this environment.
 func (ac *SKAuthConf) AllowLoopbackRedirects() bool {
 	return ac.OAuthServerEnabled() && ac.OAuthServer.AllowLoopback
+}
+
+// SessionTTLMinutes is the effective browser-session lifetime in minutes,
+// defaulting to 24h when unset.
+func (ac *SKAuthConf) SessionTTLMinutes() int {
+	if ac != nil && ac.TTL > 0 {
+		return ac.TTL
+	}
+
+	return 24 * 60
+}
+
+// AccessTokenTTLMinutes is the effective OAuth access-token lifetime in
+// minutes. It falls back to the session lifetime when no dedicated value is
+// configured.
+func (ac *SKAuthConf) AccessTokenTTLMinutes() int {
+	if ac != nil && ac.OAuthServer != nil && ac.OAuthServer.AccessTokenTTL > 0 {
+		return ac.OAuthServer.AccessTokenTTL
+	}
+
+	return ac.SessionTTLMinutes()
 }
 
 // Value implements the Sql Driver interface.

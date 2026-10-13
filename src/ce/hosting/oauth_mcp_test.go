@@ -4,7 +4,9 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
+	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
@@ -361,4 +363,146 @@ func (s *OAuthSuite) Test_Token_AudienceDefaultsToResourceID() {
 	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: s.json(res)["access_token"].(string), Secret: oauthSecret, MaxMins: 10, Purposes: []user.Purpose{user.PurposeSkAuthAccessToken}})
 	s.Require().NotNil(claims)
 	s.Equal("https://app.example.com/mcp", claims["aud"])
+}
+
+// --- DCR refresh grant + dedicated access-token TTL ---
+
+func (s *OAuthSuite) Test_Register_GrantsRefreshTokenWhenRequested() {
+	body := `{"client_name":"Claude","redirect_uris":["` + oauthRedirect + `"],"grant_types":["authorization_code","refresh_token"]}`
+	res := hosting.HandleOAuthRegister(s.registerReq(s.host(true), body))
+
+	s.Equal(http.StatusCreated, res.Status)
+	s.Equal([]string{"authorization_code", "refresh_token"}, s.json(res)["grant_types"])
+}
+
+// Test_Register_DropsUnsupportedGrantTypes verifies that grant types the server
+// does not implement are left out instead of failing the registration.
+func (s *OAuthSuite) Test_Register_DropsUnsupportedGrantTypes() {
+	body := `{"client_name":"Other","redirect_uris":["` + oauthRedirect + `"],"grant_types":["client_credentials","implicit"]}`
+	res := hosting.HandleOAuthRegister(s.registerReq(s.host(true), body))
+
+	s.Equal(http.StatusCreated, res.Status)
+	s.Equal([]string{"authorization_code"}, s.json(res)["grant_types"])
+}
+
+func (s *OAuthSuite) Test_Register_DefaultsToAuthorizationCode() {
+	body := `{"client_name":"Other","redirect_uris":["` + oauthRedirect + `"]}`
+	res := hosting.HandleOAuthRegister(s.registerReq(s.host(true), body))
+
+	s.Equal(http.StatusCreated, res.Status)
+	s.Equal([]string{"authorization_code"}, s.json(res)["grant_types"])
+}
+
+// Test_DCRClient_RefreshFlow runs the whole connector lifecycle with a client
+// registered through DCR: register, authorize with offline_access, exchange the
+// code, then renew with the refresh token.
+func (s *OAuthSuite) Test_DCRClient_RefreshFlow() {
+	host := s.host(true)
+	body := `{"client_name":"Claude","redirect_uris":["` + oauthRedirect + `"],"grant_types":["authorization_code","refresh_token"]}`
+	reg := hosting.HandleOAuthRegister(s.registerReq(host, body))
+	s.Require().Equal(http.StatusCreated, reg.Status)
+
+	clientID := s.json(reg)["client_id"].(string)
+	verifier := "dcr-refresh-verifier-value-1234567"
+
+	authz := url.Values{}
+	authz.Set("response_type", "code")
+	authz.Set("client_id", clientID)
+	authz.Set("redirect_uri", oauthRedirect)
+	authz.Set("code_challenge", pkce(verifier))
+	authz.Set("code_challenge_method", "S256")
+	authz.Set("scope", "openid offline_access")
+
+	h := make(http.Header)
+	h.Set("Authorization", s.bearer("user-dcr"))
+
+	grant := hosting.HandleOAuthGrant(s.req(host, http.MethodPost, "/_stormkit/oauth/authorize", authz.Encode(), h, nil))
+	s.Require().Equal(http.StatusOK, grant.Status)
+
+	redirect, err := url.Parse(s.json(grant)["redirect"].(string))
+	s.Require().NoError(err)
+
+	form := url.Values{}
+	form.Set("grant_type", "authorization_code")
+	form.Set("code", redirect.Query().Get("code"))
+	form.Set("client_id", clientID)
+	form.Set("redirect_uri", oauthRedirect)
+	form.Set("code_verifier", verifier)
+
+	th := make(http.Header)
+	th.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	tokens := hosting.HandleOAuthToken(s.req(host, http.MethodPost, "/_stormkit/oauth/token", "", th, strings.NewReader(form.Encode())))
+	s.Require().Equal(http.StatusOK, tokens.Status)
+
+	refresh, ok := s.json(tokens)["refresh_token"].(string)
+	s.Require().True(ok, "a DCR client with offline_access must get a refresh token")
+
+	renewed := s.refreshReq(host, refresh, clientID)
+	s.Equal(http.StatusOK, renewed.Status)
+	s.NotEmpty(s.json(renewed)["access_token"])
+	s.NotEmpty(s.json(renewed)["refresh_token"])
+}
+
+func (s *OAuthSuite) Test_Token_ExpiresIn_UsesAccessTokenTTL() {
+	host := s.hostWith(buildconf.OAuthServerConf{AccessTokenTTL: 120})
+	verifier := "access-ttl-verifier-value-12345678"
+	code := s.grantWithScope(host, "user-1", pkce(verifier), "openid", "")
+
+	res := s.exchange(host, code, verifier)
+
+	s.Equal(http.StatusOK, res.Status)
+	s.Equal(120*60, s.json(res)["expires_in"])
+}
+
+// edgeUserID signs a token of the given purpose issued `age` ago, sends it
+// through the edge middleware and returns the injected X-User-Id ("" when the
+// token was rejected).
+func (s *OAuthSuite) edgeUserID(host *hosting.Host, purpose user.Purpose, age time.Duration) string {
+	tok, err := user.JWT(user.JWTParams{
+		Purpose: purpose,
+		Claims:  jwt.MapClaims{"uid": "user-edge", "issued": time.Now().Add(-age).Unix()},
+		Secret:  oauthSecret,
+	})
+	s.Require().NoError(err)
+
+	h := make(http.Header)
+	h.Set("Authorization", "Bearer "+tok)
+
+	req := s.req(host, http.MethodGet, "/mcp", "", h, nil)
+	_, err = hosting.WithSKAuth(req)
+	s.Require().NoError(err)
+
+	return req.Header.Get("X-User-Id")
+}
+
+// Test_Edge_AccessTokenTTL_IndependentOfSession verifies that access tokens and
+// browser sessions each expire on their own lifetime (session: 10m, access: 60m).
+func (s *OAuthSuite) Test_Edge_AccessTokenTTL_IndependentOfSession() {
+	host := s.hostWith(buildconf.OAuthServerConf{AccessTokenTTL: 60})
+
+	s.Equal("user-edge", s.edgeUserID(host, user.PurposeSkAuthAccessToken, 30*time.Minute))
+	s.Empty(s.edgeUserID(host, user.PurposeSkAuthAccessToken, 90*time.Minute))
+	s.Equal("user-edge", s.edgeUserID(host, user.PurposeSkAuthSession, 5*time.Minute))
+	s.Empty(s.edgeUserID(host, user.PurposeSkAuthSession, 30*time.Minute))
+}
+
+// Test_Edge_AccessTokenTTL_FallsBackToSession keeps the previous behaviour when
+// no dedicated access-token lifetime is configured.
+func (s *OAuthSuite) Test_Edge_AccessTokenTTL_FallsBackToSession() {
+	host := s.hostWith(buildconf.OAuthServerConf{})
+
+	s.Equal("user-edge", s.edgeUserID(host, user.PurposeSkAuthAccessToken, 5*time.Minute))
+	s.Empty(s.edgeUserID(host, user.PurposeSkAuthAccessToken, 30*time.Minute))
+}
+
+// Test_Edge_AccessToken_RejectedWhenServerDisabled verifies that switching the
+// OAuth server off stops already-issued access tokens from authenticating,
+// while browser sessions keep working.
+func (s *OAuthSuite) Test_Edge_AccessToken_RejectedWhenServerDisabled() {
+	host := s.hostWith(buildconf.OAuthServerConf{AccessTokenTTL: 60})
+	host.Config.SKAuth.OAuthServer.Enabled = false
+
+	s.Empty(s.edgeUserID(host, user.PurposeSkAuthAccessToken, time.Minute))
+	s.Equal("user-edge", s.edgeUserID(host, user.PurposeSkAuthSession, time.Minute))
 }

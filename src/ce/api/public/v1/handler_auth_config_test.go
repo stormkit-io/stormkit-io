@@ -81,6 +81,7 @@ func (s *HandlerAuthConfigSuite) Test_Get_DefaultsWhenUnset() {
 		"oauthServerEnabled": false,
 		"oauthResourcePath": "",
 		"oauthAllowLoopback": false,
+		"oauthAccessTokenTtl": 0,
 		"cookieDomain": "",
 		"loginUrl": ""
 	}`, response.String())
@@ -131,9 +132,10 @@ func (s *HandlerAuthConfigSuite) Test_Set_IsPatch() {
 		shttp.MethodPost,
 		fmt.Sprintf("/v1/auth/config?envId=%s", env.ID),
 		map[string]any{
-			"oauthServerEnabled": true,
-			"oauthResourcePath":  "mcp",
-			"oauthAllowLoopback": true,
+			"oauthServerEnabled":  true,
+			"oauthResourcePath":   "mcp",
+			"oauthAllowLoopback":  true,
+			"oauthAccessTokenTtl": 240,
 		},
 		map[string]string{"Authorization": key.Value},
 	)
@@ -154,6 +156,9 @@ func (s *HandlerAuthConfigSuite) Test_Set_IsPatch() {
 	s.True(stored.AuthConf.OAuthServer.Enabled)
 	s.Equal("/mcp", stored.AuthConf.OAuthServer.ResourcePath)
 	s.True(stored.AuthConf.OAuthServer.AllowLoopback)
+	s.Equal(240, stored.AuthConf.OAuthServer.AccessTokenTTL)
+	// The access-token lifetime is separate from the session lifetime.
+	s.Equal(60, stored.AuthConf.TTL)
 }
 
 func (s *HandlerAuthConfigSuite) Test_Set_BadRequest_AbsoluteSuccessURL() {

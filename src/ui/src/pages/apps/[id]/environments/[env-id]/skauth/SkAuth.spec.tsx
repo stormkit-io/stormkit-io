@@ -414,6 +414,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
           oauthServerEnabled: true,
           oauthResourcePath: "",
           oauthAllowLoopback: false,
+          oauthAccessTokenTtl: 0,
           cookieDomain: "",
           loginUrl: "",
         })
@@ -432,7 +433,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
       });
     });
 
-    it("should submit the MCP path and loopback toggle", async () => {
+    it("should submit the MCP path, access token TTL and loopback toggle", async () => {
       const scope = nock(apiDomain)
         .post("/skauth/config", {
           envId: currentEnv.id,
@@ -443,6 +444,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
           oauthServerEnabled: true,
           oauthResourcePath: "/mcp",
           oauthAllowLoopback: true,
+          oauthAccessTokenTtl: 240,
           cookieDomain: "",
           loginUrl: "",
         })
@@ -454,6 +456,10 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
 
       fireEvent.change(await wrapper.findByLabelText("MCP server path"), {
         target: { value: "/mcp" },
+      });
+
+      fireEvent.change(await wrapper.findByLabelText("Access token TTL"), {
+        target: { value: "4h" },
       });
 
       fireEvent.click(

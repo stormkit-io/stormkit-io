@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -163,17 +164,6 @@ func (o *oauthServer) secret() string {
 	return o.req.Host.Config.SKAuth.Secret
 }
 
-// tokenTTLMinutes is the effective access-token lifetime. It mirrors the edge's
-// user.ParseJWT default (24h when the env TTL is unset), so the advertised
-// expires_in matches how long the token is actually accepted.
-func (o *oauthServer) tokenTTLMinutes() int {
-	if ttl := o.req.Host.Config.SKAuth.TTL; ttl > 0 {
-		return ttl
-	}
-
-	return 24 * 60
-}
-
 // issuer is the app's own origin; every AS/RS URL hangs off it.
 func (o *oauthServer) issuer() string {
 	return "https://" + o.req.Host.Name
@@ -243,6 +233,24 @@ type registrationRequest struct {
 	ClientName              string   `json:"client_name"`
 	Scope                   string   `json:"scope"`
 	TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method"`
+	GrantTypes              []string `json:"grant_types"`
+}
+
+// grantedTypes returns the grant types echoed back to a registering client.
+// authorization_code is always granted (it is the only way in), and
+// refresh_token is added when the client asks for it. Clients honour the
+// registered grant types, so leaving refresh_token out stops them from ever
+// refreshing even though the token endpoint would serve them. Unsupported types
+// are dropped rather than rejected, as RFC 7591 §2 permits. A refresh token is
+// still only minted when the authorization request carries offline_access.
+func (r registrationRequest) grantedTypes() []string {
+	granted := []string{"authorization_code"}
+
+	if slices.Contains(r.GrantTypes, "refresh_token") {
+		granted = append(granted, "refresh_token")
+	}
+
+	return granted
 }
 
 // Bounds on the unauthenticated registration request. They cap how much an
@@ -318,7 +326,7 @@ func (o *oauthServer) register() *shttp.Response {
 		"redirect_uris":              client.RedirectURIs,
 		"client_name":                client.ClientName,
 		"scope":                      client.Scope,
-		"grant_types":                []string{"authorization_code"},
+		"grant_types":                body.grantedTypes(),
 		"response_types":             []string{"code"},
 		"token_endpoint_auth_method": "none",
 	})
@@ -817,7 +825,7 @@ func (o *oauthServer) issueTokens(g oauthTokenGrant) *shttp.Response {
 	body := map[string]any{
 		"access_token": accessToken,
 		"token_type":   "Bearer",
-		"expires_in":   o.tokenTTLMinutes() * 60,
+		"expires_in":   o.req.Host.Config.SKAuth.AccessTokenTTLMinutes() * 60,
 		"scope":        g.scope,
 	}
 

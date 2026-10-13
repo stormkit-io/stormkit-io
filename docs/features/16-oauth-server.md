@@ -40,7 +40,7 @@ deployment is served — there is nothing to install in your application.
 
 | Endpoint | Description |
 | --- | --- |
-| `POST /_stormkit/oauth/register` | [RFC 7591](https://www.rfc-editor.org/rfc/rfc7591) Dynamic Client Registration. Clients self-register as **public** clients; PKCE is required. |
+| `POST /_stormkit/oauth/register` | [RFC 7591](https://www.rfc-editor.org/rfc/rfc7591) Dynamic Client Registration. Clients self-register as **public** clients; PKCE is required. A client that asks for `grant_types: ["authorization_code", "refresh_token"]` is granted both; unsupported grant types are dropped. |
 | `GET /_stormkit/oauth/authorize` | Authorization request ([RFC 6749](https://www.rfc-editor.org/rfc/rfc6749) + PKCE [RFC 7636](https://www.rfc-editor.org/rfc/rfc7636)). If the user has no readable session, the server delegates to your app's configured **Login URL** (with a loop-guarded `return_to` param) rather than showing a Stormkit login page. |
 | `POST /_stormkit/oauth/authorize` | Consent / grant submission. Issues the authorization code. |
 | `POST /_stormkit/oauth/token` | Exchanges the authorization code + PKCE `code_verifier` for an access token, and — when the `offline_access` scope was requested — a rotating refresh token. |
@@ -50,7 +50,7 @@ deployment is served — there is nothing to install in your application.
 
 | Token | How it works |
 | --- | --- |
-| **Access token** | A stateless **HS256 JWT** signed with the environment's SkAuth secret. The edge validates it on every request. It carries an audience (`aud`) bound to the resource ([RFC 8707](https://www.rfc-editor.org/rfc/rfc8707)) — your app's origin plus the MCP resource path. Access tokens are **not individually revocable**; they expire on their own. |
+| **Access token** | A stateless **HS256 JWT** signed with the environment's SkAuth secret. The edge validates it on every request. It carries an audience (`aud`) bound to the resource ([RFC 8707](https://www.rfc-editor.org/rfc/rfc8707)) — your app's origin plus the MCP resource path. Access tokens are **not individually revocable**; they expire on their own after the **access token TTL** (`oauthAccessTokenTtl`), which falls back to the session TTL when unset. Keep it short (a few hours) and let clients renew with refresh tokens. Turning the OAuth server off stops all issued access tokens from authenticating immediately. |
 | **Refresh token** | Stored server-side (Redis, SHA-256 keyed), **rotates on each use**, and is only issued when the `offline_access` scope is requested. Refresh tokens can be revoked via `/revoke`. |
 
 ### Discovery
@@ -108,6 +108,7 @@ relevant fields are:
 | `oauthServerEnabled` | Enable the OAuth server. |
 | `oauthResourcePath` | The MCP resource path (e.g. `/mcp`). |
 | `oauthAllowLoopback` | Allow RFC 8252 loopback redirects. |
+| `oauthAccessTokenTtl` | Access-token lifetime in minutes, independent of the session `tokenTtl`. `0` uses `tokenTtl`. |
 | `loginUrl` | Your app's login page for `/authorize` delegation. |
 
 See the [Authentication](/docs/features/authentication) docs for the full field

@@ -171,11 +171,12 @@ func (s *HandlerAuthConfigUpdateSuite) Test_Update_OAuthServerFields() {
 		shttp.MethodPost,
 		"/skauth/config",
 		map[string]any{
-			"envId":              s.env.ID,
-			"status":             true,
-			"oauthServerEnabled": true,
-			"oauthResourcePath":  "mcp",
-			"oauthAllowLoopback": true,
+			"envId":               s.env.ID,
+			"status":              true,
+			"oauthServerEnabled":  true,
+			"oauthResourcePath":   "mcp",
+			"oauthAllowLoopback":  true,
+			"oauthAccessTokenTtl": 180,
 		},
 		map[string]string{
 			"Authorization": usertest.Authorization(s.usr.ID),
@@ -190,6 +191,26 @@ func (s *HandlerAuthConfigUpdateSuite) Test_Update_OAuthServerFields() {
 	s.True(env.AuthConf.OAuthServer.Enabled)
 	s.Equal("/mcp", env.AuthConf.OAuthServer.ResourcePath)
 	s.True(env.AuthConf.OAuthServer.AllowLoopback)
+	s.Equal(180, env.AuthConf.OAuthServer.AccessTokenTTL)
+}
+
+func (s *HandlerAuthConfigUpdateSuite) Test_Update_OAuthAccessTokenTTL_RejectsNegative() {
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(skauthhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/skauth/config",
+		map[string]any{
+			"envId":               s.env.ID,
+			"status":              true,
+			"oauthServerEnabled":  true,
+			"oauthAccessTokenTtl": -5,
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(s.usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusBadRequest, response.Code)
 }
 
 // Test_Update_OAuthResourcePath_RejectsQuery guards against a path with a query

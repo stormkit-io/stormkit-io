@@ -28,6 +28,7 @@ type AuthConfigUpdateRequest struct {
 	OAuthServerEnabled *bool   `json:"oauthServerEnabled"`
 	OAuthResourcePath  *string `json:"oauthResourcePath"`
 	OAuthAllowLoopback *bool   `json:"oauthAllowLoopback"`
+	OAuthAccessTTL     *int    `json:"oauthAccessTokenTtl"`
 	CookieDomain       *string `json:"cookieDomain"`
 	LoginURL           *string `json:"loginUrl"`
 }
@@ -37,6 +38,7 @@ const (
 	originHint     = "Provide values like https://app.example.com"
 	sessionHint    = "Cookie domain must be a bare host such as .example.com; login URL a relative path or absolute URL."
 	oauthPathHint  = "Provide a relative path such as: /mcp"
+	oauthTTLHint   = "Provide the lifetime in minutes, or 0 to use the session lifetime."
 )
 
 // ConfigValidationError is a user-facing validation failure carrying an
@@ -122,6 +124,10 @@ func ApplyConfigUpdate(conf *buildconf.SKAuthConf, data AuthConfigUpdateRequest)
 
 	if err := applySessionConf(conf, data); err != nil {
 		return &ConfigValidationError{Message: err.Error(), Hint: sessionHint}
+	}
+
+	if data.OAuthAccessTTL != nil && *data.OAuthAccessTTL < 0 {
+		return &ConfigValidationError{Message: "OAuth access token lifetime cannot be negative.", Hint: oauthTTLHint}
 	}
 
 	if err := applyOAuthServerConf(conf, data); err != nil {
@@ -231,7 +237,7 @@ func applySessionConf(conf *buildconf.SKAuthConf, data AuthConfigUpdateRequest) 
 // leaving any field the client omitted untouched. It validates and normalizes
 // the MCP resource path to a leading-slash relative path.
 func applyOAuthServerConf(conf *buildconf.SKAuthConf, data AuthConfigUpdateRequest) error {
-	if data.OAuthServerEnabled == nil && data.OAuthResourcePath == nil && data.OAuthAllowLoopback == nil {
+	if data.OAuthServerEnabled == nil && data.OAuthResourcePath == nil && data.OAuthAllowLoopback == nil && data.OAuthAccessTTL == nil {
 		return nil
 	}
 
@@ -245,6 +251,10 @@ func applyOAuthServerConf(conf *buildconf.SKAuthConf, data AuthConfigUpdateReque
 
 	if data.OAuthAllowLoopback != nil {
 		conf.OAuthServer.AllowLoopback = *data.OAuthAllowLoopback
+	}
+
+	if data.OAuthAccessTTL != nil {
+		conf.OAuthServer.AccessTokenTTL = *data.OAuthAccessTTL
 	}
 
 	if data.OAuthResourcePath != nil {

@@ -8,15 +8,16 @@ import (
 // The signing secret and provider client secrets are never included.
 func AuthConfigJSON(conf *buildconf.SKAuthConf) map[string]any {
 	out := map[string]any{
-		"status":             false,
-		"successUrl":         "",
-		"tokenTtl":           0,
-		"allowedOrigins":     []string{},
-		"oauthServerEnabled": false,
-		"oauthResourcePath":  "",
-		"oauthAllowLoopback": false,
-		"cookieDomain":       "",
-		"loginUrl":           "",
+		"status":              false,
+		"successUrl":          "",
+		"tokenTtl":            0,
+		"allowedOrigins":      []string{},
+		"oauthServerEnabled":  false,
+		"oauthResourcePath":   "",
+		"oauthAllowLoopback":  false,
+		"oauthAccessTokenTtl": 0,
+		"cookieDomain":        "",
+		"loginUrl":            "",
 	}
 
 	if conf == nil {
@@ -41,6 +42,7 @@ func AuthConfigJSON(conf *buildconf.SKAuthConf) map[string]any {
 	if conf.OAuthServer != nil {
 		out["oauthResourcePath"] = conf.OAuthServer.ResourcePath
 		out["oauthAllowLoopback"] = conf.OAuthServer.AllowLoopback
+		out["oauthAccessTokenTtl"] = conf.OAuthServer.AccessTokenTTL
 	}
 
 	return out
