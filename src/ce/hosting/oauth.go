@@ -612,7 +612,7 @@ func (o *oauthServer) authorizeURL() string {
 func (o *oauthServer) grant() *shttp.Response {
 	res := o.grantCode()
 
-	if o.isFormPost() {
+	if isFormPost(o.req.Request) {
 		return o.formResponse(res)
 	}
 

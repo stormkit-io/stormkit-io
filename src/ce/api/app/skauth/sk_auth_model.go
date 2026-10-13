@@ -192,6 +192,10 @@ type AuthCodeURLParams struct {
 	// Referrer is a custom-scheme deep link. It rides the state so the callback
 	// can bind the session code it hands back to that challenge.
 	CodeChallenge string
+	// ReturnTo is the app's OAuth page the sign-in started from, as a relative
+	// path on the initiating host. The callback lands there instead of on the
+	// referrer.
+	ReturnTo string
 }
 
 // Claims returns the JWT claims for the authorization request, including
@@ -206,6 +210,10 @@ func (a AuthCodeURLParams) Claims() jwt.MapClaims {
 
 	if a.CodeChallenge != "" {
 		claims["cha"] = a.CodeChallenge
+	}
+
+	if a.ReturnTo != "" {
+		claims["rto"] = a.ReturnTo
 	}
 
 	return claims

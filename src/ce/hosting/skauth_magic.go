@@ -3,6 +3,7 @@ package hosting
 import (
 	"fmt"
 	"html"
+	"net/http"
 	"strings"
 	"time"
 
@@ -15,20 +16,49 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
+type magicLinkRequestBody struct {
+	Email               string `json:"email"`
+	Redirect            string `json:"redirect"`
+	CodeChallenge       string `json:"code_challenge"`
+	CodeChallengeMethod string `json:"code_challenge_method"`
+	ReturnTo            string `json:"return_to"`
+}
+
+// magicLinkRequest sends a magic link. A request carrying return_to was started
+// from the app's OAuth page: the link brings the user back there, and an HTML
+// form submission is answered with a redirect back to the page rather than JSON.
 func (m *skAuthMiddleware) magicLinkRequest() *shttp.Response {
 	req := m.req.RequestContext
-
-	body := &struct {
-		Email               string `json:"email"`
-		Redirect            string `json:"redirect"`
-		CodeChallenge       string `json:"code_challenge"`
-		CodeChallengeMethod string `json:"code_challenge_method"`
-	}{}
+	body := &magicLinkRequestBody{}
 
 	_ = req.Post(body)
 
+	returnTo := m.oauthReturnTo(utils.GetString(body.ReturnTo, req.Query().Get("return_to")))
+	res := m.sendMagicLink(body, returnTo)
+
+	if returnTo == "" || !isFormPost(req.Request) {
+		return res
+	}
+
+	outcome := oauthSignInLinkSent
+
+	switch {
+	case res.Status == http.StatusBadRequest:
+		outcome = oauthSignInInvalidEmail
+	case res.Status != 0 && res.Status != http.StatusOK:
+		outcome = oauthSignInFailed
+	}
+
+	return m.backToOAuth(backToOAuthParams{ReturnTo: returnTo, Outcome: outcome})
+}
+
+// sendMagicLink validates the request and emails the link. returnTo, when set,
+// takes the place of the redirect origin: the user lands back on this host's
+// OAuth page.
+func (m *skAuthMiddleware) sendMagicLink(body *magicLinkRequestBody, returnTo string) *shttp.Response {
+	req := m.req.RequestContext
 	envID := m.req.Host.Config.EnvID
-	email := normalizeEmail(utils.GetString(body.Email, req.Query().Get("email")))
+	email := normalizeEmail(utils.GetString(body.Email, req.Query().Get("email"), req.PostFormValue("email")))
 
 	if envID == 0 {
 		return shttp.NotFound()
@@ -52,34 +82,38 @@ func (m *skAuthMiddleware) magicLinkRequest() *shttp.Response {
 	// Browsers may omit it (we fall back to the Origin header); native clients
 	// pass it explicitly (e.g. a deep link). It is honoured only when it is on
 	// the configured allow-list; otherwise the flow stays single-host.
-	redirect := utils.GetString(body.Redirect, req.Query().Get("redirect"))
+	var redirect, challenge string
 
-	if redirect == "" {
-		redirect = m.req.Header.Get("Origin")
-	}
+	if returnTo == "" {
+		redirect = utils.GetString(body.Redirect, req.Query().Get("redirect"))
 
-	redirect = strings.TrimRight(redirect, "/")
+		if redirect == "" {
+			redirect = m.req.Header.Get("Origin")
+		}
 
-	// When an allow-list is configured, a supplied redirect must be on it.
-	if len(env.AuthConf.AllowedOrigins) > 0 && redirect != "" && !env.AuthConf.IsAllowedOrigin(redirect) {
-		return shttp.Forbidden()
-	}
+		redirect = strings.TrimRight(redirect, "/")
 
-	if !env.AuthConf.IsAllowedOrigin(redirect) {
-		redirect = ""
-	}
+		// When an allow-list is configured, a supplied redirect must be on it.
+		if len(env.AuthConf.AllowedOrigins) > 0 && redirect != "" && !env.AuthConf.IsAllowedOrigin(redirect) {
+			return shttp.Forbidden()
+		}
 
-	// A custom-scheme redirect delivers the session through a PKCE-bound code, so
-	// the challenge has to be captured now and travel with the link — the user's
-	// inbox sits between this request and the redemption.
-	challenge := utils.GetString(body.CodeChallenge, req.Query().Get("code_challenge"))
+		if !env.AuthConf.IsAllowedOrigin(redirect) {
+			redirect = ""
+		}
 
-	if resp := validateNativeChallenge(
-		redirect,
-		challenge,
-		utils.GetString(body.CodeChallengeMethod, req.Query().Get("code_challenge_method")),
-	); resp != nil {
-		return resp
+		// A custom-scheme redirect delivers the session through a PKCE-bound code, so
+		// the challenge has to be captured now and travel with the link — the user's
+		// inbox sits between this request and the redemption.
+		challenge = utils.GetString(body.CodeChallenge, req.Query().Get("code_challenge"))
+
+		if resp := validateNativeChallenge(
+			redirect,
+			challenge,
+			utils.GetString(body.CodeChallengeMethod, req.Query().Get("code_challenge_method")),
+		); resp != nil {
+			return resp
+		}
 	}
 
 	prv, err := skauth.NewStore().Provider(req.Context(), envID, skauth.ProviderMagicLink)
@@ -96,6 +130,7 @@ func (m *skAuthMiddleware) magicLinkRequest() *shttp.Response {
 		Env:            env,
 		RedirectOrigin: redirect,
 		CodeChallenge:  challenge,
+		ReturnTo:       returnTo,
 	})
 
 	if err != nil {
@@ -164,10 +199,13 @@ func (m *skAuthMiddleware) magicLinkVerify() *shttp.Response {
 		return shttp.BadRequest(map[string]any{
 			"errors":   []string{"invalid or expired magic link token"},
 			"redirect": unverifiedRedirectOrigin(token, env.AuthConf),
+			"returnTo": m.unverifiedReturnTo(token),
 		})
 	}
 
 	redirectOrigin, _ := claims["rdr"].(string)
+	rto, _ := claims["rto"].(string)
+	returnTo := m.oauthReturnTo(rto)
 
 	// Re-validate at click time in case the allow-list changed between
 	// request and verify; don't trust a stale claim.
@@ -193,6 +231,7 @@ func (m *skAuthMiddleware) magicLinkVerify() *shttp.Response {
 		return shttp.BadRequest(map[string]any{
 			"errors":   []string{"invalid or expired magic link token"},
 			"redirect": redirectOrigin,
+			"returnTo": returnTo,
 		})
 	}
 
@@ -222,6 +261,12 @@ func (m *skAuthMiddleware) magicLinkVerify() *shttp.Response {
 	}
 
 	data := map[string]any{"token": sessionToken, "email": authUser.Email, "userId": authUser.UUID}
+
+	if returnTo != "" {
+		data["returnTo"] = returnTo
+
+		return &shttp.Response{Data: data}
+	}
 
 	if redirectOrigin != "" {
 		data["redirect"] = redirectOrigin
@@ -261,12 +306,30 @@ func unverifiedRedirectOrigin(token string, conf *buildconf.SKAuthConf) string {
 	return origin
 }
 
+// unverifiedReturnTo is unverifiedRedirectOrigin for the OAuth page a sign-in
+// started from. It is safe for the same reason: the value is re-validated, and
+// oauthReturnTo only ever accepts this host's authorize endpoint.
+func (m *skAuthMiddleware) unverifiedReturnTo(token string) string {
+	claims := jwt.MapClaims{}
+
+	if _, _, err := jwt.NewParser().ParseUnverified(token, claims); err != nil {
+		return ""
+	}
+
+	rto, _ := claims["rto"].(string)
+
+	return m.oauthReturnTo(rto)
+}
+
 type generateMagicLinkTokenParams struct {
 	Env            *buildconf.Env
 	RedirectOrigin string
 	// CodeChallenge is the PKCE S256 challenge for a custom-scheme redirect. It
 	// rides the link so the delivery step can bind the session code to it.
 	CodeChallenge string
+	// ReturnTo is the OAuth page the sign-in started from, already validated by
+	// oauthReturnTo.
+	ReturnTo string
 }
 
 func generateMagicLinkToken(p generateMagicLinkTokenParams) (string, error) {
@@ -288,6 +351,10 @@ func generateMagicLinkToken(p generateMagicLinkTokenParams) (string, error) {
 
 	if p.CodeChallenge != "" {
 		claims["cha"] = p.CodeChallenge
+	}
+
+	if p.ReturnTo != "" {
+		claims["rto"] = p.ReturnTo
 	}
 
 	return user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthMagicLink, Claims: claims, Secret: p.Env.AuthConf.Secret})

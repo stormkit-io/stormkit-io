@@ -248,6 +248,10 @@ func (m *skAuthMiddleware) handleMagicLinkVerify() (*shttp.Response, error) {
 		origin := "https://" + m.req.Host.Name
 
 		if d, ok := resp.Data.(map[string]any); ok {
+			if rto, _ := d["returnTo"].(string); rto != "" && resp.Status == http.StatusBadRequest {
+				return m.backToOAuth(backToOAuthParams{ReturnTo: rto, Outcome: oauthSignInExpired}), nil
+			}
+
 			if errs, ok := d["errors"].([]string); ok && len(errs) > 0 {
 				errMsg = errs[0]
 			}
@@ -276,6 +280,11 @@ func (m *skAuthMiddleware) handleMagicLinkVerify() (*shttp.Response, error) {
 
 	successURL := m.req.Host.Config.SKAuth.SuccessURL
 	token, _ := data["token"].(string)
+
+	// Started from the app's OAuth page: land back on it, on this host.
+	if returnTo, _ := data["returnTo"].(string); returnTo != "" {
+		return m.deliverSession(deliverSessionParams{Token: token, Path: returnTo}), nil
+	}
 
 	// Cross-origin: the request came from a whitelisted frontend, whose origin the
 	// magic-link token carried in its `rdr` claim and magicLinkVerify re-validated

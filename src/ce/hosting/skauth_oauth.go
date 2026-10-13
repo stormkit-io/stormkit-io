@@ -55,19 +55,27 @@ func (m *skAuthMiddleware) handleOAuthInitiate(providerName string) (*shttp.Resp
 		return shttp.NotFound(), nil
 	}
 
-	redirect, resp := m.resolveRedirect(env)
+	// A sign-in started from the app's OAuth page returns there, on this host, so
+	// the redirect and native challenge do not apply.
+	returnTo := m.oauthReturnTo(req.Query().Get("return_to"))
+	redirect := "https://" + m.req.Host.Name
+	challenge := ""
 
-	if resp != nil {
-		return resp, nil
-	}
+	if returnTo == "" {
+		var resp *shttp.Response
 
-	// A custom-scheme target delivers the session through a PKCE-bound code, so
-	// the challenge is captured here and carried in the state across the provider
-	// round trip.
-	challenge := req.Query().Get("code_challenge")
+		if redirect, resp = m.resolveRedirect(env); resp != nil {
+			return resp, nil
+		}
 
-	if resp := validateNativeChallenge(redirect, challenge, req.Query().Get("code_challenge_method")); resp != nil {
-		return resp, nil
+		// A custom-scheme target delivers the session through a PKCE-bound code, so
+		// the challenge is captured here and carried in the state across the provider
+		// round trip.
+		challenge = req.Query().Get("code_challenge")
+
+		if resp := validateNativeChallenge(redirect, challenge, req.Query().Get("code_challenge_method")); resp != nil {
+			return resp, nil
+		}
 	}
 
 	authURL, err := prv.Client(skauth.ClientParams{
@@ -79,6 +87,7 @@ func (m *skAuthMiddleware) handleOAuthInitiate(providerName string) (*shttp.Resp
 		Referrer:      redirect,
 		Secret:        env.AuthConf.Secret,
 		CodeChallenge: challenge,
+		ReturnTo:      returnTo,
 	})
 
 	if err != nil {
@@ -140,23 +149,35 @@ func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
 	// referrer carried in the state, so a crafted state cannot turn the callback
 	// into an open redirect that also delivers a valid session.
 	referOrigin := m.validateReferOrigin(env, refer, ownOrigin)
+	rto, _ := claims["rto"].(string)
+	returnTo := m.oauthReturnTo(rto)
+
+	// fail reports a sign-in failure where the sign-in started: the app's OAuth
+	// page, or the referrer's landing page.
+	fail := func(message string) *shttp.Response {
+		if returnTo != "" {
+			return m.backToOAuth(backToOAuthParams{ReturnTo: returnTo, Outcome: oauthSignInFailed})
+		}
+
+		return m.loginErrorRedirect(referOrigin, message)
+	}
 
 	// The provider round-trips an `error` param (e.g. the user denied access)
 	// instead of an authorization code. Bounce back without attempting an
 	// exchange that would fail anyway.
 	if req.FormValue("error") != "" {
-		return m.loginErrorRedirect(referOrigin, "Sign-in was cancelled."), nil
+		return fail("Sign-in was cancelled."), nil
 	}
 
 	prv, err := skauth.NewStore().Provider(req.Context(), env.ID, provider)
 
 	if err != nil {
 		slog.Errorf("oauth callback: failed to get provider %s for env %d: %s", provider, env.ID, err.Error())
-		return m.loginErrorRedirect(referOrigin, "Sign-in is temporarily unavailable. Please try again."), nil
+		return fail("Sign-in is temporarily unavailable. Please try again."), nil
 	}
 
 	if prv == nil || !prv.Status {
-		return m.loginErrorRedirect(referOrigin, "This sign-in method is not available."), nil
+		return fail("This sign-in method is not available."), nil
 	}
 
 	client := prv.Client(skauth.ClientParams{
@@ -165,32 +186,32 @@ func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
 	})
 
 	if client == nil {
-		return m.loginErrorRedirect(referOrigin, "This sign-in method is not available."), nil
+		return fail("This sign-in method is not available."), nil
 	}
 
 	token, err := client.Exchange(req.Context(), req)
 
 	if err != nil {
 		slog.Errorf("oauth callback: failed to exchange authorization code: %s", err.Error())
-		return m.loginErrorRedirect(referOrigin, "We couldn't complete sign-in. Please try again."), nil
+		return fail("We couldn't complete sign-in. Please try again."), nil
 	}
 
 	store, err := env.SchemaConf.Store(buildconf.SchemaAccessTypeAppUser)
 
 	if err != nil {
 		slog.Errorf("oauth callback: failed to get schema store: %s", err.Error())
-		return m.loginErrorRedirect(referOrigin, "Sign-in is temporarily unavailable. Please try again."), nil
+		return fail("Sign-in is temporarily unavailable. Please try again."), nil
 	}
 
 	info, err := client.UserInfo(req.Context(), token)
 
 	if err != nil {
 		slog.Errorf("oauth callback: failed to get user info: %s", err.Error())
-		return m.loginErrorRedirect(referOrigin, "We couldn't read your account details. Please try again."), nil
+		return fail("We couldn't read your account details. Please try again."), nil
 	}
 
 	if info == nil {
-		return m.loginErrorRedirect(referOrigin, "We couldn't read your account details. Please try again."), nil
+		return fail("We couldn't read your account details. Please try again."), nil
 	}
 
 	email := normalizeEmail(info.Email)
@@ -199,7 +220,7 @@ func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
 	// back an unverified (attacker-controllable) address must never be allowed
 	// to attach to — and sign in as — an existing user.
 	if email == "" || !info.EmailVerified {
-		return m.loginErrorRedirect(referOrigin, "Your email address must be verified with the provider to sign in."), nil
+		return fail("Your email address must be verified with the provider to sign in."), nil
 	}
 
 	oauth := skauth.OAuth{
@@ -221,7 +242,7 @@ func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
 
 	if err := store.UpsertAuthUser(req.Context(), &oauth, &usr); err != nil {
 		slog.Errorf("oauth callback: failed to upsert auth user: %s", err.Error())
-		return m.loginErrorRedirect(referOrigin, "We couldn't complete sign-in. Please try again."), nil
+		return fail("We couldn't complete sign-in. Please try again."), nil
 	}
 
 	// Metadata lives on the user row and is merged on every login, so a provider
@@ -246,7 +267,7 @@ func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
 
 	if err != nil {
 		slog.Errorf("oauth callback: failed to generate session token: %s", err.Error())
-		return m.loginErrorRedirect(referOrigin, "We couldn't complete sign-in. Please try again."), nil
+		return fail("We couldn't complete sign-in. Please try again."), nil
 	}
 
 	successURL := m.req.Host.Config.SKAuth.SuccessURL
@@ -260,6 +281,10 @@ func (m *skAuthMiddleware) handleOAuthCallback() (*shttp.Response, error) {
 	// user straight to the initiating origin — no dependency on that origin
 	// carrying its own auth config. A native app initiating with a custom-scheme
 	// origin gets a PKCE-bound code on the redirect instead; see deliverSession.
+	if returnTo != "" {
+		return m.deliverSession(deliverSessionParams{Token: sessionToken, Path: returnTo}), nil
+	}
+
 	return m.deliverSession(deliverSessionParams{
 		Token:     sessionToken,
 		Origin:    referOrigin,

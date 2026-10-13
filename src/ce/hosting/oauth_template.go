@@ -1,11 +1,11 @@
 package hosting
 
 import (
-	"mime"
 	"net/http"
 	"net/url"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
 	"github.com/stormkit-io/stormkit-io/src/lib/integrations"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
@@ -54,6 +54,57 @@ func (o *oauthServer) templateData(p authzParams, client oauthClient) map[string
 		data["login_url"] = target
 	}
 
+	data["sign_in"] = o.signInData()
+
+	return data
+}
+
+// oauthSignInMessages explains each sign-in outcome the page can be sent back
+// with. A code the server does not know shows nothing.
+var oauthSignInMessages = map[string]string{
+	oauthSignInInvalidEmail: "Enter a valid email address.",
+	oauthSignInExpired:      "This sign-in link has expired or was already used. Request a new one.",
+	oauthSignInFailed:       "Sign-in did not complete. Please try again.",
+}
+
+// signInData lists the sign-in methods the page can offer, each bringing the
+// visitor back to this authorize request, and the outcome of the last attempt.
+// Only enabled providers are listed, so the page can branch on them with
+// {{with}}.
+func (o *oauthServer) signInData() map[string]any {
+	q := o.req.URL().Query()
+	outcome := q.Get(oauthSignInParam)
+
+	q.Del(oauthSignInParam)
+	q.Del(oauthLoginRetryParam)
+
+	returnTo := url.QueryEscape((&url.URL{Path: oauthAuthorizePath, RawQuery: q.Encode()}).String())
+
+	data := map[string]any{
+		"link_sent": outcome == oauthSignInLinkSent,
+		"error":     oauthSignInMessages[outcome],
+	}
+
+	providers, err := skauth.NewStore().Providers(o.req.Context(), skauth.ProvidersArgs{EnvID: o.req.Host.Config.EnvID})
+
+	if err != nil {
+		slog.Errorf("oauth: cannot list sign-in providers for env %s: %v", o.req.Host.Config.EnvID.String(), err)
+		return data
+	}
+
+	for _, prv := range providers {
+		if prv == nil || !prv.Status {
+			continue
+		}
+
+		switch prv.Name {
+		case skauth.ProviderGoogle, skauth.ProviderX:
+			data[prv.Name] = "/_stormkit/auth/" + prv.Name + "?return_to=" + returnTo
+		case skauth.ProviderMagicLink:
+			data["magic_link"] = "/_stormkit/auth/magic?return_to=" + returnTo
+		}
+	}
+
 	return data
 }
 
@@ -98,14 +149,6 @@ func (o *oauthServer) renderTemplate(p oauthTemplateParams) *shttp.Response {
 		Headers: headers,
 		Data:    content,
 	}
-}
-
-// isFormPost reports whether the request is an HTML form submission, as opposed
-// to the built-in consent page's fetch call.
-func (o *oauthServer) isFormPost() bool {
-	mediaType, _, _ := mime.ParseMediaType(o.req.Header.Get("Content-Type"))
-
-	return mediaType == "application/x-www-form-urlencoded" || mediaType == "multipart/form-data"
 }
 
 // formResponse turns grant()'s JSON answer into one a browser form can follow:
