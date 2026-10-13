@@ -407,25 +407,24 @@ func rowsToConfigs(rows *sql.Rows, err error) ([]*Config, error) {
 		}
 
 		if buildManifest != nil {
-			staticFiles := StaticFileConfig{}
+			cnf.StaticFiles = StaticFileConfig{}
 
 			// Backwards compatibility
 			for _, v := range buildManifest.CDNFiles {
-				staticFiles["/"+strings.TrimPrefix(strings.ToLower(v.Name), "/")] = &StaticFile{
+				cnf.AddStaticFile("/"+strings.TrimPrefix(v.Name, "/"), &StaticFile{
 					Headers:  NormalizeHeaders(v.Name, v.Headers),
 					FileName: v.Name,
-				}
+				})
 			}
 
 			for k, v := range buildManifest.StaticFiles {
-				staticFiles[strings.ToLower(k)] = &StaticFile{
+				cnf.AddStaticFile(k, &StaticFile{
 					Headers:  v,
 					FileName: k,
-				}
+				})
 			}
 
 			cnf.Redirects = append(cnf.Redirects, buildManifest.Redirects...)
-			cnf.StaticFiles = staticFiles
 		}
 
 		if authwall.Status != "" {

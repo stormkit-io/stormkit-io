@@ -81,6 +81,10 @@ func (s *appconfSuite) SetupSuite() {
 		Redirects: []deploy.Redirect{
 			{From: "/my-path", To: "/my-new-path", Status: http.StatusPermanentRedirect},
 		},
+		StaticFiles: deploy.StaticFiles{
+			"/Index.html":           {"Content-Type": "text/html"},
+			"/_stormkit/OAuth.html": {"Content-Type": "text/html"},
+		},
 	}
 
 	s.depl = s.MockDeployment(s.env, map[string]any{
@@ -149,6 +153,26 @@ func (s *appconfSuite) Test_ByDeploymentID() {
 		BodyAppend:  "S1",
 		BodyPrepend: "S2",
 	}, appconf.SnippetsHTML(configs[0].Snippets))
+}
+
+// Test_ByDeploymentID_ReservedFiles verifies that files under /_stormkit/ are
+// kept out of the served static files.
+func (s *appconfSuite) Test_ByDeploymentID_ReservedFiles() {
+	configs, err := appconf.NewStore().Configs(s.ctx, appconf.ConfigFilters{
+		DeploymentID: s.depl.ID,
+		DisplayName:  s.app.DisplayName,
+	})
+
+	s.Require().NoError(err)
+	s.Require().Len(configs, 1)
+
+	s.Equal(appconf.StaticFileConfig{
+		"/index.html": {FileName: "/Index.html", Headers: map[string]string{"Content-Type": "text/html"}},
+	}, configs[0].StaticFiles)
+
+	s.Equal(appconf.StaticFileConfig{
+		"/_stormkit/oauth.html": {FileName: "/_stormkit/OAuth.html", Headers: map[string]string{"Content-Type": "text/html"}},
+	}, configs[0].ReservedFiles)
 }
 
 func (s *appconfSuite) Test_ByDeploymentID_Snippets_ProdDomain() {

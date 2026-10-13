@@ -1,7 +1,6 @@
 package hosting
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -165,43 +164,14 @@ func (p *pageData) request(ctx context.Context) loaderResult {
 	return loaderResult{document: document, status: res.StatusCode}
 }
 
-// render executes the page as an html/template against the document. The page
-// is the deployment's own markup, so it is trusted as a template; the document
-// is the API's, and html/template escapes it for the context it lands in —
-// text, attribute, URL or script. status is the upstream status, or 0 when the
-// API could not be reached, so the page can branch on a missing or withheld
-// record.
+// render executes the page against the loader document. status is the upstream
+// status, or 0 when the API could not be reached, so the page can branch on a
+// missing or withheld record.
 func (p *pageData) render(body string, document map[string]any, status int) ([]byte, error) {
-	tmpl, err := template.New("page").
-		Option("missingkey=zero").
-		Funcs(template.FuncMap{
-			"status":  func() int { return status },
-			"default": p.fallback,
-		}).
-		Parse(body)
-
-	if err != nil {
-		return nil, err
-	}
-
-	var out bytes.Buffer
-
-	if err := tmpl.Execute(&out, document); err != nil {
-		return nil, err
-	}
-
-	return out.Bytes(), nil
-}
-
-// fallback backs the template's default function: {{.title | default "Videos"}}.
-// It fires on an absent, null or empty value and never on false or zero, which
-// are answers the API gave — unlike the built-in or, which treats them as empty.
-func (p *pageData) fallback(fallback, value any) any {
-	if value == nil || value == "" {
-		return fallback
-	}
-
-	return value
+	return pageTemplate{
+		Body:  body,
+		Funcs: template.FuncMap{"status": func() int { return status }},
+	}.render(document)
 }
 
 // applyPageData fetches the request's loader document and renders it into the

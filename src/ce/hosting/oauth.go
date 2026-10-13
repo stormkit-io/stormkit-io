@@ -73,8 +73,21 @@ func oauthScopesSupported() []string {
 // on consent. A requested scope missing from the catalog falls back to its raw
 // token, so the user always sees exactly what was asked for.
 func scopeLabels(scope string) []string {
+	list := scopeList(scope)
+	labels := make([]string, len(list))
+
+	for i, s := range list {
+		labels[i] = s["label"]
+	}
+
+	return labels
+}
+
+// scopeList is scopeLabels with the scope token kept alongside its label, so an
+// app's OAuth page can word each scope its own way.
+func scopeList(scope string) []map[string]string {
 	fields := strings.Fields(scope)
-	labels := make([]string, 0, len(fields))
+	list := make([]map[string]string, 0, len(fields))
 
 	for _, f := range fields {
 		label := f
@@ -86,10 +99,10 @@ func scopeLabels(scope string) []string {
 			}
 		}
 
-		labels = append(labels, label)
+		list = append(list, map[string]string{"name": f, "label": label})
 	}
 
-	return labels
+	return list
 }
 
 // oauthServer implements the OAuth 2.1 authorization server layered on SkAuth.
@@ -488,6 +501,15 @@ func (o *oauthServer) authorize() *shttp.Response {
 		return o.redirectError(p, "invalid_request", "a PKCE code_challenge using S256 is required")
 	}
 
+	// The app's own OAuth page handles every visitor, signed in or not.
+	if file := o.loginTemplate(); file != nil {
+		return o.renderTemplate(oauthTemplateParams{
+			File:   file,
+			Status: http.StatusOK,
+			Data:   o.templateData(p, client),
+		})
+	}
+
 	// The consent screen must know who is granting access. In cookie mode the
 	// session rides this top-level navigation; if it is absent we delegate to
 	// the app's own login page, which authenticates the user and bounces back
@@ -538,19 +560,11 @@ func (o *oauthServer) sessionIdentity() (uid, eml string, ok bool) {
 // or we have already bounced once, it surfaces an actionable error rather than
 // dead-ending or looping.
 func (o *oauthServer) delegateToLogin(p authzParams) *shttp.Response {
-	loginURL := strings.TrimSpace(o.req.Host.Config.SKAuth.LoginURL)
+	target, ok := o.loginTarget()
 
-	if loginURL == "" || o.req.Query().Get(oauthLoginRetryParam) == "1" {
+	if !ok || o.req.Query().Get(oauthLoginRetryParam) == "1" {
 		return o.errorPage("You are not signed in. Sign in to the application and try connecting again.")
 	}
-
-	returnTo := appendQuery(o.authorizeURL(), map[string]string{oauthLoginRetryParam: "1"})
-
-	if strings.HasPrefix(loginURL, "/") {
-		loginURL = o.issuer() + loginURL
-	}
-
-	target := appendQuery(loginURL, map[string]string{"return_to": returnTo})
 
 	return &shttp.Response{
 		Status:   http.StatusFound,
@@ -559,6 +573,25 @@ func (o *oauthServer) delegateToLogin(p authzParams) *shttp.Response {
 			"Cache-Control": "no-store",
 		}),
 	}
+}
+
+// loginTarget is the app's configured login URL with a return_to pointing back
+// at this exact authorize request (with the retry marker). ok is false when no
+// login URL is configured.
+func (o *oauthServer) loginTarget() (string, bool) {
+	loginURL := strings.TrimSpace(o.req.Host.Config.SKAuth.LoginURL)
+
+	if loginURL == "" {
+		return "", false
+	}
+
+	returnTo := appendQuery(o.authorizeURL(), map[string]string{oauthLoginRetryParam: "1"})
+
+	if strings.HasPrefix(loginURL, "/") {
+		loginURL = o.issuer() + loginURL
+	}
+
+	return appendQuery(loginURL, map[string]string{"return_to": returnTo}), true
 }
 
 // authorizeURL reconstructs the absolute URL of the current /authorize request
@@ -573,8 +606,20 @@ func (o *oauthServer) authorizeURL() string {
 
 // grant serves POST /_stormkit/oauth/authorize. The consent page calls it with
 // the session cookie (credentials:'include'); it validates identity + params and
-// mints a one-time authorization code bound to the PKCE challenge.
+// mints a one-time authorization code bound to the PKCE challenge. The built-in
+// consent page reads the answer as JSON; an HTML form (as an app's OAuth page
+// submits) is redirected instead.
 func (o *oauthServer) grant() *shttp.Response {
+	res := o.grantCode()
+
+	if o.isFormPost() {
+		return o.formResponse(res)
+	}
+
+	return res
+}
+
+func (o *oauthServer) grantCode() *shttp.Response {
 	p := o.parseAuthzParams()
 
 	// grant() authenticates from the session cookie, so it must never be drivable
@@ -875,7 +920,21 @@ func (o *oauthServer) redirectError(p authzParams, code, desc string) *shttp.Res
 	}
 }
 
+// errorPage explains why an authorization cannot go on, on the app's OAuth page
+// when it ships one.
 func (o *oauthServer) errorPage(msg string) *shttp.Response {
+	if file := o.loginTemplate(); file != nil {
+		return o.renderTemplate(oauthTemplateParams{
+			File:   file,
+			Status: http.StatusBadRequest,
+			Data:   map[string]any{"error": msg},
+		})
+	}
+
+	return o.builtInErrorPage(msg)
+}
+
+func (o *oauthServer) builtInErrorPage(msg string) *shttp.Response {
 	return &shttp.Response{
 		Status: http.StatusBadRequest,
 		Headers: shttp.HeadersFromMap(map[string]string{
@@ -900,17 +959,8 @@ func (o *oauthServer) errorPage(msg string) *shttp.Response {
 // its declared client_name; the requested scopes are listed with human-readable
 // labels so the user sees exactly what is being granted.
 func (o *oauthServer) consentPage(p authzParams, client oauthClient) *shttp.Response {
-	name := client.ClientName
-
-	if name == "" {
-		name = p.clientID
-	}
-
-	if name == "" {
-		name = "An application"
-	}
-
-	deny := appendQuery(p.redirectURI, map[string]string{"error": "access_denied", "state": p.state})
+	name := clientDisplayName(p, client)
+	deny := denyURL(p)
 
 	content := `
 <div class="container">
@@ -965,6 +1015,25 @@ func (o *oauthServer) consentPage(p authzParams, client oauthClient) *shttp.Resp
 			ContentData: map[string]any{"client": name, "deny": deny, "scopes": scopeLabels(p.scope)},
 		}),
 	}
+}
+
+// clientDisplayName is the name a client is shown under: its registered
+// client_name, else its client_id. Both are self-reported by the client.
+func clientDisplayName(p authzParams, client oauthClient) string {
+	if client.ClientName != "" {
+		return client.ClientName
+	}
+
+	if p.clientID != "" {
+		return p.clientID
+	}
+
+	return "An application"
+}
+
+// denyURL returns the user's refusal to the (already validated) redirect_uri.
+func denyURL(p authzParams) string {
+	return appendQuery(p.redirectURI, map[string]string{"error": "access_denied", "state": p.state})
 }
 
 func oauthJSON(status int, data any) *shttp.Response {

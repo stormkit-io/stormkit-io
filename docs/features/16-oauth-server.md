@@ -41,8 +41,8 @@ deployment is served — there is nothing to install in your application.
 | Endpoint | Description |
 | --- | --- |
 | `POST /_stormkit/oauth/register` | [RFC 7591](https://www.rfc-editor.org/rfc/rfc7591) Dynamic Client Registration. Clients self-register as **public** clients; PKCE is required. A client that asks for `grant_types: ["authorization_code", "refresh_token"]` is granted both; unsupported grant types are dropped. |
-| `GET /_stormkit/oauth/authorize` | Authorization request ([RFC 6749](https://www.rfc-editor.org/rfc/rfc6749) + PKCE [RFC 7636](https://www.rfc-editor.org/rfc/rfc7636)). If the user has no readable session, the server delegates to your app's configured **Login URL** (with a loop-guarded `return_to` param) rather than showing a Stormkit login page. |
-| `POST /_stormkit/oauth/authorize` | Consent / grant submission. Issues the authorization code. |
+| `GET /_stormkit/oauth/authorize` | Authorization request ([RFC 6749](https://www.rfc-editor.org/rfc/rfc6749) + PKCE [RFC 7636](https://www.rfc-editor.org/rfc/rfc7636)). Renders your app's [sign-in page](#custom-sign-in-page) when the deployment ships one. Otherwise, if the user has no readable session, the server delegates to your app's configured **Login URL** (with a loop-guarded `return_to` param) rather than showing a Stormkit login page. |
+| `POST /_stormkit/oauth/authorize` | Consent / grant submission. Issues the authorization code. Answers JSON to a `fetch` call, and redirects to the client when submitted as an HTML form. |
 | `POST /_stormkit/oauth/token` | Exchanges the authorization code + PKCE `code_verifier` for an access token, and — when the `offline_access` scope was requested — a rotating refresh token. |
 | `POST /_stormkit/oauth/revoke` | [RFC 7009](https://www.rfc-editor.org/rfc/rfc7009) token revocation. Deletes a refresh token. Always returns `200`, even for unknown tokens (per RFC 7009 §2.2, to prevent probing). |
 
@@ -93,7 +93,8 @@ Configure the OAuth server under **Environment** > **Authentication**.
    silently.
 4. Optionally enable **Allow loopback** to support native / CLI clients.
 5. **Set a Login URL** — your app's own login page. `/authorize` delegates
-   unauthenticated users here.
+   unauthenticated users here. Skip this if your deployment ships a
+   [custom sign-in page](#custom-sign-in-page).
 
 Remember to **Save** after changing these settings.
 
@@ -113,6 +114,60 @@ relevant fields are:
 
 See the [Authentication](/docs/features/authentication) docs for the full field
 list.
+
+## Custom sign-in page
+
+Instead of building a login page that handles `return_to` itself, ship a file
+named `_stormkit/oauth.html` at the root of your build output. When it exists,
+`/_stormkit/oauth/authorize` renders it for every visitor — signed in or not,
+and when the request is invalid — in place of the built-in consent screen and
+the **Login URL** redirect.
+
+The file is a Go [`html/template`](https://pkg.go.dev/html/template), the same
+syntax as [data loaders](/docs/features/redirects-and-path-rewrites#dynamic-pages): values are escaped for the
+context they land in, and `default` provides a fallback value
+(`{{.client_name | default "An app"}}`). Stormkit reserves the `_stormkit/`
+folder of your build output: files in it are never served at their own path, so
+the template's source does not leak.
+
+| Field | Meaning |
+| --- | --- |
+| `.client_name` | The client's registered name, else its `client_id`. **Self-reported** by the client. |
+| `.client_id` | The client's id. |
+| `.redirect_host` | Where the authorization goes back to, e.g. `claude.ai`. This is the value Stormkit verifies. |
+| `.scopes` | The requested scopes, each with `.name` and a readable `.label`. |
+| `.signed_in` | Whether the visitor has a session. |
+| `.user.id`, `.user.email` | The signed-in user. Unset when signed out. |
+| `.continue_url` | Completes the authorization. **POST** a form to it; a link will not work. Unset when signed out. |
+| `.cancel_url` | Returns a denial to the client. A plain link. |
+| `.login_url` | Your **Login URL** with a `return_to` back here, when one is configured and the visitor is signed out. |
+| `.error` | Why the request cannot go on. When it is set, no other field is. |
+
+```html
+<!doctype html>
+<html>
+  <body>
+    {{if .error}}
+      <p>{{.error}}</p>
+    {{else if .signed_in}}
+      <h1>Connect {{.client_name}} to your account</h1>
+      <p>Signed in as {{.user.email}}. {{.client_name}} will be able to:</p>
+      <ul>{{range .scopes}}<li>{{.label}}</li>{{end}}</ul>
+      <form method="post" action="{{.continue_url}}">
+        <button type="submit">Continue</button>
+      </form>
+      <a href="{{.cancel_url}}">Cancel</a>
+    {{else}}
+      <h1>Sign in to connect {{.client_name}}</h1>
+      <a href="{{.login_url}}">Sign in</a>
+    {{end}}
+  </body>
+</html>
+```
+
+The page is served with `X-Frame-Options: DENY`, `Cache-Control: no-store` and
+`Referrer-Policy: same-origin`. Keep the referrer policy: a form posted under
+`no-referrer` is sent with `Origin: null` and rejected as cross-origin.
 
 ## How a connector connects
 
@@ -140,5 +195,7 @@ list.
   depends on it for identities and the signing secret.
 - **A native / CLI client can't complete the flow**: enable the **Allow
   loopback** toggle. Loopback redirects are only trusted when it is on.
+- **A custom sign-in page shows "could not be rendered"**: the template has a
+  syntax error, or reads a field of a value that is not set (use `{{with}}`).
 - **Users get stuck in a login loop**: set the **Login URL** to your app's login
   page so `/authorize` can delegate unauthenticated users to it.

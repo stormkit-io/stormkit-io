@@ -389,7 +389,7 @@ export default function SkAuth() {
             defaultValue={config?.loginUrl || ""}
             variant="filled"
             autoComplete="off"
-            helperText="The app's own login page, used by the OAuth server. When an MCP client starts a connect flow and the user has no session, /authorize redirects here with a return_to query parameter; your login page must send the user back to that URL after signing in. A relative path or an absolute URL."
+            helperText="The app's own login page, used by the OAuth server. When an MCP client starts a connect flow and the user has no session, /authorize redirects here with a return_to query parameter; your login page must send the user back to that URL after signing in. A relative path or an absolute URL. Ignored when the deployment ships /_stormkit/oauth.html."
             slotProps={{ inputLabel: { shrink: true } }}
           />
         </Box>
