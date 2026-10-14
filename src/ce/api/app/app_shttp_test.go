@@ -99,6 +99,34 @@ func (s *AppSHTTPSuite) Test_WithAPIKey_AdminScope_Success() {
 	s.Equal(key.AppID.String(), (res.Data.(map[string]string))["appId"])
 }
 
+// Test_WithAPIKey_ReadOnly verifies that a read-only key can read but not write.
+func (s *AppSHTTPSuite) Test_WithAPIKey_ReadOnly() {
+	usr := s.MockUser()
+	apl := s.MockApp(usr)
+	env := s.MockEnv(apl)
+	key := s.MockAPIKey(apl, env, map[string]any{
+		"UserID":   usr.ID,
+		"ReadOnly": true,
+	})
+
+	call := func(method string) *shttp.Response {
+		return app.WithAPIKey(func(rc *app.RequestContext) *shttp.Response {
+			return shttp.OK()
+		})(&shttp.RequestContext{
+			Request: &http.Request{
+				Method: method,
+				Header: http.Header{
+					"Authorization": []string{key.Value},
+				},
+			},
+		})
+	}
+
+	s.Equal(http.StatusOK, call(http.MethodGet).Status)
+	s.Equal(http.StatusForbidden, call(http.MethodPost).Status)
+	s.Equal(http.StatusForbidden, call(http.MethodPut).Status)
+}
+
 func (s *AppSHTTPSuite) Test_WithAPIKey_Success_EnvID() {
 	usr := s.MockUser()
 	apl := s.MockApp(usr)

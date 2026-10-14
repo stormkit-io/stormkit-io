@@ -69,6 +69,31 @@ func (s *HandlerEnvPullSuite) TestSuccess() {
 	s.JSONEq(response.String(), string(jsonVal))
 }
 
+// TestReadOnlyKeyRefused verifies that a read-only key cannot pull plaintext
+// environment variables.
+func (s *HandlerEnvPullSuite) TestReadOnlyKeyRefused() {
+	env := s.MockEnv(nil, map[string]any{
+		"Data": &buildconf.BuildConf{
+			Vars: map[string]string{"SECRET": "value"},
+		},
+	})
+
+	key := s.MockAPIKey(nil, env, map[string]any{"ReadOnly": true})
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(publicapiv1.Services).Router().Handler(),
+		shttp.MethodGet,
+		"/v1/env/pull",
+		nil,
+		map[string]string{
+			"Authorization": key.Value,
+		},
+	)
+
+	s.Equal(http.StatusForbidden, response.Code)
+	s.NotContains(response.String(), "value")
+}
+
 // Revealing the values through an API key is audited too, attributed to the
 // key's token name rather than a user.
 func (s *HandlerEnvPullSuite) TestAPIKeyRevealIsAudited() {

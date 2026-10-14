@@ -4,6 +4,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
 import Alert from "@mui/material/Alert";
+import Chip from "@mui/material/Chip";
 import DeleteIcon from "@mui/icons-material/Delete";
 import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
@@ -22,6 +23,8 @@ interface Props {
   title?: string;
   subtitle: string;
   emptyMessage: string;
+  forceReadOnly?: boolean;
+  canDelete?: (apiKey: APIKey) => boolean;
   apiKeyProps: {
     appId?: string;
     envId?: string;
@@ -37,6 +40,8 @@ export default function APIKeyList({
   title = "API Keys",
   subtitle,
   emptyMessage,
+  forceReadOnly,
+  canDelete = () => true,
   apiKeyProps,
 }: Props) {
   const [refreshToken, setRefreshToken] = useState<number>();
@@ -50,10 +55,10 @@ export default function APIKeyList({
     refreshToken,
   });
 
-  const handleNewKey = (name: string) => {
+  const handleNewKey = (name: string, readOnly: boolean) => {
     setModalLoading(true);
 
-    generateNewAPIKey({ ...apiKeyProps, name })
+    generateNewAPIKey({ ...apiKeyProps, name, readOnly })
       .then(apiKey => {
         setKeys([...keys, apiKey]);
         setNewlyCreatedToken(apiKey.token);
@@ -102,17 +107,24 @@ export default function APIKeyList({
           <CardRow
             key={apiKey.id}
             menuLabel={`expand-${apiKey.id}`}
-            menuItems={[
-              {
-                text: "Delete",
-                icon: <DeleteIcon />,
-                onClick: () => {
-                  setApiKeyToDelete(apiKey);
-                },
-              },
-            ]}
+            menuItems={
+              canDelete(apiKey)
+                ? [
+                    {
+                      text: "Delete",
+                      icon: <DeleteIcon />,
+                      onClick: () => {
+                        setApiKeyToDelete(apiKey);
+                      },
+                    },
+                  ]
+                : undefined
+            }
           >
-            <Typography>{apiKey.name}</Typography>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Typography>{apiKey.name}</Typography>
+              {apiKey.readOnly && <Chip size="small" label="Read only" />}
+            </Box>
           </CardRow>
         ))}
       </Box>
@@ -132,6 +144,7 @@ export default function APIKeyList({
         <APIKeyModal
           error={modalError}
           loading={modalLoading}
+          forceReadOnly={forceReadOnly}
           onClose={() => setIsModalOpen(false)}
           onSubmit={handleNewKey}
         />

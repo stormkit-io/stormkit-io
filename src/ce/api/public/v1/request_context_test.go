@@ -88,6 +88,37 @@ func (s *RequestContextSuite) Test_ForbiddenOrNotFound() {
 	}
 }
 
+// Test_ReadOnlyKey verifies that read-only keys are refused unless the
+// endpoint opts in, and then only on GET and HEAD unless the handler enforces
+// read-only access itself.
+func (s *RequestContextSuite) Test_ReadOnlyKey() {
+	usr := s.MockUser()
+	key := s.MockAPIKey(nil, nil, map[string]any{
+		"UserID":   usr.ID,
+		"AppID":    types.ID(0),
+		"EnvID":    types.ID(0),
+		"Scope":    apikey.SCOPE_USER,
+		"ReadOnly": true,
+	})
+
+	denied := &publicapiv1.Opts{MinimumScope: apikey.SCOPE_USER}
+	allowed := &publicapiv1.Opts{MinimumScope: apikey.SCOPE_USER, ReadOnly: publicapiv1.ReadOnlyAllowed}
+	handled := &publicapiv1.Opts{MinimumScope: apikey.SCOPE_USER, ReadOnly: publicapiv1.ReadOnlyHandled}
+
+	resp := s.invoke(http.MethodGet, "/", "", "", key.Value, denied)
+	s.Equal(http.StatusForbidden, resp.Status)
+	s.Equal("read_only_api_key", resp.Data.(shttp.APIErrorBody).Code)
+
+	s.Equal(http.StatusOK, s.invoke(http.MethodGet, "/", "", "", key.Value, allowed).Status)
+	s.Equal(http.StatusOK, s.invoke(http.MethodHead, "/", "", "", key.Value, allowed).Status)
+
+	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions} {
+		s.Equal(http.StatusForbidden, s.invoke(method, "/", "", "", key.Value, allowed).Status, method)
+	}
+
+	s.Equal(http.StatusOK, s.invoke(http.MethodPost, "/", "", "", key.Value, handled).Status)
+}
+
 // Test_NotOwnedIsIndistinguishableFromMissing guards against app/env
 // enumeration (issue #460): a resource the caller does not own must answer
 // exactly as one that does not exist, so the 404-vs-403 split cannot reveal

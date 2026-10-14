@@ -3545,7 +3545,7 @@
         }
       },
       "Forbidden": {
-        "description": "The API key is missing, invalid, or its scope is too narrow for this operation.",
+        "description": "The API key is missing, invalid, or its scope is too narrow for this operation. A read-only key gets this response with the code `read_only_api_key` on any request that is not GET or HEAD, and on endpoints that reveal secrets.",
         "content": {
           "application/json": {
             "schema": {

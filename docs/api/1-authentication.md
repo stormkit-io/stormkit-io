@@ -31,6 +31,26 @@ This API Key will grant access to all applications owned by the team.
 
 This API Key will grant access to the specified environment.
 
+## Read-only API keys
+
+Any of the keys above can be created as **read only** by turning on the
+**Read only** switch in the creation dialog. A read-only key:
+
+- answers on `GET` and `HEAD` requests only, and only on endpoints that reveal
+  no secrets. Everything else is refused with `403` and the code
+  `read_only_api_key`.
+- cannot pull plaintext environment variables (`GET /v1/env/pull`), and does
+  not receive the private key of custom domain certificates.
+- sees and calls only the read-only tools on the [MCP server](/docs/api/mcp).
+  The MCP server needs a user-level key.
+
+Team members with the developer role can create and delete read-only team
+keys; full-access team keys still need an owner or admin.
+
+Use read-only keys for monitors, dashboards and agents that should never deploy,
+change or delete anything. The setting cannot be changed after creation; delete
+the key and create a new one instead.
+
 > **Important:** The API key token is displayed **only once** immediately after creation. Make sure to copy it before closing the dialog — it cannot be retrieved afterwards. If you lose the key, delete it and create a new one.
 
 ## Authenticating
@@ -99,6 +119,7 @@ Every failing call answers with JSON:
 | `errors` | Present on validation failures: a message per rejected field, keyed by field name. |
 
 Common codes: `forbidden` (missing, invalid or too narrowly scoped key),
+`read_only_api_key` (a read-only key attempted a change),
 `unauthorized` (no credentials at all), `not-found` (the addressed resource does
 not exist or is not visible to the key), `unknown-endpoint` (no such path — check
 the OpenAPI document), `method-not-allowed` (wrong HTTP method for the path).

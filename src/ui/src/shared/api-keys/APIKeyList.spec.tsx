@@ -202,6 +202,33 @@ describe("~/shared/api-keys/APIKeyList.tsx", () => {
       expect(execCommand).toHaveBeenCalledWith("copy");
     });
 
+    test("creates a read-only key and labels it in the list", async () => {
+      createWrapper();
+
+      await waitFor(() => {
+        expect(fetchScope.isDone()).toBe(true);
+      });
+
+      fireEvent.click(wrapper.getByText("New API Key"));
+
+      const generateScope = mockGenerateAPIKey({
+        name: "Monitor",
+        scope: "env",
+        envId,
+        readOnly: true,
+      });
+
+      await userEvent.type(wrapper.getByLabelText("API Key name"), "Monitor");
+      fireEvent.click(wrapper.getByLabelText("Read only"));
+      fireEvent.click(wrapper.getByText("Create"));
+
+      await waitFor(() => {
+        expect(generateScope.isDone()).toBe(true);
+        expect(wrapper.getByText("Monitor")).toBeTruthy();
+        expect(wrapper.getByText("Read only")).toBeTruthy();
+      });
+    });
+
     test("shows an error in the modal when creation fails with a 400", async () => {
       createWrapper();
 

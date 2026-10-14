@@ -41,14 +41,15 @@ func handlerAPIKeyRemove(req *user.RequestContext) *shttp.Response {
 		}
 	} else if key.TeamID != 0 {
 		// Team keys act on the whole team, so managing them needs the same
-		// write access as creating them.
+		// access as creating them: write access, or any membership for a
+		// read-only key.
 		myTeam, err := team.NewStore().Team(req.Context(), key.TeamID, req.User.ID)
 
 		if err != nil {
 			return shttp.Error(err)
 		}
 
-		if myTeam == nil || !team.HasWriteAccess(myTeam.CurrentUserRole) {
+		if myTeam == nil || (!key.ReadOnly && !team.HasWriteAccess(myTeam.CurrentUserRole)) {
 			return shttp.Forbidden()
 		}
 	} else if key.UserID != 0 {

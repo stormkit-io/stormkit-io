@@ -14,6 +14,15 @@ type CustomCert struct {
 	Key   string `json:"key"`   // The private key
 }
 
+// WithoutKey returns a copy of the certificate with the private key removed.
+func (c *CustomCert) WithoutKey() *CustomCert {
+	if c == nil {
+		return nil
+	}
+
+	return &CustomCert{Value: c.Value}
+}
+
 type DomainModel struct {
 	ID         types.ID
 	EnvID      types.ID

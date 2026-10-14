@@ -219,6 +219,17 @@ func ForbiddenAPIKey() *Response {
 	})
 }
 
+// ForbiddenReadOnlyAPIKey returns a 403 for a read-only API key that attempted
+// a request which changes state.
+func ForbiddenReadOnlyAPIKey() *Response {
+	return APIError(APIErrorParams{
+		Status:  http.StatusForbidden,
+		Code:    "read_only_api_key",
+		Message: "This API key is read-only and cannot make changes.",
+		Docs:    DocsAuthenticationURL,
+	})
+}
+
 // Gone returns a 410 response with empty data.
 func Gone() *Response {
 	return &Response{

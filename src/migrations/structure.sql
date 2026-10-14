@@ -250,7 +250,8 @@ CREATE TABLE skitapi.api_keys (
     key_scope text NOT NULL,
     created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text) NOT NULL,
     user_id bigint,
-    team_id bigint
+    team_id bigint,
+    read_only boolean DEFAULT false NOT NULL
 );
 
 

@@ -59,6 +59,7 @@ func (s *HandlerAPIKeyGetSuite) Test_Success_ScopeEnv() {
 			"teamId": "",
 			"id":"1",
 			"scope":"env",
+			"readOnly": false,
 			"name": "Default"
 		}]}`
 
@@ -96,6 +97,7 @@ func (s *HandlerAPIKeyGetSuite) Test_Success_ScopeTeam() {
 			"appId":"",
 			"teamId":"%d",
 			"scope":"team",
+			"readOnly": false,
 			"name": "Default"
 		}]}`,
 		usr.DefaultTeamID,

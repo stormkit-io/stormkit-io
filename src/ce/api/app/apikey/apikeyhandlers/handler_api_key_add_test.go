@@ -67,6 +67,38 @@ func (s *HandlerAPIKeySetSuite) Test_Success_EnvID() {
 	s.True(strings.HasPrefix(data.Value, "SK_"))
 }
 
+func (s *HandlerAPIKeySetSuite) Test_Success_ReadOnly() {
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	env := s.MockEnv(appl)
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(apikeyhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/api-keys",
+		map[string]any{
+			"envId":    env.ID.String(),
+			"name":     "Monitor",
+			"readOnly": true,
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+
+	data := apikey.Token{}
+
+	s.NoError(json.Unmarshal([]byte(response.String()), &data))
+	s.Equal(http.StatusCreated, response.Code)
+	s.True(data.ReadOnly)
+
+	stored, err := apikey.NewStore().APIKey(context.Background(), data.Value)
+
+	s.Require().NoError(err)
+	s.Require().NotNil(stored)
+	s.True(stored.ReadOnly)
+}
+
 func (s *HandlerAPIKeySetSuite) Test_Success_UserID() {
 	usr := s.MockUser()
 
@@ -142,6 +174,41 @@ func (s *HandlerAPIKeySetSuite) Test_Team_DeveloperForbidden() {
 	)
 
 	s.Equal(http.StatusForbidden, response.Code)
+}
+
+// Test_Team_DeveloperReadOnly verifies that a team member without write access
+// can still create a read-only team key.
+func (s *HandlerAPIKeySetSuite) Test_Team_DeveloperReadOnly() {
+	owner := s.MockUser()
+	developer := s.MockUser()
+
+	s.Require().NoError(team.NewStore().AddMemberToTeam(context.Background(), &team.Member{
+		TeamID: owner.DefaultTeamID,
+		UserID: developer.ID,
+		Role:   team.ROLE_DEVELOPER,
+		Status: true,
+	}))
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(apikeyhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/api-keys",
+		map[string]any{
+			"teamId":   owner.DefaultTeamID.String(),
+			"name":     "Dashboard",
+			"readOnly": true,
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(developer.ID),
+		},
+	)
+
+	data := apikey.Token{}
+
+	s.NoError(json.Unmarshal([]byte(response.String()), &data))
+	s.Equal(http.StatusCreated, response.Code)
+	s.Equal(owner.DefaultTeamID, data.TeamID)
+	s.True(data.ReadOnly)
 }
 
 func (s *HandlerAPIKeySetSuite) Test_InvalidScope() {

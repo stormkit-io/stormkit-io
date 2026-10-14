@@ -61,6 +61,46 @@ func (s *HandlerAPIKeyRemoveSuite) Test_Success() {
 	s.Equal(http.StatusOK, response.Code)
 }
 
+// Test_Team_DeveloperReadOnly verifies that a team member without write access
+// can delete a read-only team key but not a full-access one.
+func (s *HandlerAPIKeyRemoveSuite) Test_Team_DeveloperReadOnly() {
+	owner := s.MockUser()
+	developer := s.MockUser()
+
+	s.Require().NoError(team.NewStore().AddMemberToTeam(context.Background(), &team.Member{
+		TeamID: owner.DefaultTeamID,
+		UserID: developer.ID,
+		Role:   team.ROLE_DEVELOPER,
+		Status: true,
+	}))
+
+	teamKey := func(readOnly bool) *factory.MockAPIKey {
+		return s.MockAPIKey(nil, nil, map[string]any{
+			"UserID":   types.ID(0),
+			"AppID":    types.ID(0),
+			"EnvID":    types.ID(0),
+			"TeamID":   owner.DefaultTeamID,
+			"Scope":    apikey.SCOPE_TEAM,
+			"ReadOnly": readOnly,
+		})
+	}
+
+	remove := func(key *factory.MockAPIKey) int {
+		return shttptest.RequestWithHeaders(
+			shttp.NewRouter().RegisterService(apikeyhandlers.Services).Router().Handler(),
+			shttp.MethodDelete,
+			fmt.Sprintf("/api-keys?keyId=%s", key.ID.String()),
+			nil,
+			map[string]string{
+				"Authorization": usertest.Authorization(developer.ID),
+			},
+		).Code
+	}
+
+	s.Equal(http.StatusForbidden, remove(teamKey(false)))
+	s.Equal(http.StatusOK, remove(teamKey(true)))
+}
+
 func (s *HandlerAPIKeyRemoveSuite) Test_Success_UserID() {
 	usr := s.MockUser()
 	app := s.MockApp(usr)

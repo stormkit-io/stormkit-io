@@ -53,11 +53,13 @@ interface GenerateNewAPIKeyProps {
   userId?: string;
   name: string;
   scope: string;
+  readOnly?: boolean;
 }
 
 export const generateNewAPIKey = ({
   name,
   scope,
+  readOnly = false,
   appId,
   envId,
   teamId,
@@ -70,5 +72,6 @@ export const generateNewAPIKey = ({
     userId,
     name,
     scope,
+    readOnly,
   });
 };

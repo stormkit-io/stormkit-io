@@ -73,6 +73,37 @@ func (s *UserSHTTPSuite) Test_WithAPIKey_Success() {
 	s.Equal(res.Status, http.StatusOK)
 }
 
+// Test_WithAPIKey_ReadOnly verifies that a read-only key can read but not write.
+func (s *UserSHTTPSuite) Test_WithAPIKey_ReadOnly() {
+	usr := s.MockUser()
+	tkn := &apikey.Token{
+		Scope:    apikey.SCOPE_USER,
+		UserID:   usr.ID,
+		Value:    apikey.GenerateTokenValue(),
+		ReadOnly: true,
+	}
+
+	s.Require().NoError(apikey.NewStore().AddAPIKey(context.Background(), tkn))
+
+	call := func(method string) *shttp.Response {
+		headers := make(http.Header)
+		headers.Set("Authorization", fmt.Sprintf("Bearer %s", tkn.Value))
+
+		return user.WithAPIKey(func(rc *user.RequestContext) *shttp.Response {
+			return shttp.OK()
+		})(&shttp.RequestContext{
+			Request: &http.Request{
+				Method: method,
+				Header: headers,
+			},
+		})
+	}
+
+	s.Equal(http.StatusOK, call(http.MethodGet).Status)
+	s.Equal(http.StatusForbidden, call(http.MethodPost).Status)
+	s.Equal(http.StatusForbidden, call(http.MethodDelete).Status)
+}
+
 func (s *UserSHTTPSuite) Test_WithAPIKey_Forbidden() {
 	headers := make(http.Header)
 

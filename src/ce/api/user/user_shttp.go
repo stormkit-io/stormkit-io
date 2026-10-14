@@ -138,6 +138,10 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response) shttp.RequestFunc
 			return shttp.Forbidden()
 		}
 
+		if !key.AllowsMethod(rc.Method) {
+			return shttp.ForbiddenReadOnlyAPIKey()
+		}
+
 		user, err := NewStore().UserByID(key.UserID)
 
 		if err != nil {

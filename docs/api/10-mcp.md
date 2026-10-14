@@ -72,6 +72,8 @@ Or as raw `.mcp.json`:
 
 All tools return JSON. Errors are reported as MCP `isError` content while the transport stays HTTP 200, per JSON-RPC convention.
 
+Every tool carries MCP annotations (`readOnlyHint`, `destructiveHint`, `openWorldHint`) so clients can tell which calls are safe to run without asking. With a [read-only API key](/docs/api/authentication#read-only-api-keys), `tools/list` returns only the read-only tools, and calling any other tool fails with the `read_only_api_key` error.
+
 > **Environment variable values are masked.** Tools that return environments (such as `list_environments`) blank out variable _values_ for security, matching the REST API. See the [Environments API](/docs/api/environments) for the dedicated pull endpoint.
 
 ### Deployments

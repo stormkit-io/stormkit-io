@@ -30,6 +30,7 @@ export const mockFetchAPIKeys = ({
 interface MockGenerateAPIKeyProps {
   name: string;
   scope: string;
+  readOnly?: boolean;
   appId?: string;
   envId?: string;
   teamId?: string;
@@ -41,6 +42,7 @@ interface MockGenerateAPIKeyProps {
 export const mockGenerateAPIKey = ({
   name,
   scope,
+  readOnly = false,
   appId,
   envId,
   teamId,
@@ -52,13 +54,14 @@ export const mockGenerateAPIKey = ({
     scope: scope as APIKey["scope"],
     appId: appId || "",
     envId: envId || "",
+    readOnly,
     token:
       "SK_newtoken1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdefghij",
   },
 }: MockGenerateAPIKeyProps) => {
   // JSON.stringify drops undefined values, so only include defined fields in
   // the body matcher to avoid nock mismatches.
-  const body: Record<string, string> = { name, scope };
+  const body: Record<string, string | boolean> = { name, scope, readOnly };
   if (appId !== undefined) body.appId = appId;
   if (envId !== undefined) body.envId = envId;
   if (teamId !== undefined) body.teamId = teamId;

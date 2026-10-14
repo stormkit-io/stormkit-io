@@ -21,6 +21,9 @@ type APIKeyGenerateRequest struct {
 	AppID  types.ID `json:"appId,string"`
 	TeamID types.ID `json:"teamId,string"`
 	UserID types.ID `json:"userId,string"`
+
+	// ReadOnly creates a key that cannot change state.
+	ReadOnly bool `json:"readOnly"`
 }
 
 func handlerAPIKeyAdd(req *user.RequestContext) *shttp.Response {
@@ -38,6 +41,8 @@ func handlerAPIKeyAdd(req *user.RequestContext) *shttp.Response {
 		Name:   strings.TrimSpace(data.Name),
 		Scope:  data.Scope,
 		Value:  apikey.GenerateTokenValue(),
+
+		ReadOnly: data.ReadOnly,
 	}
 
 	if key.Scope == "" {
@@ -130,8 +135,10 @@ func handlerAPIKeyAdd(req *user.RequestContext) *shttp.Response {
 		}
 
 		// A team key carries no user, so the endpoints it reaches cannot check
-		// a role. Only members who could act on the whole team may create one.
-		if !team.HasWriteAccess(myTeam.CurrentUserRole) {
+		// a role. Only members who could act on the whole team may create one,
+		// except a read-only key, which any member may create since it cannot
+		// change anything.
+		if !key.ReadOnly && !team.HasWriteAccess(myTeam.CurrentUserRole) {
 			return shttp.Forbidden()
 		}
 	}

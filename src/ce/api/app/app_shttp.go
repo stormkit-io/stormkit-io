@@ -95,6 +95,10 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 				return shttp.Forbidden()
 			}
 
+			if !key.AllowsMethod(req.Method) {
+				return shttp.ForbiddenReadOnlyAPIKey()
+			}
+
 			request.Token = key
 			isAdmin := false
 

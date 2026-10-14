@@ -64,12 +64,19 @@ func HandlerDomainsList(req *RequestContext) *shttp.Response {
 	response := []map[string]any{}
 
 	for _, domain := range domains {
+		cert := domain.CustomCert
+
+		// Read-only keys must not reveal secrets, and the private key is one.
+		if req.Token.ReadOnly {
+			cert = cert.WithoutKey()
+		}
+
 		response = append(response, map[string]any{
 			"id":                domain.ID.String(),
 			"domainName":        domain.Name,
 			"verified":          domain.Verified,
 			"token":             domain.Token.ValueOrZero(),
-			"customCert":        domain.CustomCert,
+			"customCert":        cert,
 			"lastPing":          domain.LastPing,
 			"analyticsExcluded": domain.AnalyticsExcluded,
 		})

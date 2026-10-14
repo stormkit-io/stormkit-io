@@ -56,7 +56,8 @@ describe("~/pages/team/Settings.tsx", () => {
     it("should load all sections", () => {
       expect(wrapper.getByText("Team settings")).toBeTruthy();
       expect(wrapper.getByText("Team members")).toBeTruthy();
-      expect(() => wrapper.getByText("API Keys")).toThrow();
+      // Developers can create read-only team keys.
+      expect(wrapper.getByText("API Keys")).toBeTruthy();
       expect(() => wrapper.getByText("Danger zone")).toThrow();
     });
   });

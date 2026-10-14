@@ -107,7 +107,7 @@ func handlerMCP(req *RequestContext) *shttp.Response {
 
 	case "tools/list":
 		return jsonRPCResult(rpcReq.ID, map[string]any{
-			"tools": mcpAllTools(),
+			"tools": mcpTools(req.Token.ReadOnly),
 		})
 
 	case "tools/call":
@@ -131,6 +131,16 @@ func handlerMCP(req *RequestContext) *shttp.Response {
 // *shttp.Response into a JSON-RPC result envelope. Tool wrappers return an
 // *shttp.Response directly — same as every other handler in this package.
 func mcpDispatch(req *RequestContextMCP, id any, params *toolCallParams) *shttp.Response {
+	// Refuse every tool not known to be read-only. Unknown names still get the
+	// standard error, but never reach the dispatch below.
+	if req.Token.ReadOnly && !mcpToolAnnotationsFor(params.Name).ReadOnlyHint {
+		if !mcpToolExists(params.Name) {
+			return jsonRPCError(id, rpcErrMethodUnknown, "unknown tool: "+params.Name)
+		}
+
+		return mcpToolResult(mcpToolResultParams{ID: id, Resp: shttp.ForbiddenReadOnlyAPIKey()})
+	}
+
 	var resp *shttp.Response
 
 	switch params.Name {
@@ -227,6 +237,18 @@ func mcpDispatch(req *RequestContextMCP, id any, params *toolCallParams) *shttp.
 	default:
 		return jsonRPCError(id, rpcErrMethodUnknown, "unknown tool: "+params.Name)
 	}
+
+	return mcpToolResult(mcpToolResultParams{ID: id, Resp: resp})
+}
+
+type mcpToolResultParams struct {
+	ID   any
+	Resp *shttp.Response
+}
+
+// mcpToolResult wraps a tool's *shttp.Response in a JSON-RPC result envelope.
+func mcpToolResult(p mcpToolResultParams) *shttp.Response {
+	id, resp := p.ID, p.Resp
 
 	// Map HTTP error responses to MCP isError content so the agent can read
 	// the reason while the transport stays HTTP 200 (JSON-RPC convention).

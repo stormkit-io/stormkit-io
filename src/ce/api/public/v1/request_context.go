@@ -158,7 +158,28 @@ type Opts struct {
 	// are rejected by default, since app-level endpoints reach beyond the
 	// key's own environment; only endpoints that stay within it opt in.
 	AllowEnvKeys bool
+
+	// ReadOnly decides whether read-only keys may use the endpoint. They are
+	// refused unless the endpoint opts in, so a new endpoint is closed to them
+	// until someone checks that it neither changes state nor reveals secrets.
+	ReadOnly ReadOnlyAccess
 }
+
+// ReadOnlyAccess says how an endpoint treats read-only API keys.
+type ReadOnlyAccess int
+
+const (
+	// ReadOnlyDenied refuses read-only keys. This is the default.
+	ReadOnlyDenied ReadOnlyAccess = iota
+
+	// ReadOnlyAllowed lets read-only keys in on GET and HEAD. For endpoints
+	// that change nothing and return no secrets.
+	ReadOnlyAllowed
+
+	// ReadOnlyHandled lets read-only keys in on any method because the handler
+	// enforces read-only access itself, as the MCP endpoint does per tool.
+	ReadOnlyHandled
+)
 
 func getOpts(opts ...*Opts) *Opts {
 	o := &Opts{}
@@ -215,6 +236,18 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 			}
 
 			request.Token = key
+		}
+
+		if request.Token.ReadOnly {
+			switch options.ReadOnly {
+			case ReadOnlyHandled:
+			case ReadOnlyAllowed:
+				if !request.Token.AllowsMethod(req.Method) {
+					return shttp.ForbiddenReadOnlyAPIKey()
+				}
+			default:
+				return shttp.ForbiddenReadOnlyAPIKey()
+			}
 		}
 
 		switch options.MinimumScope {

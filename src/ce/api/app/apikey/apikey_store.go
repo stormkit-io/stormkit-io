@@ -21,8 +21,8 @@ var stmt = struct {
 	selectAPIKeys string
 }{
 	addAPIKey: fmt.Sprintf(`
-		INSERT INTO %s (key_name, key_value, app_id, env_id, user_id, team_id, key_scope)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO %s (key_name, key_value, app_id, env_id, user_id, team_id, key_scope, read_only)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING key_id;
 	`, tableAPIKeys),
 
@@ -39,7 +39,8 @@ var stmt = struct {
 			COALESCE(user_id, 0),
 			key_name,
 			key_value,
-			key_scope
+			key_scope,
+			read_only
 		FROM
 			api_keys
 		WHERE
@@ -104,7 +105,7 @@ func (s *Store) APIKeys(ctx context.Context, id types.ID, scope string) ([]Token
 		key := Token{}
 		err := rows.Scan(
 			&key.ID, &key.AppID, &key.EnvID, &key.TeamID,
-			&key.UserID, &key.Name, &key.Value, &key.Scope,
+			&key.UserID, &key.Name, &key.Value, &key.Scope, &key.ReadOnly,
 		)
 
 		if err != nil {
@@ -175,7 +176,7 @@ func (s *Store) apiKey(ctx context.Context, filters apiKeyFilters) (*Token, erro
 
 		err := rows.Scan(
 			&key.ID, &key.AppID, &key.EnvID, &key.TeamID,
-			&key.UserID, &key.Name, &key.Value, &key.Scope,
+			&key.UserID, &key.Name, &key.Value, &key.Scope, &key.ReadOnly,
 		)
 
 		if err != nil {
@@ -221,6 +222,7 @@ func (s *Store) AddAPIKey(ctx context.Context, key *Token) error {
 		usrID,
 		teamID,
 		key.Scope,
+		key.ReadOnly,
 	)
 
 	if err != nil {

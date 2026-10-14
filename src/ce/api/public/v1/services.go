@@ -19,24 +19,24 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodGet, "", handlerOpenAPI)
 
 	s.NewEndpoint("/v1/apps").
-		Handler(shttp.MethodGet, "", WithAPIKey(handlerAppList, &Opts{MinimumScope: apikey.SCOPE_TEAM}))
+		Handler(shttp.MethodGet, "", WithAPIKey(handlerAppList, &Opts{MinimumScope: apikey.SCOPE_TEAM, ReadOnly: ReadOnlyAllowed}))
 
 	s.NewEndpoint("/v1/app").
 		Handler(shttp.MethodPost, "", WithAPIKey(handlerAppCreate, &Opts{MinimumScope: apikey.SCOPE_TEAM})).
-		Handler(shttp.MethodGet, "", WithAPIKey(handlerAppGet, &Opts{MinimumScope: apikey.SCOPE_APP, AllowEnvKeys: true})).                // With API Key
-		Handler(shttp.MethodGet, "/{appId:[0-9]+}", WithAPIKey(handlerAppGet, &Opts{MinimumScope: apikey.SCOPE_APP, AllowEnvKeys: true})). // Without API Key
-		Handler(shttp.MethodGet, "/config", WithAPIKey(handlerAppConf, &Opts{MinimumScope: apikey.SCOPE_APP, AllowEnvKeys: true}))
+		Handler(shttp.MethodGet, "", WithAPIKey(handlerAppGet, &Opts{MinimumScope: apikey.SCOPE_APP, AllowEnvKeys: true, ReadOnly: ReadOnlyAllowed})).                // With API Key
+		Handler(shttp.MethodGet, "/{appId:[0-9]+}", WithAPIKey(handlerAppGet, &Opts{MinimumScope: apikey.SCOPE_APP, AllowEnvKeys: true, ReadOnly: ReadOnlyAllowed})). // Without API Key
+		Handler(shttp.MethodGet, "/config", WithAPIKey(handlerAppConf, &Opts{MinimumScope: apikey.SCOPE_APP, AllowEnvKeys: true, ReadOnly: ReadOnlyAllowed}))
 
 	s.NewEndpoint("/v1/deploy").
 		Handler(shttp.MethodPost, "", WithAPIKey(handlerDeploymentCreate, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	s.NewEndpoint("/v1/deployments").
-		Handler(shttp.MethodGet, "", WithAPIKey(handlerDeploymentList, &Opts{MinimumScope: apikey.SCOPE_ENV}))
+		Handler(shttp.MethodGet, "", WithAPIKey(handlerDeploymentList, &Opts{MinimumScope: apikey.SCOPE_ENV, ReadOnly: ReadOnlyAllowed}))
 
 	s.NewEndpoint("/v1/deployments/{id:[0-9]+}").
-		Handler(shttp.MethodGet, "", WithAPIKey(handlerDeploymentGet, &Opts{MinimumScope: apikey.SCOPE_ENV})).
-		Handler(shttp.MethodGet, "/poll", WithAPIKey(handlerDeploymentPoll, &Opts{MinimumScope: apikey.SCOPE_ENV})).
-		Handler(shttp.MethodGet, "/runtime-logs", WithAPIKey(handlerDeploymentRuntimeLogsGet, &Opts{MinimumScope: apikey.SCOPE_ENV})).
+		Handler(shttp.MethodGet, "", WithAPIKey(handlerDeploymentGet, &Opts{MinimumScope: apikey.SCOPE_ENV, ReadOnly: ReadOnlyAllowed})).
+		Handler(shttp.MethodGet, "/poll", WithAPIKey(handlerDeploymentPoll, &Opts{MinimumScope: apikey.SCOPE_ENV, ReadOnly: ReadOnlyAllowed})).
+		Handler(shttp.MethodGet, "/runtime-logs", WithAPIKey(handlerDeploymentRuntimeLogsGet, &Opts{MinimumScope: apikey.SCOPE_ENV, ReadOnly: ReadOnlyAllowed})).
 		Handler(shttp.MethodPost, "/publish", WithAPIKey(handlerDeploymentPublish, &Opts{MinimumScope: apikey.SCOPE_ENV})).
 		Handler(shttp.MethodPost, "/prioritize", WithAPIKey(handlerDeploymentPrioritize, &Opts{MinimumScope: apikey.SCOPE_ENV})).
 		Handler(shttp.MethodPost, "/restart", WithAPIKey(handlerDeploymentRestart, &Opts{MinimumScope: apikey.SCOPE_ENV})).
@@ -44,7 +44,7 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodDelete, "", WithAPIKey(handlerDeploymentDelete, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	s.NewEndpoint("/v1/access-logs").
-		Handler(shttp.MethodGet, "", WithAPIKey(handlerAccessLogsGet, &Opts{MinimumScope: apikey.SCOPE_ENV}))
+		Handler(shttp.MethodGet, "", WithAPIKey(handlerAccessLogsGet, &Opts{MinimumScope: apikey.SCOPE_ENV, ReadOnly: ReadOnlyAllowed}))
 
 	s.NewEndpoint("/v1/env").
 		Handler(shttp.MethodPost, "", WithAPIKey(handlerEnvAdd, &Opts{MinimumScope: apikey.SCOPE_APP})).
@@ -53,20 +53,20 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodGet, "/pull", WithAPIKey(handlerEnvPull, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	s.NewEndpoint("/v1/envs").
-		Handler(shttp.MethodGet, "", WithAPIKey(handlerEnvList, &Opts{MinimumScope: apikey.SCOPE_APP}))
+		Handler(shttp.MethodGet, "", WithAPIKey(handlerEnvList, &Opts{MinimumScope: apikey.SCOPE_APP, ReadOnly: ReadOnlyAllowed}))
 
 	s.NewEndpoint("/v1/snippets").
-		Handler(shttp.MethodGet, "", WithAPIKey(handlerSnippetsGet, &Opts{MinimumScope: apikey.SCOPE_ENV})).
+		Handler(shttp.MethodGet, "", WithAPIKey(handlerSnippetsGet, &Opts{MinimumScope: apikey.SCOPE_ENV, ReadOnly: ReadOnlyAllowed})).
 		Handler(shttp.MethodPost, "", WithAPIKey(handlerSnippetsAdd, &Opts{MinimumScope: apikey.SCOPE_ENV})).
 		Handler(shttp.MethodPut, "", WithAPIKey(handlerSnippetsPut, &Opts{MinimumScope: apikey.SCOPE_ENV})).
 		Handler(shttp.MethodDelete, "", WithAPIKey(handlerSnippetsDelete, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	s.NewEndpoint("/v1/redirects").
-		Handler(shttp.MethodGet, "", WithAPIKey(handlerRedirectsGet, &Opts{MinimumScope: apikey.SCOPE_ENV})).
+		Handler(shttp.MethodGet, "", WithAPIKey(handlerRedirectsGet, &Opts{MinimumScope: apikey.SCOPE_ENV, ReadOnly: ReadOnlyAllowed})).
 		Handler(shttp.MethodPost, "", WithAPIKey(handlerRedirectsSet, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	s.NewEndpoint("/v1/domains").
-		Handler(shttp.MethodGet, "", WithAPIKey(HandlerDomainsList, &Opts{MinimumScope: apikey.SCOPE_ENV})).
+		Handler(shttp.MethodGet, "", WithAPIKey(HandlerDomainsList, &Opts{MinimumScope: apikey.SCOPE_ENV, ReadOnly: ReadOnlyAllowed})).
 		Handler(shttp.MethodPost, "", WithAPIKey(HandlerDomainAdd, &Opts{MinimumScope: apikey.SCOPE_ENV})).
 		Handler(shttp.MethodPut, "", WithAPIKey(HandlerDomainUpdate, &Opts{MinimumScope: apikey.SCOPE_ENV})).
 		Handler(shttp.MethodDelete, "", WithAPIKey(HandlerDomainDelete, &Opts{MinimumScope: apikey.SCOPE_ENV}))
@@ -81,40 +81,40 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodPatch, "", WithAPIKey(handlerFunctionTriggerUpdate, &Opts{MinimumScope: apikey.SCOPE_ENV})).
 		Handler(shttp.MethodDelete, "", WithAPIKey(handlerFunctionTriggerDelete, &Opts{MinimumScope: apikey.SCOPE_ENV})).
 		Handler(shttp.MethodPost, "/invoke", WithAPIKey(handlerFunctionTriggerInvoke, &Opts{MinimumScope: apikey.SCOPE_ENV})).
-		Handler(shttp.MethodGet, "/logs", WithAPIKey(handlerFunctionTriggerLogsGet, &Opts{MinimumScope: apikey.SCOPE_ENV}))
+		Handler(shttp.MethodGet, "/logs", WithAPIKey(handlerFunctionTriggerLogsGet, &Opts{MinimumScope: apikey.SCOPE_ENV, ReadOnly: ReadOnlyAllowed}))
 
 	s.NewEndpoint("/v1/triggers").
-		Handler(shttp.MethodGet, "", WithAPIKey(handlerFunctionTriggersGet, &Opts{MinimumScope: apikey.SCOPE_ENV}))
+		Handler(shttp.MethodGet, "", WithAPIKey(handlerFunctionTriggersGet, &Opts{MinimumScope: apikey.SCOPE_ENV, ReadOnly: ReadOnlyAllowed}))
 
 	s.NewEndpoint("/v1/mail").
 		Handler(shttp.MethodPost, "", WithAPIKey(handlerMailSend, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	s.NewEndpoint("/v1/mailer/config").
-		Handler(shttp.MethodGet, "", WithAPIKey(handlerMailerConfigGet, &Opts{MinimumScope: apikey.SCOPE_ENV})).
+		Handler(shttp.MethodGet, "", WithAPIKey(handlerMailerConfigGet, &Opts{MinimumScope: apikey.SCOPE_ENV, ReadOnly: ReadOnlyAllowed})).
 		Handler(shttp.MethodPost, "", WithAPIKey(handlerMailerConfigSet, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	s.NewEndpoint("/v1/mailer/emails").
-		Handler(shttp.MethodGet, "", WithAPIKey(handlerMailerEmailsGet, &Opts{MinimumScope: apikey.SCOPE_ENV}))
+		Handler(shttp.MethodGet, "", WithAPIKey(handlerMailerEmailsGet, &Opts{MinimumScope: apikey.SCOPE_ENV, ReadOnly: ReadOnlyAllowed}))
 
 	s.NewEndpoint("/v1/volumes").
 		Middleware(volumes.LimitRequestBody()).
 		Handler(shttp.MethodPost, "", WithAPIKey(handlerVolumesPost, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 	s.NewEndpoint("/v1/teams").
-		Handler(shttp.MethodGet, "", WithAPIKey(handlerTeamList, &Opts{MinimumScope: apikey.SCOPE_USER})).
+		Handler(shttp.MethodGet, "", WithAPIKey(handlerTeamList, &Opts{MinimumScope: apikey.SCOPE_USER, ReadOnly: ReadOnlyAllowed})).
 		Handler(shttp.MethodPost, "", WithAPIKey(handlerTeamCreate, &Opts{MinimumScope: apikey.SCOPE_USER}))
 
 	s.NewEndpoint("/v1/mcp").
-		Handler(shttp.MethodPost, "", WithAPIKey(handlerMCP, &Opts{MinimumScope: apikey.SCOPE_USER})).
-		Handler(shttp.MethodGet, "", WithAPIKey(handlerMCPStream, &Opts{MinimumScope: apikey.SCOPE_USER}))
+		Handler(shttp.MethodPost, "", WithAPIKey(handlerMCP, &Opts{MinimumScope: apikey.SCOPE_USER, ReadOnly: ReadOnlyHandled})).
+		Handler(shttp.MethodGet, "", WithAPIKey(handlerMCPStream, &Opts{MinimumScope: apikey.SCOPE_USER, ReadOnly: ReadOnlyAllowed}))
 
 	if authConfigEnabled() {
 		s.NewEndpoint("/v1/auth/config").
-			Handler(shttp.MethodGet, "", WithAPIKey(handlerAuthConfigGet, &Opts{MinimumScope: apikey.SCOPE_ENV})).
+			Handler(shttp.MethodGet, "", WithAPIKey(handlerAuthConfigGet, &Opts{MinimumScope: apikey.SCOPE_ENV, ReadOnly: ReadOnlyAllowed})).
 			Handler(shttp.MethodPost, "", WithAPIKey(handlerAuthConfigSet, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 
 		s.NewEndpoint("/v1/auth/providers").
-			Handler(shttp.MethodGet, "", WithAPIKey(handlerAuthProvidersGet, &Opts{MinimumScope: apikey.SCOPE_ENV})).
+			Handler(shttp.MethodGet, "", WithAPIKey(handlerAuthProvidersGet, &Opts{MinimumScope: apikey.SCOPE_ENV, ReadOnly: ReadOnlyAllowed})).
 			Handler(shttp.MethodPost, "", WithAPIKey(handlerAuthProviderSet, &Opts{MinimumScope: apikey.SCOPE_ENV}))
 	}
 

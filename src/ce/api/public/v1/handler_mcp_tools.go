@@ -28,9 +28,103 @@ func databaseIntegrationEnabled() bool {
 // ---------------------------------------------------------------------------
 
 type mcpToolDef struct {
-	Name        string         `json:"name"`
-	Description string         `json:"description"`
-	InputSchema map[string]any `json:"inputSchema"`
+	Name        string              `json:"name"`
+	Description string              `json:"description"`
+	InputSchema map[string]any      `json:"inputSchema"`
+	Annotations *mcpToolAnnotations `json:"annotations,omitempty"`
+}
+
+// mcpToolAnnotations are the MCP behaviour hints a host reads to decide which
+// tools are safe to call without asking.
+type mcpToolAnnotations struct {
+	ReadOnlyHint    bool `json:"readOnlyHint"`
+	DestructiveHint bool `json:"destructiveHint"`
+	OpenWorldHint   bool `json:"openWorldHint"`
+}
+
+// mcpToolAccess classifies every tool. Read-only API keys see and call only
+// the read-only ones. A tool missing from this table is treated as a
+// destructive write, so forgetting to classify a new tool fails closed.
+var mcpToolAccess = map[string]mcpToolAnnotations{
+	"get_deployment":    {ReadOnlyHint: true},
+	"list_deployments":  {ReadOnlyHint: true},
+	"get_runtime_logs":  {ReadOnlyHint: true},
+	"get_access_logs":   {ReadOnlyHint: true},
+	"list_apps":         {ReadOnlyHint: true},
+	"list_environments": {ReadOnlyHint: true},
+	"list_domains":      {ReadOnlyHint: true},
+	"list_triggers":     {ReadOnlyHint: true},
+	"get_trigger_logs":  {ReadOnlyHint: true},
+	"list_teams":        {ReadOnlyHint: true},
+	"get_mailer_config": {ReadOnlyHint: true},
+	"list_emails":       {ReadOnlyHint: true},
+	"get_auth_config":   {ReadOnlyHint: true},
+
+	"deploy":                      {},
+	"restart_deployment":          {},
+	"prioritize_deployment":       {},
+	"create_app":                  {},
+	"create_environment":          {},
+	"create_domain":               {},
+	"create_trigger":              {},
+	"create_team":                 {},
+	"enable_database_integration": {},
+
+	// These reach outside Stormkit: an HTTP request to the trigger's URL and
+	// an email to an arbitrary recipient.
+	"invoke_trigger":  {OpenWorldHint: true},
+	"send_test_email": {OpenWorldHint: true},
+
+	"publish_deployment":             {DestructiveHint: true},
+	"stop_deployment":                {DestructiveHint: true},
+	"delete_deployment":              {DestructiveHint: true},
+	"update_environment":             {DestructiveHint: true},
+	"delete_domain":                  {DestructiveHint: true},
+	"update_trigger":                 {DestructiveHint: true},
+	"delete_trigger":                 {DestructiveHint: true},
+	"configure_mailer":               {DestructiveHint: true},
+	"configure_auth":                 {DestructiveHint: true},
+	"configure_auth_provider":        {DestructiveHint: true},
+	"configure_database_integration": {DestructiveHint: true},
+}
+
+// mcpToolAnnotationsFor returns the hints for the named tool.
+func mcpToolAnnotationsFor(name string) mcpToolAnnotations {
+	if access, ok := mcpToolAccess[name]; ok {
+		return access
+	}
+
+	return mcpToolAnnotations{DestructiveHint: true}
+}
+
+// mcpToolExists reports whether the named tool is offered by this build.
+func mcpToolExists(name string) bool {
+	for _, tool := range mcpAllTools() {
+		if tool.Name == name {
+			return true
+		}
+	}
+
+	return false
+}
+
+// mcpTools returns the tools the caller may use. Read-only keys get only the
+// read-only tools.
+func mcpTools(readOnly bool) []mcpToolDef {
+	tools := []mcpToolDef{}
+
+	for _, tool := range mcpAllTools() {
+		annotations := mcpToolAnnotationsFor(tool.Name)
+
+		if readOnly && !annotations.ReadOnlyHint {
+			continue
+		}
+
+		tool.Annotations = &annotations
+		tools = append(tools, tool)
+	}
+
+	return tools
 }
 
 func mcpAllTools() []mcpToolDef {
@@ -1276,6 +1370,16 @@ func mcpListDomains(req *RequestContextMCP, args map[string]any) *shttp.Response
 
 	if err != nil {
 		return shttp.Error(err)
+	}
+
+	// Read-only keys must not reveal secrets, and a certificate's private key
+	// is one.
+	if req.Token.ReadOnly {
+		for i, domain := range domains {
+			redacted := *domain
+			redacted.CustomCert = domain.CustomCert.WithoutKey()
+			domains[i] = &redacted
+		}
 	}
 
 	return &shttp.Response{

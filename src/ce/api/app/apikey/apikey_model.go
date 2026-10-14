@@ -2,6 +2,7 @@ package apikey
 
 import (
 	"fmt"
+	"net/http"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
@@ -32,6 +33,26 @@ type Token struct {
 	Name   string   `json:"name"`
 	Value  string   `json:"token"`
 	Scope  string   `json:"scope"`
+
+	// ReadOnly restricts the key to requests that do not change state: GET and
+	// HEAD on the REST API, and read-only tools on the MCP server.
+	ReadOnly bool `json:"readOnly"`
+}
+
+// AllowsMethod reports whether the key may make a request with the given HTTP
+// method. Read-only keys are limited to methods that do not change state.
+func (t *Token) AllowsMethod(method string) bool {
+	if !t.ReadOnly {
+		return true
+	}
+
+	switch method {
+	case "", http.MethodGet, http.MethodHead:
+		// An empty method means GET, as in net/http.
+		return true
+	default:
+		return false
+	}
 }
 
 func GenerateTokenValue() string {

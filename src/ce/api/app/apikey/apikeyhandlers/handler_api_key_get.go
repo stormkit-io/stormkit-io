@@ -77,6 +77,8 @@ func handlerAPIKeyGet(req *user.RequestContext) *shttp.Response {
 			"teamId": teamID,
 			"name":   key.Name,
 			"scope":  key.Scope,
+
+			"readOnly": key.ReadOnly,
 		})
 	}
 

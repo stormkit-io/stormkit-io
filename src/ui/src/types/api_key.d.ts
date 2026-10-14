@@ -6,4 +6,5 @@ declare interface APIKey {
   envId?: string;
   teamId?: string;
   scope: "env" | "team";
+  readOnly?: boolean;
 }
