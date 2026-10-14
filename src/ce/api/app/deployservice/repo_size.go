@@ -6,6 +6,7 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/bitbucket"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/forgejo"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/github"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/gitlab"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
@@ -90,6 +91,15 @@ func (c repoSizeChecker) size() (int64, error) {
 
 	case c.app.IsBitbucket():
 		client, err := bitbucket.NewClient(c.app.UserID)
+
+		if err != nil || client == nil {
+			return 0, err
+		}
+
+		return client.RepoSize(c.app.Repo)
+
+	case c.app.IsForgejo():
+		client, err := forgejo.NewClient(c.app.UserID)
 
 		if err != nil || client == nil {
 			return 0, err

@@ -19,8 +19,8 @@ func (s *ServicesSuite) Test_Services() {
 	handlers := []string{
 		"GET:/auth/github/installation",
 		"GET:/auth/providers",
-		"GET:/auth/{provider:github|gitlab|bitbucket}",
-		"GET:/auth/{provider:github|gitlab|bitbucket}/callback",
+		"GET:/auth/{provider:github|gitlab|bitbucket|forgejo}",
+		"GET:/auth/{provider:github|gitlab|bitbucket|forgejo}/callback",
 		"POST:/auth/admin/login",
 		"POST:/auth/admin/register",
 	}

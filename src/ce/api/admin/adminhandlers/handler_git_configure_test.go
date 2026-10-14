@@ -314,7 +314,7 @@ func (s *HandlerGitConfigureSuite) Test_InvalidProvider() {
 	)
 
 	s.Equal(http.StatusBadRequest, response.Code)
-	s.JSONEq(`{"error":"Invalid provider. Must be one of: github, gitlab, bitbucket"}`, response.String())
+	s.JSONEq(`{"error":"Invalid provider. Must be one of: github, gitlab, bitbucket, forgejo"}`, response.String())
 }
 
 func (s *HandlerGitConfigureSuite) Test_NonAdmin() {
@@ -400,6 +400,83 @@ func (s *HandlerGitConfigureSuite) Test_ConfigureMultipleProviders() {
 	s.Equal("https://myapp.com/auth/gitlab/callback", config.AuthConfig.Gitlab.RedirectURL)
 	s.Equal("my-bitbucket-client-id", config.AuthConfig.Bitbucket.ClientID)
 	s.False(config.IsGithubEnabled())
+}
+
+// configureForgejo posts a Forgejo configuration. Fields in overrides
+// replace the defaults, and a nil value removes the field from the request.
+func (s *HandlerGitConfigureSuite) configureForgejo(overrides map[string]any) shttptest.Response {
+	adminUser := s.MockUser(map[string]any{"IsAdmin": true})
+
+	payload := map[string]any{
+		"provider":     "forgejo",
+		"baseUrl":      "https://git.example.org/",
+		"clientId":     "forgejo-client-id",
+		"clientSecret": "forgejo-client-secret",
+	}
+
+	for key, value := range overrides {
+		if value == nil {
+			delete(payload, key)
+		} else {
+			payload[key] = value
+		}
+	}
+
+	return shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(adminhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/admin/git/configure",
+		payload,
+		map[string]string{
+			"Authorization": usertest.Authorization(adminUser.ID),
+		},
+	)
+}
+
+func (s *HandlerGitConfigureSuite) forgejoConfig() admin.ForgejoConfig {
+	cnf, err := admin.Store().Config(context.Background())
+	s.Require().NoError(err)
+	return cnf.AuthConfig.Forgejo
+}
+
+func (s *HandlerGitConfigureSuite) Test_ConfigureForgejo_Success() {
+	response := s.configureForgejo(nil)
+
+	s.Equal(http.StatusOK, response.Code)
+	s.Equal(admin.ForgejoConfig{
+		BaseURL:      "https://git.example.org",
+		ClientID:     "forgejo-client-id",
+		ClientSecret: "forgejo-client-secret",
+		RedirectURL:  admin.MustConfig().ApiURL("/auth/forgejo/callback"),
+	}, s.forgejoConfig())
+}
+
+// Test_ConfigureForgejo_KeepsSecret verifies that a blank secret keeps the
+// stored one, since secrets are never sent back to the client.
+func (s *HandlerGitConfigureSuite) Test_ConfigureForgejo_KeepsSecret() {
+	s.Equal(http.StatusOK, s.configureForgejo(nil).Code)
+	s.Equal(http.StatusOK, s.configureForgejo(map[string]any{"clientSecret": nil}).Code)
+	s.Equal("forgejo-client-secret", s.forgejoConfig().ClientSecret)
+}
+
+// Test_ConfigureForgejo_OtherInstanceNeedsSecret verifies that the stored
+// secret is not reused for a different instance.
+func (s *HandlerGitConfigureSuite) Test_ConfigureForgejo_OtherInstanceNeedsSecret() {
+	s.Equal(http.StatusOK, s.configureForgejo(nil).Code)
+
+	response := s.configureForgejo(map[string]any{"clientSecret": nil, "baseUrl": "https://other.example.org"})
+
+	s.Equal(http.StatusBadRequest, response.Code)
+	s.Equal("https://git.example.org", s.forgejoConfig().BaseURL)
+}
+
+func (s *HandlerGitConfigureSuite) Test_ConfigureForgejo_InvalidURL() {
+	for _, baseURL := range []string{"", "git.example.org", "ftp://git.example.org"} {
+		response := s.configureForgejo(map[string]any{"baseUrl": baseURL})
+
+		s.Equal(http.StatusBadRequest, response.Code, baseURL)
+		s.Contains(response.String(), "Forgejo URL must be an absolute http(s) URL")
+	}
 }
 
 func TestHandlerGitConfigureSuite(t *testing.T) {

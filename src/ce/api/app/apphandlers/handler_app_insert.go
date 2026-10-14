@@ -7,6 +7,7 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/bitbucket"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/forgejo"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/github"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/gitlab"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
@@ -23,7 +24,7 @@ type appInsertPost struct {
 	model.Model
 
 	Repo     string   `json:"repo"`     // :owner/:slug
-	Provider string   `json:"provider"` // github|gitlab|bitbucket
+	Provider string   `json:"provider"` // github|gitlab|bitbucket|forgejo
 	TeamID   types.ID `json:"teamId,string"`
 }
 
@@ -42,10 +43,11 @@ func (a *appInsertPost) Validate() *shttperr.ValidationError {
 			github.ProviderName,
 			gitlab.ProviderName,
 			bitbucket.ProviderName,
+			forgejo.ProviderName,
 		}
 
 		if !utils.InSliceString(providers, a.Provider) {
-			err.SetError("provider", "The provider can only be github, gitlab or bitbucket.")
+			err.SetError("provider", "The provider can only be github, gitlab, bitbucket or forgejo.")
 		}
 	}
 

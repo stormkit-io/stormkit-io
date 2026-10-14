@@ -15,8 +15,8 @@ func Services(r *shttp.Router) *shttp.Service {
 	s.NewEndpoint("/app").
 		Handler(shttp.MethodPut, "", app.WithApp(handlerAppUpdate)).
 		Handler(shttp.MethodPost, "", user.WithAuth(handlerAppInsert)).
-		Handler(shttp.MethodPost, "/webhooks/{provider:github|gitlab|bitbucket}", handlerInboundWebhooks).
-		Handler(shttp.MethodPost, "/webhooks/{provider:github|gitlab|bitbucket}/{secret-id}", handlerInboundWebhooks). // Backwards compatibility
+		Handler(shttp.MethodPost, "/webhooks/{provider:github|gitlab|bitbucket|forgejo}", handlerInboundWebhooks).
+		Handler(shttp.MethodPost, "/webhooks/{provider:github|gitlab|bitbucket|forgejo}/{secret-id}", handlerInboundWebhooks). // Backwards compatibility
 		Handler(shttp.MethodPost, "/proxy", app.WithApp(handlerAppProxy)).
 		Handler(shttp.MethodDelete, "", app.WithApp(handlerAppDelete)).
 		Handler(shttp.MethodGet, "/{did:[0-9]+}/settings", app.WithApp(handlerAppSettings)).

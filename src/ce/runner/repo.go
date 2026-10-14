@@ -36,6 +36,7 @@ type Repo struct {
 const REPO_TYPE_GITHUB = "github"
 const REPO_TYPE_GITLAB = "gitlab"
 const REPO_TYPE_BITBUCKET = "bitbucket"
+const REPO_TYPE_FORGEJO = "forgejo"
 
 var DefaultRepo RepoInterface
 
@@ -62,6 +63,8 @@ func NewRepo(opts RunnerOpts) RepoInterface {
 		repo.provider = REPO_TYPE_GITLAB
 	} else if strings.HasPrefix(repo.address, "git@bitbucket.org") {
 		repo.provider = REPO_TYPE_BITBUCKET
+	} else if opts.Repo.Provider == REPO_TYPE_FORGEJO {
+		repo.provider = REPO_TYPE_FORGEJO
 	}
 
 	return repo
@@ -84,6 +87,13 @@ func (r Repo) Checkout(ctx context.Context) error {
 			addr = strings.Replace(r.address, "https://", fmt.Sprintf("https://x-access-token:%s@", r.accessToken), 1)
 		} else if r.IsGitlab() {
 			addr = strings.Replace(r.address, "https://", fmt.Sprintf("https://oauth2:%s@", r.accessToken), 1)
+		} else if r.IsForgejo() {
+			// Forgejo repositories are cloned over SSH with a read-only deploy key.
+			if err := r.createSSHKeys(); err != nil {
+				return err
+			}
+
+			ssh = r.sshCommand()
 		} else if r.IsBitbucket() {
 			err := r.createSSHKeys()
 
@@ -92,7 +102,7 @@ func (r Repo) Checkout(ctx context.Context) error {
 			if err != nil {
 				addr = strings.Replace(r.address, "git@bitbucket.org:", fmt.Sprintf("https://x-token-auth:%s@bitbucket.org/", r.accessToken), 1)
 			} else {
-				ssh = fmt.Sprintf(`GIT_SSH_COMMAND="ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i %s/id_rsa"`, r.keysDir)
+				ssh = r.sshCommand()
 			}
 		}
 	}
@@ -195,6 +205,17 @@ func (r Repo) IsGithub() bool {
 // IsGitlab returns true if the provider is Gitlab.
 func (r Repo) IsGitlab() bool {
 	return r.provider == REPO_TYPE_GITLAB
+}
+
+// IsForgejo returns true if the provider is Forgejo.
+func (r Repo) IsForgejo() bool {
+	return r.provider == REPO_TYPE_FORGEJO
+}
+
+// sshCommand returns the environment variable that makes git use the keys
+// written by createSSHKeys.
+func (r Repo) sshCommand() string {
+	return fmt.Sprintf(`GIT_SSH_COMMAND="ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i %s/id_rsa"`, r.keysDir)
 }
 
 // IsBitbucket returns true if the provider is Bitbucket.

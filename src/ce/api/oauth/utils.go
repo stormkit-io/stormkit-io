@@ -10,6 +10,9 @@ func ParseRepo(repo string) (owner, name string) {
 	} else if strings.HasPrefix(repo, "bitbucket/") {
 		pieces := strings.Split(repo[10:], "/")
 		return pieces[0], strings.Join(pieces[1:], "/")
+	} else if strings.HasPrefix(repo, "forgejo/") {
+		pieces := strings.Split(repo[8:], "/")
+		return pieces[0], strings.Join(pieces[1:], "/")
 	} else if strings.HasPrefix(repo, "gitlab") {
 		pieces := strings.Split(repo[7:], "/")
 		return pieces[0], strings.Join(pieces[1:], "/")

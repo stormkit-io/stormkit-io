@@ -33,7 +33,8 @@ ALTER SCHEMA skitapi OWNER TO skitadmin;
 CREATE TYPE skitapi.access_token_type AS ENUM (
     'github',
     'bitbucket',
-    'gitlab'
+    'gitlab',
+    'forgejo'
 );
 
 

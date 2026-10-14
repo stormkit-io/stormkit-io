@@ -25,6 +25,7 @@ func handlerGitDetails(req *user.RequestContext) *shttp.Response {
 				"github":    nil,
 				"gitlab":    nil,
 				"bitbucket": nil,
+				"forgejo":   nil,
 			},
 		}
 	}
@@ -56,6 +57,15 @@ func handlerGitDetails(req *user.RequestContext) *shttp.Response {
 		data["bitbucket"] = map[string]any{
 			"clientId":        auth.Bitbucket.ClientID,
 			"hasDeployKey":    auth.Bitbucket.DeployKey != "",
+			"hasClientSecret": true,
+		}
+	}
+
+	if cnf.IsForgejoEnabled() {
+		data["forgejo"] = map[string]any{
+			"baseUrl":         auth.Forgejo.BaseURL,
+			"clientId":        auth.Forgejo.ClientID,
+			"redirectUrl":     auth.Forgejo.RedirectURL,
 			"hasClientSecret": true,
 		}
 	}

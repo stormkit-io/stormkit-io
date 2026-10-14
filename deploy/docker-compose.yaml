@@ -243,6 +243,17 @@ services:
 
       - GITLAB_SECRET=${GITLAB_SECRET:-}
       - GITLAB_CLIENT_ID=${GITLAB_CLIENT_ID:-}
+
+      ######################################################################
+      #                                                                    #
+      # Configure these variables when Authentication method is Forgejo    #
+      # See: https://forgejo.org/docs/latest/user/oauth2-provider/         #
+      #                                                                    #
+      ######################################################################
+
+      - FORGEJO_URL=${FORGEJO_URL:-}
+      - FORGEJO_SECRET=${FORGEJO_SECRET:-}
+      - FORGEJO_CLIENT_ID=${FORGEJO_CLIENT_ID:-}
     depends_on:
       db:
         condition: service_healthy

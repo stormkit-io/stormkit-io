@@ -55,11 +55,11 @@ func Services(r *shttp.Router) *shttp.Service {
 	}
 
 	authEp.
-		Handler(shttp.MethodGet, "/{provider:github|gitlab|bitbucket}", shttp.WithRateLimit(
+		Handler(shttp.MethodGet, "/{provider:github|gitlab|bitbucket|forgejo}", shttp.WithRateLimit(
 			handlerAuthLogin,
 			&limiter.Options{Limit: 50, Burst: 3, Duration: time.Minute},
 		)).
-		Handler(shttp.MethodGet, "/{provider:github|gitlab|bitbucket}/callback", shttp.WithRateLimit(
+		Handler(shttp.MethodGet, "/{provider:github|gitlab|bitbucket|forgejo}/callback", shttp.WithRateLimit(
 			handlerAuthCallback,
 			&limiter.Options{Limit: 50, Burst: 3, Duration: time.Minute},
 		)).

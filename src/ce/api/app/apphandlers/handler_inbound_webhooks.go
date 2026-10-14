@@ -112,6 +112,9 @@ func processMessage(req *shttp.RequestContext) (*TriggerDeployInput, error) {
 
 	case "gitlab":
 		return v.appPayload(processGitlabPayload)
+
+	case "forgejo":
+		return v.appPayload(processForgejoPayload)
 	}
 
 	return nil, nil

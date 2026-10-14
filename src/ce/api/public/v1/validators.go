@@ -53,6 +53,7 @@ func (v *Validators) NormalizeRepo(repo string) (string, bool) {
 		"github":    {},
 		"gitlab":    {},
 		"bitbucket": {},
+		"forgejo":   {},
 	}
 
 	if _, ok := validProviders[parts[0]]; !ok {

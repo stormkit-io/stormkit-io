@@ -164,6 +164,7 @@ func (s *store) Config(ctx context.Context) (InstanceConfig, error) {
 		ghAppName := utils.GetString(os.Getenv("GITHUB_APP_NAME"), os.Getenv("GITHUB_ACCOUNT"))
 		glClientID := os.Getenv("GITLAB_CLIENT_ID")
 		bitbucketID := os.Getenv("BITBUCKET_CLIENT_ID")
+		forgejoURL := strings.TrimRight(os.Getenv("FORGEJO_URL"), "/")
 
 		if decoded, err := utils.DecodeString(secrets["GITHUB_PRIV_KEY"]); err == nil && decoded != nil {
 			ghPrivKey = string(decoded)
@@ -202,6 +203,18 @@ func (s *store) Config(ctx context.Context) (InstanceConfig, error) {
 				ClientID:     bitbucketID,
 				ClientSecret: secrets["BITBUCKET_SECRET"],
 				DeployKey:    os.Getenv("BITBUCKET_DEPLOY_KEY"),
+			}
+		}
+
+		if forgejoURL != "" {
+			cnf.AuthConfig.Forgejo = ForgejoConfig{
+				BaseURL:      forgejoURL,
+				ClientID:     os.Getenv("FORGEJO_CLIENT_ID"),
+				ClientSecret: secrets["FORGEJO_SECRET"],
+				RedirectURL: utils.GetString(
+					os.Getenv("FORGEJO_REDIRECT_URL"),
+					cnf.ApiURL("/auth/forgejo/callback"),
+				),
 			}
 		}
 	}

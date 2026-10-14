@@ -143,6 +143,7 @@ type RepoOpts struct {
 	Address         string
 	Branch          string
 	AccessToken     string
+	Provider        string
 	PackageJson     *PackageJson
 	PackageLockFile bool
 	Runtime         string // node
@@ -270,6 +271,7 @@ func Start(payload, rootDir string) error {
 			Address:     msg.Client.Repo,
 			Branch:      msg.Build.Branch,
 			AccessToken: msg.Client.AccessToken,
+			Provider:    msg.Client.Provider,
 			PackageJson: nil, // will be determined later
 		},
 		Build: BuildOpts{

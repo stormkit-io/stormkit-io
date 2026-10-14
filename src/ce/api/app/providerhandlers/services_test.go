@@ -18,8 +18,8 @@ func (s *ServicesSuite) TestServices() {
 	s.NotNil(s)
 
 	handlers := []string{
-		"GET:/provider/{provider:github|gitlab|bitbucket}/accounts",
-		"GET:/provider/{provider:github|gitlab|bitbucket}/repos",
+		"GET:/provider/{provider:github|gitlab|bitbucket|forgejo}/accounts",
+		"GET:/provider/{provider:github|gitlab|bitbucket|forgejo}/repos",
 	}
 
 	s.Equal(handlers, services.HandlerKeys())

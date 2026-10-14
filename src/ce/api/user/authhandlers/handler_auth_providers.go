@@ -18,6 +18,7 @@ func handlerAuthProviders(req *shttp.RequestContext) *shttp.Response {
 		"github":    cfg.IsGithubEnabled(),
 		"gitlab":    cfg.IsGitlabEnabled(),
 		"bitbucket": cfg.IsBitbucketEnabled(),
+		"forgejo":   cfg.IsForgejoEnabled(),
 	}
 
 	if cfg.AdminUserConfig != nil && cfg.AdminUserConfig.Email != "" {

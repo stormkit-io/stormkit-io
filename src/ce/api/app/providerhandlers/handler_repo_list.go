@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/forgejo"
 	gh "github.com/stormkit-io/stormkit-io/src/ce/api/oauth/github"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -20,7 +22,7 @@ const maxPerPage = 100
 func handlerRepoList(req *user.RequestContext) *shttp.Response {
 	provider := req.Vars()["provider"]
 
-	if provider != gh.ProviderName && provider != "gitlab" && provider != "bitbucket" {
+	if provider != gh.ProviderName && provider != "gitlab" && provider != "bitbucket" && provider != forgejo.ProviderName {
 		return shttp.BadRequest()
 	}
 
@@ -51,6 +53,13 @@ func handlerRepoList(req *user.RequestContext) *shttp.Response {
 			page:           page,
 			perPage:        perPage,
 			search:         search})
+	case forgejo.ProviderName:
+		repos, hasNextPage, err = forgejoListRepos(forgejoListReposRequest{
+			req:     req,
+			page:    page,
+			perPage: perPage,
+			search:  search,
+		})
 	}
 
 	if err != nil {
@@ -121,4 +130,52 @@ func githubListRepos(opts GithubListReposRequest) ([]Repo, bool, error) {
 	}
 
 	return repos, hasNextPage, nil
+}
+
+type forgejoListReposRequest struct {
+	req     *user.RequestContext
+	page    int
+	perPage int
+	search  string
+}
+
+// forgejoMaxPerPage is the default page size limit of Forgejo instances.
+const forgejoMaxPerPage = 50
+
+// forgejoListRepos lists the repositories of the user on the Forgejo
+// instance. The API cannot filter by name, so a search walks every page.
+func forgejoListRepos(opts forgejoListReposRequest) ([]Repo, bool, error) {
+	client, err := forgejo.NewClient(opts.req.User.ID)
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	if client == nil {
+		return nil, false, oauth.ErrProviderNotConnected
+	}
+
+	repos := []Repo{}
+	page := opts.page
+	perPage := min(opts.perPage, forgejoMaxPerPage)
+
+	for {
+		fRepos, hasNextPage, err := client.ListRepos(forgejo.ListReposParams{Page: page, PerPage: perPage})
+
+		if err != nil {
+			return nil, false, err
+		}
+
+		for _, repo := range fRepos {
+			if opts.search == "" || strings.Contains(strings.ToLower(repo.FullName), opts.search) {
+				repos = append(repos, Repo{Name: repo.Name, FullName: repo.FullName})
+			}
+		}
+
+		if opts.search == "" || !hasNextPage {
+			return repos, hasNextPage, nil
+		}
+
+		page = page + 1
+	}
 }

@@ -2,6 +2,7 @@ package adminhandlers
 
 import (
 	"context"
+	"net/url"
 	"strings"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
@@ -11,14 +12,15 @@ import (
 )
 
 type GitConfigureRequest struct {
-	Provider     string `json:"provider"`     // github, gitlab, or bitbucket
+	Provider     string `json:"provider"`     // github, gitlab, bitbucket or forgejo
 	AppID        string `json:"appId"`        // Github application id
 	Account      string `json:"account"`      // GitHub account name
 	Organization string `json:"organization"` // GitHub organization (optional)
 	PrivateKey   string `json:"privateKey"`   // GitHub App Private Key
 	ClientID     string `json:"clientId"`     // OAuth Client ID
 	ClientSecret string `json:"clientSecret"` // OAuth Client Secret
-	RedirectURL  string `json:"redirectUrl"`  // GitLab/Bitbucket Redirect URL
+	RedirectURL  string `json:"redirectUrl"`  // GitLab/Bitbucket/Forgejo Redirect URL
+	BaseURL      string `json:"baseUrl"`      // Forgejo instance URL
 	DeployKey    string `json:"deployKey"`    // Bitbucket Deploy Key
 	RunnerRepo   string `json:"runnerRepo"`   // GitHub Runner Repository
 	RunnerToken  string `json:"runnerToken"`  // GitHub Runner Token
@@ -113,9 +115,42 @@ func handlerGitConfigure(req *user.RequestContext) *shttp.Response {
 				"error": "Bitbucket is not properly configured. Please provide all required fields.",
 			})
 		}
+	case "forgejo":
+		baseURL := strings.TrimRight(strings.TrimSpace(data.BaseURL), "/")
+
+		if u, err := url.Parse(baseURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			return shttp.BadRequest(map[string]any{
+				"error": "Forgejo URL must be an absolute http(s) URL, e.g. https://git.example.org",
+			})
+		}
+
+		// Stored secrets are never sent back to the client, so a blank value
+		// means "keep the current one" unless the OAuth app changed.
+		clientSecret := strings.TrimSpace(data.ClientSecret)
+
+		if clientSecret == "" && cnf.AuthConfig.Forgejo.ClientID == data.ClientID && cnf.AuthConfig.Forgejo.BaseURL == baseURL {
+			clientSecret = cnf.AuthConfig.Forgejo.ClientSecret
+		}
+
+		cnf.AuthConfig.Forgejo = admin.ForgejoConfig{
+			BaseURL:      baseURL,
+			ClientID:     data.ClientID,
+			ClientSecret: clientSecret,
+			RedirectURL: utils.GetString(
+				data.RedirectURL,
+				cnf.AuthConfig.Forgejo.RedirectURL,
+				admin.MustConfig().ApiURL("/auth/forgejo/callback"),
+			),
+		}
+
+		if !cnf.IsForgejoEnabled() {
+			return shttp.BadRequest(map[string]any{
+				"error": "Forgejo is not properly configured. Please provide all required fields.",
+			})
+		}
 	default:
 		return shttp.BadRequest(map[string]any{
-			"error": "Invalid provider. Must be one of: github, gitlab, bitbucket",
+			"error": "Invalid provider. Must be one of: github, gitlab, bitbucket, forgejo",
 		})
 	}
 

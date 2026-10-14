@@ -10,6 +10,7 @@ import (
 	randomdata "github.com/Pallinder/go-randomdata"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/bitbucket"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/forgejo"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/github"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/gitlab"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
@@ -180,6 +181,11 @@ func (a *App) IsGitlab() bool {
 	return strings.HasPrefix(a.Repo, "gitlab")
 }
 
+// IsForgejo returns true if the application repository is hosted on Forgejo.
+func (a *App) IsForgejo() bool {
+	return strings.HasPrefix(a.Repo, "forgejo/")
+}
+
 // IsBitbucket returns true if the application repository is hosted on Bitbucket.
 func (a *App) IsBitbucket() bool {
 	return strings.HasPrefix(a.Repo, "bitbucket")
@@ -209,6 +215,12 @@ func (a *App) DefaultBranch() (db string) {
 		}
 	}
 
+	if a.IsForgejo() {
+		if client, _ := forgejo.NewClient(a.UserID); client != nil {
+			db, err = client.DefaultBranch(a.Repo)
+		}
+	}
+
 	if err != nil {
 		if !strings.Contains(err.Error(), "Repository is not accessible.") {
 			slog.Errorf("default-branch: %v", err)
@@ -218,8 +230,72 @@ func (a *App) DefaultBranch() (db string) {
 	return db
 }
 
+// GitCredentials are what a runner needs to check out the app's repository.
+type GitCredentials struct {
+	// Token is a provider token, or the encoded key pair for SSH checkouts.
+	Token string
+
+	// CloneURL replaces the default clone address when set.
+	CloneURL string
+}
+
 // GitCreds returns the credentials for the git repo.
-func (a *App) GitCreds(ctx context.Context) (string, error) {
+func (a *App) GitCreds(ctx context.Context) (GitCredentials, error) {
+	if a.IsForgejo() {
+		return a.forgejoCreds(ctx)
+	}
+
+	token, err := a.gitToken(ctx)
+
+	return GitCredentials{Token: token}, err
+}
+
+// forgejoCreds installs the webhook and a read-only deploy key on the
+// repository, and returns the key pair to clone it over SSH. The user's token
+// cannot be scoped on Forgejo, so it is never handed to a build.
+func (a *App) forgejoCreds(ctx context.Context) (GitCredentials, error) {
+	client, err := forgejo.NewClient(a.UserID)
+
+	if err != nil || client == nil {
+		return GitCredentials{}, err
+	}
+
+	if _, err := client.InstallWebhooks(forgejo.InstallWebhooksParams{Repo: a.Repo, AppID: a.ID}); err != nil {
+		return GitCredentials{}, err
+	}
+
+	repository, err := client.Repository(a.Repo)
+
+	if err != nil {
+		return GitCredentials{}, err
+	}
+
+	if repository.SSHURL == "" {
+		return GitCredentials{}, ErrForgejoSSHDisabled
+	}
+
+	pkey := a.PrivateKey(ctx)
+
+	err = client.InstallDeployKey(forgejo.InstallDeployKeyParams{
+		Repo:      a.Repo,
+		AppID:     a.ID,
+		PublicKey: pkey.SSHPubKey(),
+	})
+
+	if err != nil {
+		return GitCredentials{}, err
+	}
+
+	creds := fmt.Sprintf("%s|%s|%s|", "git", pkey.SSHPubKey(), pkey.SSHPrivKey())
+
+	return GitCredentials{
+		Token:    utils.EncodeToString([]byte(creds)),
+		CloneURL: repository.SSHURL,
+	}, nil
+}
+
+// gitToken returns the token a runner clones the repository with.
+func (a *App) gitToken(ctx context.Context) (string, error) {
 	// TODO: mock these
 	if config.IsTest() {
 		return "some-token", nil
@@ -303,7 +379,7 @@ func (a *App) Validate() *shttperr.ValidationError {
 		isGithub := strings.HasPrefix(a.Repo, "github/")
 		isGitlab := strings.HasPrefix(a.Repo, "gitlab/")
 
-		if !isBitbucket && !isGithub && !isGitlab {
+		if !isBitbucket && !isGithub && !isGitlab && !a.IsForgejo() {
 			err.SetError("repo", ErrRepoInvalidProvider.Error())
 		}
 	}
@@ -372,8 +448,10 @@ func Validate(a *App) []string {
 			rest = strings.TrimPrefix(a.Repo, "gitlab/")
 		case strings.HasPrefix(a.Repo, "bitbucket/"):
 			rest = strings.TrimPrefix(a.Repo, "bitbucket/")
+		case strings.HasPrefix(a.Repo, "forgejo/"):
+			rest = strings.TrimPrefix(a.Repo, "forgejo/")
 		default:
-			errs = append(errs, "Provider is not supported. Supported providers are Github, Bitbucket and Gitlab.")
+			errs = append(errs, ErrRepoInvalidProvider.Error())
 		}
 
 		if rest != "" {

@@ -84,6 +84,7 @@ func (s *DeploySuite) Test_Deployment() {
 			Repo:        "https://github.com/svedova/react-minimal.git",
 			Slug:        "svedova/react-minimal",
 			AccessToken: "some-token",
+			Provider:    "github",
 		},
 		Build: deployservice.BuildConfig{
 			Env:              "production",

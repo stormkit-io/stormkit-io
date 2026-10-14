@@ -2,12 +2,14 @@ package runner_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path"
 	"strings"
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/runner"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils/sys"
 	"github.com/stormkit-io/stormkit-io/src/mocks"
 	"github.com/stretchr/testify/suite"
@@ -116,6 +118,61 @@ func (s *RepoSuite) Test_Checkout_Github() {
 	s.mockCmd.On("Run").Return(nil, nil)
 
 	s.NoError(r.Checkout(context.Background()))
+}
+
+// Test_Checkout_Forgejo verifies that Forgejo repositories are cloned over
+// SSH with the deploy key, so no user token reaches the build.
+func (s *RepoSuite) Test_Checkout_Forgejo() {
+	opts := s.config
+	opts.KeysDir = path.Join(s.tmpDir, "keys")
+	opts.Repo.Address = "ssh://git@git.internal:2222/stormkit/app.git"
+	opts.Repo.AccessToken = utils.EncodeToString([]byte("git|public-key|private-key|"))
+	opts.Repo.Provider = runner.REPO_TYPE_FORGEJO
+	opts.Repo.Branch = "main"
+
+	s.Require().NoError(opts.MkdirAll())
+
+	r := runner.NewRepo(opts)
+	env := runner.PrepareEnvVars(map[string]string{"SK_BRANCH_NAME": "main"})
+	clone := "git clone ssh://git@git.internal:2222/stormkit/app.git --depth 1 --progress --single-branch --branch main " + opts.Repo.Dir
+
+	s.mockCmd.On("SetOpts", sys.CommandOpts{
+		Name: "git",
+		Args: []string{
+			"clone",
+			"ssh://git@git.internal:2222/stormkit/app.git",
+			"--depth", "1",
+			"--progress",
+			"--single-branch",
+			"--branch", "main",
+			opts.Repo.Dir,
+		},
+		Env:    env,
+		Stderr: opts.Reporter.File(),
+		Stdout: opts.Reporter.File(),
+	}).Return(s.mockCmd).Once()
+
+	s.mockCmd.On("String").Return(clone).Once()
+
+	s.mockCmd.On("SetOpts", sys.CommandOpts{
+		Name: "sh",
+		Args: []string{
+			"-c",
+			fmt.Sprintf(`GIT_SSH_COMMAND="ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i %s/id_rsa" %s`, opts.KeysDir, clone),
+		},
+		Env:    env,
+		Stderr: opts.Reporter.File(),
+		Stdout: opts.Reporter.File(),
+	}).Return(s.mockCmd).Once()
+
+	s.mockCmd.On("Run").Return(nil).Once()
+
+	s.NoError(r.Checkout(context.Background()))
+
+	privateKey, err := os.ReadFile(path.Join(opts.KeysDir, "id_rsa"))
+	s.NoError(err)
+	s.Equal("private-key", string(privateKey))
+	s.mockCmd.AssertExpectations(s.T())
 }
 
 func (s *RepoSuite) Test_CommitInfo() {

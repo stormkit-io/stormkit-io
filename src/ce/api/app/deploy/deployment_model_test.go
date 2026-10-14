@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
@@ -83,6 +84,21 @@ func (s *DeploymentModelSuite) Test_RepoCloneURL() {
 
 	d.CheckoutRepo = "github/stormkit-js/test.github.io"
 	s.Equal("https://github.com/stormkit-js/test.github.io.git", d.RepoCloneURL())
+}
+
+func (s *DeploymentModelSuite) Test_RepoCloneURL_Forgejo() {
+	cnf := admin.MustConfig().Clone()
+	cnf.AuthConfig = &admin.AuthConfig{
+		Forgejo: admin.ForgejoConfig{BaseURL: "https://git.example.org"},
+	}
+
+	admin.SetConfig(&cnf)
+	defer admin.ResetCache(context.Background())
+
+	d := &deploy.Deployment{CheckoutRepo: "forgejo/stormkit-js/test"}
+
+	s.Equal("https://git.example.org/stormkit-js/test.git", d.RepoCloneURL())
+	s.Equal("forgejo", d.RepoProvider())
 }
 
 func (s *DeploymentModelSuite) Test_DeploymentLogs_StillRunningButLogsFinished() {

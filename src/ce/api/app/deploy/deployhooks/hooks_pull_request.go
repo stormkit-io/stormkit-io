@@ -8,6 +8,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/bitbucket"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/forgejo"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/github"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/gitlab"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
@@ -50,6 +51,8 @@ func pullRequestPreview(details *AppDetails, d *deploy.Deployment) {
 		PullRequestPreviewGitlab(details, body)
 	} else if strings.HasPrefix(details.Repo, "bitbucket") {
 		PullRequestPreviewBitbucket(details, body)
+	} else if strings.HasPrefix(details.Repo, "forgejo/") {
+		PullRequestPreviewForgejo(details, body)
 	}
 }
 
@@ -154,5 +157,25 @@ func PullRequestPreviewBitbucket(details *AppDetails, body string) {
 		if err != nil {
 			panic(err)
 		}
+	}
+}
+
+// PullRequestPreviewForgejo creates a pull request preview for Forgejo projects.
+var PullRequestPreviewForgejo = func(details *AppDetails, body string) {
+	client, err := forgejo.NewClient(details.UserID)
+
+	if err != nil || client == nil {
+		slog.Errorf("failed while creating forgejo client: %v", err)
+		return
+	}
+
+	err = client.CreatePullRequestComment(forgejo.CreatePullRequestCommentParams{
+		Repo:   details.Repo,
+		Number: details.PullRequestNumber,
+		Body:   body,
+	})
+
+	if err != nil {
+		slog.Errorf("failed creating a forgejo preview comment: %v, app=%d, pr=%d", err, details.AppID, details.PullRequestNumber)
 	}
 }

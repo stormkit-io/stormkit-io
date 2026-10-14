@@ -38,6 +38,10 @@ type ClientConfig struct {
 
 	// AccessToken is the token to clone the repository.
 	AccessToken string `json:"accessToken"`
+
+	// Provider is the git provider hosting the repository. The runner
+	// cannot infer it from the address of a self-hosted provider.
+	Provider string `json:"provider,omitempty"`
 }
 
 // BuildConfig represents the build configuration for this deployment.

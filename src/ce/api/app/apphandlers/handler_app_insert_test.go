@@ -186,7 +186,7 @@ func (s *HandleAppInsertSuite) Test_InvalidRepoProvider() {
 		},
 	)
 
-	expected := `{"errors":{"provider":"The provider can only be github, gitlab or bitbucket."}}`
+	expected := `{"errors":{"provider":"The provider can only be github, gitlab, bitbucket or forgejo."}}`
 	s.Equal(http.StatusBadRequest, response.Code)
 	s.Equal(expected, response.String())
 

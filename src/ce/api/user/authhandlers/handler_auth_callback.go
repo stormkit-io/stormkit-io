@@ -11,6 +11,7 @@ import (
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/bitbucket"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/forgejo"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/github"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/gitlab"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
@@ -177,7 +178,8 @@ func Login(ctx context.Context, authUser *oauth.User) *shttp.Response {
 
 	accessToken := authUser.Token.AccessToken
 
-	if authUser.ProviderName == github.ProviderName {
+	// Forgejo tokens are unscoped, so they never leave the server.
+	if authUser.ProviderName == github.ProviderName || authUser.ProviderName == forgejo.ProviderName {
 		accessToken = ""
 	}
 
@@ -236,6 +238,18 @@ func authUser(providerName, code string) (*oauth.User, error) {
 
 		if err != nil {
 			return nil, err
+		}
+
+		return client.UserProfile()
+	case forgejo.ProviderName:
+		client, err := forgejo.NewClientWithCode(code)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if client == nil {
+			return nil, user.ErrInvalidProvider
 		}
 
 		return client.UserProfile()

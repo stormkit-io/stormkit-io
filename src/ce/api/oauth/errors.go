@@ -10,7 +10,7 @@ import (
 var (
 	ErrNotAuthorized           = shttperr.New(401, "User is not authorised to perform action. Make sure to have appropriate permissions.", "not-authorized")
 	ErrInvalidRepoFormat       = shttperr.New(http.StatusBadRequest, "Repository name format is not correct. Please re-install app.", "invalid-repo")
-	ErrInvalidProvider         = shttperr.New(http.StatusBadRequest, "Provider is not supported. Supported providers are Github, Bitbucket and Gitlab.", "invalid-provider")
+	ErrInvalidProvider         = shttperr.New(http.StatusBadRequest, "Provider is not supported. Supported providers are Github, Bitbucket, Gitlab and Forgejo.", "invalid-provider")
 	ErrCredsInvalidPermissions = shttperr.New(http.StatusForbidden, "Either access token expired or credentials lack one or more required privilege scopes. Please reconnect your provider.", "invalid-credentials")
 	ErrRepoNotFound            = shttperr.New(http.StatusNotFound, "Repository is not accessible.", "repo-not-found")
 	ErrBranchNotFound          = shttperr.New(http.StatusNotFound, "Branch not found", "branch-not-found")

@@ -12,7 +12,7 @@ import (
 
 type appCreatePost struct {
 	Repo        string `json:"repo"`     // owner/slug
-	Provider    string `json:"provider"` // github|gitlab|bitbucket
+	Provider    string `json:"provider"` // github|gitlab|bitbucket|forgejo
 	DisplayName string `json:"displayName,omitempty"`
 }
 

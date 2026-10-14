@@ -10,7 +10,7 @@ import (
 var (
 	ErrNoConnection            = shttperr.New(http.StatusServiceUnavailable, "Provider is not reachable.", "no-connection")
 	ErrProviderNotConnected    = shttperr.New(http.StatusForbidden, "Repository is not connected.", "repo-not-connected")
-	ErrRepoInvalidProvider     = shttperr.New(http.StatusBadRequest, "Provider is not supported. Supported providers are Github, Bitbucket and Gitlab.", "invalid-provider")
+	ErrRepoInvalidProvider     = shttperr.New(http.StatusBadRequest, "Provider is not supported. Supported providers are Github, Bitbucket, Gitlab and Forgejo.", "invalid-provider")
 	ErrRepoInvalidFormat       = shttperr.New(http.StatusBadRequest, "Excepting repo to be in :owner/:slug format.", "invalid-repo-format")
 	ErrInvalidAppSecret        = shttperr.New(http.StatusBadRequest, "App secret cannot be decyphered or not found. Please re-install app.", "invalid-app-secret")
 	ErrInvalidStormkitFile     = shttperr.New(http.StatusBadRequest, "Please make sure that stormkit.config.yml file is valid.", "invalid-stormkit-file")
@@ -25,4 +25,5 @@ var (
 	ErrInvalidWebhookURL       = shttperr.New(http.StatusBadRequest, "The Webhook URL is not valid", "invalid-webhook")
 	ErrPaymentRequired         = shttperr.New(http.StatusPaymentRequired, "You need to upgrade before creating new applications", "upgrade-required")
 	ErrMissingEnv              = shttperr.New(http.StatusBadRequest, "Environment does not exist.", "missing-env")
+	ErrForgejoSSHDisabled      = shttperr.New(http.StatusBadRequest, "SSH is disabled on the Forgejo instance. Stormkit clones Forgejo repositories over SSH with a read-only deploy key.", "forgejo-ssh-disabled")
 )

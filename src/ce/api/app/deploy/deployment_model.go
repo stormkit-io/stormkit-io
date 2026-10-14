@@ -10,6 +10,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/forgejo"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
@@ -486,12 +487,19 @@ func (d *Deployment) RepoCloneURL() string {
 			return fmt.Sprintf("git@bitbucket.org:%s/%s.git", owner, slug)
 		case "gitlab":
 			return fmt.Sprintf("https://gitlab.com/%s/%s.git", owner, slug)
+		case "forgejo":
+			return forgejo.CloneURL(fmt.Sprintf("%s/%s", owner, slug))
 		default:
 			slog.Errorf("repo provider is unknown: %s", d.CheckoutRepo)
 		}
 	}
 
 	return ""
+}
+
+// RepoProvider returns the git provider of the checked out repository.
+func (d *Deployment) RepoProvider() string {
+	return strings.SplitN(d.CheckoutRepo, "/", 2)[0]
 }
 
 // RepoSlug returns the owner and slug of the repository.

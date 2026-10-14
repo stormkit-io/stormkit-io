@@ -64,7 +64,8 @@ func (s *HandlerAuthProvidersSuite) Test_Providers() {
 	expected := `{
 		"github": true,
 		"gitlab": true,
-		"bitbucket": true
+		"bitbucket": true,
+		"forgejo": false
 	}`
 
 	s.Equal(http.StatusOK, response.Code)
@@ -93,6 +94,7 @@ func (s *HandlerAuthProvidersSuite) Test_Provider_BasicAuthEnabled() {
 		"github": false,
 		"gitlab": false,
 		"bitbucket": false,
+		"forgejo": false,
 		"basicAuth": "enabled"
 	}`
 

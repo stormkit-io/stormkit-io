@@ -110,6 +110,14 @@ type GitlabConfig struct {
 	RedirectURL  string
 }
 
+// ForgejoConfig configures a self-hosted Forgejo (or Gitea) instance.
+type ForgejoConfig struct {
+	BaseURL      string // e.g. https://git.example.org
+	ClientID     string
+	ClientSecret string
+	RedirectURL  string
+}
+
 type BitbucketConfig struct {
 	ClientID     string
 	ClientSecret string
@@ -125,6 +133,7 @@ type AuthConfig struct {
 	Github         GithubConfig    `json:"github,omitempty"`
 	Gitlab         GitlabConfig    `json:"gitlab,omitempty"`
 	Bitbucket      BitbucketConfig `json:"bitbucket,omitempty"`
+	Forgejo        ForgejoConfig   `json:"forgejo,omitempty"`
 	UserManagement UserManagement  `json:"userManagement,omitempty"`
 }
 
@@ -201,6 +210,7 @@ func (c *InstanceConfig) Scan(val any) error {
 		c.AuthConfig.Gitlab.ClientSecret = utils.DecryptToString(c.AuthConfig.Gitlab.ClientSecret)
 		c.AuthConfig.Bitbucket.ClientSecret = utils.DecryptToString(c.AuthConfig.Bitbucket.ClientSecret)
 		c.AuthConfig.Bitbucket.DeployKey = utils.DecryptToString(c.AuthConfig.Bitbucket.DeployKey)
+		c.AuthConfig.Forgejo.ClientSecret = utils.DecryptToString(c.AuthConfig.Forgejo.ClientSecret)
 	}
 
 	return nil
@@ -247,6 +257,10 @@ func (c InstanceConfig) Value() (driver.Value, error) {
 
 		if c.AuthConfig.Bitbucket.DeployKey != "" {
 			c.AuthConfig.Bitbucket.DeployKey = utils.EncryptToString(c.AuthConfig.Bitbucket.DeployKey)
+		}
+
+		if c.AuthConfig.Forgejo.ClientSecret != "" {
+			c.AuthConfig.Forgejo.ClientSecret = utils.EncryptToString(c.AuthConfig.Forgejo.ClientSecret)
 		}
 	}
 
@@ -352,7 +366,7 @@ func (vc InstanceConfig) IsEmpty() bool {
 
 // IsAuthEnabled returns whether the auth config is enabled or not.
 func (vc InstanceConfig) IsAuthEnabled() bool {
-	return vc.IsGithubEnabled() || vc.IsGitlabEnabled() || vc.IsBitbucketEnabled()
+	return vc.IsGithubEnabled() || vc.IsGitlabEnabled() || vc.IsBitbucketEnabled() || vc.IsForgejoEnabled()
 }
 
 // IsAutoInstallEnabled returns whether the runner should automatically install
@@ -380,6 +394,17 @@ func (vc InstanceConfig) IsGitlabEnabled() bool {
 
 	return vc.AuthConfig.Gitlab.ClientID != "" &&
 		vc.AuthConfig.Gitlab.ClientSecret != ""
+}
+
+// IsForgejoEnabled returns whether the Forgejo auth config is enabled or not.
+func (vc InstanceConfig) IsForgejoEnabled() bool {
+	if vc.AuthConfig == nil {
+		return false
+	}
+
+	return vc.AuthConfig.Forgejo.BaseURL != "" &&
+		vc.AuthConfig.Forgejo.ClientID != "" &&
+		vc.AuthConfig.Forgejo.ClientSecret != ""
 }
 
 // IsGithubEnabled returns whether the GitHub auth config is enabled or not.

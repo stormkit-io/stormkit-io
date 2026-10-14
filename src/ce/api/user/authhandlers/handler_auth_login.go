@@ -6,6 +6,7 @@ import (
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/bitbucket"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/forgejo"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/github"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/oauth/gitlab"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
@@ -53,6 +54,14 @@ func handlerAuthLogin(req *shttp.RequestContext) *shttp.Response {
 		}
 
 		url = gitlab.AuthCodeURL(state)
+	case forgejo.ProviderName:
+		if !cnf.IsForgejoEnabled() {
+			return shttp.BadRequest(map[string]any{
+				"error": "Forgejo OAuth is not configured",
+			})
+		}
+
+		url = forgejo.AuthCodeURL(state)
 	default:
 		return shttp.BadRequest()
 	}

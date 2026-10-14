@@ -131,7 +131,7 @@ func ParseRepoWithProvider(raw string) (provider, ownerSlug string) {
 		return "", path
 	}
 
-	for _, p := range []string{"github", "gitlab", "bitbucket"} {
+	for _, p := range []string{"github", "gitlab", "bitbucket", "forgejo"} {
 		if strings.HasPrefix(strings.ToLower(raw), p+"/") {
 			return p, raw[len(p)+1:]
 		}

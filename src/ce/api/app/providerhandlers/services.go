@@ -9,7 +9,7 @@ import (
 func Services(r *shttp.Router) *shttp.Service {
 	s := r.NewService()
 
-	s.NewEndpoint("/provider/{provider:github|gitlab|bitbucket}").
+	s.NewEndpoint("/provider/{provider:github|gitlab|bitbucket|forgejo}").
 		Handler(shttp.MethodGet, "/repos", user.WithAuth(handlerRepoList)).
 		Handler(shttp.MethodGet, "/accounts", user.WithAuth(handlerAccountList))
 

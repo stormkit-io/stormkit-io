@@ -361,6 +361,41 @@ func (s *HandlerGitDetailsSuite) Test_GitDetails_DatabaseError() {
 	s.Equal(http.StatusInternalServerError, response.Code)
 }
 
+func (s *HandlerGitDetailsSuite) Test_GitDetails_ForgejoConfigured() {
+	adminUser := s.MockUser(map[string]any{"IsAdmin": true})
+
+	cnf := admin.MustConfig()
+	cnf.AuthConfig = &admin.AuthConfig{
+		Forgejo: admin.ForgejoConfig{
+			BaseURL:      "https://git.example.org",
+			ClientID:     "forgejo-client-id",
+			ClientSecret: "forgejo-client-secret",
+			RedirectURL:  "https://api.example.org/auth/forgejo/callback",
+		},
+	}
+	s.NoError(admin.Store().UpsertConfig(context.Background(), cnf))
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(adminhandlers.Services).Router().Handler(),
+		shttp.MethodGet,
+		"/admin/git/details",
+		nil,
+		map[string]string{
+			"Authorization": usertest.Authorization(adminUser.ID),
+		},
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+	s.JSONEq(`{
+		"forgejo": {
+			"baseUrl": "https://git.example.org",
+			"clientId": "forgejo-client-id",
+			"redirectUrl": "https://api.example.org/auth/forgejo/callback",
+			"hasClientSecret": true
+		}
+	}`, response.String())
+}
+
 func TestHandlerGitDetailsSuite(t *testing.T) {
 	suite.Run(t, &HandlerGitDetailsSuite{})
 }
