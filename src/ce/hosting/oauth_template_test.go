@@ -17,6 +17,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/integrations"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"github.com/stormkit-io/stormkit-io/src/mocks"
 )
 
@@ -62,11 +63,16 @@ func (s *OAuthSuite) page(res *shttp.Response) string {
 	return html.UnescapeString(string(body))
 }
 
-// sessionWithEmail is session() with an email claim.
-func (s *OAuthSuite) sessionWithEmail(uid, email string) http.Header {
+// encryptedEmail encrypts email the way SkAuth stores it in the eml claim.
+func encryptedEmail(email string) string {
+	return utils.EncryptToString(email, []byte(oauthSecret))
+}
+
+// sessionWithEmail is session() with the given raw eml claim.
+func (s *OAuthSuite) sessionWithEmail(uid, eml string) http.Header {
 	tok, err := user.JWT(user.JWTParams{
 		Purpose: user.PurposeSkAuthSession,
-		Claims:  jwt.MapClaims{"uid": uid, "eml": email},
+		Claims:  jwt.MapClaims{"uid": uid, "eml": eml},
 		Secret:  oauthSecret,
 	})
 
@@ -84,7 +90,7 @@ func (s *OAuthSuite) authorizeWithTemplate(host *hosting.Host, query string, hea
 
 func (s *OAuthSuite) Test_Template_SignedIn() {
 	query := s.authzQuery(pkce("verifier")) + "&scope=" + url.QueryEscape("openid offline_access")
-	res := s.authorizeWithTemplate(s.templateHost(oauthTemplate), query, s.sessionWithEmail("user-1", "jane@example.com"))
+	res := s.authorizeWithTemplate(s.templateHost(oauthTemplate), query, s.sessionWithEmail("user-1", encryptedEmail("jane@example.com")))
 	page := s.page(res)
 
 	s.Equal(http.StatusOK, res.Status)
@@ -96,6 +102,29 @@ func (s *OAuthSuite) Test_Template_SignedIn() {
 	s.Contains(page, "cancel="+oauthRedirect+"?error=access_denied&state=xyz;")
 	s.Contains(page, "login=;")
 	s.Contains(page, "scopes=openid:Verify your identity,offline_access:Maintain access when you are offline,")
+}
+
+// Test_Template_SignedIn_DecryptsEmail verifies that the page shows the email
+// address, never the encrypted claim it is stored as.
+func (s *OAuthSuite) Test_Template_SignedIn_DecryptsEmail() {
+	eml := encryptedEmail("jane@example.com")
+	res := s.authorizeWithTemplate(s.templateHost("{{.user.email}}"), s.authzQuery(pkce("verifier")), s.sessionWithEmail("user-1", eml))
+	page := s.page(res)
+
+	s.Equal(http.StatusOK, res.Status)
+	s.Equal("jane@example.com", page)
+	s.NotContains(page, eml)
+}
+
+// Test_Template_SignedIn_UndecryptableEmail verifies that a claim which cannot
+// be decrypted renders an empty email while the visitor stays signed in.
+func (s *OAuthSuite) Test_Template_SignedIn_UndecryptableEmail() {
+	eml := utils.EncryptToString("jane@example.com", []byte("another-secret-padded-to-32-char"))
+	res := s.authorizeWithTemplate(s.templateHost("{{.signed_in}};{{.user.email}};"), s.authzQuery(pkce("verifier")), s.sessionWithEmail("user-1", eml))
+	page := s.page(res)
+
+	s.Equal(http.StatusOK, res.Status)
+	s.Equal("true;;", page)
 }
 
 func (s *OAuthSuite) Test_Template_SignedOut() {
@@ -210,6 +239,35 @@ func (s *OAuthSuite) Test_Grant_Form_RedirectsWithCode() {
 	s.Equal(oauthRedirect, u.Scheme+"://"+u.Host+u.Path)
 	s.NotEmpty(u.Query().Get("code"))
 	s.Equal("xyz", u.Query().Get("state"))
+}
+
+// Test_Grant_Form_KeepsEmailEncrypted verifies that the access token carries the
+// session's eml claim still encrypted, as the edge middleware expects it.
+func (s *OAuthSuite) Test_Grant_Form_KeepsEmailEncrypted() {
+	eml := encryptedEmail("jane@example.com")
+	h := s.sessionWithEmail("user-1", eml)
+	h.Set("Origin", "https://app.example.com")
+
+	res := s.formGrant(s.templateHost(oauthTemplate), h)
+	s.Require().Equal(http.StatusFound, res.Status)
+
+	u, err := url.Parse(*res.Redirect)
+	s.Require().NoError(err)
+
+	form := url.Values{}
+	form.Set("grant_type", "authorization_code")
+	form.Set("code", u.Query().Get("code"))
+	form.Set("client_id", "chatgpt")
+	form.Set("redirect_uri", oauthRedirect)
+	form.Set("code_verifier", "verifier")
+
+	token := hosting.HandleOAuthToken(s.tokenReq(form))
+	s.Require().Equal(http.StatusOK, token.Status)
+
+	accessToken, _ := s.json(token)["access_token"].(string)
+	claims := user.ParseJWT(&user.ParseJWTArgs{Bearer: accessToken, Secret: oauthSecret, MaxMins: 10, Purposes: []user.Purpose{user.PurposeSkAuthAccessToken}})
+	s.Require().NotNil(claims)
+	s.Equal(eml, claims["eml"])
 }
 
 // Test_Grant_Form_RejectsNullOrigin covers a form posted under a no-referrer

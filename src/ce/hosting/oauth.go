@@ -527,8 +527,10 @@ func (o *oauthServer) authorize() *shttp.Response {
 const oauthLoginRetryParam = "sk_auth_retried"
 
 // sessionIdentity resolves the SkAuth session on the current request (cookie or
-// Authorization bearer) into a user id and email. ok is false when there is no
-// valid session — the caller then delegates to login.
+// Authorization bearer) into a user id and email. eml is the claim as stored in
+// the session, still encrypted, so it can be carried into the access token
+// as-is. ok is false when there is no valid session — the caller then
+// delegates to login.
 func (o *oauthServer) sessionIdentity() (uid, eml string, ok bool) {
 	claims := user.ParseJWT(&user.ParseJWTArgs{
 		Bearer:  sessionBearer(o.req),

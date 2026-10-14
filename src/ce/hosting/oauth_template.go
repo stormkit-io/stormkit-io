@@ -9,6 +9,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/integrations"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
 // oauthTemplatePath is the deployment file that, when present, replaces the
@@ -48,7 +49,11 @@ func (o *oauthServer) templateData(p authzParams, client oauthClient) map[string
 	}
 
 	if signedIn {
-		data["user"] = map[string]any{"id": uid, "email": eml}
+		// The session's eml claim is encrypted. It is decrypted only for display:
+		// grant() forwards the encrypted value into the access token, where the
+		// edge middleware expects it. An undecryptable claim renders no email.
+		email := utils.DecryptToString(eml, emlKey(o.secret()))
+		data["user"] = map[string]any{"id": uid, "email": email}
 		data["continue_url"] = o.req.URL().RequestURI()
 	} else if target, ok := o.loginTarget(); ok {
 		data["login_url"] = target
