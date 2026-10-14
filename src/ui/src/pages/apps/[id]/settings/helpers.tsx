@@ -1,8 +1,9 @@
 /**
  * Receive a repo address in Stormkit format and
- * transform it to a URL.
+ * transform it to a URL. Forgejo repositories need the
+ * URL of the configured instance.
  */
-export const toRepoAddr = (repo: string): string => {
+export const toRepoAddr = (repo: string, forgejoUrl?: string): string => {
   if (!repo) {
     return "";
   }
@@ -22,6 +23,10 @@ export const toRepoAddr = (repo: string): string => {
     return `https://gitlab.com/${address}.git`;
   }
 
+  if (provider === "forgejo" && forgejoUrl) {
+    return `${forgejoUrl}/${address}.git`;
+  }
+
   return "";
 };
 
@@ -34,9 +39,13 @@ const replaceMap: Record<string, string> = {
 /**
  * Formats the repository address in a Stormkit format.
  */
-export const formatRepo = (repo: string): string => {
+export const formatRepo = (repo: string, forgejoUrl?: string): string => {
   if (!repo) {
     return "";
+  }
+
+  if (forgejoUrl && repo.startsWith(`${forgejoUrl}/`)) {
+    return `forgejo/${repo.slice(forgejoUrl.length + 1).replace(/\.git$/, "")}`;
   }
 
   const provider = repo

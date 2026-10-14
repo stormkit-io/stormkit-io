@@ -21,6 +21,11 @@ func handlerAuthProviders(req *shttp.RequestContext) *shttp.Response {
 		"forgejo":   cfg.IsForgejoEnabled(),
 	}
 
+	// The dashboard builds repository and commit links from the instance URL.
+	if cfg.IsForgejoEnabled() {
+		data["forgejoUrl"] = cfg.AuthConfig.Forgejo.BaseURL
+	}
+
 	if cfg.AdminUserConfig != nil && cfg.AdminUserConfig.Email != "" {
 		data["basicAuth"] = "enabled"
 	}

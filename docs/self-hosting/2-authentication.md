@@ -1,6 +1,6 @@
 ---
 title: "Self-Hosting with Stormkit: Authentication Setup"
-description: Learn how to configure authentication for your self-hosted Stormkit instance. Set up admin accounts and integrate with GitHub, GitLab, or Bitbucket for seamless repository management.
+description: Learn how to configure authentication for your self-hosted Stormkit instance. Set up admin accounts and integrate with GitHub, GitLab, Bitbucket, or Forgejo for seamless repository management.
 ---
 
 # Authentication
@@ -20,6 +20,7 @@ However, to import **private repositories**, you must configure at least one of 
 - **GitHub**
 - **GitLab**
 - **Bitbucket**
+- **Forgejo** (self-hosted)
 
 ## Configuring Git Providers
 
@@ -115,5 +116,35 @@ To enable Bitbucket authentication, you need to create a Bitbucket OAuth Consume
 Bitbucket authentication will be immediately enabled for your instance.
 
 When a deploy key is configured, Stormkit does not register webhooks on your repositories. Add them yourself using the webhook URL shown in each app's settings under **Deploy triggers**. The URL carries a secret that identifies the app, and webhooks without it are rejected.
+
+### Forgejo Authentication
+
+Stormkit can connect to one self-hosted [Forgejo](https://forgejo.org) instance. Gitea exposes the same API, so a Gitea instance can be connected the same way.
+
+#### Step 1: Create a Forgejo OAuth2 Application
+
+1. In Forgejo, open **Settings** → **Applications** (or **Site Administration** → **Applications** for an instance-wide application)
+2. Under **Manage OAuth2 applications**, fill in:
+   - **Application name**: Choose a unique name, for instance `Stormkit`
+   - **Redirect URIs**: `https://<your-stormkit-api>/auth/forgejo/callback`, or the **Redirect URL** you set in Stormkit
+   - Keep **Confidential client** checked
+3. Click **Create application**
+4. Copy the **Client ID** and **Client secret** that are displayed
+
+Forgejo does not support OAuth2 scopes yet, so the token Stormkit receives carries the full rights of the user who signs in. Stormkit keeps it on the server: it is never sent to the browser or to builds.
+
+#### Step 2: Configure in Stormkit
+
+1. Navigate to `/admin/git` in your Stormkit instance
+2. Click **Configure Forgejo**
+3. Enter the following information:
+   - **Forgejo URL**: The address of your instance, for instance `https://git.example.org`
+   - **Client ID**: Your application's Client ID
+   - **Client Secret**: Your application's Client secret. Leave it empty to keep the stored one
+4. Click **Configure** to complete the configuration
+
+Alternatively, provide the values through the `FORGEJO_URL`, `FORGEJO_CLIENT_ID`, `FORGEJO_SECRET` and, optionally, `FORGEJO_REDIRECT_URL` environment variables. Environment variables are only read until a git provider is configured from `/admin/git`.
+
+Stormkit registers a webhook and a read-only deploy key on each repository the first time it deploys it. Builds clone over SSH with that deploy key, so your Forgejo instance must have SSH enabled and its SSH port must be reachable from the machines that run builds. Pushes to the default branch and pull requests trigger deployments, and preview links are posted as pull request comments. The Forgejo instance must be able to reach your Stormkit API to deliver webhooks. If it rejects the delivery because the API resolves to a private address, add your Stormkit host to `[webhook] ALLOWED_HOST_LIST` in Forgejo's `app.ini`.
 
 </section>

@@ -1,5 +1,5 @@
 import type { AppSettings } from "../types.d";
-import React, { useState, FormEventHandler } from "react";
+import React, { useContext, useState, FormEventHandler } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import TextField from "@mui/material/TextField";
@@ -9,6 +9,7 @@ import CardHeader from "~/components/CardHeader";
 import CardFooter from "~/components/CardFooter";
 import { updateAdditionalSettings } from "../actions";
 import { toRepoAddr } from "../helpers";
+import { AuthContext } from "~/pages/auth/Auth.context";
 
 const devDomain = process.env.SK_DEV_DOMAIN || "stormkit.dev";
 
@@ -21,6 +22,7 @@ const FormAppSettings: React.FC<Props> = ({ app, additionalSettings }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
   const [success, setSuccess] = useState<string>();
+  const { providers } = useContext(AuthContext);
 
   const handleSubmit: FormEventHandler<HTMLElement> = e => {
     e.preventDefault();
@@ -37,6 +39,7 @@ const FormAppSettings: React.FC<Props> = ({ app, additionalSettings }) => {
     updateAdditionalSettings({
       app,
       values: data,
+      forgejoUrl: providers?.forgejoUrl,
     })
       .then(() => {
         setSuccess("Settings were saved successfully.");
@@ -99,7 +102,7 @@ const FormAppSettings: React.FC<Props> = ({ app, additionalSettings }) => {
             variant="filled"
             required
             placeholder="e.g. https://github.com/stormkit-io/app-stormkit-io"
-            defaultValue={toRepoAddr(app.repo)}
+            defaultValue={toRepoAddr(app.repo, providers?.forgejoUrl)}
             fullWidth
           />
           <Typography sx={{ px: 1.25, pt: 2, opacity: 0.5 }}>

@@ -17,4 +17,10 @@ export interface GitDetails {
     hasDeployKey?: boolean;
     hasClientSecret: boolean;
   };
+  forgejo?: {
+    baseUrl: string;
+    clientId: string;
+    hasClientSecret: boolean;
+    redirectUrl: string;
+  };
 }

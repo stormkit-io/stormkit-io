@@ -1,4 +1,6 @@
+import { useContext } from "react";
 import Link, { LinkProps } from "@mui/material/Link";
+import { AuthContext } from "~/pages/auth/Auth.context";
 
 interface Props extends LinkProps {
   repo: string;
@@ -7,6 +9,8 @@ interface Props extends LinkProps {
 }
 
 export default function Sha({ repo, provider, sha, sx, ...rest }: Props) {
+  const { providers } = useContext(AuthContext);
+
   if (!sha) {
     return <></>;
   }
@@ -15,16 +19,20 @@ export default function Sha({ repo, provider, sha, sx, ...rest }: Props) {
   let link = "";
 
   if (provider == "github") {
-    link = `${repo.replace("github", "github.com")}/commit/${shaShort}`;
+    link = `https://${repo.replace("github", "github.com")}/commit/${shaShort}`;
   } else if (provider == "gitlab") {
-    link = `${repo.replace("gitlab", "gitlab.com")}/-/commit/${shaShort}`;
+    link = `https://${repo.replace("gitlab", "gitlab.com")}/-/commit/${shaShort}`;
+  } else if (provider == "forgejo") {
+    link = providers?.forgejoUrl
+      ? `${repo.replace("forgejo", providers.forgejoUrl)}/commit/${shaShort}`
+      : "";
   } else {
-    link = `${repo.replace("bitbucket", "bitbucket.org")}/commits/${shaShort}`;
+    link = `https://${repo.replace("bitbucket", "bitbucket.org")}/commits/${shaShort}`;
   }
 
   return (
     <Link
-      href={`https://${link}`}
+      href={link || undefined}
       sx={{ ...sx, fontSize: "inherit", color: "inherit" }}
       {...rest}
     >

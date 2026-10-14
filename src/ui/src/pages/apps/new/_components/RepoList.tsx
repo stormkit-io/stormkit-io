@@ -9,17 +9,9 @@ import Typography from "@mui/material/Typography";
 import ArrowRightIcon from "@mui/icons-material/ArrowForwardIos";
 import { useSelectedTeam } from "~/layouts/TopMenu/Teams/actions";
 import { AuthContext } from "~/pages/auth/Auth.context";
-import githubLogo from "~/assets/logos/github-logo.svg";
-import bitbucketLogo from "~/assets/logos/bitbucket-logo.svg";
-import gitlabLogo from "~/assets/logos/gitlab-logo.svg";
+import { getLogoForProvider } from "~/utils/helpers/providers";
 import { insertRepo } from "./actions";
 import { CircularProgress } from "@mui/material";
-
-const logos: Record<Provider, string> = {
-  github: githubLogo,
-  bitbucket: bitbucketLogo,
-  gitlab: gitlabLogo,
-};
 
 export interface Props {
   repositories: Repo[];
@@ -47,7 +39,7 @@ export default function RepoList({
   const { teams } = useContext(AuthContext);
   const team = useSelectedTeam({ teams });
   const navigate = useNavigate();
-  const logo = logos[provider];
+  const logo = getLogoForProvider(provider);
   const repos = useMemo<Repo[]>(
     () => repositories.filter(r => !filter || r.name.includes(filter)),
     [repositories, filter]

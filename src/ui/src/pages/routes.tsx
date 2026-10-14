@@ -85,6 +85,10 @@ const routes: Array<ExtendedRouterProps> = [
     element: Async(() => import("~/pages/apps/new/bitbucket"), centerLayout),
   },
   {
+    path: "/apps/new/forgejo",
+    element: Async(() => import("~/pages/apps/new/forgejo"), centerLayout),
+  },
+  {
     path: "/apps/new/url",
     element: Async(() => import("~/pages/apps/new/url"), centerLayout),
   },

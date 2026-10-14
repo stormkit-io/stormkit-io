@@ -85,13 +85,15 @@ export const useFetchAdditionalSettings = ({
 interface UpdateAdditionalSettingsProps {
   values: Record<string, string>;
   app: App;
+  forgejoUrl?: string;
 }
 
 export const updateAdditionalSettings = ({
   app,
   values: { repo, displayName, runtime },
+  forgejoUrl,
 }: UpdateAdditionalSettingsProps): Promise<void> => {
-  repo = formatRepo(repo);
+  repo = formatRepo(repo, forgejoUrl);
 
   return api.put(`/app`, {
     appId: app.id,

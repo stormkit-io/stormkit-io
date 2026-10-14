@@ -52,6 +52,8 @@ export interface Providers {
   github: boolean;
   gitlab: boolean;
   bitbucket: boolean;
+  forgejo?: boolean;
+  forgejoUrl?: string;
   basicAuth?: "enabled";
 }
 

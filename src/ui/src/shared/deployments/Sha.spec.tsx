@@ -1,4 +1,5 @@
 import { render, RenderResult } from "@testing-library/react";
+import { AuthContext } from "~/pages/auth/Auth.context";
 import Sha from "./Sha";
 
 interface Props {
@@ -30,6 +31,38 @@ describe("~/shared/deployments/Sha.tsx", () => {
       expect(element.getAttribute("href")).toContain(short);
     }
   );
+
+  test("should link Forgejo commits to the configured instance", () => {
+    wrapper = render(
+      <AuthContext.Provider
+        value={{
+          providers: {
+            github: false,
+            gitlab: false,
+            bitbucket: false,
+            forgejo: true,
+            forgejoUrl: "https://git.example.org",
+          },
+        }}
+      >
+        <Sha repo="forgejo/stormkit/app" provider="forgejo" sha="c8b80debdde3" />
+      </AuthContext.Provider>
+    );
+
+    expect(wrapper.getByText("#c8b80d").getAttribute("href")).toBe(
+      "https://git.example.org/stormkit/app/commit/c8b80de"
+    );
+  });
+
+  test("should not link Forgejo commits without the instance URL", () => {
+    createWrapper({
+      repo: "forgejo/stormkit/app",
+      provider: "forgejo",
+      sha: "c8b80debdde3",
+    });
+
+    expect(wrapper.getByText("#c8b80d").getAttribute("href")).toBeNull();
+  });
 
   test("should return empty string when sha is missing", () => {
     createWrapper({ repo: "", provider: "github", sha: "" });

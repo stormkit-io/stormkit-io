@@ -5,6 +5,7 @@ export const providerToText: Record<Provider, string> = {
   github: "GitHub",
   gitlab: "GitLab",
   bitbucket: "Bitbucket",
+  forgejo: "Forgejo",
 };
 
 /**

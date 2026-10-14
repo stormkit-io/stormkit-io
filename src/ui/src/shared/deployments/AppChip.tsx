@@ -4,16 +4,7 @@ import Chip from "@mui/material/Chip";
 import Avatar from "@mui/material/Avatar";
 import BoltIcon from "@mui/icons-material/Bolt";
 import Dot from "~/components/Dot";
-import githubLogo from "~/assets/logos/github-logo.svg";
-import bitbucketLogo from "~/assets/logos/bitbucket-logo.svg";
-import gitlabLogo from "~/assets/logos/gitlab-logo.svg";
-import { parseRepo } from "~/utils/helpers/providers";
-
-const logos: Record<string, string> = {
-  github: githubLogo,
-  gitlab: gitlabLogo,
-  bitbucket: bitbucketLogo,
-};
+import { getLogoForProvider, parseRepo } from "~/utils/helpers/providers";
 
 interface Props {
   repo: string;
@@ -61,7 +52,7 @@ export default function AppChip({
         </>
       }
       sx={color ? sx : { bgcolor: "#1F1C3B", ...sx }}
-      avatar={provider ? <Avatar src={logos[provider]} /> : <BoltIcon />}
+      avatar={provider ? <Avatar src={getLogoForProvider(provider)} /> : <BoltIcon />}
     />
   );
 }

@@ -11,9 +11,10 @@ import api from "~/utils/api/Api";
 import GitHubModal from "./GitHubModal";
 import GitLabModal from "./GitLabModal";
 import BitbucketModal from "./BitbucketModal";
+import ForgejoModal from "./ForgejoModal";
 import { GitDetails } from "./types";
 
-const { GithubButton, GitlabButton, BitbucketButton } = buttons;
+const { GithubButton, GitlabButton, BitbucketButton, ForgejoButton } = buttons;
 
 const useFetchGitDetails = () => {
   const [loading, setLoading] = useState(true);
@@ -43,6 +44,7 @@ export default function Git() {
   const [isGitHubModalOpen, setIsGitHubModalOpen] = useState(false);
   const [isGitLabModalOpen, setIsGitLabModalOpen] = useState(false);
   const [isBitbucketModalOpen, setIsBitbucketModalOpen] = useState(false);
+  const [isForgejoModalOpen, setIsForgejoModalOpen] = useState(false);
   const [error, setError] = useState<string>();
   const [success, setSuccess] = useState<string>();
   const { details, loading, error: fetchError } = useFetchGitDetails();
@@ -91,6 +93,8 @@ export default function Git() {
       <Box
         sx={{
           display: "flex",
+          flexWrap: "wrap",
+          rowGap: 2,
           mb: error || success || isWebhookSecretMissing ? 4 : 0,
           mx: "auto",
         }}
@@ -118,6 +122,7 @@ export default function Git() {
           Configure GitLab
         </GitlabButton>
         <BitbucketButton
+          sx={{ mr: 2 }}
           onClick={() => setIsBitbucketModalOpen(true)}
           endIcon={
             details?.bitbucket ? (
@@ -127,6 +132,16 @@ export default function Git() {
         >
           Configure Bitbucket
         </BitbucketButton>
+        <ForgejoButton
+          onClick={() => setIsForgejoModalOpen(true)}
+          endIcon={
+            details?.forgejo ? (
+              <CheckIcon color="success" sx={{ scale: 0.7 }} />
+            ) : null
+          }
+        >
+          Configure Forgejo
+        </ForgejoButton>
       </Box>
 
       {isGitHubModalOpen && (
@@ -163,6 +178,19 @@ export default function Git() {
             setSuccess(message);
             setError(undefined);
             setIsBitbucketModalOpen(false);
+            setTimeout(() => window.location.reload(), 2000);
+          }}
+        />
+      )}
+
+      {isForgejoModalOpen && (
+        <ForgejoModal
+          details={details}
+          closeModal={() => setIsForgejoModalOpen(false)}
+          onSuccess={(message: string) => {
+            setSuccess(message);
+            setError(undefined);
+            setIsForgejoModalOpen(false);
             setTimeout(() => window.location.reload(), 2000);
           }}
         />

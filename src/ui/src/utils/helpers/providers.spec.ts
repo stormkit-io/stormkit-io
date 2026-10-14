@@ -16,11 +16,17 @@ describe("~/utils/helpers/providers", () => {
       provider: "gitlab",
       repo: "stormkit-io/app-stormkit-io",
     });
+
+    expect(parseRepo("forgejo/stormkit-io/app-stormkit-io")).toEqual({
+      provider: "forgejo",
+      repo: "stormkit-io/app-stormkit-io",
+    });
   });
 
   test("getLogoForProvider: returns the correct logo for the provider", () => {
     expect(getLogoForProvider("github")).toContain("github");
     expect(getLogoForProvider("bitbucket")).toContain("bitbucket");
     expect(getLogoForProvider("gitlab")).toContain("gitlab");
+    expect(getLogoForProvider("forgejo")).toContain("forgejo");
   });
 });

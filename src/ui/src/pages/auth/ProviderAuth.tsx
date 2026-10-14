@@ -6,7 +6,8 @@ import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
 import { AuthContext } from "./Auth.context";
 
-const { GithubButton, GitlabButton, BitbucketButton } = buttons;
+const { GithubButton, GitlabButton, BitbucketButton, ForgejoButton } =
+  buttons;
 
 interface Props {
   providers: any;
@@ -34,20 +35,31 @@ export default function ProviderAuth({ providers }: Props) {
         {providers?.github && (
           <GithubButton
             sx={{
-              mb: providers?.gitlab || providers.bitbucket ? 4 : 0,
+              mb:
+                providers?.gitlab || providers.bitbucket || providers.forgejo
+                  ? 4
+                  : 0,
             }}
             onClick={() => loginOauth?.("github").catch(setError)}
           />
         )}
         {providers?.gitlab && (
           <GitlabButton
-            sx={{ mb: providers?.bitbucket || error ? 4 : 0 }}
+            sx={{
+              mb: providers?.bitbucket || providers?.forgejo || error ? 4 : 0,
+            }}
             onClick={() => loginOauth?.("gitlab").catch(setError)}
           />
         )}
         {providers?.bitbucket && (
           <BitbucketButton
+            sx={{ mb: providers?.forgejo ? 4 : 0 }}
             onClick={() => loginOauth?.("bitbucket").catch(setError)}
+          />
+        )}
+        {providers?.forgejo && (
+          <ForgejoButton
+            onClick={() => loginOauth?.("forgejo").catch(setError)}
           />
         )}
       </Box>

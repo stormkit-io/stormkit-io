@@ -34,7 +34,10 @@ export default function Auth() {
   }
 
   const isBasicAuth =
-    !providers?.github && !providers?.gitlab && !providers?.bitbucket;
+    !providers?.github &&
+    !providers?.gitlab &&
+    !providers?.bitbucket &&
+    !providers?.forgejo;
 
   const loading = false;
 

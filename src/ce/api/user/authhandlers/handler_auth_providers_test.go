@@ -102,6 +102,36 @@ func (s *HandlerAuthProvidersSuite) Test_Provider_BasicAuthEnabled() {
 	s.JSONEq(expected, response.String())
 }
 
+func (s *HandlerAuthProvidersSuite) Test_Provider_Forgejo() {
+	cnf := admin.MustConfig()
+	cnf.AuthConfig = &admin.AuthConfig{
+		Forgejo: admin.ForgejoConfig{
+			BaseURL:      "https://git.example.org",
+			ClientID:     "my-client-id",
+			ClientSecret: "my-secret",
+		},
+	}
+
+	s.NoError(admin.Store().UpsertConfig(context.Background(), cnf))
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(authhandlers.Services).Router().Handler(),
+		shttp.MethodGet,
+		"/auth/providers",
+		nil,
+		nil,
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+	s.JSONEq(`{
+		"github": false,
+		"gitlab": false,
+		"bitbucket": false,
+		"forgejo": true,
+		"forgejoUrl": "https://git.example.org"
+	}`, response.String())
+}
+
 func TestHandlerAuthProviders(t *testing.T) {
 	suite.Run(t, &HandlerAuthProvidersSuite{})
 }
