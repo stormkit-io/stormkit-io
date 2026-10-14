@@ -1,5 +1,27 @@
 # Changelog
 
+## v2026.10.10.1...v2026.10.14.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.10.10.1...v2026.10.14.1)
+
+### 🚀 Enhancements
+
+- Oauth refresh for dcr clients, access ttl ([#598](https://github.com/stormkit-io/stormkit-io/pull/598))
+- Render oauth sign-in page from a template ([#599](https://github.com/stormkit-io/stormkit-io/pull/599))
+- Return sign-in to the oauth page ([#600](https://github.com/stormkit-io/stormkit-io/pull/600))
+
+### 🩹 Fixes
+
+- Count all cores in host cpu and load panels ([#595](https://github.com/stormkit-io/stormkit-io/pull/595))
+
+### 🏡 Chore
+
+- Update changelog for v2026.10.10.1 ([#593](https://github.com/stormkit-io/stormkit-io/pull/593))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.10.09.1...v2026.10.10.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.10.09.1...v2026.10.10.1)
