@@ -8,9 +8,11 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey/apikeyhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
+	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/team"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
@@ -32,6 +34,7 @@ func (s *HandlerAPIKeyRemoveSuite) BeforeTest(suiteName, _ string) {
 }
 
 func (s *HandlerAPIKeyRemoveSuite) AfterTest(_, _ string) {
+	admin.ResetMockLicense()
 	s.conn.CloseTx()
 }
 
@@ -99,6 +102,118 @@ func (s *HandlerAPIKeyRemoveSuite) Test_Team_DeveloperReadOnly() {
 
 	s.Equal(http.StatusForbidden, remove(teamKey(false)))
 	s.Equal(http.StatusOK, remove(teamKey(true)))
+}
+
+// Test_Audit_TeamKey verifies that removing a team key is audit-logged on the
+// team with the key's details.
+func (s *HandlerAPIKeyRemoveSuite) Test_Audit_TeamKey() {
+	admin.SetMockLicense()
+
+	usr := s.MockUser()
+	key := s.MockAPIKey(nil, nil, map[string]any{
+		"UserID":   types.ID(0),
+		"AppID":    types.ID(0),
+		"EnvID":    types.ID(0),
+		"TeamID":   usr.DefaultTeamID,
+		"Name":     "CI",
+		"Scope":    apikey.SCOPE_TEAM,
+		"ReadOnly": false,
+	})
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(apikeyhandlers.Services).Router().Handler(),
+		shttp.MethodDelete,
+		fmt.Sprintf("/api-keys?keyId=%s", key.ID.String()),
+		nil,
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+
+	audits, err := audit.NewStore().SelectAudits(context.Background(), audit.AuditFilters{
+		TeamID: usr.DefaultTeamID,
+	})
+
+	s.Require().NoError(err)
+	s.Require().Len(audits, 1)
+	s.Equal("DELETE:APIKEY", audits[0].Action)
+	s.Equal("CI", audits[0].Diff.Old.APIKeyName)
+	s.Equal(apikey.SCOPE_TEAM, audits[0].Diff.Old.APIKeyScope)
+	s.Require().NotNil(audits[0].Diff.Old.APIKeyReadOnly)
+	s.False(*audits[0].Diff.Old.APIKeyReadOnly)
+}
+
+// Test_Audit_EnvKey verifies that removing an env key is logged on the team
+// that owns the environment.
+func (s *HandlerAPIKeyRemoveSuite) Test_Audit_EnvKey() {
+	admin.SetMockLicense()
+
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	env := s.MockEnv(appl)
+	key := s.MockAPIKey(appl, env, map[string]any{
+		"Name":     "Monitor",
+		"ReadOnly": true,
+	})
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(apikeyhandlers.Services).Router().Handler(),
+		shttp.MethodDelete,
+		fmt.Sprintf("/api-keys?keyId=%s", key.ID.String()),
+		nil,
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+
+	audits, err := audit.NewStore().SelectAudits(context.Background(), audit.AuditFilters{
+		EnvID: env.ID,
+	})
+
+	s.Require().NoError(err)
+	s.Require().Len(audits, 1)
+	s.Equal("DELETE:APIKEY", audits[0].Action)
+	s.Equal(appl.TeamID, audits[0].TeamID)
+	s.Equal(appl.ID, audits[0].AppID)
+	s.Equal("Monitor", audits[0].Diff.Old.APIKeyName)
+	s.True(*audits[0].Diff.Old.APIKeyReadOnly)
+}
+
+// Test_Audit_PersonalKeySkipped verifies that personal keys, which belong to
+// no team, are not logged since no audit view could show them.
+func (s *HandlerAPIKeyRemoveSuite) Test_Audit_PersonalKeySkipped() {
+	admin.SetMockLicense()
+
+	usr := s.MockUser()
+	key := s.MockAPIKey(nil, nil, map[string]any{
+		"UserID": usr.ID,
+		"AppID":  types.ID(0),
+		"EnvID":  types.ID(0),
+		"TeamID": types.ID(0),
+		"Scope":  apikey.SCOPE_USER,
+	})
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(apikeyhandlers.Services).Router().Handler(),
+		shttp.MethodDelete,
+		fmt.Sprintf("/api-keys?keyId=%s", key.ID.String()),
+		nil,
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+
+	count := 0
+	err := s.conn.QueryRow("SELECT COUNT(*) FROM audit_logs WHERE user_id = $1", usr.ID).Scan(&count)
+
+	s.Require().NoError(err)
+	s.Equal(0, count)
 }
 
 func (s *HandlerAPIKeyRemoveSuite) Test_Success_UserID() {

@@ -9,6 +9,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
+	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/team"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
@@ -164,6 +165,8 @@ func handlerAPIKeyAdd(req *user.RequestContext) *shttp.Response {
 	if err := apikey.NewStore().AddAPIKey(req.Context(), key); err != nil {
 		return shttp.Error(err)
 	}
+
+	(&keyAuditor{req: req, key: key}).log(audit.CreateAction)
 
 	return &shttp.Response{
 		Status: http.StatusCreated,

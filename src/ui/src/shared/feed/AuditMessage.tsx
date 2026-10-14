@@ -22,6 +22,39 @@ interface LinkProps {
   children?: React.ReactNode;
 }
 
+const apiKeyLabel = (fields: DiffFields) => {
+  const parts = [
+    fields.apiKeyReadOnly ? "read-only" : "",
+    fields.apiKeyScope || "",
+    "API key",
+    fields.apiKeyName ? `"${fields.apiKeyName}"` : "",
+  ];
+
+  return parts.filter(Boolean).join(" ");
+};
+
+function APIKeyTarget({ audit }: { audit: Audit }) {
+  if (audit.envId) {
+    return (
+      <>
+        {" "}
+        for <EnvLink audit={audit} /> environment
+      </>
+    );
+  }
+
+  if (audit.appId) {
+    return (
+      <>
+        {" "}
+        for <AppLink audit={audit} />
+      </>
+    );
+  }
+
+  return null;
+}
+
 const plural = (singular: string, plural: string, count?: number) => {
   return count === 1 ? `1 ${singular}` : `${count || 0} ${plural}`;
 };
@@ -262,11 +295,25 @@ export default function AuditMessage({ audit }: Props) {
     case "UPDATE:AUTHPROVIDER":
       return (
         <AuditRow audit={audit} forceDiff>
-          {audit.diff.new.authProviderStatus === false
-            ? "Disabled"
-            : "Updated"}{" "}
+          {audit.diff.new.authProviderStatus === false ? "Disabled" : "Updated"}{" "}
           the {audit.diff.new.authProviderName || "sign-in"} provider in{" "}
           <EnvLink audit={audit} /> environment
+        </AuditRow>
+      );
+
+    case "CREATE:APIKEY":
+      return (
+        <AuditRow audit={audit} forceDiff>
+          Created {apiKeyLabel(audit.diff.new)}
+          <APIKeyTarget audit={audit} />
+        </AuditRow>
+      );
+
+    case "DELETE:APIKEY":
+      return (
+        <AuditRow audit={audit} forceDiff>
+          Deleted {apiKeyLabel(audit.diff.old)}
+          <APIKeyTarget audit={audit} />
         </AuditRow>
       );
 

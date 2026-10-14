@@ -34,6 +34,9 @@ declare interface DiffFields {
   autoPublished?: boolean;
   restarted?: boolean;
   stopped?: boolean;
+  apiKeyName?: string;
+  apiKeyScope?: string;
+  apiKeyReadOnly?: boolean;
 }
 
 declare interface Diff {

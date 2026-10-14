@@ -7,6 +7,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
+	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/team"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
@@ -74,6 +75,8 @@ func handlerAPIKeyRemove(req *user.RequestContext) *shttp.Response {
 	if err := apikey.NewStore().RemoveAPIKey(req.Context(), keyID); err != nil {
 		return shttp.Error(err)
 	}
+
+	(&keyAuditor{req: req, key: key}).log(audit.DeleteAction)
 
 	return shttp.OK()
 }

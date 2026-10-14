@@ -9,9 +9,11 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey/apikeyhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
+	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/team"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
@@ -33,6 +35,7 @@ func (s *HandlerAPIKeySetSuite) BeforeTest(suiteName, _ string) {
 }
 
 func (s *HandlerAPIKeySetSuite) AfterTest(_, _ string) {
+	admin.ResetMockLicense()
 	s.conn.CloseTx()
 }
 
@@ -97,6 +100,75 @@ func (s *HandlerAPIKeySetSuite) Test_Success_ReadOnly() {
 	s.Require().NoError(err)
 	s.Require().NotNil(stored)
 	s.True(stored.ReadOnly)
+}
+
+// Test_Audit_EnvKey verifies that creating a key is audit-logged on the team
+// that owns the environment, with its access level.
+func (s *HandlerAPIKeySetSuite) Test_Audit_EnvKey() {
+	admin.SetMockLicense()
+
+	usr := s.MockUser()
+	appl := s.MockApp(usr)
+	env := s.MockEnv(appl)
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(apikeyhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/api-keys",
+		map[string]any{
+			"envId":    env.ID.String(),
+			"name":     "Monitor",
+			"readOnly": true,
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusCreated, response.Code)
+
+	audits, err := audit.NewStore().SelectAudits(context.Background(), audit.AuditFilters{
+		TeamID: appl.TeamID,
+	})
+
+	s.Require().NoError(err)
+	s.Require().Len(audits, 1)
+	s.Equal("CREATE:APIKEY", audits[0].Action)
+	s.Equal(usr.ID, audits[0].UserID)
+	s.Equal(appl.ID, audits[0].AppID)
+	s.Equal(env.ID, audits[0].EnvID)
+	s.Equal("Monitor", audits[0].Diff.New.APIKeyName)
+	s.Equal(apikey.SCOPE_ENV, audits[0].Diff.New.APIKeyScope)
+	s.Require().NotNil(audits[0].Diff.New.APIKeyReadOnly)
+	s.True(*audits[0].Diff.New.APIKeyReadOnly)
+}
+
+// Test_Audit_NotEnterprise verifies that nothing is logged without an
+// enterprise license.
+func (s *HandlerAPIKeySetSuite) Test_Audit_NotEnterprise() {
+	usr := s.MockUser()
+
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(apikeyhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/api-keys",
+		map[string]string{
+			"teamId": usr.DefaultTeamID.String(),
+			"name":   "Default",
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+
+	s.Equal(http.StatusCreated, response.Code)
+
+	audits, err := audit.NewStore().SelectAudits(context.Background(), audit.AuditFilters{
+		TeamID: usr.DefaultTeamID,
+	})
+
+	s.Require().NoError(err)
+	s.Empty(audits)
 }
 
 func (s *HandlerAPIKeySetSuite) Test_Success_UserID() {

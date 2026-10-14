@@ -34,6 +34,7 @@ const (
 
 	TypeMailer       string = "MAILER"
 	TypeAuthProvider string = "AUTHPROVIDER"
+	TypeAPIKey       string = "APIKEY"
 )
 
 // AuditData is the data extracted from a request context for auditing.
@@ -93,6 +94,9 @@ type DiffFields struct {
 	AutoPublished            *bool                  `json:"autoPublished,omitempty"`
 	Restarted                *bool                  `json:"restarted,omitempty"`
 	Stopped                  *bool                  `json:"stopped,omitempty"`
+	APIKeyName               string                 `json:"apiKeyName,omitempty"`
+	APIKeyScope              string                 `json:"apiKeyScope,omitempty"`
+	APIKeyReadOnly           *bool                  `json:"apiKeyReadOnly,omitempty"`
 }
 
 type Diff struct {

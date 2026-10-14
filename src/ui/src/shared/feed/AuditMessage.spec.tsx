@@ -96,32 +96,42 @@ describe("~/shared/feed/AuditMessage.tsx", () => {
       old: {},
       new: { deploymentId: "8241" },
     },
+    "CREATE:APIKEY": {
+      old: {},
+      new: { apiKeyName: "Monitor", apiKeyScope: "env", apiKeyReadOnly: true },
+    },
+    "DELETE:APIKEY": {
+      old: { apiKeyName: "CI", apiKeyScope: "team", apiKeyReadOnly: false },
+      new: {},
+    },
   };
 
   it.each`
-    action                 | expected                                                          | diff
-    ${"CREATE:DOMAIN"}     | ${"Added app.stormkit.io domain to production environment"}       | ${null}
-    ${"UPDATE:DOMAIN"}     | ${"Added custom certificate to app.stormkit.io"}                  | ${null}
-    ${"DELETE:DOMAIN"}     | ${"Removed app.stormkit.io domain from production environment"}   | ${null}
-    ${"CREATE:ENV"}        | ${"Created the staging environment"}                              | ${null}
-    ${"UPDATE:ENV"}        | ${"Updated the staging environment"}                              | ${null}
-    ${"DELETE:ENV"}        | ${"Removed the staging environment"}                              | ${null}
-    ${"REVEAL:ENV"}        | ${"Revealed environment variable values for production environment"} | ${null}
-    ${"CREATE:APP"}        | ${"Created the sample-project application"}                       | ${null}
-    ${"UPDATE:APP"}        | ${"Updated the sample-project application"}                       | ${null}
-    ${"DELETE:APP"}        | ${"Deleted the sample-project application"}                       | ${null}
-    ${"CREATE:SNIPPET"}    | ${"Created 2 new snippets in production environment"}             | ${null}
-    ${"UPDATE:SNIPPET"}    | ${"Updated 1 snippet in production environment"}                  | ${null}
-    ${"DELETE:SNIPPET"}    | ${"Deleted 2 snippets in production environment"}                 | ${null}
-    ${"UPDATE:AUTHWALL"}   | ${"Enabled auth wall in production environment"}                  | ${null}
-    ${"CREATE:AUTHWALL"}   | ${"Created new auth login for production environment"}            | ${null}
-    ${"DELETE:AUTHWALL"}   | ${"Deleted auth login from production environment"}               | ${null}
-    ${"CREATE:SCHEMA"}     | ${"Created schema for production environment"}                    | ${null}
-    ${"DELETE:SCHEMA"}     | ${"Deleted schema from production environment"}                   | ${null}
-    ${"UPDATE:DEPLOYMENT"} | ${"Manually published deployment 8241 to production environment"} | ${null}
-    ${"UPDATE:DEPLOYMENT"} | ${"Auto-published deployment 8241 to production environment"}     | ${{ old: {}, new: { deploymentId: "8241", autoPublished: true } }}
-    ${"UPDATE:DEPLOYMENT"} | ${"Restarted deployment 8241 in production environment"}          | ${{ old: {}, new: { deploymentId: "8241", restarted: true } }}
-    ${"UPDATE:DEPLOYMENT"} | ${"Stopped deployment 8241 in production environment"}            | ${{ old: {}, new: { deploymentId: "8241", stopped: true } }}
+    action                 | expected                                                                | diff
+    ${"CREATE:DOMAIN"}     | ${"Added app.stormkit.io domain to production environment"}             | ${null}
+    ${"UPDATE:DOMAIN"}     | ${"Added custom certificate to app.stormkit.io"}                        | ${null}
+    ${"DELETE:DOMAIN"}     | ${"Removed app.stormkit.io domain from production environment"}         | ${null}
+    ${"CREATE:ENV"}        | ${"Created the staging environment"}                                    | ${null}
+    ${"UPDATE:ENV"}        | ${"Updated the staging environment"}                                    | ${null}
+    ${"DELETE:ENV"}        | ${"Removed the staging environment"}                                    | ${null}
+    ${"REVEAL:ENV"}        | ${"Revealed environment variable values for production environment"}    | ${null}
+    ${"CREATE:APP"}        | ${"Created the sample-project application"}                             | ${null}
+    ${"UPDATE:APP"}        | ${"Updated the sample-project application"}                             | ${null}
+    ${"DELETE:APP"}        | ${"Deleted the sample-project application"}                             | ${null}
+    ${"CREATE:SNIPPET"}    | ${"Created 2 new snippets in production environment"}                   | ${null}
+    ${"UPDATE:SNIPPET"}    | ${"Updated 1 snippet in production environment"}                        | ${null}
+    ${"DELETE:SNIPPET"}    | ${"Deleted 2 snippets in production environment"}                       | ${null}
+    ${"UPDATE:AUTHWALL"}   | ${"Enabled auth wall in production environment"}                        | ${null}
+    ${"CREATE:AUTHWALL"}   | ${"Created new auth login for production environment"}                  | ${null}
+    ${"DELETE:AUTHWALL"}   | ${"Deleted auth login from production environment"}                     | ${null}
+    ${"CREATE:SCHEMA"}     | ${"Created schema for production environment"}                          | ${null}
+    ${"DELETE:SCHEMA"}     | ${"Deleted schema from production environment"}                         | ${null}
+    ${"UPDATE:DEPLOYMENT"} | ${"Manually published deployment 8241 to production environment"}       | ${null}
+    ${"UPDATE:DEPLOYMENT"} | ${"Auto-published deployment 8241 to production environment"}           | ${{ old: {}, new: { deploymentId: "8241", autoPublished: true } }}
+    ${"UPDATE:DEPLOYMENT"} | ${"Restarted deployment 8241 in production environment"}                | ${{ old: {}, new: { deploymentId: "8241", restarted: true } }}
+    ${"UPDATE:DEPLOYMENT"} | ${"Stopped deployment 8241 in production environment"}                  | ${{ old: {}, new: { deploymentId: "8241", stopped: true } }}
+    ${"CREATE:APIKEY"}     | ${'Created read-only env API key "Monitor" for production environment'} | ${null}
+    ${"DELETE:APIKEY"}     | ${'Deleted team API key "CI" for production environment'}               | ${null}
   `(
     "displays the correct message for $action: $expected",
     ({ action, expected, diff }) => {
