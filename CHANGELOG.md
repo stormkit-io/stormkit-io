@@ -1,5 +1,27 @@
 # Changelog
 
+## v2026.10.14.1...v2026.10.14.2
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.10.14.1...v2026.10.14.2)
+
+### 🚀 Enhancements
+
+- Add read-only api keys ([#605](https://github.com/stormkit-io/stormkit-io/pull/605))
+- Audit api key creation and removal ([#606](https://github.com/stormkit-io/stormkit-io/pull/606))
+
+### 🩹 Fixes
+
+- Show decrypted email on the oauth page ([#607](https://github.com/stormkit-io/stormkit-io/pull/607))
+
+### 🏡 Chore
+
+- Update changelog for v2026.10.14.1 ([#601](https://github.com/stormkit-io/stormkit-io/pull/601))
+- Speed up backend tests ([#608](https://github.com/stormkit-io/stormkit-io/pull/608))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.10.10.1...v2026.10.14.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.10.10.1...v2026.10.14.1)
