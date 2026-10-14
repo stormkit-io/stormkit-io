@@ -10,6 +10,10 @@
 - Render oauth sign-in page from a template ([#599](https://github.com/stormkit-io/stormkit-io/pull/599))
 - Return sign-in to the oauth page ([#600](https://github.com/stormkit-io/stormkit-io/pull/600))
 
+### ⚠️ Upgrade notes
+
+- Files under `_stormkit/` in a deployment's build output are no longer served at their own path. Stormkit reserves the folder for files it reads itself, such as `_stormkit/oauth.html`, the custom OAuth sign-in page ([#599](https://github.com/stormkit-io/stormkit-io/pull/599)).
+
 ### 🩹 Fixes
 
 - Count all cores in host cpu and load panels ([#595](https://github.com/stormkit-io/stormkit-io/pull/595))
