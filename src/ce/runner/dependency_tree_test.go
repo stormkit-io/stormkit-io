@@ -1,10 +1,8 @@
 package runner_test
 
 import (
-	"context"
-	"encoding/json"
 	"os"
-	"path"
+	"path/filepath"
 	"sort"
 	"testing"
 
@@ -14,83 +12,49 @@ import (
 
 type DepTree struct {
 	suite.Suite
-	config      runner.RunnerOpts
-	cacheFolder string
+	nodeModules string
 }
 
 func (s *DepTree) SetupTest() {
-	home, err := os.UserHomeDir()
+	s.nodeModules = filepath.Join(s.T().TempDir(), "node_modules")
 
-	s.NoError(err)
-	s.NotEmpty(home)
-
-	runner.DefaultRepo = nil
-	runner.DefaultInstaller = nil
-	s.cacheFolder = path.Join(home, ".cache", "next-hello-world")
-
-	s.config = runner.RunnerOpts{
-		RootDir:  s.cacheFolder,
-		WorkDir:  path.Join(s.cacheFolder, "repo"),
-		Reporter: runner.NewReporter("http://example.com"),
-		Build: runner.BuildOpts{
-			BuildCmd:   "npm run build",
-			DistFolder: ".next",
-			EnvVars: map[string]string{
-				"CI": "true",
-			},
-		},
-		Repo: runner.RepoOpts{
-			PackageJson: &runner.PackageJson{},
-			Address:     "https://github.com/svedova/next-hello-world",
-			Branch:      "main",
-			Dir:         path.Join(s.cacheFolder, "repo"),
-		},
+	packages := map[string]string{
+		"next":         `{ "dependencies": { "@next/env": "1", "styled-jsx": "1" }, "peerDependencies": { "react": "1" } }`,
+		"@next/env":    `{}`,
+		"styled-jsx":   `{ "dependencies": { "client-only": "1" }, "peerDependencies": { "react": "1" } }`,
+		"client-only":  `{}`,
+		"react":        `{ "dependencies": { "loose-envify": "1" } }`,
+		"loose-envify": `{ "dependencies": { "react": "1" } }`,
+		"unrelated":    `{ "dependencies": { "left-pad": "1" } }`,
 	}
 
-	ctx := context.Background()
-
-	// Check if the repository exists under the .cache subfolder
-	if _, err := os.Stat(s.cacheFolder); os.IsNotExist(err) {
-		s.NoError(s.config.MkdirAll())
-
-		// Checkout the repository
-		s.NoError(runner.NewRepo(s.config).Checkout(ctx))
-
-		// Install dependencies
-		installer := runner.NewInstaller(s.config)
-		s.NoError(installer.Install(ctx))
-
-		// Build the app
-		builder := runner.NewBuilder(s.config)
-		s.NoError(builder.ExecCommands(ctx))
+	for name, content := range packages {
+		dir := filepath.Join(s.nodeModules, name)
+		s.Require().NoError(os.MkdirAll(dir, 0755))
+		s.Require().NoError(os.WriteFile(filepath.Join(dir, "package.json"), []byte(content), 0644))
 	}
 }
 
-// Note: this test has no teardown because we want to keep the cache folder
-// between test runs to speed up the process.
+// Test_Walk verifies that dependencies and peer dependencies are resolved
+// transitively, cycles terminate, and packages missing from node_modules are
+// still listed.
 func (s *DepTree) Test_Walk() {
-	tree := runner.NewDepedencyTree([]string{"next"}, path.Join(s.cacheFolder, "repo", "node_modules"))
+	tree := runner.NewDepedencyTree([]string{"next", "missing-pkg"}, s.nodeModules)
 	tree.Walk()
 
-	resolved := tree.ResolvedDepedencies()
 	names := []string{}
 
-	for _, r := range resolved {
+	for _, r := range tree.ResolvedDepedencies() {
 		names = append(names, r.Name)
+		s.Equal(filepath.Join(s.nodeModules, r.Name), r.FullPath)
 	}
 
 	sort.Strings(names)
 
-	js, err := json.Marshal(names)
-	s.NoError(err)
-
-	s.JSONEq(`[
-		"@next/env", "@opentelemetry/api", "@playwright/test",
-		"@swc/counter", "@swc/helpers", "busboy", "caniuse-lite",
-		"client-only", "graceful-fs", "js-tokens", "loose-envify",
-		"nanoid", "next", "picocolors", "postcss", "react", "react-dom",
-		"sass", "scheduler", "source-map-js", "streamsearch", "styled-jsx", "tslib"
-	]`, string(js))
+	s.Equal([]string{
+		"@next/env", "client-only", "loose-envify", "missing-pkg",
+		"next", "react", "styled-jsx",
+	}, names)
 }
 
 func TestDependencyTree(t *testing.T) {

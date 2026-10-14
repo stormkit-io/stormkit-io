@@ -17,7 +17,6 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp/shttptest"
-	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
 type HandleAppInsertSuite struct {
@@ -101,7 +100,6 @@ func (s *HandleAppInsertSuite) Test_GithubRepo() {
 }
 
 func (s *HandleAppInsertSuite) Test_BitbucketRepo() {
-	utils.SetKeySize(2056)
 	usr := s.MockUser()
 
 	response := shttptest.RequestWithHeaders(

@@ -13,7 +13,11 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-var size = 4096
+const size = 4096
+
+// reusedKey, when set, is returned by NewPrivateKey instead of generating a
+// new key. See ReuseKeyForTesting.
+var reusedKey *rsa.PrivateKey
 
 // PrivateKey is a custom private key which supports database serialization
 // and json marshaling. The private key will be stored encrypted in the database
@@ -22,22 +26,29 @@ type PrivateKey struct {
 	*rsa.PrivateKey
 }
 
-// SetKeySize sets the key size. This is used for testing
-// as if the key size is large it's gonna take a while to execute
-// all the tests.
-func SetKeySize(s int) {
-	size = s
-}
+// ReuseKeyForTesting makes NewPrivateKey return the same pre-generated key on
+// every call. Generating a 4096-bit key costs up to a second of CPU, and every
+// app created in a test generates one, which used to dominate the test run.
+func ReuseKeyForTesting() {
+	if reusedKey != nil {
+		return
+	}
 
-// RestoreKeySize restores to default. This is used for testing
-// as if the key size is large it's gonna take a while to execute
-// all the tests.
-func RestoreKeySize() {
-	size = 4096
+	pk, err := rsa.GenerateKey(rand.Reader, 2048)
+
+	if err != nil {
+		panic(err)
+	}
+
+	reusedKey = pk
 }
 
 // NewPrivateKey generates a new private key.
 func NewPrivateKey() *PrivateKey {
+	if reusedKey != nil {
+		return &PrivateKey{reusedKey}
+	}
+
 	pk, err := rsa.GenerateKey(rand.Reader, size)
 
 	if err != nil {

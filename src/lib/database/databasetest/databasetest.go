@@ -15,6 +15,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/database"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"github.com/stormkit-io/stormkit-io/src/migrations"
 )
 
@@ -61,6 +62,8 @@ func init() {
 		}
 	}
 
+	utils.ReuseKeyForTesting()
+
 	migrations.CloudMigrations = true
 	migrations.Up(conn, database.Config)
 
@@ -87,6 +90,9 @@ func (db *TestDB) CloseTx() {
 	}
 }
 
+// sequenceConn is the direct (non-txdb) connection used by resetSequences.
+var sequenceConn *sql.DB
+
 // resetSequences resets all sequences in the test schema to 1 using a direct
 // postgres connection so that the locks are held only for the duration of the
 // statement. Running setval inside a txdb transaction would hold
@@ -98,16 +104,21 @@ func (db *TestDB) CloseTx() {
 // touching pg_catalog sequences or sequences from other schemas, and uses a
 // schema-qualified format string for the regclass cast to prevent ambiguous
 // name resolution via search_path.
+//
+// The connection is kept open across tests: opening a new one per test cost
+// roughly half of each test's setup time.
 func resetSequences() {
-	direct, err := sql.Open("postgres", database.ConnectionString(database.Config))
+	if sequenceConn == nil {
+		conn, err := sql.Open("postgres", database.ConnectionString(database.Config))
 
-	if err != nil {
-		panic(err)
+		if err != nil {
+			panic(err)
+		}
+
+		sequenceConn = conn
 	}
 
-	defer direct.Close()
-
-	_, err = direct.Exec(`
+	_, err := sequenceConn.Exec(`
 		DO $$
 		DECLARE
 			r RECORD;
