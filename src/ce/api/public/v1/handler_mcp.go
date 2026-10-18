@@ -107,7 +107,7 @@ func handlerMCP(req *RequestContext) *shttp.Response {
 
 	case "tools/list":
 		return jsonRPCResult(rpcReq.ID, map[string]any{
-			"tools": mcpTools(req.Token.ReadOnly),
+			"tools": mcpTools(req.Token),
 		})
 
 	case "tools/call":
@@ -139,6 +139,14 @@ func mcpDispatch(req *RequestContextMCP, id any, params *toolCallParams) *shttp.
 		}
 
 		return mcpToolResult(mcpToolResultParams{ID: id, Resp: shttp.ForbiddenReadOnlyAPIKey()})
+	}
+
+	if !mcpKeyReaches(req.Token, params.Name) {
+		if !mcpToolExists(params.Name) {
+			return jsonRPCError(id, rpcErrMethodUnknown, "unknown tool: "+params.Name)
+		}
+
+		return mcpToolResult(mcpToolResultParams{ID: id, Resp: mcpForbiddenScope(req.Token, params.Name)})
 	}
 
 	var resp *shttp.Response

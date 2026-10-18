@@ -219,6 +219,22 @@ func ForbiddenAPIKey() *Response {
 	})
 }
 
+// UnauthorizedAPIKey returns a 401 with a Bearer challenge for a request that
+// carries no API key, or one that does not exist. MCP clients read the
+// challenge to tell a server that needs credentials apart from a broken one.
+func UnauthorizedAPIKey() *Response {
+	resp := APIError(APIErrorParams{
+		Status:  http.StatusUnauthorized,
+		Code:    "unauthorized",
+		Message: "A valid API key is required. Send it in the Authorization header as a Bearer token.",
+		Docs:    DocsAuthenticationURL,
+	})
+
+	resp.Headers.Set("WWW-Authenticate", `Bearer realm="Stormkit"`)
+
+	return resp
+}
+
 // ForbiddenReadOnlyAPIKey returns a 403 for a read-only API key that attempted
 // a request which changes state.
 func ForbiddenReadOnlyAPIKey() *Response {

@@ -17,11 +17,22 @@ The server speaks the **Streamable HTTP** transport (protocol revision `2025-11-
 
 **Base URL:** `https://api.stormkit.io` (Stormkit Cloud). Self-hosted instances expose the MCP server at `https://<your-host>/v1/mcp`.
 
-**Authentication:** a Stormkit API key passed as a Bearer token in the `Authorization` header. A user-level key works for every tool; team-, app- and env-scoped keys are limited to resources within their scope. Create a key from **User Settings → API Keys**.
+**Authentication:** a Stormkit API key passed as a Bearer token in the `Authorization` header. A request without a key, or with a key that does not exist, gets `401 Unauthorized` with a `WWW-Authenticate: Bearer` challenge.
 
 ```
 Authorization: Bearer SK_xxxxxxxx
 ```
+
+Any key type works. A key bound to a team, app or environment sees only the tools that work within it, and reaches only its own resources:
+
+| Key         | Tools                                                      |
+| ----------- | ---------------------------------------------------------- |
+| User        | All tools                                                  |
+| Team        | All except `list_teams` and `create_team`                  |
+| App         | As team, minus `list_apps` and `create_app`                |
+| Environment | As app, minus `list_environments` and `create_environment` |
+
+Calling a tool the key cannot use fails with the `api_key_scope` error. Create user keys from **User Settings → API Keys**, and team, app or environment keys from their settings pages.
 
 ### Claude Code plugin (recommended)
 

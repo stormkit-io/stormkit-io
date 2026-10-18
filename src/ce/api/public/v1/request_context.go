@@ -163,6 +163,20 @@ type Opts struct {
 	// refused unless the endpoint opts in, so a new endpoint is closed to them
 	// until someone checks that it neither changes state nor reveals secrets.
 	ReadOnly ReadOnlyAccess
+
+	// Challenge answers a missing or unknown key with a 401 and a Bearer
+	// challenge instead of a 403, which is what MCP clients expect from a
+	// server that needs credentials.
+	Challenge bool
+}
+
+// unauthenticated is the response for a request that has no valid key.
+func (o *Opts) unauthenticated() *shttp.Response {
+	if o.Challenge {
+		return shttp.UnauthorizedAPIKey()
+	}
+
+	return shttp.ForbiddenAPIKey()
 }
 
 // ReadOnlyAccess says how an endpoint treats read-only API keys.
@@ -204,7 +218,7 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 			uid := user.UIDFromBearer(token)
 
 			if uid == 0 {
-				return shttp.ForbiddenAPIKey()
+				return options.unauthenticated()
 			}
 
 			usr, err := user.NewStore().UserByID(uid)
@@ -214,7 +228,7 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 			}
 
 			if usr == nil {
-				return shttp.ForbiddenAPIKey()
+				return options.unauthenticated()
 			}
 
 			request.User = usr
@@ -232,7 +246,7 @@ func WithAPIKey(handler func(*RequestContext) *shttp.Response, opts ...*Opts) sh
 
 			// This is an invalid key. A key needs to have either an app ID, user ID or team ID.
 			if key == nil || (key.UserID == 0 && key.AppID == 0 && key.TeamID == 0) {
-				return shttp.ForbiddenAPIKey()
+				return options.unauthenticated()
 			}
 
 			request.Token = key

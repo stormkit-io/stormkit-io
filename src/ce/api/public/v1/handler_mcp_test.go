@@ -132,27 +132,40 @@ func (s *HandlerMCPSuite) toolContent(envelope map[string]any) map[string]any {
 	return data
 }
 
-func (s *HandlerMCPSuite) Test_Forbidden_NoKey() {
+// Test_Unauthorized_NoKey verifies that a request without a key gets a 401
+// with a Bearer challenge, as MCP clients expect.
+func (s *HandlerMCPSuite) Test_Unauthorized_NoKey() {
 	resp := shttptest.RequestWithHeaders(
 		s.handler(),
 		shttp.MethodPost,
 		"/v1/mcp",
-		mcpBody(1, "tools/list", map[string]any{}),
+		mcpBody(1, "initialize", map[string]any{}),
 		map[string]string{},
 	)
-	s.Equal(http.StatusForbidden, resp.Code)
+
+	s.Equal(http.StatusUnauthorized, resp.Code)
+	s.Equal(`Bearer realm="Stormkit"`, resp.Header().Get("WWW-Authenticate"))
+	s.Equal("unauthorized", resp.Map()["code"])
 }
 
-func (s *HandlerMCPSuite) Test_Forbidden_LowScopeKey() {
+// Test_Unauthorized_UnknownKey verifies that a key that does not exist is
+// challenged the same way as a missing one.
+func (s *HandlerMCPSuite) Test_Unauthorized_UnknownKey() {
+	resp := s.post("Bearer SK_does_not_exist", mcpBody(1, "initialize", map[string]any{}))
+
+	s.Equal(http.StatusUnauthorized, resp.Code)
+	s.Equal(`Bearer realm="Stormkit"`, resp.Header().Get("WWW-Authenticate"))
+}
+
+// Test_EnvKeyConnects verifies that a key bound to an environment can use the
+// MCP server, not only user-level keys.
+func (s *HandlerMCPSuite) Test_EnvKeyConnects() {
 	usr := s.MockUser()
 	appl := s.MockApp(usr)
 	env := s.MockEnv(appl)
-
-	// SCOPE_ENV key is below the SCOPE_USER minimum required for /v1/mcp.
 	envKey := s.MockAPIKey(appl, env)
 
-	resp := s.post(envKey.Value, mcpBody(1, "tools/list", map[string]any{}))
-	s.Equal(http.StatusForbidden, resp.Code)
+	s.rpcOK(s.post(envKey.Value, mcpBody(1, "initialize", map[string]any{})))
 }
 
 func (s *HandlerMCPSuite) Test_ParseError_InvalidJSON() {
@@ -264,12 +277,13 @@ func (s *HandlerMCPSuite) Test_SSEStream() {
 	s.Equal("text/event-stream", w.Header().Get("Content-Type"))
 }
 
-// Test_SSEStream_Forbidden verifies that the SSE endpoint requires auth.
-func (s *HandlerMCPSuite) Test_SSEStream_Forbidden() {
+// Test_SSEStream_Unauthorized verifies that the SSE endpoint requires auth.
+func (s *HandlerMCPSuite) Test_SSEStream_Unauthorized() {
 	r := httptest.NewRequest(http.MethodGet, "/v1/mcp", nil)
 	w := httptest.NewRecorder()
 	s.handler().ServeHTTP(w, r)
-	s.Equal(http.StatusForbidden, w.Code)
+	s.Equal(http.StatusUnauthorized, w.Code)
+	s.Equal(`Bearer realm="Stormkit"`, w.Header().Get("WWW-Authenticate"))
 }
 
 func (s *HandlerMCPSuite) Test_ToolsList_ReturnsExpectedTools() {

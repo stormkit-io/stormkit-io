@@ -10,6 +10,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/team"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
+	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
@@ -21,11 +22,16 @@ type RequestContextMCP struct {
 }
 
 // withEnv loads and authorises access to the environment identified by
-// args["envId"], mirroring the SCOPE_ENV check in WithAPIKey.
+// args["envId"], or the key's own environment when envId is omitted,
+// mirroring the SCOPE_ENV check in WithAPIKey.
 // On success it sets req.Env, req.App, and req.TeamID; on failure it returns
 // a non-nil response that should be returned immediately by the caller.
 func (req *RequestContextMCP) withEnv(args map[string]any) *shttp.Response {
 	envID := utils.StringToID(stringArg(args, "envId"))
+
+	if envID == 0 {
+		envID = req.Token.EnvID
+	}
 
 	if envID == 0 {
 		return shttp.BadRequest(map[string]any{"errors": []string{"envId is required"}})
@@ -37,8 +43,11 @@ func (req *RequestContextMCP) withEnv(args map[string]any) *shttp.Response {
 		return shttp.Error(err)
 	}
 
+	// An environment the key cannot reach is answered as if it did not exist,
+	// so the 404-vs-403 difference cannot be used to enumerate other tenants'
+	// environment IDs.
 	if env == nil {
-		return shttp.NotFound()
+		return shttp.NotFoundJSON(msgEnvNotFound)
 	}
 
 	myApp, err := app.NewStore().AppByID(req.Context(), env.AppID)
@@ -47,12 +56,8 @@ func (req *RequestContextMCP) withEnv(args map[string]any) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	if myApp == nil {
-		return shttp.NotFound()
-	}
-
-	if !buildconf.NewStore().IsMember(req.Context(), env.ID, req.Token.UserID) {
-		return shttp.ForbiddenAPIKey()
+	if myApp == nil || !req.reachesEnv(env, myApp) {
+		return shttp.NotFoundJSON(msgEnvNotFound)
 	}
 
 	req.Env = env
@@ -63,10 +68,15 @@ func (req *RequestContextMCP) withEnv(args map[string]any) *shttp.Response {
 }
 
 // withApp loads and authorises access to the application identified by
-// args["appId"], mirroring the SCOPE_APP check in WithAPIKey.
+// args["appId"], or the key's own app when appId is omitted, mirroring the
+// SCOPE_APP check in WithAPIKey.
 // On success it sets req.App and req.TeamID.
 func (req *RequestContextMCP) withApp(args map[string]any) *shttp.Response {
 	appID := utils.StringToID(stringArg(args, "appId"))
+
+	if appID == 0 {
+		appID = req.Token.AppID
+	}
 
 	if appID == 0 {
 		return shttp.BadRequest(map[string]any{"errors": []string{"appId is required"}})
@@ -78,12 +88,10 @@ func (req *RequestContextMCP) withApp(args map[string]any) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	if myApp == nil {
-		return shttp.NotFound()
-	}
-
-	if !team.NewStore().IsMember(req.Context(), req.Token.UserID, myApp.TeamID) {
-		return shttp.ForbiddenAPIKey()
+	// An app the key cannot reach is answered as if it did not exist, as in
+	// withEnv.
+	if myApp == nil || !req.reachesApp(myApp) {
+		return shttp.NotFoundJSON(msgAppNotFound)
 	}
 
 	req.App = myApp
@@ -110,22 +118,76 @@ func (req *RequestContextMCP) withDeploymentID(args map[string]any) *shttp.Respo
 	return nil
 }
 
-// withTeamID resolves and authorises the team identified by args["teamId"].
-// teamId is required; returns a 400 when it is absent or cannot be parsed.
-// Sets req.TeamID on success.
+// withTeamID resolves and authorises the team identified by args["teamId"],
+// or the key's own team when teamId is omitted. Returns a 400 when neither
+// gives a team. Sets req.TeamID on success.
 func (req *RequestContextMCP) withTeamID(args map[string]any) *shttp.Response {
 	teamID := utils.StringToID(stringArg(args, "teamId"))
+
+	if teamID == 0 {
+		teamID = req.Token.TeamID
+	}
 
 	if teamID == 0 {
 		return shttp.BadRequest(map[string]any{"errors": []string{"teamId is required"}})
 	}
 
-	if !team.NewStore().IsMember(req.Context(), req.Token.UserID, teamID) {
+	if !req.reachesTeam(teamID) {
 		return shttp.ForbiddenAPIKey()
 	}
 
 	req.TeamID = teamID
 	return nil
+}
+
+// reachesEnv reports whether the key may act on env, mirroring the SCOPE_ENV
+// check in WithAPIKey: a key bound to an environment, app or team reaches only
+// what it is bound to, and a user key reaches what its user is a member of.
+func (req *RequestContextMCP) reachesEnv(env *buildconf.Env, myApp *app.App) bool {
+	token := req.Token
+
+	switch {
+	case token.EnvID != 0:
+		return token.EnvID == env.ID
+	case token.AppID != 0:
+		return token.AppID == env.AppID
+	case token.TeamID != 0:
+		return token.TeamID == myApp.TeamID
+	default:
+		return buildconf.NewStore().IsMember(req.Context(), env.ID, token.UserID)
+	}
+}
+
+// reachesApp reports whether the key may act on myApp. Environment keys never
+// do, since app-level tools reach beyond a single environment.
+func (req *RequestContextMCP) reachesApp(myApp *app.App) bool {
+	token := req.Token
+
+	switch {
+	case token.EnvID != 0:
+		return false
+	case token.AppID != 0:
+		return token.AppID == myApp.ID
+	case token.TeamID != 0:
+		return token.TeamID == myApp.TeamID
+	default:
+		return team.NewStore().IsMember(req.Context(), token.UserID, myApp.TeamID)
+	}
+}
+
+// reachesTeam reports whether the key may act on the team. Only team and user
+// keys do.
+func (req *RequestContextMCP) reachesTeam(teamID types.ID) bool {
+	token := req.Token
+
+	switch {
+	case token.EnvID != 0, token.AppID != 0:
+		return false
+	case token.TeamID != 0:
+		return token.TeamID == teamID
+	default:
+		return team.NewStore().IsMember(req.Context(), token.UserID, teamID)
+	}
 }
 
 // setBody JSON-encodes v and replaces the request body so that handlers that

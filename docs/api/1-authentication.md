@@ -41,8 +41,8 @@ Any of the keys above can be created as **read only** by turning on the
   `read_only_api_key`.
 - cannot pull plaintext environment variables (`GET /v1/env/pull`), and does
   not receive the private key of custom domain certificates.
-- sees and calls only the read-only tools on the [MCP server](/docs/api/mcp).
-  The MCP server needs a user-level key.
+- sees and calls only the read-only tools on the [MCP server](/docs/api/mcp),
+  within the key's own team, app or environment.
 
 Team members with the developer role can create and delete read-only team
 keys; full-access team keys still need an owner or admin.

@@ -104,9 +104,11 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodGet, "", WithAPIKey(handlerTeamList, &Opts{MinimumScope: apikey.SCOPE_USER, ReadOnly: ReadOnlyAllowed})).
 		Handler(shttp.MethodPost, "", WithAPIKey(handlerTeamCreate, &Opts{MinimumScope: apikey.SCOPE_USER}))
 
+	// Every key type may connect to MCP. Each tool then checks the key reaches
+	// the resource it acts on, and tools/list hides the ones it cannot use.
 	s.NewEndpoint("/v1/mcp").
-		Handler(shttp.MethodPost, "", WithAPIKey(handlerMCP, &Opts{MinimumScope: apikey.SCOPE_USER, ReadOnly: ReadOnlyHandled})).
-		Handler(shttp.MethodGet, "", WithAPIKey(handlerMCPStream, &Opts{MinimumScope: apikey.SCOPE_USER, ReadOnly: ReadOnlyAllowed}))
+		Handler(shttp.MethodPost, "", WithAPIKey(handlerMCP, &Opts{ReadOnly: ReadOnlyHandled, Challenge: true})).
+		Handler(shttp.MethodGet, "", WithAPIKey(handlerMCPStream, &Opts{ReadOnly: ReadOnlyAllowed, Challenge: true}))
 
 	if authConfigEnabled() {
 		s.NewEndpoint("/v1/auth/config").

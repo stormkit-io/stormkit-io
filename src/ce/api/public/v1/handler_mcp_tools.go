@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf/mailerhandlers"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/redirects"
@@ -97,6 +98,160 @@ func mcpToolAnnotationsFor(name string) mcpToolAnnotations {
 	return mcpToolAnnotations{DestructiveHint: true}
 }
 
+// mcpToolScope is the narrowest key type that may use each tool. It matches
+// the scope of the tool's REST endpoint, so a key reaches the same resources
+// through MCP as through REST. A tool missing from this table needs a
+// user-level key, so forgetting to classify a new tool fails closed.
+var mcpToolScope = map[string]string{
+	"list_teams":  apikey.SCOPE_USER,
+	"create_team": apikey.SCOPE_USER,
+
+	"list_apps":  apikey.SCOPE_TEAM,
+	"create_app": apikey.SCOPE_TEAM,
+
+	"list_environments":  apikey.SCOPE_APP,
+	"create_environment": apikey.SCOPE_APP,
+
+	"deploy":                         apikey.SCOPE_ENV,
+	"get_deployment":                 apikey.SCOPE_ENV,
+	"list_deployments":               apikey.SCOPE_ENV,
+	"publish_deployment":             apikey.SCOPE_ENV,
+	"restart_deployment":             apikey.SCOPE_ENV,
+	"prioritize_deployment":          apikey.SCOPE_ENV,
+	"stop_deployment":                apikey.SCOPE_ENV,
+	"delete_deployment":              apikey.SCOPE_ENV,
+	"get_runtime_logs":               apikey.SCOPE_ENV,
+	"get_access_logs":                apikey.SCOPE_ENV,
+	"update_environment":             apikey.SCOPE_ENV,
+	"list_domains":                   apikey.SCOPE_ENV,
+	"create_domain":                  apikey.SCOPE_ENV,
+	"delete_domain":                  apikey.SCOPE_ENV,
+	"list_triggers":                  apikey.SCOPE_ENV,
+	"create_trigger":                 apikey.SCOPE_ENV,
+	"update_trigger":                 apikey.SCOPE_ENV,
+	"delete_trigger":                 apikey.SCOPE_ENV,
+	"invoke_trigger":                 apikey.SCOPE_ENV,
+	"get_trigger_logs":               apikey.SCOPE_ENV,
+	"get_mailer_config":              apikey.SCOPE_ENV,
+	"configure_mailer":               apikey.SCOPE_ENV,
+	"list_emails":                    apikey.SCOPE_ENV,
+	"send_test_email":                apikey.SCOPE_ENV,
+	"get_auth_config":                apikey.SCOPE_ENV,
+	"configure_auth":                 apikey.SCOPE_ENV,
+	"configure_auth_provider":        apikey.SCOPE_ENV,
+	"enable_database_integration":    apikey.SCOPE_ENV,
+	"configure_database_integration": apikey.SCOPE_ENV,
+}
+
+// mcpScopeReach orders key types from the narrowest to the widest.
+var mcpScopeReach = map[string]int{
+	apikey.SCOPE_ENV:  0,
+	apikey.SCOPE_APP:  1,
+	apikey.SCOPE_TEAM: 2,
+	apikey.SCOPE_USER: 3,
+}
+
+// mcpKeyScope returns the type of resource the key is bound to. The checks run
+// in the same order as WithAPIKey's, so a key carrying several IDs is bound to
+// the narrowest one.
+func mcpKeyScope(token *apikey.Token) string {
+	switch {
+	case token.EnvID != 0:
+		return apikey.SCOPE_ENV
+	case token.AppID != 0:
+		return apikey.SCOPE_APP
+	case token.TeamID != 0:
+		return apikey.SCOPE_TEAM
+	default:
+		return apikey.SCOPE_USER
+	}
+}
+
+// mcpKeyReaches reports whether the key is wide enough to use the named tool.
+func mcpKeyReaches(token *apikey.Token, name string) bool {
+	scope, ok := mcpToolScope[name]
+
+	if !ok {
+		scope = apikey.SCOPE_USER
+	}
+
+	return mcpScopeReach[mcpKeyScope(token)] >= mcpScopeReach[scope]
+}
+
+// mcpKeyBoundArg is the tool argument a key bound to an environment, app or
+// team fills in itself when it is omitted. User keys fill in nothing.
+func mcpKeyBoundArg(token *apikey.Token) string {
+	switch mcpKeyScope(token) {
+	case apikey.SCOPE_ENV:
+		return "envId"
+	case apikey.SCOPE_APP:
+		return "appId"
+	case apikey.SCOPE_TEAM:
+		return "teamId"
+	default:
+		return ""
+	}
+}
+
+// mcpOptionalArg returns a copy of schema where arg is no longer required and
+// its description says it defaults to the key's own resource. Without this, an
+// agent holding a scoped key would be asked for an ID that only tools hidden
+// from it could reveal.
+func mcpOptionalArg(schema map[string]any, arg string) map[string]any {
+	required, _ := schema["required"].([]string)
+	properties, _ := schema["properties"].(map[string]any)
+	property, ok := properties[arg].(map[string]any)
+
+	if !ok {
+		return schema
+	}
+
+	out := map[string]any{}
+
+	for k, v := range schema {
+		out[k] = v
+	}
+
+	kept := []string{}
+
+	for _, name := range required {
+		if name != arg {
+			kept = append(kept, name)
+		}
+	}
+
+	props := map[string]any{}
+
+	for k, v := range properties {
+		props[k] = v
+	}
+
+	prop := map[string]any{}
+
+	for k, v := range property {
+		prop[k] = v
+	}
+
+	desc, _ := prop["description"].(string)
+	prop["description"] = strings.TrimSpace(desc + " Defaults to the one this API key is bound to.")
+	props[arg] = prop
+
+	out["required"] = kept
+	out["properties"] = props
+
+	return out
+}
+
+// mcpForbiddenScope is the tool error for a key too narrow to use the tool.
+func mcpForbiddenScope(token *apikey.Token, name string) *shttp.Response {
+	return shttp.APIError(shttp.APIErrorParams{
+		Status:  http.StatusForbidden,
+		Code:    "api_key_scope",
+		Message: fmt.Sprintf("This API key is limited to a single %s and cannot use %s. Use a key with wider access, such as a user-level key.", mcpKeyScope(token), name),
+		Docs:    shttp.DocsAuthenticationURL,
+	})
+}
+
 // mcpToolExists reports whether the named tool is offered by this build.
 func mcpToolExists(name string) bool {
 	for _, tool := range mcpAllTools() {
@@ -109,15 +264,24 @@ func mcpToolExists(name string) bool {
 }
 
 // mcpTools returns the tools the caller may use. Read-only keys get only the
-// read-only tools.
-func mcpTools(readOnly bool) []mcpToolDef {
+// read-only tools, and keys bound to a team, app or environment get only the
+// tools that work within it.
+func mcpTools(token *apikey.Token) []mcpToolDef {
 	tools := []mcpToolDef{}
 
 	for _, tool := range mcpAllTools() {
 		annotations := mcpToolAnnotationsFor(tool.Name)
 
-		if readOnly && !annotations.ReadOnlyHint {
+		if token.ReadOnly && !annotations.ReadOnlyHint {
 			continue
+		}
+
+		if !mcpKeyReaches(token, tool.Name) {
+			continue
+		}
+
+		if arg := mcpKeyBoundArg(token); arg != "" {
+			tool.InputSchema = mcpOptionalArg(tool.InputSchema, arg)
 		}
 
 		tool.Annotations = &annotations
