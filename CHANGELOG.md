@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.10.14.2...v2026.10.19.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.10.14.2...v2026.10.19.1)
+
+### 🚀 Enhancements
+
+- Open mcp to scoped keys, 401 without one ([#610](https://github.com/stormkit-io/stormkit-io/pull/610))
+
+### 🏡 Chore
+
+- Update changelog for v2026.10.14.2 ([#609](https://github.com/stormkit-io/stormkit-io/pull/609))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.10.14.1...v2026.10.14.2
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.10.14.1...v2026.10.14.2)
