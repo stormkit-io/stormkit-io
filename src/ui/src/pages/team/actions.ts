@@ -27,20 +27,35 @@ export const useFetchTeamMembers = ({ team }: FetchTeamMembersProps) => {
       return;
     }
 
+    // Drop the response once the component unmounts or the team changes, so a
+    // slow request cannot update state after teardown or overwrite the
+    // members of the team that replaced it.
+    let cancelled = false;
+
     setLoading(true);
     setError("");
 
     api
       .fetch<TeamMember[]>(`/team/members?teamId=${team.id}`)
       .then(members => {
-        setTeamMembers(members);
+        if (!cancelled) {
+          setTeamMembers(members);
+        }
       })
       .catch(() => {
-        setError("Something went wrong while fetching team members.");
+        if (!cancelled) {
+          setError("Something went wrong while fetching team members.");
+        }
       })
       .finally(() => {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, [team]);
 
   return { teamMembers, loading, error };
