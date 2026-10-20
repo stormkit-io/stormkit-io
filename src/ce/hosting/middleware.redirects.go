@@ -1,13 +1,16 @@
 package hosting
 
 import (
+	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/redirects"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"go.uber.org/zap"
 )
 
@@ -46,6 +49,25 @@ func WithRedirect(req *RequestContext) (*shttp.Response, error) {
 	}
 
 	if match.Proxy {
+		// The header can come from the visitor, so a negative value must not
+		// buy extra hops.
+		hops := max(utils.StringToInt(req.Header.Get(proxyHopsHeader)), 0)
+
+		if hops >= maxProxyHops {
+			slog.Errorf("proxy loop detected: host=%s url=%s hops=%d", req.Host.Name, url.String(), hops)
+
+			return &shttp.Response{
+				Status: http.StatusLoopDetected,
+				Data:   "Proxy loop detected",
+			}, nil
+		}
+
+		// The target picks its site from X-Forwarded-Host before Host, so
+		// forwarding the visitor's value would serve this site again instead
+		// of the target and loop when the target redirects back here.
+		req.Header.Del("X-Forwarded-Host")
+		req.Header.Set(proxyHopsHeader, strconv.Itoa(hops+1))
+
 		return shttp.Proxy(req.RequestContext, shttp.ProxyArgs{
 			Target:   match.Redirect,
 			DialAddr: localDialAddr(match.Redirect),
@@ -72,6 +94,14 @@ func WithRedirect(req *RequestContext) (*shttp.Response, error) {
 		Status:   match.Status,
 	}, nil
 }
+
+// proxyHopsHeader counts how many proxy rules a request has passed through.
+// It rides along when the proxy follows a redirect, so a chain of rules that
+// leads back to itself stops after maxProxyHops instead of running until the
+// proxy timeout.
+const proxyHopsHeader = "X-Stormkit-Proxy-Hops"
+
+const maxProxyHops = 5
 
 // localProxyAddr is where this process accepts HTTPS connections, set when the
 // server starts. Empty disables local dialling.

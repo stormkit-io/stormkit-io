@@ -629,7 +629,7 @@ func (s *HandlerForwardSuite) Test_Redirects_RedirectingToDifferentDomain_ProxyW
 
 	s.mockRequest.On("URL", "https://test-api.example.com/api/v2/my-endpoint").Return(s.mockRequest).Once()
 	s.mockRequest.On("Method", "").Return(s.mockRequest).Once()
-	s.mockRequest.On("Headers", shttp.HeadersFromMap(map[string]string{})).Return(s.mockRequest).Once()
+	s.mockRequest.On("Headers", shttp.HeadersFromMap(map[string]string{"X-Stormkit-Proxy-Hops": "1"})).Return(s.mockRequest).Once()
 	s.mockRequest.On("Stream", req.Body, int64(0)).Return(s.mockRequest).Once()
 	s.mockRequest.On("Do").Return(&shttp.HTTPResponse{
 		Response: &http.Response{
@@ -656,7 +656,7 @@ func (s *HandlerForwardSuite) Test_Redirects_RedirectingToDifferentDomain_ProxyW
 
 	s.mockRequest.On("URL", "https://test-api.example.com/api/v2/my-endpoint").Return(s.mockRequest).Once()
 	s.mockRequest.On("Method", "").Return(s.mockRequest).Once()
-	s.mockRequest.On("Headers", shttp.HeadersFromMap(map[string]string{})).Return(s.mockRequest).Once()
+	s.mockRequest.On("Headers", shttp.HeadersFromMap(map[string]string{"X-Stormkit-Proxy-Hops": "1"})).Return(s.mockRequest).Once()
 	s.mockRequest.On("Stream", req.Body, int64(10)).Return(s.mockRequest).Once()
 	s.mockRequest.On("Do").Return(&shttp.HTTPResponse{
 		Response: &http.Response{
@@ -682,7 +682,7 @@ func (s *HandlerForwardSuite) Test_Redirects_RedirectingToDifferentDomain_ProxyW
 
 	s.mockRequest.On("URL", "https://test-api.example.com/api/v1/my-endpoint/").Return(s.mockRequest).Once()
 	s.mockRequest.On("Method", "").Return(s.mockRequest).Once()
-	s.mockRequest.On("Headers", shttp.HeadersFromMap(map[string]string{})).Return(s.mockRequest).Once()
+	s.mockRequest.On("Headers", shttp.HeadersFromMap(map[string]string{"X-Stormkit-Proxy-Hops": "1"})).Return(s.mockRequest).Once()
 	s.mockRequest.On("Stream", req.Body, int64(0)).Return(s.mockRequest).Once()
 	s.mockRequest.On("Do").Return(&shttp.HTTPResponse{
 		Response: &http.Response{
@@ -706,7 +706,7 @@ func (s *HandlerForwardSuite) Test_Redirects_RedirectingToDifferentDomain_ProxyW
 func (s *HandlerForwardSuite) mockProxyCall(req *hosting.RequestContext, target string) {
 	s.mockRequest.On("URL", target).Return(s.mockRequest).Once()
 	s.mockRequest.On("Method", "").Return(s.mockRequest).Once()
-	s.mockRequest.On("Headers", shttp.HeadersFromMap(map[string]string{})).Return(s.mockRequest).Once()
+	s.mockRequest.On("Headers", shttp.HeadersFromMap(map[string]string{"X-Stormkit-Proxy-Hops": "1"})).Return(s.mockRequest).Once()
 	s.mockRequest.On("Stream", req.Body, int64(0)).Return(s.mockRequest).Once()
 	s.mockRequest.On("Do").Return(&shttp.HTTPResponse{
 		Response: &http.Response{
@@ -838,6 +838,71 @@ func (s *HandlerForwardSuite) Test_Redirects_ProxyLocalDialDisabled() {
 	s.Equal(http.StatusOK, res.Status)
 	s.mockRequest.AssertExpectations(s.T())
 	s.mockRequest.AssertNotCalled(s.T(), "DialAddr", mock.Anything)
+}
+
+// Test_Redirects_Proxy_DropsForwardedHost verifies the visitor's
+// X-Forwarded-Host is not sent to the target, which would otherwise serve this
+// site again instead of its own.
+func (s *HandlerForwardSuite) Test_Redirects_Proxy_DropsForwardedHost() {
+	req := s.proxyRule("landing", "https://landing.example.org")
+	req.Header.Set("X-Forwarded-Host", s.host.Name)
+
+	s.mockProxyCall(req, "https://landing.example.org/img.png")
+
+	res := hosting.HandlerForward(req)
+
+	s.Equal(http.StatusOK, res.Status)
+	s.mockRequest.AssertExpectations(s.T())
+}
+
+// Test_Redirects_Proxy_IncrementsHops verifies a request that already passed
+// through a proxy rule carries the next hop count.
+func (s *HandlerForwardSuite) Test_Redirects_Proxy_IncrementsHops() {
+	req := s.proxyRule("landing", "https://landing.example.org")
+	req.Header.Set("X-Stormkit-Proxy-Hops", "2")
+
+	s.mockRequest.On("URL", "https://landing.example.org/img.png").Return(s.mockRequest).Once()
+	s.mockRequest.On("Method", "").Return(s.mockRequest).Once()
+	s.mockRequest.On("Headers", shttp.HeadersFromMap(map[string]string{"X-Stormkit-Proxy-Hops": "3"})).Return(s.mockRequest).Once()
+	s.mockRequest.On("Stream", req.Body, int64(0)).Return(s.mockRequest).Once()
+	s.mockRequest.On("Do").Return(&shttp.HTTPResponse{
+		Response: &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader("my-response")),
+			Header:     make(http.Header),
+		},
+	}, nil).Once()
+
+	res := hosting.HandlerForward(req)
+
+	s.Equal(http.StatusOK, res.Status)
+	s.mockRequest.AssertExpectations(s.T())
+}
+
+// Test_Redirects_Proxy_NegativeHopsStartAtZero verifies a negative hop count
+// sent by the visitor cannot raise the loop limit.
+func (s *HandlerForwardSuite) Test_Redirects_Proxy_NegativeHopsStartAtZero() {
+	req := s.proxyRule("landing", "https://landing.example.org")
+	req.Header.Set("X-Stormkit-Proxy-Hops", "-1000000")
+
+	s.mockProxyCall(req, "https://landing.example.org/img.png")
+
+	res := hosting.HandlerForward(req)
+
+	s.Equal(http.StatusOK, res.Status)
+	s.mockRequest.AssertExpectations(s.T())
+}
+
+// Test_Redirects_Proxy_StopsLoop verifies a request that has passed through
+// too many proxy rules is answered right away instead of proxied again.
+func (s *HandlerForwardSuite) Test_Redirects_Proxy_StopsLoop() {
+	req := s.proxyRule("landing", "https://landing.example.org")
+	req.Header.Set("X-Stormkit-Proxy-Hops", "5")
+
+	res := hosting.HandlerForward(req)
+
+	s.Equal(http.StatusLoopDetected, res.Status)
+	s.mockRequest.AssertNotCalled(s.T(), "Do")
 }
 
 func (s *HandlerForwardSuite) Test_Redirects_UI_Defined_Redirects() {
