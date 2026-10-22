@@ -47,6 +47,13 @@ const teamMenuItems = ({
     isActive: pathname.includes("/insights"),
   });
 
+  // Shown for personal teams too: their apps can be protected as well.
+  items.push({
+    path: `/${slug}/auth-wall`,
+    text: "Auth Wall",
+    isActive: pathname.includes("/auth-wall"),
+  });
+
   if (!team.isDefault) {
     items.push({
       path: `/${slug}/settings`,

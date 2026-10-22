@@ -73,7 +73,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/EnvironmentConfig.tsx",
     expect(wrapper.getByText("Serverless functions")).toBeTruthy();
     expect(wrapper.getByText("Headers")).toBeTruthy();
     expect(wrapper.getByText("Redirects")).toBeTruthy();
-    expect(wrapper.getByText("Auth wall")).toBeTruthy();
+    expect(() => wrapper.getByText("Auth wall")).toThrow();
     expect(wrapper.getByText("Domains")).toBeTruthy();
   });
 
@@ -82,7 +82,6 @@ describe("~/pages/apps/[id]/environments/[env-id]/config/EnvironmentConfig.tsx",
     ${""}          | ${"Use these settings to configure your environment details."}
     ${""}          | ${"These variables will be available to build time, status checks and serverless runtime."}
     ${""}          | ${"Use these settings to configure your build options."}
-    ${"#authwall"} | ${"Limit access to your deployments with an authentication wall."}
     ${"#api-keys"} | ${"This key will allow you to interact with our API and modify this environment."}
   `(
     "should load different tab based on hash: $hash",

@@ -1,1 +1,1 @@
-export { default } from "./AuthWall";
+export { default } from "./TabAuthWall";

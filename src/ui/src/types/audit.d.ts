@@ -22,6 +22,10 @@ declare interface DiffFields {
   authWallCreateLoginEmail?: string;
   authWallCreateLoginID?: string;
   authWallDeleteLoginIDs?: string;
+  authWallLoginEmail?: string;
+  authWallLoginApps?: string;
+  authWallLoginMetadata?: string;
+  authWallPasswordChanged?: boolean;
   deploymentId?: string;
   mailerHost?: string;
   mailerPort?: string;

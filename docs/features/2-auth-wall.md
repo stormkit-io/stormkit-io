@@ -1,79 +1,84 @@
 ---
 title: Protect your deployments with Auth Wall
-description: Learn how to configure and use the Auth Wall feature to restrict access to your deployments, manage authorized users, and enhance security for sensitive environments.
+description: Learn how to configure and use the Auth Wall feature to restrict access to your deployments, manage team-wide logins with per-app access, and pass login details to your app.
 ---
 
 # Auth Wall
 
 ## Overview
 
-The **Auth Wall** feature allows you to restrict access to your deployments by requiring user authentication. This is particularly useful for protecting sensitive environments, such as staging or preview deployments, ensuring that only authorized users can access them.
+The **Auth Wall** feature allows you to restrict access to your deployments by requiring a login. This is particularly useful for protecting sensitive environments, such as staging or preview deployments, ensuring that only authorized people can access them.
 
-You can locate the Auth Wall settings by navigating to **Environment** > **Config**. Access the configuration options by selecting the **Auth Wall** tab in the left-hand sidebar.
+Auth Wall is managed per team: open your team and select **Auth Wall** in the top menu. Personal teams have the page too. Each environment's header shows whether its wall is on, and links to this page filtered to the app.
 
-> **Auth Wall vs. Stormkit Auth**: The Auth Wall gates access to a deployment for *your* team (staging, previews, sensitive environments). To add sign-in for *your application's own users* — email and password, magic links, or Google / X OAuth — see [Authentication](/docs/features/authentication) instead.
+> **Auth Wall vs. Stormkit Auth**: The Auth Wall gates access to a deployment for *your* team and the people you share it with (staging, previews, sensitive environments). To add sign-in for *your application's own users* — email and password, magic links, or Google / X OAuth — see [Authentication](/docs/features/authentication) instead.
 
-## Configuration Options
+## Environments
 
-The Auth Wall has three main configuration modes:
+The **Environments** tab lists the team's apps, their environments and the mode of each environment's wall:
 
-### 1. Auth Wall is disabled
+- **Off**: no login is required.
+- **Deployment previews only**: Stormkit-provided URLs require a login. Custom domains stay public.
+- **All URLs, including domains**: every page and endpoint, on every domain, requires a login.
 
-- No authentication requirement for any deployments
+To change the mode, select one or more environments (click a row or its checkbox), pick a mode in the bar above the table and click **Apply**. The change applies immediately.
 
-### 2. Protect all endpoints including your domains
+Every member of the team can change the mode of an environment.
 
-- Every page and endpoint across all domains requires authentication
+## Logins
 
-### 3. Protect only deployment previews
+The **Logins** tab lists the people who can pass the walls of the team's apps. Only team owners and admins can see and manage it; other members see only the **Environments** tab.
 
-- Only preview deployments require authentication
-- Production deployments remain publicly accessible
+A login has:
 
-## Managing Authorized Users
+- **Email** and **password**: what the visitor enters on the login page. An email can be used once per team.
+- **Apps**: the apps the login opens, or **All apps**, which includes apps created later. A login opens every environment of its apps where the wall is on.
+- **Metadata** (optional): a string of up to 1 KB, passed to your app after the visitor logs in. See [Using the login in your app](#using-the-login-in-your-app).
 
-The **Auth Users** section allows you to manage the list of users who have access to the deployment when the Auth Wall is enabled.
+### Adding a login
 
-### 1. Viewing Authorized Users
+Click the **New login** button (the person icon), enter the email and password, and choose the apps.
 
-- A table displays the list of users with access.
-- Each row includes:
-  - **Email**: The email address of the authorized user.
-  - **Last Login**: The timestamp of the user's last login (if available).
-  - **Checkbox**: A checkbox to select the user for removal.
+### Editing a login
 
-### 2. Adding Users
+Click the pencil icon next to a login to change its password, metadata or apps. Leave the password empty to keep the current one.
 
-- To add a new user, click the **Add User** button (indicated by a `+` icon).
-- You will be prompted to enter the user's email address and choose a password for them.
+### Removing logins
 
-### 3. Removing Users
+1. Select the logins by checking the box next to their email.
+2. Click **Remove selected**.
 
-To remove a user:
+A removed login can't log in again. Visitors who are already logged in keep access until their session expires, at most 24 hours later. The same applies when you take away a login's access to an app.
 
-1. Select the user by checking the box next to their email.
-2. Click the **Remove Selected** button to revoke their access.
+## Using the login in your app
 
-**Note**: Removing a user will immediately revoke their access to the deployment, however user with sessions won't be invalidated.
+After a visitor logs in, Stormkit adds two headers to the requests it forwards to your app's server side (serverless functions, server-side rendering and proxied backends):
+
+- `X-Auth-Wall-Email`: the email of the login.
+- `X-Auth-Wall-Metadata`: the login's metadata, when it has any.
+
+Stormkit removes these headers from incoming requests, so a visitor can't set them. Static files can't read request headers.
+
+The metadata is captured when the visitor logs in: a change reaches your app on the visitor's next login. Admins can see it, so don't put secrets in it.
 
 ## Best Practices
 
-- **Limit access**: Only add users who need access to the deployment to minimize security risks.
-- **Regularly review users**: Periodically review the list of authorized users and remove those who no longer need access.
+- **Limit access**: Give each login only the apps it needs, and use **All apps** sparingly.
+- **Regularly review logins**: Periodically review the list of logins and remove those who no longer need access.
 - **Use for sensitive environments**: Enable the Auth Wall for environments that contain sensitive data or are not ready for public access.
 - **Combine with other security measures**: The Auth Wall is a layer of protection but should not be used as the primary layer to secure your application.
 
 ## Troubleshooting
 
-- **Users cannot access the deployment**:
-  - Ensure the Auth Wall is enabled and the user is added to the authorized users list.
-  - Verify that the user is logging in with the correct credentials.
-- **Deployment is still public**:
-  - Check the protection scope. If "Protect only deployment previews" is selected, published deployments will remain public.
-  - Ensure the Auth Wall is enabled and the settings have been saved.
-- **Changes not applied**:
-  - Make sure to click the **Save** button after making changes to the Auth Wall settings.
+- **A visitor cannot access the deployment**:
+  - Check that the login has access to the app, or to all apps.
+  - Verify that the visitor is logging in with the correct credentials.
+- **The deployment is still public**:
+  - Check the environment's mode. With **Deployment previews only**, custom domains remain public.
+- **A removed visitor can still access the deployment**:
+  - Their session is still valid. It expires at most 24 hours after they logged in.
 
 ## Additional Notes
 
-- By default, a user remains logged in for maximum 24 hours.
+- A visitor remains logged in for at most 24 hours.
+- Moving an app to another team moves the logins that open it.

@@ -268,17 +268,40 @@ export default function AuditMessage({ audit }: Props) {
         </AuditRow>
       );
 
+    // Logins created before Auth Wall moved to teams belong to an environment.
     case "CREATE:AUTHWALL":
       return (
         <AuditRow audit={audit} forceDiff>
-          Created new auth login for <EnvLink audit={audit} /> environment
+          {audit.envId ? (
+            <>
+              Created new auth login for <EnvLink audit={audit} /> environment
+            </>
+          ) : (
+            <>
+              Created Auth Wall login {audit.diff.new?.authWallCreateLoginEmail}
+            </>
+          )}
         </AuditRow>
       );
 
     case "DELETE:AUTHWALL":
       return (
         <AuditRow audit={audit} forceDiff>
-          Deleted auth login from <EnvLink audit={audit} /> environment
+          {audit.envId ? (
+            <>
+              Deleted auth login from <EnvLink audit={audit} /> environment
+            </>
+          ) : (
+            "Deleted Auth Wall logins"
+          )}
+        </AuditRow>
+      );
+
+    case "UPDATE:AUTHWALL_LOGIN":
+      return (
+        <AuditRow audit={audit} forceDiff>
+          Updated Auth Wall login {audit.diff.new?.authWallLoginEmail}
+          {audit.diff.new?.authWallPasswordChanged && " (password changed)"}
         </AuditRow>
       );
 

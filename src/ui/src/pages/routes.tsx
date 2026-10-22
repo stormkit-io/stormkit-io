@@ -174,6 +174,10 @@ const routes: Array<ExtendedRouterProps> = [
     element: Async(() => import("~/pages/team/insights"), teamLayout),
   },
   {
+    path: "/:team/auth-wall",
+    element: Async(() => import("~/pages/team/auth-wall"), teamLayout),
+  },
+  {
     path: "/:team/deployments",
     element: Async(() => import("~/pages/team/deployments"), teamLayout),
   },

@@ -12,6 +12,7 @@ import { EnvironmentContext } from "~/pages/apps/[id]/environments/Environment.c
 import { AppContext } from "~/pages/apps/[id]/App.context";
 import { useFetchStatus, isEmpty } from "../../actions";
 import DomainStatus from "./DomainStatus";
+import AuthWallBadge from "./AuthWallBadge";
 
 interface ColumnProps {
   children: React.ReactNode;
@@ -73,6 +74,7 @@ export default function EnvironmentHeader() {
           <span className="fa fa-code-branch mr-2" />
           <Typography component="span">{environment.branch}</Typography>
         </Column>
+        <AuthWallBadge app={app} environment={environment} />
         <Box sx={{ flex: 1, display: { xs: "none", md: "inherit" } }}>
           {!environment.lastDeploy?.id ? (
             <>

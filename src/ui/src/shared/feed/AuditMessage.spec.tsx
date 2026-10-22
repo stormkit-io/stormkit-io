@@ -151,4 +151,28 @@ describe("~/shared/feed/AuditMessage.tsx", () => {
       expect(wrapper.container.textContent).toContain(expected);
     },
   );
+
+  it.each`
+    action                     | expected                                                    | diff
+    ${"CREATE:AUTHWALL"}       | ${"Created Auth Wall login joe@doe.org"}                    | ${{ old: {}, new: { authWallCreateLoginEmail: "joe@doe.org" } }}
+    ${"DELETE:AUTHWALL"}       | ${"Deleted Auth Wall logins"}                               | ${{ old: { authWallDeleteLoginIDs: "2,3" }, new: {} }}
+    ${"UPDATE:AUTHWALL_LOGIN"} | ${"Updated Auth Wall login joe@doe.org"}                    | ${{ old: {}, new: { authWallLoginEmail: "joe@doe.org", authWallLoginApps: "all" } }}
+    ${"UPDATE:AUTHWALL_LOGIN"} | ${"Updated Auth Wall login joe@doe.org (password changed)"} | ${{ old: {}, new: { authWallLoginEmail: "joe@doe.org", authWallPasswordChanged: true } }}
+  `(
+    "displays the team-level message for $action: $expected",
+    ({ action, expected, diff }) => {
+      createWrapper({
+        audit: {
+          id: "1",
+          action,
+          teamId: "5",
+          userDisplay: "jdoe",
+          timestamp: 1723501214,
+          diff,
+        },
+      });
+
+      expect(wrapper.container.textContent).toContain(expected);
+    },
+  );
 });

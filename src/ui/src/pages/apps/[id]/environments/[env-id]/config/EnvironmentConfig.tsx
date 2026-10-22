@@ -55,7 +55,6 @@ const generateListItems = (
       { path: "#serverless", text: "Serverless functions" },
       { path: "#headers", text: "Headers" },
       { path: "#redirects", text: "Redirects" },
-      { path: "#authwall", text: "Auth wall" },
     ],
   },
   {
@@ -95,9 +94,7 @@ export default function EnvironmentConfig() {
           <TabAPIKey app={app} environment={environment} />
         );
       case "#authwall":
-        return ({ app, environment }: TabProps) => (
-          <TabAuthWall app={app} environment={environment} />
-        );
+        return ({ app }: TabProps) => <TabAuthWall app={app} />;
       case "":
       case "#general":
       case "#build":
