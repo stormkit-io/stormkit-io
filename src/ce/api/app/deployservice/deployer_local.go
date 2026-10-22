@@ -39,6 +39,14 @@ func (ls *localService) SendPayload(payload SendPayloadArgs) error {
 		return err
 	}
 
+	// The runner may exit before registering its own cleanup or be killed.
+	// Keep the workspace until the child exits, then remove it from the parent.
+	defer func(tempDir string) {
+		if err := os.RemoveAll(tempDir); err != nil {
+			slog.Errorf("could not remove local deployer temp dir: %v", err)
+		}
+	}(ls.tempDir)
+
 	return ls.runService(payload)
 }
 

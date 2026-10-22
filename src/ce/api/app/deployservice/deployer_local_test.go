@@ -3,6 +3,7 @@ package deployservice_test
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path"
 	"testing"
 
@@ -85,6 +86,82 @@ func (s *DeployerLocalSuite) Test_StartDeployment() {
 		DeploymentID: utils.StringToID(s.mockDeploymentID),
 		EncryptedMsg: "some-message",
 	}))
+}
+
+// Test_CleansWorkspaceAfterProcessExit exercises real child exits without the
+// runner's own deferred cleanup, including a child killed before it can run it.
+func (s *DeployerLocalSuite) Test_CleansWorkspaceAfterProcessExit() {
+	for _, tc := range []struct {
+		name   string
+		script string
+		failed bool
+	}{
+		{name: "success", script: "exit 0"},
+		{name: "failure", script: "exit 23", failed: true},
+		{name: "killed", script: "kill -KILL $$", failed: true},
+	} {
+		s.Run(tc.name, func() {
+			s.T().Setenv("TMPDIR", s.T().TempDir())
+			rootDir := path.Join(os.TempDir(), "deployment-"+s.mockDeploymentID)
+			sibling := path.Join(os.TempDir(), "deployment-13051617", "repo")
+			s.Require().NoError(os.MkdirAll(sibling, 0700))
+
+			executable := path.Join(s.T().TempDir(), "deployer")
+			s.Require().NoError(os.WriteFile(executable, []byte("#!/bin/sh\n"+tc.script+"\n"), 0700))
+			config.Get().Deployer.Executable = executable
+			sys.DefaultCommand = nil
+
+			err := deployservice.Local().SendPayload(deployservice.SendPayloadArgs{
+				DeploymentID: utils.StringToID(s.mockDeploymentID),
+				EncryptedMsg: "unused-by-test-child",
+			})
+
+			if tc.failed {
+				var exitErr *exec.ExitError
+				s.ErrorAs(err, &exitErr)
+			} else {
+				s.NoError(err)
+			}
+
+			s.NoDirExists(rootDir)
+			s.DirExists(sibling)
+		})
+	}
+}
+
+func (s *DeployerLocalSuite) Test_CleansWorkspaceWhenProcessCannotStart() {
+	s.T().Setenv("TMPDIR", s.T().TempDir())
+	rootDir := path.Join(os.TempDir(), "deployment-"+s.mockDeploymentID)
+	config.Get().Deployer.Executable = path.Join(s.T().TempDir(), "missing-deployer")
+	sys.DefaultCommand = nil
+
+	err := deployservice.Local().SendPayload(deployservice.SendPayloadArgs{
+		DeploymentID: utils.StringToID(s.mockDeploymentID),
+		EncryptedMsg: "unused-by-test-child",
+	})
+
+	s.ErrorIs(err, os.ErrNotExist)
+	s.NoDirExists(rootDir)
+}
+
+func (s *DeployerLocalSuite) Test_KeepsWorkspaceUntilProcessReturns() {
+	s.T().Setenv("TMPDIR", s.T().TempDir())
+	rootDir := path.Join(os.TempDir(), "deployment-"+s.mockDeploymentID)
+	s.mockExec.On("SetOpts", mock.Anything).Return(s.mockExec).Once()
+	s.mockExec.On("Run").Run(func(mock.Arguments) {
+		s.DirExists(path.Join(rootDir, "repo"))
+		s.DirExists(path.Join(rootDir, "keys"))
+		s.Require().NoError(os.MkdirAll(path.Join(rootDir, "dist"), 0700))
+		s.Require().NoError(os.WriteFile(path.Join(rootDir, "dist", "server.zip"), []byte("artifact"), 0600))
+	}).Return(nil).Once()
+
+	s.NoError(deployservice.Local().SendPayload(deployservice.SendPayloadArgs{
+		DeploymentID: utils.StringToID(s.mockDeploymentID),
+		EncryptedMsg: "unused-by-test-child",
+	}))
+
+	s.NoDirExists(rootDir)
+	s.mockExec.AssertExpectations(s.T())
 }
 
 func TestDeployerLocalSuite(t *testing.T) {
