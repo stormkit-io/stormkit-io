@@ -22,15 +22,18 @@ const (
 )
 
 const (
-	TypeUser       string = "USER"
-	TypeApp        string = "APP"
-	TypeEnv        string = "ENV"
-	TypeTeam       string = "TEAM"
-	TypeDomain     string = "DOMAIN"
-	TypeSnippet    string = "SNIPPET"
-	TypeAuthWall   string = "AUTHWALL"
-	TypeSchema     string = "SCHEMA"
-	TypeDeployment string = "DEPLOYMENT"
+	TypeUser     string = "USER"
+	TypeApp      string = "APP"
+	TypeEnv      string = "ENV"
+	TypeTeam     string = "TEAM"
+	TypeDomain   string = "DOMAIN"
+	TypeSnippet  string = "SNIPPET"
+	TypeAuthWall string = "AUTHWALL"
+	// TypeAuthWallLogin is a change to an existing Auth Wall login. Creating
+	// and deleting logins are recorded as TypeAuthWall.
+	TypeAuthWallLogin string = "AUTHWALL_LOGIN"
+	TypeSchema        string = "SCHEMA"
+	TypeDeployment    string = "DEPLOYMENT"
 
 	TypeMailer       string = "MAILER"
 	TypeAuthProvider string = "AUTHPROVIDER"
@@ -81,6 +84,10 @@ type DiffFields struct {
 	AuthWallCreateLoginEmail string                 `json:"authWallCreateLoginEmail,omitempty"`
 	AuthWallCreateLoginID    string                 `json:"authWallCreateLoginId,omitempty"`
 	AuthWallDeleteLoginIDs   string                 `json:"authWallDeleteLoginIds,omitempty"`
+	AuthWallLoginEmail       string                 `json:"authWallLoginEmail,omitempty"`
+	AuthWallLoginApps        string                 `json:"authWallLoginApps,omitempty"` // "all", or comma separated app IDs
+	AuthWallLoginMetadata    string                 `json:"authWallLoginMetadata,omitempty"`
+	AuthWallPasswordChanged  *bool                  `json:"authWallPasswordChanged,omitempty"`
 	SchemaName               string                 `json:"schemaName,omitempty"`
 	DeploymentID             string                 `json:"deploymentId,omitempty"`
 	MailerHost               string                 `json:"mailerHost,omitempty"`

@@ -42,6 +42,11 @@ const opensApp = `
 `
 
 var stmt = struct {
+	selectTeamLogins  string
+	updateLogin       string
+	deleteLogins      string
+	countTeamApps     string
+	selectTeamEnvs    string
 	createLogin       string
 	removeAppAccess   string
 	selectLogin       string
@@ -50,6 +55,80 @@ var stmt = struct {
 	updateLastLogin   string
 	setAuthWallConfig string
 }{
+	selectTeamLogins: `
+		SELECT
+			aw.login_id, aw.team_id, aw.login_email, aw.login_metadata,
+			aw.all_apps, aw.last_login_at, aw.created_at,
+			COALESCE(ARRAY_AGG(ap.app_id ORDER BY ap.app_id) FILTER (WHERE ap.app_id IS NOT NULL), '{}')
+		FROM
+			auth_wall aw
+		LEFT JOIN
+			auth_wall_apps awa ON awa.login_id = aw.login_id
+		LEFT JOIN
+			apps ap ON ap.app_id = awa.app_id AND ap.deleted_at IS NULL
+		WHERE
+			aw.team_id = $1 AND
+			($2 = 0 OR aw.login_id = $2)
+		GROUP BY
+			aw.login_id
+		ORDER BY
+			LOWER(aw.login_email) ASC
+		LIMIT $3 OFFSET $4;
+	`,
+
+	// The access rows are replaced only when $5 is true. Statements in a WITH
+	// see the rows as they were before it, so the delete and insert do not see
+	// each other.
+	updateLogin: `
+		WITH login AS (
+			UPDATE auth_wall SET
+				login_password = COALESCE(NULLIF($3, ''), login_password),
+				login_metadata = $4,
+				all_apps = $6
+			WHERE
+				login_id = $1 AND team_id = $2
+			RETURNING login_id
+		), removed AS (
+			DELETE FROM auth_wall_apps
+			WHERE
+				$5 AND
+				login_id IN (SELECT login_id FROM login) AND
+				app_id <> ALL($7::bigint[])
+		), added AS (
+			INSERT INTO auth_wall_apps (login_id, app_id)
+			SELECT login.login_id, UNNEST($7::bigint[]) FROM login WHERE $5
+			ON CONFLICT DO NOTHING
+		)
+		SELECT COUNT(*) FROM login;
+	`,
+
+	deleteLogins: `
+		DELETE FROM auth_wall WHERE team_id = $1 AND login_id = ANY($2)
+		RETURNING login_id;
+	`,
+
+	countTeamApps: `
+		SELECT COUNT(*) FROM apps
+		WHERE team_id = $1 AND deleted_at IS NULL AND app_id = ANY($2);
+	`,
+
+	selectTeamEnvs: `
+		SELECT
+			a.app_id, COALESCE(a.display_name, ''), e.env_id, e.env_name,
+			COALESCE(e.auth_wall_conf->>'status', '')
+		FROM
+			apps a
+		JOIN
+			apps_build_conf e ON e.app_id = a.app_id
+		WHERE
+			a.team_id = $1 AND
+			($2 = 0 OR e.env_id = $2) AND
+			a.deleted_at IS NULL AND
+			e.deleted_at IS NULL
+		ORDER BY
+			LOWER(a.display_name) ASC, a.app_id ASC, e.env_name ASC;
+	`,
+
 	createLogin: `
 		WITH login AS (
 			INSERT INTO auth_wall
@@ -265,6 +344,207 @@ func (s *store) EnvTeamID(ctx context.Context, envID types.ID) (types.ID, error)
 	}
 
 	return types.ID(teamID.Int64), nil
+}
+
+// TeamLoginsParams are the parameters of TeamLogins.
+type TeamLoginsParams struct {
+	TeamID types.ID
+
+	// LoginID limits the result to one login.
+	LoginID types.ID
+	From    int
+	Limit   int
+}
+
+// TeamLogins returns the logins of a team, ordered by email, with the apps
+// they open. Deleted apps are left out.
+func (s *store) TeamLogins(ctx context.Context, p TeamLoginsParams) ([]AuthWall, error) {
+	rows, err := s.Query(ctx, stmt.selectTeamLogins, p.TeamID, p.LoginID, p.Limit, p.From)
+
+	if err != nil || rows == nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	logins := []AuthWall{}
+
+	for rows.Next() {
+		aw := AuthWall{}
+		appIDs := pq.Int64Array{}
+
+		err := rows.Scan(
+			&aw.LoginID, &aw.TeamID, &aw.LoginEmail, &aw.Metadata,
+			&aw.AllApps, &aw.LastLogin, &aw.CreatedAt, &appIDs,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		aw.AppIDs = make([]types.ID, len(appIDs))
+
+		for i, id := range appIDs {
+			aw.AppIDs[i] = types.ID(id)
+		}
+
+		logins = append(logins, aw)
+	}
+
+	return logins, rows.Err()
+}
+
+// TeamLogin returns a login of the team, or nil when the team has no such
+// login.
+func (s *store) TeamLogin(ctx context.Context, teamID, loginID types.ID) (*AuthWall, error) {
+	logins, err := s.TeamLogins(ctx, TeamLoginsParams{TeamID: teamID, LoginID: loginID, Limit: 1})
+
+	if err != nil || len(logins) == 0 {
+		return nil, err
+	}
+
+	return &logins[0], nil
+}
+
+// UpdateLoginParams are the parameters of UpdateLogin.
+type UpdateLoginParams struct {
+	// Login holds the login's new metadata and access. Its LoginPassword is
+	// ignored.
+	Login *AuthWall
+
+	// Password is the new password. Empty keeps the current one.
+	Password string
+
+	// ReplaceApps replaces the apps the login opens with Login.AppIDs.
+	ReplaceApps bool
+}
+
+// UpdateLogin saves the changes to a login of Login.TeamID. It returns false
+// when the team has no such login.
+func (s *store) UpdateLogin(ctx context.Context, p UpdateLoginParams) (bool, error) {
+	hash := ""
+
+	if p.Password != "" {
+		b, err := bcrypt.GenerateFromPassword([]byte(p.Password), bcrypt.DefaultCost)
+
+		if err != nil {
+			return false, err
+		}
+
+		hash = string(b)
+	}
+
+	appIDs := p.Login.AppIDs
+
+	if appIDs == nil {
+		appIDs = []types.ID{}
+	}
+
+	row, err := s.QueryRow(
+		ctx, stmt.updateLogin,
+		p.Login.LoginID, p.Login.TeamID, hash, p.Login.Metadata,
+		p.ReplaceApps, p.Login.AllApps, pq.Array(appIDs),
+	)
+
+	if err != nil || row == nil {
+		return false, err
+	}
+
+	var count int
+
+	if err := row.Scan(&count); err != nil {
+		return false, err
+	}
+
+	return count > 0, nil
+}
+
+// DeleteLoginsParams are the parameters of DeleteLogins.
+type DeleteLoginsParams struct {
+	TeamID   types.ID
+	LoginIDs []types.ID
+}
+
+// DeleteLogins deletes logins of a team and returns the IDs it deleted. IDs of
+// other teams' logins are ignored.
+func (s *store) DeleteLogins(ctx context.Context, p DeleteLoginsParams) ([]types.ID, error) {
+	rows, err := s.Query(ctx, stmt.deleteLogins, p.TeamID, pq.Array(p.LoginIDs))
+
+	if err != nil || rows == nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	deleted := []types.ID{}
+
+	for rows.Next() {
+		var id types.ID
+
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+
+		deleted = append(deleted, id)
+	}
+
+	return deleted, rows.Err()
+}
+
+// AreTeamApps reports whether every app in appIDs belongs to the team. The IDs
+// must be unique.
+func (s *store) AreTeamApps(ctx context.Context, teamID types.ID, appIDs []types.ID) (bool, error) {
+	if len(appIDs) == 0 {
+		return true, nil
+	}
+
+	row, err := s.QueryRow(ctx, stmt.countTeamApps, teamID, pq.Array(appIDs))
+
+	if err != nil || row == nil {
+		return false, err
+	}
+
+	var count int
+
+	if err := row.Scan(&count); err != nil {
+		return false, err
+	}
+
+	return count == len(appIDs), nil
+}
+
+// TeamEnvsParams are the parameters of TeamEnvs.
+type TeamEnvsParams struct {
+	TeamID types.ID
+
+	// EnvID limits the result to one environment.
+	EnvID types.ID
+}
+
+// TeamEnvs returns the environments of a team's apps with the mode of their
+// walls.
+func (s *store) TeamEnvs(ctx context.Context, p TeamEnvsParams) ([]TeamEnv, error) {
+	rows, err := s.Query(ctx, stmt.selectTeamEnvs, p.TeamID, p.EnvID)
+
+	if err != nil || rows == nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	envs := []TeamEnv{}
+
+	for rows.Next() {
+		env := TeamEnv{}
+
+		if err := rows.Scan(&env.AppID, &env.AppName, &env.EnvID, &env.EnvName, &env.Status); err != nil {
+			return nil, err
+		}
+
+		envs = append(envs, env)
+	}
+
+	return envs, rows.Err()
 }
 
 // UpdateLastLogin updates the last login time.

@@ -1,9 +1,7 @@
 package authwallhandlers
 
 import (
-	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/authwall"
@@ -20,9 +18,6 @@ type AuthCreateRequest struct {
 	Metadata string `json:"metadata"`
 }
 
-// passwordMaxLength is the longest password bcrypt can hash.
-const passwordMaxLength = 72
-
 func handlerAuthCreate(req *app.RequestContext) *shttp.Response {
 	data := &AuthCreateRequest{}
 
@@ -36,19 +31,15 @@ func handlerAuthCreate(req *app.RequestContext) *shttp.Response {
 		})
 	}
 
-	data.Password = strings.TrimSpace(data.Password)
+	password, msg := loginInput{}.password(data.Password)
 
-	if len(data.Password) < 8 {
+	if msg != "" {
 		return shttp.BadRequest(map[string]any{
-			"error": "Password must be at least 8 characters long.",
+			"error": msg,
 		})
 	}
 
-	if len(data.Password) > passwordMaxLength {
-		return shttp.BadRequest(map[string]any{
-			"error": fmt.Sprintf("Password must be at most %d characters long.", passwordMaxLength),
-		})
-	}
+	data.Password = password
 
 	if msg := authwall.ValidateMetadata(data.Metadata); msg != "" {
 		return shttp.BadRequest(map[string]any{

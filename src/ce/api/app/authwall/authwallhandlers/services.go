@@ -23,5 +23,14 @@ func Services(r *shttp.Router) *shttp.Service {
 	s.NewEndpoint("/auth-wall").
 		Handler(shttp.MethodPost, "/login", shttp.WithRateLimit(handlerAuth, nil))
 
+	s.NewEndpoint("/team/auth-wall").
+		Middleware(user.WithEE).
+		Handler(shttp.MethodGet, "/logins", user.WithAuth(handlerTeamLogins)).
+		Handler(shttp.MethodPost, "/logins", user.WithAuth(handlerTeamLoginCreate)).
+		Handler(shttp.MethodPatch, "/logins", user.WithAuth(handlerTeamLoginUpdate)).
+		Handler(shttp.MethodDelete, "/logins", user.WithAuth(handlerTeamLoginsDelete)).
+		Handler(shttp.MethodGet, "/envs", user.WithAuth(handlerTeamEnvs)).
+		Handler(shttp.MethodPut, "/envs", user.WithAuth(handlerTeamEnvUpdate))
+
 	return s
 }

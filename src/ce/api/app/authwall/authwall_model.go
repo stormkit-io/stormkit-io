@@ -33,6 +33,15 @@ type AuthWall struct {
 	CreatedAt utils.Unix
 }
 
+// TeamEnv is an environment of a team's app, with the mode of its wall.
+type TeamEnv struct {
+	AppID   types.ID
+	AppName string
+	EnvID   types.ID
+	EnvName string
+	Status  string
+}
+
 // ValidateMetadata reports why metadata cannot be passed to an app in a
 // request header, or returns an empty string when it can.
 func ValidateMetadata(metadata string) string {
