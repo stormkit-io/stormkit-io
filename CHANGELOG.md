@@ -1,5 +1,28 @@
 # Changelog
 
+## v2026.10.19.1...v2026.10.22.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.10.19.1...v2026.10.22.1)
+
+### 🚀 Enhancements
+
+- Move auth wall logins to teams ([#615](https://github.com/stormkit-io/stormkit-io/pull/615))
+- Add team auth wall api ([#616](https://github.com/stormkit-io/stormkit-io/pull/616))
+- Add team auth wall page ([#617](https://github.com/stormkit-io/stormkit-io/pull/617))
+
+### 🩹 Fixes
+
+- Ignore stale team member responses ([#612](https://github.com/stormkit-io/stormkit-io/pull/612))
+- Stop proxy rules from looping back ([#613](https://github.com/stormkit-io/stormkit-io/pull/613))
+
+### 🏡 Chore
+
+- Update changelog for v2026.10.19.1 ([#611](https://github.com/stormkit-io/stormkit-io/pull/611))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.10.14.2...v2026.10.19.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.10.14.2...v2026.10.19.1)
