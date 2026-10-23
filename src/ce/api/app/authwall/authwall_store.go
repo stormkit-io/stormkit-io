@@ -48,9 +48,7 @@ var stmt = struct {
 	countTeamApps     string
 	selectTeamEnvs    string
 	createLogin       string
-	removeAppAccess   string
 	selectLogin       string
-	selectLogins      string
 	updatePassword    string
 	updateLastLogin   string
 	setAuthWallConfig string
@@ -144,24 +142,6 @@ var stmt = struct {
 		SELECT login_id FROM login;
 	`,
 
-	// The main statement sees the access rows as they were before the delete,
-	// so the app being removed is excluded when looking for remaining access.
-	removeAppAccess: `
-		WITH removed AS (
-			DELETE FROM auth_wall_apps
-			WHERE app_id = $1 AND login_id = ANY($2)
-			RETURNING login_id
-		)
-		DELETE FROM auth_wall aw
-		WHERE
-			aw.login_id IN (SELECT login_id FROM removed) AND
-			aw.all_apps IS FALSE AND
-			NOT EXISTS (
-				SELECT 1 FROM auth_wall_apps awa
-				WHERE awa.login_id = aw.login_id AND awa.app_id <> $1
-			);
-	`,
-
 	selectLogin: `
 		WITH ea AS (` + envApp + `)
 		SELECT
@@ -170,20 +150,6 @@ var stmt = struct {
 			auth_wall aw, ea
 		WHERE
 			LOWER(aw.login_email) = LOWER($2) AND ` + opensApp + `;
-	`,
-
-	selectLogins: `
-		WITH ea AS (` + envApp + `)
-		SELECT
-			aw.login_id, aw.team_id, aw.login_email, aw.login_metadata,
-			aw.all_apps, aw.last_login_at, aw.created_at
-		FROM
-			auth_wall aw, ea
-		WHERE ` + opensApp + `
-		ORDER BY
-			aw.login_id DESC
-		LIMIT
-			50;
 	`,
 
 	updatePassword: `
@@ -250,19 +216,6 @@ func (s *store) CreateLogin(ctx context.Context, aw *AuthWall) error {
 	return row.Scan(&aw.LoginID)
 }
 
-// RemoveAppAccessParams are the parameters of RemoveAppAccess.
-type RemoveAppAccessParams struct {
-	AppID    types.ID
-	LoginIDs []types.ID
-}
-
-// RemoveAppAccess takes away the access of the logins to the app. Logins left
-// without access to any app are deleted.
-func (s *store) RemoveAppAccess(ctx context.Context, p RemoveAppAccessParams) error {
-	_, err := s.Exec(ctx, stmt.removeAppAccess, p.AppID, pq.Array(p.LoginIDs))
-	return err
-}
-
 // LoginParams are the credentials submitted to the wall of an environment.
 type LoginParams struct {
 	EnvID    types.ID
@@ -325,25 +278,6 @@ func (s *store) verifyPassword(ctx context.Context, aw *AuthWall, password strin
 	}
 
 	return true
-}
-
-// EnvTeamID returns the team whose logins open the wall of an environment, or
-// 0 when the environment's app has no team.
-func (s *store) EnvTeamID(ctx context.Context, envID types.ID) (types.ID, error) {
-	row, err := s.QueryRow(ctx, envApp, envID)
-
-	if err != nil || row == nil {
-		return 0, err
-	}
-
-	var appID types.ID
-	var teamID sql.NullInt64
-
-	if err := row.Scan(&appID, &teamID); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return 0, err
-	}
-
-	return types.ID(teamID.Int64), nil
 }
 
 // TeamLoginsParams are the parameters of TeamLogins.
@@ -551,35 +485,6 @@ func (s *store) TeamEnvs(ctx context.Context, p TeamEnvsParams) ([]TeamEnv, erro
 func (s *store) UpdateLastLogin(ctx context.Context, loginID types.ID) error {
 	_, err := s.Exec(ctx, stmt.updateLastLogin, loginID)
 	return err
-}
-
-// Logins returns the logins that open the wall of an environment.
-func (s *store) Logins(ctx context.Context, envID types.ID) ([]AuthWall, error) {
-	rows, err := s.Query(ctx, stmt.selectLogins, envID)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer rows.Close()
-
-	var logins []AuthWall
-
-	for rows.Next() {
-		aw := AuthWall{}
-		err := rows.Scan(
-			&aw.LoginID, &aw.TeamID, &aw.LoginEmail, &aw.Metadata,
-			&aw.AllApps, &aw.LastLogin, &aw.CreatedAt,
-		)
-
-		if err != nil {
-			return nil, err
-		}
-
-		logins = append(logins, aw)
-	}
-
-	return logins, nil
 }
 
 func (s *store) SetAuthWallConfig(ctx context.Context, envID types.ID, cfg *Config) error {

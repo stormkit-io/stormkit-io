@@ -165,11 +165,11 @@ func (s *HandlerAuthSuite) Test_Auth_Success() {
 
 	s.Nil(authwall.Token{EnvID: s.envID}.ParseForm(session))
 
-	logins, err := authwall.Store().Logins(context.Background(), s.envID)
-	s.NoError(err)
-	s.Len(logins, 1)
-	s.Equal(s.aw.LoginEmail, logins[0].LoginEmail)
-	s.GreaterOrEqual(now, logins[0].LastLogin.Unix())
+	login, err := authwall.Store().TeamLogin(context.Background(), s.app.TeamID, s.aw.LoginID)
+	s.Require().NoError(err)
+	s.Require().NotNil(login)
+	s.True(login.LastLogin.Valid, "the login time is recorded")
+	s.GreaterOrEqual(login.LastLogin.Unix(), now)
 }
 
 // Test_Auth_HTTPSBehindProxy verifies that the return URL is upgraded to https
@@ -208,11 +208,10 @@ func (s *HandlerAuthSuite) Test_Auth_FailPassword() {
 	s.Equal(http.StatusFound, response.Code)
 	s.Equal(protectedPage+"&stormkit_error=invalid_credentials", response.Header().Get("Location"))
 
-	logins, err := authwall.Store().Logins(context.Background(), s.envID)
-	s.NoError(err)
-	s.Len(logins, 1)
-	s.Equal(s.aw.LoginEmail, logins[0].LoginEmail)
-	s.False(logins[0].LastLogin.Valid)
+	login, err := authwall.Store().TeamLogin(context.Background(), s.app.TeamID, s.aw.LoginID)
+	s.Require().NoError(err)
+	s.Require().NotNil(login)
+	s.False(login.LastLogin.Valid)
 }
 
 // Test_Auth_EmailCaseInsensitive verifies that the email matches regardless of

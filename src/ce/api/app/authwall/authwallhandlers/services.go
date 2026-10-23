@@ -14,9 +14,6 @@ func Services(r *shttp.Router) *shttp.Service {
 
 	s.NewEndpoint("/auth-wall").
 		Middleware(user.WithEE).
-		Handler(shttp.MethodGet, "", app.WithApp(handlerAuthLogins, opts)).
-		Handler(shttp.MethodPost, "", app.WithApp(handlerAuthCreate, opts)).
-		Handler(shttp.MethodDelete, "", app.WithApp(handlerAuthDelete, opts)).
 		Handler(shttp.MethodGet, "/config", app.WithApp(handlerAuthConfigGet, opts)).
 		Handler(shttp.MethodPost, "/config", app.WithApp(handlerAuthConfigSet, opts))
 

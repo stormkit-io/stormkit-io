@@ -17,14 +17,11 @@ func (s *ServicesSuite) Test_Services() {
 	services := shttp.NewRouter().RegisterService(authwallhandlers.Services)
 
 	handlers := []string{
-		"DELETE:/auth-wall",
 		"DELETE:/team/auth-wall/logins",
-		"GET:/auth-wall",
 		"GET:/auth-wall/config",
 		"GET:/team/auth-wall/envs",
 		"GET:/team/auth-wall/logins",
 		"PATCH:/team/auth-wall/logins",
-		"POST:/auth-wall",
 		"POST:/auth-wall/config",
 		"POST:/auth-wall/login",
 		"POST:/team/auth-wall/logins",
