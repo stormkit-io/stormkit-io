@@ -1,5 +1,22 @@
 # Changelog
 
+## v2026.10.22.1...v2026.10.23.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.10.22.1...v2026.10.23.1)
+
+### 🩹 Fixes
+
+- Clean local deployment workspaces after runner exit ([#620](https://github.com/stormkit-io/stormkit-io/pull/620))
+
+### 🏡 Chore
+
+- Update changelog for v2026.10.22.1 ([#618](https://github.com/stormkit-io/stormkit-io/pull/618))
+
+### ❤️ Contributors
+
+- Roberto.commit <r@milhos.tech>
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.10.19.1...v2026.10.22.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.10.19.1...v2026.10.22.1)
