@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -1116,6 +1117,13 @@ func analyticsRecord(req *RequestContext, res *shttp.Response) *analytics.Record
 		return nil
 	}
 
+	// A prefetched or prerendered document may never be shown. When the client
+	// script is on the page it records the landing once it is; without the
+	// script nothing would, so the prefetch is counted as before.
+	if isPrefetch(req.Header) && hasAnalyticsScript(req, res) {
+		return nil
+	}
+
 	userAgent := req.UserAgent()
 
 	if analytics.IsBot(userAgent) {
@@ -1141,6 +1149,46 @@ func analyticsRecord(req *RequestContext, res *shttp.Response) *analytics.Record
 		RequestID:   null.NewString(req.RequestID, req.RequestID != ""),
 		Source:      null.StringFrom("server"),
 	}
+}
+
+// isPrefetch reports whether the request is a speculative document fetch:
+// Sec-Purpose (Speculation Rules, <link rel=prefetch>), the legacy Purpose
+// header, or Firefox's X-Moz.
+func isPrefetch(h http.Header) bool {
+	if strings.Contains(strings.ToLower(h.Get("Sec-Purpose")), "prefetch") {
+		return true
+	}
+
+	return strings.EqualFold(h.Get("Purpose"), "prefetch") || strings.EqualFold(h.Get("X-Moz"), "prefetch")
+}
+
+// analyticsScriptTag matches a script element loading the client analytics
+// script. Matching the element rather than the URL keeps a page that only
+// mentions the script (e.g. docs, where the tag is HTML-escaped) from counting.
+var analyticsScriptTag = regexp.MustCompile(`(?i)<script\b[^>]*\bsrc\s*=\s*["']?(?:https?://[^/"'\s>]+)?/_stormkit/analytics\.js\b`)
+
+// hasAnalyticsScript reports whether the response loads the client analytics
+// script, either through a snippet that applies to this path or a tag the site
+// added to its own HTML. A script added at runtime (e.g. by a tag manager)
+// cannot be seen here.
+func hasAnalyticsScript(req *RequestContext, res *shttp.Response) bool {
+	if snippets := req.Host.Config.Snippets; snippets != nil {
+		html := appconf.SnippetsHTML(snippets, appconf.SnippetFilters{RequestPath: req.OriginalPath})
+
+		if html != nil && analyticsScriptTag.MatchString(html.HeadPrepend+html.HeadAppend+html.BodyPrepend+html.BodyAppend) {
+			return true
+		}
+	}
+
+	raw, ok := responseBytes(res)
+
+	if !ok {
+		return false
+	}
+
+	body, ok := decodeBody(res.Headers.Get("Content-Encoding"), raw)
+
+	return ok && analyticsScriptTag.Match(body)
 }
 
 // ErrorFile returns the first static file that is configured as an error page.

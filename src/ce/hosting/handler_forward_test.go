@@ -951,6 +951,76 @@ func (s *HandlerForwardSuite) Test_Analytics_ExcludesReservedPaths() {
 	s.Equal("/about", record.RequestPath)
 }
 
+// Test_Analytics_Prefetch verifies that speculative document fetches are
+// skipped only when the client script is on the page to record them once shown,
+// whether it comes from a snippet or the site's own HTML.
+func (s *HandlerForwardSuite) Test_Analytics_Prefetch() {
+	tag := `<script src="/_stormkit/analytics.js" async></script>`
+	ua := "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+	prefetchHeaders := [][2]string{
+		{"Sec-Purpose", "prefetch"},
+		{"Sec-Purpose", "prefetch;prerender"},
+		{"Purpose", "prefetch"},
+		{"X-Moz", "prefetch"},
+	}
+
+	newHost := func(snippets appconf.Snippets) *hosting.Host {
+		return &hosting.Host{
+			Name: "www.stormkit.io",
+			Config: &appconf.Config{
+				IsEnterprise: true,
+				AppID:        types.ID(25),
+				EnvID:        types.ID(100),
+				DomainID:     types.ID(501),
+				Snippets:     snippets,
+			},
+		}
+	}
+
+	snippet := appconf.Snippets{{Content: tag, Location: "head"}}
+
+	cases := []struct {
+		name     string
+		host     *hosting.Host
+		body     string
+		recorded bool
+	}{
+		{name: "no client script", host: newHost(nil), body: "<html><head></head></html>", recorded: true},
+		{name: "snippet", host: newHost(snippet), body: "<html><head></head></html>", recorded: false},
+		{name: "tag in the page", host: newHost(nil), body: "<html><head>" + tag + "</head></html>", recorded: false},
+		{name: "absolute src", host: newHost(nil), body: `<head><script async src='https://www.stormkit.io/_stormkit/analytics.js'></script></head>`, recorded: false},
+		{name: "docs mentioning the tag", host: newHost(nil), body: "<pre><code>&lt;script src=\"/_stormkit/analytics.js\"&gt;&lt;/script&gt;</code></pre>", recorded: true},
+		{name: "link to the script", host: newHost(nil), body: `<a href="/_stormkit/analytics.js">source</a>`, recorded: true},
+		{name: "snippet without the script", host: newHost(appconf.Snippets{{Content: "<!-- /_stormkit/analytics.js -->", Location: "head"}}), body: "<html></html>", recorded: true},
+	}
+
+	for _, c := range cases {
+		for _, h := range prefetchHeaders {
+			header := http.Header{}
+			header.Set("User-Agent", ua)
+			header.Set(h[0], h[1])
+
+			res := &shttp.Response{
+				Status:  http.StatusOK,
+				Headers: http.Header{"Content-Type": []string{"text/html"}},
+				Data:    c.body,
+			}
+
+			record := hosting.AnalyticsRecord(s.newRequest(c.host, "/about", header), res)
+
+			s.Equal(c.recorded, record != nil, "%s with %s: %s", c.name, h[0], h[1])
+		}
+	}
+
+	// A normal page load is always recorded.
+	header := http.Header{}
+	header.Set("User-Agent", ua)
+
+	res := &shttp.Response{Status: http.StatusOK, Headers: http.Header{}}
+
+	s.NotNil(hosting.AnalyticsRecord(s.newRequest(newHost(snippet), "/about", header), res))
+}
+
 func (s *HandlerForwardSuite) Test_Analytics_ExcludedDomain() {
 	host := &hosting.Host{
 		Name: "www.stormkit.io",

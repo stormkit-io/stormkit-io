@@ -35,10 +35,71 @@
     return location.pathname;
   }
 
+  // The server already recorded the landing, so it is the starting point for
+  // de-duplicating route changes.
+  var lastPath = path();
+
   function pageview() {
+    var next = path();
+
+    // Routers push the same path when only the query or hash changes (filters,
+    // pagination), which is not a new page.
+    if (next === lastPath) {
+      return;
+    }
+
+    // document.referrer never changes after the landing, so a route change is
+    // credited to the page the visitor navigated from.
+    var referrer = location.origin + lastPath;
+    lastPath = next;
+
     send({
-      pageviews: [{ path: path(), referrer: document.referrer, requestId: rid }],
+      pageviews: [{ path: next, referrer: referrer, requestId: rid }],
     });
+  }
+
+  // The landing never reached the server when it was prerendered, served from
+  // a prefetch, or served from the browser cache (link prefetch included), so
+  // the server could not count it. Record it here once the page is shown.
+  function landing() {
+    send({
+      pageviews: [
+        { path: path(), referrer: document.referrer, requestId: rid },
+      ],
+    });
+  }
+
+  function missedByServer() {
+    try {
+      var nav = performance.getEntriesByType("navigation")[0];
+
+      if (!nav) {
+        return false;
+      }
+
+      if (nav.activationStart > 0) {
+        return true;
+      }
+
+      if (typeof nav.deliveryType === "string") {
+        return (
+          nav.deliveryType === "cache" ||
+          nav.deliveryType === "navigational-prefetch"
+        );
+      }
+
+      // Browsers without deliveryType (Firefox, Safari) report a cache hit as a
+      // body that arrived without any bytes on the wire.
+      return nav.transferSize === 0 && nav.decodedBodySize > 0;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  if (document.prerendering) {
+    document.addEventListener("prerenderingchange", landing, { once: true });
+  } else if (missedByServer()) {
+    landing();
   }
 
   var sk = (window.stormkit = window.stormkit || {});
@@ -61,9 +122,7 @@
   };
 
   // Report SPA route changes only. The initial pageview is recorded server-side,
-  // so we patch pushState and listen for popstate without firing on load. We do
-  // NOT wrap replaceState: routers call it for URL normalization and hydration
-  // keys, which would double-count the landing page the server already recorded.
+  // so we patch pushState and listen for popstate without firing on load.
   function wrap(fn) {
     return function () {
       var result = fn.apply(this, arguments);
@@ -71,6 +130,17 @@
       return result;
     };
   }
+
+  // replaceState is not a page view: routers call it for URL normalization,
+  // hydration keys and redirects. It still moves the visitor, so later route
+  // changes are compared to (and credited to) the replaced path.
+  var replaceState = history.replaceState;
+
+  history.replaceState = function () {
+    var result = replaceState.apply(this, arguments);
+    lastPath = path();
+    return result;
+  };
 
   history.pushState = wrap(history.pushState);
   window.addEventListener("popstate", pageview);

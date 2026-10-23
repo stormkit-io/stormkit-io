@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -85,6 +86,13 @@ func handleCollect(req *RequestContext) (res *shttp.Response) {
 	// its custom events are recorded. Answered as success so a cached tracking
 	// script on an excluded host does not report errors to the visitor.
 	if req.Host.Config.AnalyticsExcluded {
+		return &shttp.Response{Status: http.StatusNoContent}
+	}
+
+	// The script always posts to its own origin, so a browser beacon from any
+	// other origin is a third-party page writing into this site's analytics.
+	// Server-to-server calls send neither header and are unaffected.
+	if isCrossOriginBeacon(req) {
 		return &shttp.Response{Status: http.StatusNoContent}
 	}
 
@@ -180,6 +188,30 @@ func handleCollect(req *RequestContext) (res *shttp.Response) {
 	}
 
 	return &shttp.Response{Status: http.StatusNoContent}
+}
+
+// isCrossOriginBeacon reports whether a browser sent the beacon from a page on
+// another origin, judged by Sec-Fetch-Site, or by Origin when the browser does
+// not send fetch metadata.
+func isCrossOriginBeacon(req *RequestContext) bool {
+	if site := req.Header.Get("Sec-Fetch-Site"); site != "" {
+		return site != "same-origin" && site != "none"
+	}
+
+	origin := req.Header.Get("Origin")
+
+	if origin == "" {
+		return false
+	}
+
+	parsed, err := url.Parse(origin)
+
+	if err != nil || parsed.Hostname() == "" {
+		return true
+	}
+
+	// Host names can carry a port in local development.
+	return !strings.EqualFold(parsed.Hostname(), req.Host.Name) && !strings.EqualFold(parsed.Host, req.Host.Name)
 }
 
 func parseCollectBody(body io.ReadCloser) (collectPayload, bool) {

@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -197,6 +198,51 @@ func (s *CollectHandlerSuite) Test_Pageviews_TaggedClient() {
 	s.Equal("/pricing", records[0].Analytics.RequestPath)
 	s.Equal("client", records[0].Analytics.Source.ValueOrZero())
 	s.Equal("203.0.113.7", records[0].Analytics.VisitorIP)
+}
+
+// Test_CrossOriginBeacon_Dropped verifies that a page on another site cannot
+// write page views into this site's analytics through visitors' browsers.
+func (s *CollectHandlerSuite) Test_CrossOriginBeacon_Dropped() {
+	body := `{"pageviews":[{"path":"/spam"}]}`
+	headers := []map[string]string{
+		{"Sec-Fetch-Site": "cross-site"},
+		{"Sec-Fetch-Site": "same-site"},
+		{"Origin": "https://evil.example"},
+		{"Origin": "null"},
+	}
+
+	for i, h := range headers {
+		req := s.request(http.MethodPost, "203.0.113."+strconv.Itoa(20+i), collectTestUA, body)
+
+		for k, v := range h {
+			req.Header.Set(k, v)
+		}
+
+		s.Equal(http.StatusNoContent, handleCollect(req).Status)
+	}
+
+	s.Empty(s.waitForRecords(1))
+}
+
+func (s *CollectHandlerSuite) Test_SameOriginBeacon_Recorded() {
+	body := `{"pageviews":[{"path":"/pricing"}]}`
+	headers := []map[string]string{
+		{"Sec-Fetch-Site": "same-origin", "Origin": "https://www.stormkit.io"},
+		{"Origin": "https://WWW.stormkit.io"},
+		{}, // server-to-server
+	}
+
+	for i, h := range headers {
+		req := s.request(http.MethodPost, "203.0.113."+strconv.Itoa(30+i), collectTestUA, body)
+
+		for k, v := range h {
+			req.Header.Set(k, v)
+		}
+
+		s.Equal(http.StatusNoContent, handleCollect(req).Status)
+	}
+
+	s.Len(s.waitForRecords(len(headers)), len(headers))
 }
 
 func (s *CollectHandlerSuite) Test_Events_Truncated() {
