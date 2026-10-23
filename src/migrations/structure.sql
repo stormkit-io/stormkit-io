@@ -528,22 +528,6 @@ CREATE TABLE skitapi.auth_wall_apps (
 ALTER TABLE skitapi.auth_wall_apps OWNER TO skitadmin;
 
 --
--- Name: auth_wall_backup; Type: TABLE; Schema: skitapi; Owner: skitadmin
---
-
-CREATE TABLE skitapi.auth_wall_backup (
-    login_id bigint,
-    login_email text,
-    login_password text,
-    last_login_at timestamp without time zone,
-    env_id bigint,
-    created_at timestamp without time zone
-);
-
-
-ALTER TABLE skitapi.auth_wall_backup OWNER TO skitadmin;
-
---
 -- Name: auth_wall_login_id_seq; Type: SEQUENCE; Schema: skitapi; Owner: skitadmin
 --
 
