@@ -245,6 +245,29 @@ func (s *CollectHandlerSuite) Test_SameOriginBeacon_Recorded() {
 	s.Len(s.waitForRecords(len(headers)), len(headers))
 }
 
+// Test_Pageviews_Campaign verifies that a landing the server never saw keeps
+// the campaign from the query string the script sends.
+func (s *CollectHandlerSuite) Test_Pageviews_Campaign() {
+	body := `{"pageviews":[{"path":"/launch","search":"?utm_source=x&ref=hn"},{"path":"/about"}]}`
+
+	res := handleCollect(s.request(http.MethodPost, "203.0.113.40", collectTestUA, body))
+
+	s.Equal(http.StatusNoContent, res.Status)
+
+	records := s.waitForRecords(2)
+	s.Require().Len(records, 2)
+
+	byPath := map[string]*jobs.HostingRecord{}
+
+	for _, r := range records {
+		byPath[r.Analytics.RequestPath] = r
+	}
+
+	s.Equal("x", byPath["/launch"].Analytics.Campaign.Source.ValueOrZero())
+	s.Equal("hn", byPath["/launch"].Analytics.Campaign.Ref.ValueOrZero())
+	s.False(byPath["/about"].Analytics.Campaign.Source.Valid)
+}
+
 func (s *CollectHandlerSuite) Test_Events_Truncated() {
 	var b strings.Builder
 	b.WriteString(`{"events":[`)

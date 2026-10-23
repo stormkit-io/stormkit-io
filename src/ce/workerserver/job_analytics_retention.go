@@ -14,17 +14,21 @@ const (
 	analyticsRetentionMaxBatches  = 1000
 )
 
+// analyticsRetentionDays returns how many days of raw analytics rows are kept.
+func analyticsRetentionDays() int {
+	if days := utils.StringToInt(os.Getenv("STORMKIT_ANALYTICS_RETENTION_DAYS")); days > 0 {
+		return days
+	}
+
+	return defaultAnalyticsRetentionDays
+}
+
 // RemoveOldAnalytics deletes raw analytics and custom-event rows older than the
 // retention window in batches to avoid long locks and table bloat. The window
 // defaults to 180 days and can be overridden via STORMKIT_ANALYTICS_RETENTION_DAYS.
 // Aggregated analytics tables are intentionally kept and not touched here.
 func RemoveOldAnalytics(ctx context.Context) error {
-	days := utils.StringToInt(os.Getenv("STORMKIT_ANALYTICS_RETENTION_DAYS"))
-
-	if days <= 0 {
-		days = defaultAnalyticsRetentionDays
-	}
-
+	days := analyticsRetentionDays()
 	store := NewStore()
 
 	hits, err := batchDeleteOldRows(ctx, days, store.RemoveOldAnalytics)

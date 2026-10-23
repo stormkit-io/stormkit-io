@@ -26,6 +26,8 @@ type Record struct {
 	// Source distinguishes server-recorded hits ("server") from client beacon
 	// pageviews ("client"). NULL (legacy rows) is treated as server.
 	Source null.String
+	// Campaign is read from the landing URL's query.
+	Campaign Campaign
 }
 
 func (r Record) String() string {

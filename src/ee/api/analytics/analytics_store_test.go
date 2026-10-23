@@ -169,6 +169,46 @@ func (s *StoreSuite) Test_InsertRecords_VisitorHash() {
 	s.NotEqual(hashes[0], hashes[3], "the id rotates daily")
 }
 
+// Test_InsertRecords_LargeBatch verifies that an ingest tick larger than one
+// statement's parameter limit (65535 / 16 per row) is still written in full.
+func (s *StoreSuite) Test_InsertRecords_LargeBatch() {
+	app := s.MockApp(nil)
+	env := s.MockEnv(app)
+	domain := &buildconf.DomainModel{
+		AppID:      app.ID,
+		EnvID:      env.ID,
+		Name:       "batch.stormkit.io",
+		Verified:   true,
+		VerifiedAt: utils.NewUnix(),
+		Token:      null.StringFrom("batch-token"),
+	}
+
+	s.Require().NoError(buildconf.DomainStore().Insert(context.Background(), domain))
+
+	records := make([]analytics.Record, 5000)
+
+	for i := range records {
+		records[i] = analytics.Record{
+			AppID:       app.ID,
+			EnvID:       env.ID,
+			DomainID:    domain.ID,
+			VisitorIP:   "85.97.11.98",
+			RequestTS:   utils.NewUnix(),
+			RequestPath: "/",
+			StatusCode:  http.StatusOK,
+		}
+	}
+
+	ctx := context.Background()
+	s.Require().NoError(analytics.NewStore().InsertRecords(ctx, records))
+
+	var count int
+
+	row := s.conn.QueryRow("SELECT COUNT(*) FROM analytics WHERE domain_id = $1", domain.ID)
+	s.Require().NoError(row.Scan(&count))
+	s.Equal(5000, count)
+}
+
 func TestStore(t *testing.T) {
 	suite.Run(t, &StoreSuite{})
 }

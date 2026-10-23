@@ -3,6 +3,7 @@ package jobs
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"fmt"
 	"regexp"
 	"text/template"
@@ -34,6 +35,64 @@ func NewStore() *Store {
 func (s *Store) RemoveOldLogs(ctx context.Context) error {
 	_, err := s.Exec(ctx, stmt.removeOldLogs)
 	return err
+}
+
+// SyncAnalyticsPathsParams is the range of whole UTC days, [From, To), to roll
+// up into the per-path, per-path-country and campaign aggregates.
+type SyncAnalyticsPathsParams struct {
+	From time.Time
+	To   time.Time
+}
+
+// SyncAnalyticsPaths recomputes the per-path, per-path-country and campaign
+// aggregates for every day in the range.
+func (s *Store) SyncAnalyticsPaths(ctx context.Context, p SyncAnalyticsPathsParams) error {
+	from := p.From.UTC().Format(time.DateOnly)
+	to := p.To.UTC().Format(time.DateOnly)
+
+	// The per-path rollup runs last: the backfill resumes from its oldest day,
+	// so a range that fails part-way is redone in full on the next run.
+	for _, query := range []string{stmt.syncAnalyticsPathCountries, stmt.syncAnalyticsCampaigns, stmt.syncAnalyticsPaths} {
+		if _, err := s.Exec(ctx, query, from, to); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// OldestAnalyticsPathsDay returns the oldest day in the per-path aggregate,
+// or nil when it is empty.
+func (s *Store) OldestAnalyticsPathsDay(ctx context.Context) (*time.Time, error) {
+	return s.oldestDay(ctx, stmt.oldestAnalyticsPathsDay)
+}
+
+// OldestRawPageViewDay returns the day of the oldest raw page view the path
+// rollups would aggregate, or nil when there is none.
+func (s *Store) OldestRawPageViewDay(ctx context.Context) (*time.Time, error) {
+	return s.oldestDay(ctx, stmt.oldestRawPageViewDay)
+}
+
+func (s *Store) oldestDay(ctx context.Context, query string) (*time.Time, error) {
+	row, err := s.QueryRow(ctx, query)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var day sql.NullTime
+
+	if err := row.Scan(&day); err != nil {
+		return nil, err
+	}
+
+	if !day.Valid {
+		return nil, nil
+	}
+
+	utc := time.Date(day.Time.Year(), day.Time.Month(), day.Time.Day(), 0, 0, 0, 0, time.UTC)
+
+	return &utc, nil
 }
 
 // RemoveOldAnalyticsParams configures a single batched deletion of raw

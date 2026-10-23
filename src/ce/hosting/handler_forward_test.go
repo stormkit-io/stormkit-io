@@ -168,6 +168,7 @@ func (s *HandlerForwardSuite) newRequest(host *hosting.Host, path string, header
 	}
 
 	rq.OriginalPath = path
+	rq.OriginalQuery = query
 
 	return rq
 }
@@ -1019,6 +1020,42 @@ func (s *HandlerForwardSuite) Test_Analytics_Prefetch() {
 	res := &shttp.Response{Status: http.StatusOK, Headers: http.Header{}}
 
 	s.NotNil(hosting.AnalyticsRecord(s.newRequest(newHost(snippet), "/about", header), res))
+}
+
+// Test_Analytics_Campaign verifies that campaign parameters are read from the
+// landing URL while the recorded path stays query-less.
+func (s *HandlerForwardSuite) Test_Analytics_Campaign() {
+	host := &hosting.Host{
+		Name: "www.stormkit.io",
+		Config: &appconf.Config{
+			IsEnterprise: true,
+			AppID:        types.ID(25),
+			EnvID:        types.ID(100),
+			DomainID:     types.ID(501),
+		},
+	}
+
+	header := http.Header{}
+	header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+
+	res := &shttp.Response{Status: http.StatusOK}
+	record := hosting.AnalyticsRecord(s.newRequest(host, "/launch?utm_source=x&utm_campaign=launch&ref=hn", header), res)
+
+	s.Require().NotNil(record)
+	s.Equal("/launch", record.RequestPath)
+	s.Equal("x", record.Campaign.Source.ValueOrZero())
+	s.False(record.Campaign.Medium.Valid)
+	s.Equal("launch", record.Campaign.Name.ValueOrZero())
+	s.Equal("hn", record.Campaign.Ref.ValueOrZero())
+
+	// A rewrite whose target carries its own query must not erase the
+	// visitor's campaign.
+	req := s.newRequest(host, "/launch?utm_source=x", header)
+	req.URL().RawQuery = "lang=en"
+	record = hosting.AnalyticsRecord(req, res)
+
+	s.Require().NotNil(record)
+	s.Equal("x", record.Campaign.Source.ValueOrZero())
 }
 
 func (s *HandlerForwardSuite) Test_Analytics_ExcludedDomain() {

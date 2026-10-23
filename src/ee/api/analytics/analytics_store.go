@@ -45,7 +45,8 @@ var stmt = struct {
 			app_id, env_id, visitor_ip,
 			request_path, request_timestamp,
 			response_code, user_agent, referrer,
-			domain_id, country_iso_code, request_id, source
+			domain_id, country_iso_code, request_id, source,
+			utm_source, utm_medium, utm_campaign, ref
 		)
 		VALUES {{ range $i, $record := .records }}
 			(
@@ -64,7 +65,8 @@ var stmt = struct {
 					LIMIT 1
 				),
 				${{ $record.p10 }}::uuid,
-				${{ $record.p11 }}
+				${{ $record.p11 }},
+				${{ $record.p13 }}, ${{ $record.p14 }}, ${{ $record.p15 }}, ${{ $record.p16 }}
 			){{ if not (last $i $.records) }},{{ end }}
 		{{ end }};
 	`,
@@ -392,14 +394,31 @@ func cleanReferrer(referrer null.String) null.String {
 	)
 }
 
+// insertRecordsChunkSize bounds the rows per INSERT. Each row binds 16
+// parameters and Postgres allows 65535 per statement, so an ingest tick's
+// records are written in chunks instead of one statement that would fail.
+const insertRecordsChunkSize = 1000
+
 // InsertRecords inserts given records into the database.
 func (s *Store) InsertRecords(ctx context.Context, records []Record) error {
+	for start := 0; start < len(records); start += insertRecordsChunkSize {
+		end := min(start+insertRecordsChunkSize, len(records))
+
+		if err := s.insertRecords(ctx, records[start:end]); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *Store) insertRecords(ctx context.Context, records []Record) error {
 	params := []any{}
 	rows := []map[string]any{}
 
 	// number of fields to
 	// be parameterized $1, $2
-	insertFieldsSize := 12
+	insertFieldsSize := 16
 	c := 0
 
 	for _, record := range records {
@@ -416,6 +435,7 @@ func (s *Store) InsertRecords(ctx context.Context, records []Record) error {
 			record.RequestPath, record.RequestTS.UTC(), record.StatusCode,
 			cleanNullChars(record.UserAgent), cleanReferrer(record.Referrer), record.DomainID,
 			record.RequestID, record.Source, visitorHash(ip.ValueOrZero(), record),
+			record.Campaign.Source, record.Campaign.Medium, record.Campaign.Name, record.Campaign.Ref,
 		)
 
 		rows = append(rows, row)

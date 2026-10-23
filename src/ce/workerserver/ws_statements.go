@@ -22,6 +22,11 @@ type statement struct {
 	syncAnalyticsReferrers          string
 	syncAnalyticsCountries          string
 	syncAnalyticsEvents             string
+	syncAnalyticsPaths              string
+	syncAnalyticsPathCountries      string
+	syncAnalyticsCampaigns          string
+	oldestAnalyticsPathsDay         string
+	oldestRawPageViewDay            string
 	selectUserIDsWithoutAPIKeys     string
 	selectStaleSchemas              string
 	selectStaleVolumeEnvs           string
@@ -255,6 +260,120 @@ var stmt = &statement{
 		DO UPDATE SET
 			total_count = EXCLUDED.total_count,
 			unique_actors = EXCLUDED.unique_actors;
+	`,
+
+	// The path rollups recompute whole days in [$1, $2), so a re-run replaces a
+	// day's rows instead of adding to them.
+	syncAnalyticsPaths: `
+		INSERT INTO analytics_paths_agg
+			(aggregate_date, domain_id, request_path, request_path_hash,
+			 unique_visitors, page_views, server_views, client_views)
+			SELECT
+				DATE(a.request_timestamp) AS agg_date,
+				a.domain_id,
+				a.request_path,
+				decode(md5(a.request_path), 'hex'),
+				COUNT(DISTINCT a.visitor_ip),
+				COUNT(*),
+				COUNT(*) FILTER (WHERE COALESCE(a.source, 'server') = 'server'),
+				COUNT(*) FILTER (WHERE a.source = 'client')
+			FROM
+				analytics a
+			WHERE
+				a.response_code IN (200, 304) AND
+				a.domain_id IS NOT NULL AND
+				a.request_timestamp >= $1::date AND
+				a.request_timestamp < $2::date
+			GROUP BY
+				agg_date, a.domain_id, a.request_path
+		ON CONFLICT
+			(domain_id, aggregate_date, request_path_hash)
+		DO UPDATE SET
+			unique_visitors = EXCLUDED.unique_visitors,
+			page_views = EXCLUDED.page_views,
+			server_views = EXCLUDED.server_views,
+			client_views = EXCLUDED.client_views;
+	`,
+
+	syncAnalyticsPathCountries: `
+		INSERT INTO analytics_path_countries_agg
+			(aggregate_date, domain_id, request_path, request_path_hash,
+			 country_iso_code, unique_visitors)
+			SELECT
+				DATE(a.request_timestamp) AS agg_date,
+				a.domain_id,
+				a.request_path,
+				decode(md5(a.request_path), 'hex'),
+				a.country_iso_code,
+				COUNT(DISTINCT a.visitor_ip)
+			FROM
+				analytics a
+			WHERE
+				a.response_code IN (200, 304) AND
+				a.domain_id IS NOT NULL AND
+				a.country_iso_code IS NOT NULL AND
+				a.request_timestamp >= $1::date AND
+				a.request_timestamp < $2::date
+			GROUP BY
+				agg_date, a.domain_id, a.request_path, a.country_iso_code
+		ON CONFLICT
+			(domain_id, aggregate_date, request_path_hash, country_iso_code)
+		DO UPDATE SET
+			unique_visitors = EXCLUDED.unique_visitors;
+	`,
+
+	syncAnalyticsCampaigns: `
+		INSERT INTO analytics_campaigns_agg
+			(aggregate_date, domain_id, utm_source, utm_medium, utm_campaign, ref,
+			 campaign_hash, request_path, request_path_hash, unique_visitors, visits)
+			SELECT
+				agg_date, domain_id, utm_source, utm_medium, utm_campaign, ref,
+				decode(md5(concat_ws(chr(31), utm_source, utm_medium, utm_campaign, ref)), 'hex'),
+				request_path,
+				decode(md5(request_path), 'hex'),
+				COUNT(DISTINCT visitor_ip),
+				COUNT(*)
+			FROM (
+				SELECT
+					DATE(a.request_timestamp) AS agg_date,
+					a.domain_id,
+					COALESCE(a.utm_source, '') AS utm_source,
+					COALESCE(a.utm_medium, '') AS utm_medium,
+					COALESCE(a.utm_campaign, '') AS utm_campaign,
+					COALESCE(a.ref, '') AS ref,
+					a.request_path,
+					a.visitor_ip
+				FROM
+					analytics a
+				WHERE
+					a.response_code IN (200, 304) AND
+					a.domain_id IS NOT NULL AND
+					a.request_timestamp >= $1::date AND
+					a.request_timestamp < $2::date AND
+					(a.utm_source IS NOT NULL OR a.utm_medium IS NOT NULL OR
+					 a.utm_campaign IS NOT NULL OR a.ref IS NOT NULL)
+			) c
+			GROUP BY
+				agg_date, domain_id, utm_source, utm_medium, utm_campaign, ref, request_path
+		ON CONFLICT
+			(domain_id, aggregate_date, campaign_hash, request_path_hash)
+		DO UPDATE SET
+			unique_visitors = EXCLUDED.unique_visitors,
+			visits = EXCLUDED.visits;
+	`,
+
+	oldestAnalyticsPathsDay: `SELECT MIN(aggregate_date) FROM analytics_paths_agg;`,
+
+	// Uses the same filter as the path rollups, so once the backfill is done
+	// this matches the oldest aggregated day.
+	oldestRawPageViewDay: `
+		SELECT
+			MIN(request_timestamp)::date
+		FROM
+			analytics
+		WHERE
+			response_code IN (200, 304) AND
+			domain_id IS NOT NULL;
 	`,
 
 	selectStaleSchemas: `

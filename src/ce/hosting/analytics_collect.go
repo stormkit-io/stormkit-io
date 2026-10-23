@@ -59,6 +59,9 @@ type collectPageview struct {
 	Path      string `json:"path"`
 	Referrer  string `json:"referrer"`
 	RequestID string `json:"requestId"`
+	// Search is the landing URL's query string, sent only for landings the
+	// server never saw, so their campaign is not lost.
+	Search string `json:"search"`
 }
 
 type collectPayload struct {
@@ -183,6 +186,7 @@ func handleCollect(req *RequestContext) (res *shttp.Response) {
 				Referrer:    null.NewString(referrer, referrer != ""),
 				RequestID:   sanitizeRequestID(pv.RequestID),
 				Source:      null.StringFrom("client"),
+				Campaign:    analytics.CampaignFromRawQuery(pv.Search),
 			},
 		})
 	}

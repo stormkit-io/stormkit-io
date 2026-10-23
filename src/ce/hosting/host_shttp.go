@@ -27,6 +27,10 @@ type RequestContext struct {
 
 	OriginalPath string
 
+	// OriginalQuery is the raw query the visitor requested, before a rewrite
+	// can replace it.
+	OriginalQuery string
+
 	// Host is the associated host configuration for this request.
 	Host *Host
 
@@ -204,6 +208,7 @@ func WithHost(handler func(*RequestContext) *shttp.Response) shttp.RequestFunc {
 			Host:           host,
 			RequestContext: req,
 			OriginalPath:   fmt.Sprintf("/%s", strings.TrimLeft(req.URL().Path, "/")),
+			OriginalQuery:  req.URL().RawQuery,
 			Fields:         fields,
 			RequestID:      requestID,
 		})

@@ -1148,6 +1148,7 @@ func analyticsRecord(req *RequestContext, res *shttp.Response) *analytics.Record
 		DomainID:    req.Host.Config.DomainID,
 		RequestID:   null.NewString(req.RequestID, req.RequestID != ""),
 		Source:      null.StringFrom("server"),
+		Campaign:    analytics.CampaignFromRawQuery(req.OriginalQuery),
 	}
 }
 

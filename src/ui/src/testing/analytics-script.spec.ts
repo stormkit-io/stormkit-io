@@ -158,6 +158,21 @@ describe("hosting/analytics.js", () => {
     expect(beacons.map(b => b.path)).toEqual(["/blog"]);
   });
 
+  it("sends the landing query so its campaign is kept", () => {
+    history.replaceState(null, "", "/blog?utm_source=x&ref=hn");
+    navigationEntry({ deliveryType: "cache", activationStart: 0 });
+
+    load();
+    expect(beacons).toEqual([
+      {
+        path: "/blog",
+        referrer: "",
+        requestId: "",
+        search: "?utm_source=x&ref=hn",
+      },
+    ]);
+  });
+
   it("records the landing of a page served from the browser cache", () => {
     navigationEntry({ deliveryType: "cache", activationStart: 0 });
 

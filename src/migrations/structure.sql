@@ -123,7 +123,11 @@ CREATE TABLE skitapi.analytics (
     referrer text,
     country_iso_code text,
     request_id uuid,
-    source text
+    source text,
+    utm_source text,
+    utm_medium text,
+    utm_campaign text,
+    ref text
 );
 
 
@@ -149,6 +153,61 @@ ALTER SEQUENCE skitapi.analytics_analytics_id_seq OWNER TO skitadmin;
 
 ALTER SEQUENCE skitapi.analytics_analytics_id_seq OWNED BY skitapi.analytics.analytics_id;
 
+
+--
+-- Name: analytics_campaigns_agg; Type: TABLE; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE TABLE skitapi.analytics_campaigns_agg (
+    aggregate_date date NOT NULL,
+    domain_id bigint NOT NULL,
+    utm_source text NOT NULL,
+    utm_medium text NOT NULL,
+    utm_campaign text NOT NULL,
+    ref text NOT NULL,
+    campaign_hash bytea NOT NULL,
+    request_path text NOT NULL,
+    request_path_hash bytea NOT NULL,
+    unique_visitors bigint NOT NULL,
+    visits bigint NOT NULL
+);
+
+
+ALTER TABLE skitapi.analytics_campaigns_agg OWNER TO skitadmin;
+
+--
+-- Name: analytics_path_countries_agg; Type: TABLE; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE TABLE skitapi.analytics_path_countries_agg (
+    aggregate_date date NOT NULL,
+    domain_id bigint NOT NULL,
+    request_path text NOT NULL,
+    request_path_hash bytea NOT NULL,
+    country_iso_code text NOT NULL,
+    unique_visitors bigint NOT NULL
+);
+
+
+ALTER TABLE skitapi.analytics_path_countries_agg OWNER TO skitadmin;
+
+--
+-- Name: analytics_paths_agg; Type: TABLE; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE TABLE skitapi.analytics_paths_agg (
+    aggregate_date date NOT NULL,
+    domain_id bigint NOT NULL,
+    request_path text NOT NULL,
+    request_path_hash bytea NOT NULL,
+    unique_visitors bigint NOT NULL,
+    page_views bigint NOT NULL,
+    server_views bigint NOT NULL,
+    client_views bigint NOT NULL
+);
+
+
+ALTER TABLE skitapi.analytics_paths_agg OWNER TO skitadmin;
 
 --
 -- Name: analytics_referrers; Type: TABLE; Schema: skitapi; Owner: skitadmin
@@ -1376,6 +1435,30 @@ ALTER TABLE ONLY skitapi.analytics
 
 
 --
+-- Name: analytics_campaigns_agg analytics_campaigns_agg_pkey; Type: CONSTRAINT; Schema: skitapi; Owner: skitadmin
+--
+
+ALTER TABLE ONLY skitapi.analytics_campaigns_agg
+    ADD CONSTRAINT analytics_campaigns_agg_pkey PRIMARY KEY (domain_id, aggregate_date, campaign_hash, request_path_hash);
+
+
+--
+-- Name: analytics_path_countries_agg analytics_path_countries_agg_pkey; Type: CONSTRAINT; Schema: skitapi; Owner: skitadmin
+--
+
+ALTER TABLE ONLY skitapi.analytics_path_countries_agg
+    ADD CONSTRAINT analytics_path_countries_agg_pkey PRIMARY KEY (domain_id, aggregate_date, request_path_hash, country_iso_code);
+
+
+--
+-- Name: analytics_paths_agg analytics_paths_agg_pkey; Type: CONSTRAINT; Schema: skitapi; Owner: skitadmin
+--
+
+ALTER TABLE ONLY skitapi.analytics_paths_agg
+    ADD CONSTRAINT analytics_paths_agg_pkey PRIMARY KEY (domain_id, aggregate_date, request_path_hash);
+
+
+--
 -- Name: analytics_referrers analytics_referrers_pkey; Type: CONSTRAINT; Schema: skitapi; Owner: skitadmin
 --
 
@@ -1677,6 +1760,13 @@ CREATE INDEX idx_access_log_stats_host_name ON skitapi.access_log_stats USING bt
 --
 
 CREATE INDEX idx_access_logs_host_name ON skitapi.access_logs USING btree (host_name);
+
+
+--
+-- Name: idx_analytics_paths_agg_date; Type: INDEX; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE INDEX idx_analytics_paths_agg_date ON skitapi.analytics_paths_agg USING btree (aggregate_date);
 
 
 --

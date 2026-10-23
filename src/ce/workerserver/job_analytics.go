@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/lib/pq"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
@@ -134,4 +135,63 @@ func SyncAnalyticsEvents(ctx context.Context) error {
 	}
 
 	return err
+}
+
+// analyticsPathsBackfillChunkDays bounds how many days one backfill query
+// covers, so the first run after an upgrade does not hold one long query over
+// the whole raw table.
+const analyticsPathsBackfillChunkDays = 7
+
+// SyncAnalyticsPaths rolls raw page views up into the per-path, per-path-country
+// and campaign aggregates for yesterday and today, then backfills older days
+// the aggregates do not cover yet.
+//
+// The backfill walks from the newest uncovered day to the oldest raw page view,
+// so a run that fails part-way resumes below the oldest day it finished. Once
+// raw rows age out, the aggregates reach further back than the raw table and
+// nothing is left to backfill.
+func SyncAnalyticsPaths(ctx context.Context) error {
+	store := NewStore()
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	yesterday := today.AddDate(0, 0, -1)
+
+	if err := store.SyncAnalyticsPaths(ctx, SyncAnalyticsPathsParams{From: yesterday, To: today.AddDate(0, 0, 1)}); err != nil {
+		slog.Errorf("could not sync path aggregates: %s", err.Error())
+		return err
+	}
+
+	rawOldest, err := store.OldestRawPageViewDay(ctx)
+
+	if err != nil || rawOldest == nil {
+		return err
+	}
+
+	covered, err := store.OldestAnalyticsPathsDay(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	end := yesterday
+
+	if covered != nil && covered.Before(end) {
+		end = *covered
+	}
+
+	for end.After(*rawOldest) {
+		start := end.AddDate(0, 0, -analyticsPathsBackfillChunkDays)
+
+		if start.Before(*rawOldest) {
+			start = *rawOldest
+		}
+
+		if err := store.SyncAnalyticsPaths(ctx, SyncAnalyticsPathsParams{From: start, To: end}); err != nil {
+			slog.Errorf("could not backfill path aggregates: %s", err.Error())
+			return err
+		}
+
+		end = start
+	}
+
+	return nil
 }

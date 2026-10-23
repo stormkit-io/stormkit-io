@@ -64,7 +64,12 @@
   function landing() {
     send({
       pageviews: [
-        { path: path(), referrer: document.referrer, requestId: rid },
+        {
+          path: path(),
+          referrer: document.referrer,
+          requestId: rid,
+          search: location.search,
+        },
       ],
     });
   }
