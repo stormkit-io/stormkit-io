@@ -3,9 +3,7 @@ package analytics
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"fmt"
 	"net"
 	"net/http"
@@ -16,7 +14,6 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/database"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
@@ -39,8 +36,8 @@ var stmt = struct {
 	avgDeploymentDurationByTeam string
 	topPerformingDomains        string
 }{
-	// visitor_ip stores a salted hash of the IP (p12), never the raw IP, so
-	// unique-visitor counts (COUNT(DISTINCT visitor_ip)) are preserved without
+	// visitor_ip stores the daily-rotating visitor id (p12), never the raw IP,
+	// so COUNT(DISTINCT visitor_ip) counts unique visitors per day without
 	// persisting PII. The raw IP (p3) is used only transiently for the country
 	// lookup below and is not stored.
 	insertRecord: `
@@ -341,22 +338,23 @@ func NewStore() *Store {
 	return &Store{database.NewStore()}
 }
 
-// fallback to localhost if its not
-// correct format
-// hashVisitorIP returns a salted, non-reversible identifier derived from a
-// visitor IP, stored in place of the raw IP. Hashing the IP (and nothing else)
-// keeps a 1:1 mapping with the IP, so COUNT(DISTINCT visitor_ip) still counts
-// unique visitors exactly while no PII is persisted at rest.
-func hashVisitorIP(ip string) null.String {
+// visitorHash returns the cookieless, daily-rotating visitor id stored in
+// place of the raw IP. It is the same id custom events carry, so a page view
+// and an event from one visitor on one day share it.
+func visitorHash(ip string, record Record) null.String {
 	if ip == "" {
 		return null.String{}
 	}
 
-	sum := sha256.Sum256([]byte(config.Get().AppSecret + "|" + ip))
-
-	return null.StringFrom(hex.EncodeToString(sum[:16]))
+	return null.StringFrom(VisitorID(VisitorIDParams{
+		IP:        ip,
+		UserAgent: record.UserAgent.ValueOrZero(),
+		At:        record.RequestTS.Time,
+	}))
 }
 
+// fallback to localhost if its not
+// correct format
 func toIP(ipAddress string) null.String {
 	ip := net.ParseIP(ipAddress)
 
@@ -417,7 +415,7 @@ func (s *Store) InsertRecords(ctx context.Context, records []Record) error {
 			record.AppID, record.EnvID, ip,
 			record.RequestPath, record.RequestTS.UTC(), record.StatusCode,
 			cleanNullChars(record.UserAgent), cleanReferrer(record.Referrer), record.DomainID,
-			record.RequestID, record.Source, hashVisitorIP(ip.ValueOrZero()),
+			record.RequestID, record.Source, visitorHash(ip.ValueOrZero(), record),
 		)
 
 		rows = append(rows, row)

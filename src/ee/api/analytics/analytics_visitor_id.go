@@ -13,6 +13,10 @@ import (
 type VisitorIDParams struct {
 	IP        string
 	UserAgent string
+
+	// At is when the visit happened; it picks the day the id rotates on.
+	// Zero means now.
+	At time.Time
 }
 
 // VisitorID returns a cookieless, daily-rotating identifier for a visitor.
@@ -21,7 +25,13 @@ type VisitorIDParams struct {
 // persisting any PII. The secret and daily rotation make the hash impractical
 // to reverse or correlate across days.
 func VisitorID(p VisitorIDParams) string {
-	day := time.Now().UTC().Format(time.DateOnly)
+	at := p.At
+
+	if at.IsZero() {
+		at = time.Now()
+	}
+
+	day := at.UTC().Format(time.DateOnly)
 	seed := config.Get().AppSecret + "|" + day + "|" + p.IP + "|" + p.UserAgent
 	sum := sha256.Sum256([]byte(seed))
 

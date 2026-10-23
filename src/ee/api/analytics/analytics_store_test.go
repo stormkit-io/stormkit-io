@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/analytics"
@@ -102,6 +103,70 @@ func (s *StoreSuite) Test_InsertRecords() {
 	s.Equal("", dbRecords[1].RecordIP.ValueOrZero())
 	s.Equal("/", dbRecords[1].Path)
 	s.Equal("yahoo.com", dbRecords[1].Referrer.ValueOrZero())
+}
+
+// Test_InsertRecords_VisitorHash verifies that page views store the same
+// daily-rotating visitor id as custom events, keyed on IP and user agent.
+func (s *StoreSuite) Test_InsertRecords_VisitorHash() {
+	app := s.MockApp(nil)
+	env := s.MockEnv(app)
+	domain := &buildconf.DomainModel{
+		AppID:      app.ID,
+		EnvID:      env.ID,
+		Name:       "hash.stormkit.io",
+		Verified:   true,
+		VerifiedAt: utils.NewUnix(),
+		Token:      null.StringFrom("hash-token"),
+	}
+
+	s.Require().NoError(buildconf.DomainStore().Insert(context.Background(), domain))
+
+	now := time.Now().UTC()
+	yesterday := now.Add(-24 * time.Hour)
+	record := func(ua string, at time.Time) analytics.Record {
+		return analytics.Record{
+			AppID:       app.ID,
+			EnvID:       env.ID,
+			VisitorIP:   "85.97.11.98",
+			RequestTS:   utils.Unix{Time: at, Valid: true},
+			RequestPath: "/",
+			StatusCode:  http.StatusOK,
+			UserAgent:   null.StringFrom(ua),
+			DomainID:    domain.ID,
+		}
+	}
+
+	ctx := context.Background()
+	err := analytics.NewStore().InsertRecords(ctx, []analytics.Record{
+		record("ua-1", now),
+		record("ua-1", now),
+		record("ua-2", now),
+		record("ua-1", yesterday),
+	})
+
+	s.Require().NoError(err)
+
+	rows, err := s.conn.PrepareOrPanic(
+		"SELECT visitor_ip FROM analytics WHERE domain_id = $1 ORDER BY analytics_id",
+	).QueryContext(ctx, domain.ID)
+
+	s.Require().NoError(err)
+
+	defer rows.Close()
+
+	hashes := []string{}
+
+	for rows.Next() {
+		var h string
+		s.Require().NoError(rows.Scan(&h))
+		hashes = append(hashes, h)
+	}
+
+	s.Require().Len(hashes, 4)
+	s.Equal(analytics.VisitorID(analytics.VisitorIDParams{IP: "85.97.11.98", UserAgent: "ua-1", At: now}), hashes[0])
+	s.Equal(hashes[0], hashes[1])
+	s.NotEqual(hashes[0], hashes[2], "another browser on the same IP is another visitor")
+	s.NotEqual(hashes[0], hashes[3], "the id rotates daily")
 }
 
 func TestStore(t *testing.T) {
