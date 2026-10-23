@@ -162,7 +162,11 @@ func (s *PrometheusSuite) Test_DefaultPortProbesWhenBusy() {
 	s.Require().NoError(err)
 	defer ln.Close()
 
-	s.Equal(port+1, ln.Addr().(*net.TCPAddr).Port)
+	// Usually port+1, but another process may hold that one too, in which case
+	// the listener correctly keeps probing.
+	got := ln.Addr().(*net.TCPAddr).Port
+	s.Greater(got, port)
+	s.Less(got, port+maxPortProbeAttempts)
 }
 
 // A port that does not parse must be refused. Falling back to 0 would make

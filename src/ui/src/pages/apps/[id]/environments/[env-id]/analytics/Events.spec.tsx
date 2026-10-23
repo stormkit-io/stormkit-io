@@ -101,8 +101,11 @@ describe("~/pages/apps/[id]/environments/[env-id]/analytics/Events.tsx", () => {
       response: [{ name: "trip_creation", total: 1, unique: 1 }],
     });
 
+    // isDone only means the request was intercepted, and the help button shows
+    // while loading too, so wait for an event row to render.
     await waitFor(() => {
       expect(scope.isDone()).toBe(true);
+      expect(wrapper.getByLabelText("Group trip_creation")).toBeTruthy();
     });
 
     fireEvent.click(wrapper.getByLabelText("How to track"));
@@ -118,8 +121,10 @@ describe("~/pages/apps/[id]/environments/[env-id]/analytics/Events.tsx", () => {
       response: [{ name: "trip_creation", total: 4, unique: 2 }],
     });
 
+    // isDone only means the request was intercepted; wait for the render.
     await waitFor(() => {
       expect(scope.isDone()).toBe(true);
+      expect(wrapper.getByLabelText("Group trip_creation")).toBeTruthy();
     });
 
     const propsScope = mockFetchEventProperties({
