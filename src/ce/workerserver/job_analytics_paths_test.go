@@ -2,6 +2,7 @@ package jobs_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -191,6 +192,15 @@ func (s *JobAnalyticsPathsSuite) campaigns() []campaignAgg {
 	return out
 }
 
+// sync runs the path rollups as at noon today, when only today is recomputed.
+func (s *JobAnalyticsPathsSuite) sync() error {
+	return s.syncAt(s.today.Add(12 * time.Hour))
+}
+
+func (s *JobAnalyticsPathsSuite) syncAt(now time.Time) error {
+	return jobs.SyncAnalyticsPaths(context.WithValue(context.Background(), jobs.KeyContextNow{}, now))
+}
+
 func (s *JobAnalyticsPathsSuite) day(offset int) string {
 	return s.today.AddDate(0, 0, offset).Format(time.DateOnly)
 }
@@ -206,7 +216,7 @@ func (s *JobAnalyticsPathsSuite) Test_Paths_CountsViewsVisitorsAndSources() {
 		visit{IP: "3.3.3.3", UA: "a", Path: "/missing", At: noon, Status: http.StatusNotFound},
 	)
 
-	s.Require().NoError(jobs.SyncAnalyticsPaths(context.Background()))
+	s.Require().NoError(s.sync())
 
 	// One IP with two browsers is two visitors; the 404 is not a page view.
 	s.Equal([]pathAgg{
@@ -218,40 +228,101 @@ func (s *JobAnalyticsPathsSuite) Test_Paths_RerunReplacesTheDay() {
 	noon := s.today.Add(12 * time.Hour)
 
 	s.insert(visit{IP: "1.1.1.1", UA: "a", Path: "/", At: noon})
-	s.Require().NoError(jobs.SyncAnalyticsPaths(context.Background()))
+	s.Require().NoError(s.sync())
 
 	s.insert(visit{IP: "2.2.2.2", UA: "a", Path: "/", At: noon})
-	s.Require().NoError(jobs.SyncAnalyticsPaths(context.Background()))
+	s.Require().NoError(s.sync())
 
 	s.Equal([]pathAgg{
 		{Date: s.day(0), Path: "/", UniqueVisitors: 2, PageViews: 2, ServerViews: 2, ClientViews: 0},
 	}, s.paths())
 }
 
-// Test_Paths_OnlyRecentDays verifies that the job rolls up yesterday and today
-// only, and never backfills older raw page views.
-func (s *JobAnalyticsPathsSuite) Test_Paths_OnlyRecentDays() {
+// Test_Paths_RecomputedDays verifies that yesterday is rebuilt until a run
+// well after midnight commits it, after which only today is, and that older
+// days are never rebuilt.
+func (s *JobAnalyticsPathsSuite) Test_Paths_RecomputedDays() {
+	yesterday := s.today.AddDate(0, 0, -1).Add(time.Hour)
+
 	s.insert(
 		visit{IP: "1.1.1.1", UA: "a", Path: "/old", At: s.today.AddDate(0, 0, -2).Add(time.Hour)},
-		visit{IP: "1.1.1.1", UA: "a", Path: "/yesterday", At: s.today.AddDate(0, 0, -1).Add(time.Hour)},
+		visit{IP: "1.1.1.1", UA: "a", Path: "/yesterday", At: yesterday},
 		visit{IP: "1.1.1.1", UA: "a", Path: "/", At: s.today.Add(time.Hour)},
 	)
 
-	s.Require().NoError(jobs.SyncAnalyticsPaths(context.Background()))
+	views := func() map[string]int {
+		out := map[string]int{}
 
-	paths := []string{}
+		for _, p := range s.paths() {
+			out[p.Path] = p.PageViews
+		}
 
-	for _, p := range s.paths() {
-		paths = append(paths, p.Path)
+		return out
 	}
 
-	s.Equal([]string{"/yesterday", "/"}, paths)
+	// Shortly after midnight yesterday is rebuilt but not yet final, since
+	// its last page views may still be in the ingest queue.
+	s.Require().NoError(s.syncAt(s.today.Add(10 * time.Minute)))
+	s.insert(visit{IP: "2.2.2.2", UA: "a", Path: "/yesterday", At: yesterday})
+	s.Require().NoError(s.syncAt(s.today.Add(20 * time.Minute)))
+	s.Equal(map[string]int{"/yesterday": 2, "/": 1}, views())
+
+	// A later run rebuilds and finalizes it; after that it is left alone.
+	s.insert(visit{IP: "3.3.3.3", UA: "a", Path: "/yesterday", At: yesterday})
+	s.Require().NoError(s.sync())
+	s.insert(visit{IP: "4.4.4.4", UA: "a", Path: "/yesterday", At: yesterday})
+	s.Require().NoError(s.sync())
+	s.Equal(map[string]int{"/yesterday": 3, "/": 1}, views())
+}
+
+// Test_Paths_FoldsJunkPaths verifies that single-view paths beyond the limit,
+// e.g. scanner probes, are folded into '(other)' in every path rollup, while
+// paths with repeat views are kept.
+func (s *JobAnalyticsPathsSuite) Test_Paths_FoldsJunkPaths() {
+	noon := s.today.Add(12 * time.Hour)
+	visits := []visit{
+		{IP: "1.1.1.1", UA: "a", Path: "/pricing", At: noon, Referrer: "t.co"},
+		{IP: "2.2.2.2", UA: "a", Path: "/pricing", At: noon},
+	}
+
+	for i := 0; i < 1005; i++ {
+		visits = append(visits, visit{IP: "3.3.3.3", UA: "a", Path: fmt.Sprintf("/probe-%04d", i), At: noon, Referrer: "t.co"})
+	}
+
+	s.insert(visits...)
+	s.Require().NoError(s.sync())
+
+	byPath := map[string]pathAgg{}
+
+	for _, p := range s.paths() {
+		byPath[p.Path] = p
+	}
+
+	s.Len(byPath, 1002, "the repeated path, 1000 single-view paths and (other)")
+	s.Equal(2, byPath["/pricing"].PageViews)
+	s.Equal(5, byPath["(other)"].PageViews)
+
+	var otherVisits int
+
+	row := s.conn.QueryRow(`SELECT COALESCE(SUM(visits), 0) FROM analytics_channels_agg WHERE domain_id = $1 AND request_path = '(other)'`, s.domainID)
+	s.Require().NoError(row.Scan(&otherVisits))
+	s.Equal(5, otherVisits, "the channel rollup folds the same paths")
+
+	// A re-run that folds a path kept earlier leaves no stale row behind.
+	s.insert(visit{IP: "4.4.4.4", UA: "a", Path: "/probe-0000a", At: noon})
+	s.Require().NoError(s.sync())
+
+	var total int
+
+	row = s.conn.QueryRow(`SELECT SUM(page_views) FROM analytics_paths_agg WHERE domain_id = $1`, s.domainID)
+	s.Require().NoError(row.Scan(&total))
+	s.Equal(1008, total, "every page view is counted exactly once")
 }
 
 func (s *JobAnalyticsPathsSuite) Test_Paths_NoPageViews() {
 	s.insert(visit{IP: "1.1.1.1", UA: "a", Path: "/missing", At: s.today.Add(time.Hour), Status: http.StatusNotFound})
 
-	s.Require().NoError(jobs.SyncAnalyticsPaths(context.Background()))
+	s.Require().NoError(s.sync())
 	s.Empty(s.paths())
 }
 
@@ -270,7 +341,7 @@ func (s *JobAnalyticsPathsSuite) Test_PathCountries() {
 	) THEN 'TR' ELSE 'DE' END WHERE domain_id = $1`, s.domainID)
 
 	s.Require().NoError(err)
-	s.Require().NoError(jobs.SyncAnalyticsPaths(context.Background()))
+	s.Require().NoError(s.sync())
 
 	s.Equal([]pathCountryAgg{
 		{Date: s.day(0), Path: "/blog", Country: "DE", UniqueVisitors: 2},
@@ -291,7 +362,7 @@ func (s *JobAnalyticsPathsSuite) Test_Campaigns() {
 		visit{IP: "4.4.4.4", UA: "a", Path: "/", At: noon},
 	)
 
-	s.Require().NoError(jobs.SyncAnalyticsPaths(context.Background()))
+	s.Require().NoError(s.sync())
 
 	s.Equal([]campaignAgg{
 		{Date: s.day(0), Ref: "indiefounders", Path: "/pricing", UniqueVisitors: 1, Visits: 1},
@@ -351,7 +422,7 @@ func (s *JobAnalyticsPathsSuite) Test_Channels_Classification() {
 		s.insert(visit{IP: "1.1.1.1", UA: "a", Path: "/", At: noon, Referrer: referrer})
 	}
 
-	s.Require().NoError(jobs.SyncAnalyticsPaths(context.Background()))
+	s.Require().NoError(s.sync())
 
 	// Hosts are stored without scheme, path or "www.".
 	expected := map[string]string{

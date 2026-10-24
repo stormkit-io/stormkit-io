@@ -79,6 +79,17 @@ release that introduced this API; earlier days are empty. Site-wide visitor
 and country counts go back further, so for older days a `visitors` series can
 show visitors with no page views.
 
+### The `(other)` path
+
+To keep junk URLs (such as scanners probing a single-page app that answers
+every path) from growing the stored data without bound, each domain keeps, per
+day, every path with two or more views and its first 1,000 single-view paths,
+up to 10,000 paths in total. The remaining page views are counted under the
+path `(other)`, so site-wide totals stay exact; the visitors of `(other)` are
+the sum of the folded paths' visitors. Folded page views do not match a `path`
+or `pathPrefix` filter, so on days with folding, filtered totals undercount by
+the folded single-view pages.
+
 ### How visitors are counted
 
 Visitors are identified without cookies, by a hash of the IP address and user

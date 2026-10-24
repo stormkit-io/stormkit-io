@@ -17,6 +17,9 @@ var (
 
 type KeyContextNumberOfDays struct{}
 
+// KeyContextNow overrides the current time of the path rollups, for tests.
+type KeyContextNow struct{}
+
 // SyncAnalyticsVisitorsDaily syncs the daily analytics stats with the
 // aggregation table. This allows us to effectively query the read table,
 // while maintaining a raw write table that is easily scalable.
@@ -137,14 +140,44 @@ func SyncAnalyticsEvents(ctx context.Context) error {
 	return err
 }
 
-// SyncAnalyticsPaths rolls raw page views up into the per-path, per-path-country,
-// campaign and channel aggregates for yesterday and today. Earlier days are
-// not backfilled: the aggregates start on the day they were introduced.
-func SyncAnalyticsPaths(ctx context.Context) error {
-	today := time.Now().UTC().Truncate(24 * time.Hour)
-	params := SyncAnalyticsPathsParams{From: today.AddDate(0, 0, -1), To: today.AddDate(0, 0, 1)}
+// analyticsFinalizeAfter is how long after midnight a run must start to mark
+// yesterday final, so page views still in the ingest queue at midnight are
+// counted first.
+const analyticsFinalizeAfter = time.Hour
 
-	if err := NewStore().SyncAnalyticsPaths(ctx, params); err != nil {
+// SyncAnalyticsPaths rolls raw page views up into the per-path, per-path-country,
+// campaign and channel aggregates for today, and for yesterday until a run
+// started at least analyticsFinalizeAfter past midnight has committed it.
+// Earlier days are not backfilled: the aggregates start on the day they were
+// introduced.
+func SyncAnalyticsPaths(ctx context.Context) error {
+	now := time.Now().UTC()
+
+	if t, ok := ctx.Value(KeyContextNow{}).(time.Time); ok {
+		now = t.UTC()
+	}
+
+	store := NewStore()
+	today := now.Truncate(24 * time.Hour)
+	yesterday := today.AddDate(0, 0, -1)
+	params := SyncAnalyticsPathsParams{From: today, To: today.AddDate(0, 0, 1)}
+
+	finalized, err := store.IsAnalyticsDayFinalized(ctx, yesterday)
+
+	if err != nil {
+		slog.Errorf("could not check finalized analytics day: %s", err.Error())
+		return err
+	}
+
+	if !finalized {
+		params.From = yesterday
+
+		if now.Sub(today) >= analyticsFinalizeAfter {
+			params.Finalize = yesterday
+		}
+	}
+
+	if err := store.SyncAnalyticsPaths(ctx, params); err != nil {
 		slog.Errorf("could not sync path aggregates: %s", err.Error())
 		return err
 	}

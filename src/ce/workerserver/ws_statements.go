@@ -9,29 +9,35 @@ var (
 )
 
 type statement struct {
-	markDeploymentsSoftDeleted      string
-	markDeploymentArtifactsDeleted  string
-	markStaleAppsAndEnvsSoftDeleted string
-	deleteStaleEnvironments         string
-	selectTimedOutDeployments       string
-	selectOldOrDeletedDeployments   string
-	removeOldLogs                   string
-	removeOldAnalytics              string
-	removeOldAnalyticsEvents        string
-	syncAnalyticsVisitors           string
-	syncAnalyticsReferrers          string
-	syncAnalyticsCountries          string
-	syncAnalyticsEvents             string
-	syncAnalyticsPaths              string
-	syncAnalyticsPathCountries      string
-	syncAnalyticsCampaigns          string
-	syncAnalyticsChannels           string
-	selectUserIDsWithoutAPIKeys     string
-	selectStaleSchemas              string
-	selectStaleVolumeEnvs           string
-	clearSchemaConf                 string
-	selectAccessLogPartitions       string
-	selectAuthEnabledEnvs           string
+	markDeploymentsSoftDeleted       string
+	markDeploymentArtifactsDeleted   string
+	markStaleAppsAndEnvsSoftDeleted  string
+	deleteStaleEnvironments          string
+	selectTimedOutDeployments        string
+	selectOldOrDeletedDeployments    string
+	removeOldLogs                    string
+	removeOldAnalytics               string
+	removeOldAnalyticsEvents         string
+	syncAnalyticsVisitors            string
+	syncAnalyticsReferrers           string
+	syncAnalyticsCountries           string
+	syncAnalyticsEvents              string
+	syncAnalyticsPaths               string
+	syncAnalyticsPathCountries       string
+	syncAnalyticsCampaigns           string
+	syncAnalyticsChannels            string
+	deleteAnalyticsPathsDays         string
+	deleteAnalyticsPathCountriesDays string
+	deleteAnalyticsCampaignsDays     string
+	deleteAnalyticsChannelsDays      string
+	finalizeAnalyticsDay             string
+	isAnalyticsDayFinalized          string
+	selectUserIDsWithoutAPIKeys      string
+	selectStaleSchemas               string
+	selectStaleVolumeEnvs            string
+	clearSchemaConf                  string
+	selectAccessLogPartitions        string
+	selectAuthEnabledEnvs            string
 }
 
 var stmt = &statement{
@@ -261,21 +267,26 @@ var stmt = &statement{
 			unique_actors = EXCLUDED.unique_actors;
 	`,
 
-	// The path rollups recompute whole days in [$1, $2), so a re-run replaces a
-	// day's rows instead of adding to them.
+	// The path rollups recompute whole days in [$1, $2): the job deletes the
+	// days first, in the same transaction, so a re-run replaces them.
+	//
+	// syncAnalyticsPaths also decides which paths a day keeps, so junk URLs
+	// (e.g. scanners probing an SPA that answers every path) cannot grow the
+	// aggregates without bound. A path with two or more views is kept; the
+	// first $3 single-view paths are kept too; no more than $4 paths are kept
+	// in total. The rest are folded into one '(other)' row, whose visitors
+	// are the sum of the folded paths' visitors. The other path rollups fold
+	// every path this one did not keep, so they run after it.
 	syncAnalyticsPaths: `
-		INSERT INTO analytics_paths_agg
-			(aggregate_date, domain_id, request_path, request_path_hash,
-			 unique_visitors, page_views, server_views, client_views)
+		WITH per_path AS (
 			SELECT
 				DATE(a.request_timestamp) AS agg_date,
 				a.domain_id,
 				a.request_path,
-				decode(md5(a.request_path), 'hex'),
-				COUNT(DISTINCT a.visitor_ip),
-				COUNT(*),
-				COUNT(*) FILTER (WHERE COALESCE(a.source, 'server') = 'server'),
-				COUNT(*) FILTER (WHERE a.source = 'client')
+				COUNT(DISTINCT a.visitor_ip) AS unique_visitors,
+				COUNT(*) AS page_views,
+				COUNT(*) FILTER (WHERE COALESCE(a.source, 'server') = 'server') AS server_views,
+				COUNT(*) FILTER (WHERE a.source = 'client') AS client_views
 			FROM
 				analytics a
 			WHERE
@@ -285,26 +296,45 @@ var stmt = &statement{
 				a.request_timestamp < $2::date
 			GROUP BY
 				agg_date, a.domain_id, a.request_path
-		ON CONFLICT
-			(domain_id, aggregate_date, request_path_hash)
-		DO UPDATE SET
-			unique_visitors = EXCLUDED.unique_visitors,
-			page_views = EXCLUDED.page_views,
-			server_views = EXCLUDED.server_views,
-			client_views = EXCLUDED.client_views;
+		), ranked AS (
+			SELECT
+				*,
+				ROW_NUMBER() OVER (PARTITION BY agg_date, domain_id ORDER BY page_views DESC, request_path) AS rank,
+				ROW_NUMBER() OVER (PARTITION BY agg_date, domain_id, page_views > 1 ORDER BY request_path) AS rank_in_group
+			FROM
+				per_path
+		), folded AS (
+			SELECT
+				agg_date,
+				domain_id,
+				CASE
+					WHEN rank <= $4 AND (page_views > 1 OR rank_in_group <= $3) THEN request_path
+					ELSE '(other)'
+				END AS request_path,
+				unique_visitors, page_views, server_views, client_views
+			FROM
+				ranked
+		)
+		INSERT INTO analytics_paths_agg
+			(aggregate_date, domain_id, request_path, request_path_hash,
+			 unique_visitors, page_views, server_views, client_views)
+		SELECT
+			agg_date, domain_id, request_path, decode(md5(request_path), 'hex'),
+			SUM(unique_visitors), SUM(page_views), SUM(server_views), SUM(client_views)
+		FROM
+			folded
+		GROUP BY
+			agg_date, domain_id, request_path;
 	`,
 
 	syncAnalyticsPathCountries: `
-		INSERT INTO analytics_path_countries_agg
-			(aggregate_date, domain_id, request_path, request_path_hash,
-			 country_iso_code, unique_visitors)
+		WITH per_path AS (
 			SELECT
 				DATE(a.request_timestamp) AS agg_date,
 				a.domain_id,
 				a.request_path,
-				decode(md5(a.request_path), 'hex'),
 				a.country_iso_code,
-				COUNT(DISTINCT a.visitor_ip)
+				COUNT(DISTINCT a.visitor_ip) AS unique_visitors
 			FROM
 				analytics a
 			WHERE
@@ -315,68 +345,115 @@ var stmt = &statement{
 				a.request_timestamp < $2::date
 			GROUP BY
 				agg_date, a.domain_id, a.request_path, a.country_iso_code
-		ON CONFLICT
-			(domain_id, aggregate_date, request_path_hash, country_iso_code)
-		DO UPDATE SET
-			unique_visitors = EXCLUDED.unique_visitors;
+		), folded AS (
+			SELECT
+				g.agg_date, g.domain_id, g.country_iso_code, g.unique_visitors,
+				CASE WHEN kept.request_path IS NULL THEN '(other)' ELSE g.request_path END AS request_path
+			FROM
+				per_path g
+			LEFT JOIN
+				analytics_paths_agg kept ON
+					kept.domain_id = g.domain_id AND
+					kept.aggregate_date = g.agg_date AND
+					kept.request_path_hash = decode(md5(g.request_path), 'hex')
+		)
+		INSERT INTO analytics_path_countries_agg
+			(aggregate_date, domain_id, request_path, request_path_hash,
+			 country_iso_code, unique_visitors)
+		SELECT
+			agg_date, domain_id, request_path, decode(md5(request_path), 'hex'),
+			country_iso_code, SUM(unique_visitors)
+		FROM
+			folded
+		GROUP BY
+			agg_date, domain_id, request_path, country_iso_code;
 	`,
 
+	// syncAnalyticsCampaigns folds landing paths like the path rollup did.
 	syncAnalyticsCampaigns: `
+		WITH per_campaign AS (
+			SELECT
+				DATE(a.request_timestamp) AS agg_date,
+				a.domain_id,
+				COALESCE(a.utm_source, '') AS utm_source,
+				COALESCE(a.utm_medium, '') AS utm_medium,
+				COALESCE(a.utm_campaign, '') AS utm_campaign,
+				COALESCE(a.ref, '') AS ref,
+				a.request_path,
+				COUNT(DISTINCT a.visitor_ip) AS unique_visitors,
+				COUNT(*) AS visits
+			FROM
+				analytics a
+			WHERE
+				a.response_code IN (200, 304) AND
+				a.domain_id IS NOT NULL AND
+				a.request_timestamp >= $1::date AND
+				a.request_timestamp < $2::date AND
+				(a.utm_source IS NOT NULL OR a.utm_medium IS NOT NULL OR
+				 a.utm_campaign IS NOT NULL OR a.ref IS NOT NULL)
+			GROUP BY
+				agg_date, a.domain_id, 3, 4, 5, 6, a.request_path
+		), folded AS (
+			SELECT
+				g.agg_date, g.domain_id, g.utm_source, g.utm_medium, g.utm_campaign, g.ref,
+				g.unique_visitors, g.visits,
+				CASE WHEN kept.request_path IS NULL THEN '(other)' ELSE g.request_path END AS request_path
+			FROM
+				per_campaign g
+			LEFT JOIN
+				analytics_paths_agg kept ON
+					kept.domain_id = g.domain_id AND
+					kept.aggregate_date = g.agg_date AND
+					kept.request_path_hash = decode(md5(g.request_path), 'hex')
+		)
 		INSERT INTO analytics_campaigns_agg
 			(aggregate_date, domain_id, utm_source, utm_medium, utm_campaign, ref,
 			 campaign_hash, request_path, request_path_hash, unique_visitors, visits)
-			SELECT
-				agg_date, domain_id, utm_source, utm_medium, utm_campaign, ref,
-				decode(md5(concat_ws(chr(31), utm_source, utm_medium, utm_campaign, ref)), 'hex'),
-				request_path,
-				decode(md5(request_path), 'hex'),
-				COUNT(DISTINCT visitor_ip),
-				COUNT(*)
-			FROM (
-				SELECT
-					DATE(a.request_timestamp) AS agg_date,
-					a.domain_id,
-					COALESCE(a.utm_source, '') AS utm_source,
-					COALESCE(a.utm_medium, '') AS utm_medium,
-					COALESCE(a.utm_campaign, '') AS utm_campaign,
-					COALESCE(a.ref, '') AS ref,
-					a.request_path,
-					a.visitor_ip
-				FROM
-					analytics a
-				WHERE
-					a.response_code IN (200, 304) AND
-					a.domain_id IS NOT NULL AND
-					a.request_timestamp >= $1::date AND
-					a.request_timestamp < $2::date AND
-					(a.utm_source IS NOT NULL OR a.utm_medium IS NOT NULL OR
-					 a.utm_campaign IS NOT NULL OR a.ref IS NOT NULL)
-			) c
-			GROUP BY
-				agg_date, domain_id, utm_source, utm_medium, utm_campaign, ref, request_path
-		ON CONFLICT
-			(domain_id, aggregate_date, campaign_hash, request_path_hash)
-		DO UPDATE SET
-			unique_visitors = EXCLUDED.unique_visitors,
-			visits = EXCLUDED.visits;
+		SELECT
+			agg_date, domain_id, utm_source, utm_medium, utm_campaign, ref,
+			decode(md5(concat_ws(chr(31), utm_source, utm_medium, utm_campaign, ref)), 'hex'),
+			request_path, decode(md5(request_path), 'hex'),
+			SUM(unique_visitors), SUM(visits)
+		FROM
+			folded
+		GROUP BY
+			agg_date, domain_id, utm_source, utm_medium, utm_campaign, ref, request_path;
 	`,
 
-	// syncAnalyticsChannels classifies each page view's referrer host once, at
-	// rollup time. The host is the stored referrer without a scheme, path or
-	// leading "www.". It is internal when it is one of the page's environment
-	// domains or their subdomains; otherwise the pattern lists bound as $3-$6
-	// (ai, email, search, social) are checked in that order.
+	// syncAnalyticsChannels classifies each referrer host once, at rollup
+	// time, and folds paths like the path rollup did. The host is the stored
+	// referrer without a scheme, path or leading "www.". It is internal when
+	// it is one of the page's environment domains or their subdomains;
+	// otherwise the pattern lists bound as $3-$6 (ai, email, search, social)
+	// are checked in that order.
 	syncAnalyticsChannels: `
-		INSERT INTO analytics_channels_agg
-			(aggregate_date, domain_id, request_path, request_path_hash,
-			 referrer, referrer_hash, channel, visits)
+		WITH per_path AS (
+			SELECT
+				DATE(a.request_timestamp) AS agg_date,
+				a.domain_id,
+				a.env_id,
+				a.request_path,
+				regexp_replace(
+					split_part(regexp_replace(lower(COALESCE(a.referrer, '')), '^[a-z][a-z0-9+.-]*://', ''), '/', 1),
+					'^www\.', ''
+				) AS host,
+				COUNT(*) AS visits
+			FROM
+				analytics a
+			WHERE
+				a.response_code IN (200, 304) AND
+				a.domain_id IS NOT NULL AND
+				a.request_timestamp >= $1::date AND
+				a.request_timestamp < $2::date
+			GROUP BY
+				agg_date, a.domain_id, a.env_id, a.request_path, host
+		), classified AS (
 			SELECT
 				g.agg_date,
 				g.domain_id,
-				g.request_path,
-				decode(md5(g.request_path), 'hex'),
 				g.host,
-				decode(md5(g.host), 'hex'),
+				g.visits,
+				CASE WHEN kept.request_path IS NULL THEN '(other)' ELSE g.request_path END AS request_path,
 				CASE
 					WHEN g.host = '' THEN 'direct'
 					WHEN EXISTS (
@@ -394,35 +471,37 @@ var stmt = &statement{
 					WHEN g.host ~ ANY($5::text[]) THEN 'search'
 					WHEN g.host ~ ANY($6::text[]) THEN 'social'
 					ELSE 'referral'
-				END,
-				g.visits
-			FROM (
-				SELECT
-					DATE(a.request_timestamp) AS agg_date,
-					a.domain_id,
-					a.env_id,
-					a.request_path,
-					regexp_replace(
-						split_part(regexp_replace(lower(COALESCE(a.referrer, '')), '^[a-z][a-z0-9+.-]*://', ''), '/', 1),
-						'^www\.', ''
-					) AS host,
-					COUNT(*) AS visits
-				FROM
-					analytics a
-				WHERE
-					a.response_code IN (200, 304) AND
-					a.domain_id IS NOT NULL AND
-					a.request_timestamp >= $1::date AND
-					a.request_timestamp < $2::date
-				GROUP BY
-					agg_date, a.domain_id, a.env_id, a.request_path, host
-			) g
-		ON CONFLICT
-			(domain_id, aggregate_date, request_path_hash, referrer_hash)
-		DO UPDATE SET
-			channel = EXCLUDED.channel,
-			visits = EXCLUDED.visits;
+				END AS channel
+			FROM
+				per_path g
+			LEFT JOIN
+				analytics_paths_agg kept ON
+					kept.domain_id = g.domain_id AND
+					kept.aggregate_date = g.agg_date AND
+					kept.request_path_hash = decode(md5(g.request_path), 'hex')
+		)
+		INSERT INTO analytics_channels_agg
+			(aggregate_date, domain_id, request_path, request_path_hash,
+			 referrer, referrer_hash, channel, visits)
+		SELECT
+			agg_date, domain_id, request_path, decode(md5(request_path), 'hex'),
+			host, decode(md5(host), 'hex'), MIN(channel), SUM(visits)
+		FROM
+			classified
+		GROUP BY
+			agg_date, domain_id, request_path, host;
 	`,
+
+	// The delete statements clear the days [$1, $2) of a path rollup before
+	// they are recomputed.
+	deleteAnalyticsPathsDays:         `DELETE FROM analytics_paths_agg WHERE aggregate_date >= $1::date AND aggregate_date < $2::date;`,
+	deleteAnalyticsPathCountriesDays: `DELETE FROM analytics_path_countries_agg WHERE aggregate_date >= $1::date AND aggregate_date < $2::date;`,
+	deleteAnalyticsCampaignsDays:     `DELETE FROM analytics_campaigns_agg WHERE aggregate_date >= $1::date AND aggregate_date < $2::date;`,
+	deleteAnalyticsChannelsDays:      `DELETE FROM analytics_channels_agg WHERE aggregate_date >= $1::date AND aggregate_date < $2::date;`,
+
+	finalizeAnalyticsDay: `INSERT INTO analytics_rollup_days (aggregate_date) VALUES ($1::date) ON CONFLICT DO NOTHING;`,
+
+	isAnalyticsDayFinalized: `SELECT EXISTS (SELECT 1 FROM analytics_rollup_days WHERE aggregate_date = $1::date);`,
 
 	selectStaleSchemas: `
 		SELECT

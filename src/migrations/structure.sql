@@ -245,6 +245,18 @@ CREATE TABLE skitapi.analytics_referrers (
 ALTER TABLE skitapi.analytics_referrers OWNER TO skitadmin;
 
 --
+-- Name: analytics_rollup_days; Type: TABLE; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE TABLE skitapi.analytics_rollup_days (
+    aggregate_date date NOT NULL,
+    finalized_at timestamp without time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE skitapi.analytics_rollup_days OWNER TO skitadmin;
+
+--
 -- Name: analytics_visitors_agg_200; Type: TABLE; Schema: skitapi; Owner: skitadmin
 --
 
@@ -1493,6 +1505,14 @@ ALTER TABLE ONLY skitapi.analytics_referrers
 
 
 --
+-- Name: analytics_rollup_days analytics_rollup_days_pkey; Type: CONSTRAINT; Schema: skitapi; Owner: skitadmin
+--
+
+ALTER TABLE ONLY skitapi.analytics_rollup_days
+    ADD CONSTRAINT analytics_rollup_days_pkey PRIMARY KEY (aggregate_date);
+
+
+--
 -- Name: analytics_visitors_agg_200 analytics_visitors_agg_200_pkey; Type: CONSTRAINT; Schema: skitapi; Owner: skitadmin
 --
 
@@ -1793,6 +1813,34 @@ CREATE INDEX idx_access_log_stats_host_name ON skitapi.access_log_stats USING bt
 --
 
 CREATE INDEX idx_access_logs_host_name ON skitapi.access_logs USING btree (host_name);
+
+
+--
+-- Name: idx_analytics_campaigns_agg_date; Type: INDEX; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE INDEX idx_analytics_campaigns_agg_date ON skitapi.analytics_campaigns_agg USING btree (aggregate_date);
+
+
+--
+-- Name: idx_analytics_channels_agg_date; Type: INDEX; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE INDEX idx_analytics_channels_agg_date ON skitapi.analytics_channels_agg USING btree (aggregate_date);
+
+
+--
+-- Name: idx_analytics_path_countries_agg_date; Type: INDEX; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE INDEX idx_analytics_path_countries_agg_date ON skitapi.analytics_path_countries_agg USING btree (aggregate_date);
+
+
+--
+-- Name: idx_analytics_paths_agg_date; Type: INDEX; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE INDEX idx_analytics_paths_agg_date ON skitapi.analytics_paths_agg USING btree (aggregate_date);
 
 
 --

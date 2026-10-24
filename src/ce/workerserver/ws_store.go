@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"regexp"
 	"text/template"
 	"time"
@@ -42,38 +43,107 @@ func (s *Store) RemoveOldLogs(ctx context.Context) error {
 type SyncAnalyticsPathsParams struct {
 	From time.Time
 	To   time.Time
+
+	// Finalize, when set, marks that day's rollups final in the same
+	// transaction, so later runs stop rebuilding it.
+	Finalize time.Time
+}
+
+// IsAnalyticsDayFinalized reports whether the path rollups of a day are final.
+func (s *Store) IsAnalyticsDayFinalized(ctx context.Context, day time.Time) (bool, error) {
+	row, err := s.QueryRow(ctx, stmt.isAnalyticsDayFinalized, day.UTC().Format(time.DateOnly))
+
+	if err != nil {
+		return false, err
+	}
+
+	var finalized bool
+
+	err = row.Scan(&finalized)
+
+	return finalized, err
+}
+
+const (
+	// analyticsSingleViewPathsLimit is how many single-view paths a domain
+	// keeps per day before the rest are folded into '(other)'.
+	analyticsSingleViewPathsLimit = 1000
+
+	// analyticsPathsLimit is how many paths a domain keeps per day at most.
+	analyticsPathsLimit = 10000
+
+	// analyticsRollupTimeout bounds one rollup run unless
+	// STORMKIT_ANALYTICS_ROLLUP_TIMEOUT overrides it. It stays below the
+	// hourly interval: a run that takes longer is rolled back and retried by
+	// the next one, instead of loading the database indefinitely.
+	analyticsRollupTimeout = 30 * time.Minute
+)
+
+// rollupTimeout returns how long one rollup run may take.
+func rollupTimeout() time.Duration {
+	if d, err := time.ParseDuration(os.Getenv("STORMKIT_ANALYTICS_ROLLUP_TIMEOUT")); err == nil && d > 0 {
+		return d
+	}
+
+	return analyticsRollupTimeout
 }
 
 // SyncAnalyticsPaths recomputes the per-path, per-path-country, campaign and
-// channel aggregates for every day in the range.
+// channel aggregates for every day in the range. The days are deleted and
+// rebuilt in one transaction, so reports never see a partly rebuilt day and a
+// path folded into '(other)' since the last run leaves no stale row.
 func (s *Store) SyncAnalyticsPaths(ctx context.Context, p SyncAnalyticsPathsParams) error {
+	ctx, cancel := context.WithTimeout(ctx, rollupTimeout())
+	defer cancel()
+
 	from := p.From.UTC().Format(time.DateOnly)
 	to := p.To.UTC().Format(time.DateOnly)
-	channels := []any{
-		from, to,
-		pq.Array(analytics.ChannelPatterns(analytics.ChannelAI)),
-		pq.Array(analytics.ChannelPatterns(analytics.ChannelEmail)),
-		pq.Array(analytics.ChannelPatterns(analytics.ChannelSearch)),
-		pq.Array(analytics.ChannelPatterns(analytics.ChannelSocial)),
-	}
+	days := []any{from, to}
 
+	// The per-path rollup runs first: the others fold every path it did not
+	// keep.
 	queries := []struct {
 		sql  string
 		args []any
 	}{
-		{stmt.syncAnalyticsPathCountries, []any{from, to}},
-		{stmt.syncAnalyticsCampaigns, []any{from, to}},
-		{stmt.syncAnalyticsChannels, channels},
-		{stmt.syncAnalyticsPaths, []any{from, to}},
+		{stmt.deleteAnalyticsPathsDays, days},
+		{stmt.deleteAnalyticsPathCountriesDays, days},
+		{stmt.deleteAnalyticsCampaignsDays, days},
+		{stmt.deleteAnalyticsChannelsDays, days},
+		{stmt.syncAnalyticsPaths, []any{from, to, analyticsSingleViewPathsLimit, analyticsPathsLimit}},
+		{stmt.syncAnalyticsPathCountries, days},
+		{stmt.syncAnalyticsCampaigns, days},
+		{stmt.syncAnalyticsChannels, []any{
+			from, to,
+			pq.Array(analytics.ChannelPatterns(analytics.ChannelAI)),
+			pq.Array(analytics.ChannelPatterns(analytics.ChannelEmail)),
+			pq.Array(analytics.ChannelPatterns(analytics.ChannelSearch)),
+			pq.Array(analytics.ChannelPatterns(analytics.ChannelSocial)),
+		}},
 	}
 
+	if !p.Finalize.IsZero() {
+		queries = append(queries, struct {
+			sql  string
+			args []any
+		}{stmt.finalizeAnalyticsDay, []any{p.Finalize.UTC().Format(time.DateOnly)}})
+	}
+
+	tx, err := s.Conn.BeginTx(ctx, nil)
+
+	if err != nil {
+		return err
+	}
+
+	defer tx.Rollback()
+
 	for _, q := range queries {
-		if _, err := s.Exec(ctx, q.sql, q.args...); err != nil {
+		if _, err := tx.ExecContext(ctx, q.sql, q.args...); err != nil {
 			return err
 		}
 	}
 
-	return nil
+	return tx.Commit()
 }
 
 // RemoveOldAnalyticsParams configures a single batched deletion of raw
