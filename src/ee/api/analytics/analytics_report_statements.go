@@ -33,7 +33,7 @@ AND starts_with(request_path, {{ bind .PathPrefix }})
 {{- end }}
 
 {{- define "visitorsSeries" -}}
-SELECT aggregate_date::text, SUM({{ template "views" . }}), SUM(unique_visitors)
+SELECT aggregate_date::text, SUM({{ template "views" . }}), SUM(unique_visitors), SUM(engaged_seconds), SUM(engaged_views)
 FROM analytics_paths_agg
 WHERE {{ template "range" . }}
 GROUP BY aggregate_date
@@ -52,7 +52,9 @@ SELECT
 	request_path,
 	COALESCE(SUM({{ template "views" . }}) FILTER (WHERE {{ template "current" . }}), 0) AS views,
 	COALESCE(SUM({{ template "views" . }}) FILTER (WHERE NOT {{ template "current" . }}), 0),
-	COALESCE(SUM(unique_visitors) FILTER (WHERE {{ template "current" . }}), 0)
+	COALESCE(SUM(unique_visitors) FILTER (WHERE {{ template "current" . }}), 0),
+	COALESCE(SUM(engaged_seconds) FILTER (WHERE {{ template "current" . }}), 0),
+	COALESCE(SUM(engaged_views) FILTER (WHERE {{ template "current" . }}), 0)
 FROM analytics_paths_agg
 WHERE {{ template "range" . }}
 GROUP BY request_path
@@ -64,7 +66,11 @@ LIMIT {{ bind .Limit }}
 {{- define "pathsTotals" -}}
 SELECT
 	COALESCE(SUM({{ template "views" . }}) FILTER (WHERE {{ template "current" . }}), 0),
-	COALESCE(SUM({{ template "views" . }}) FILTER (WHERE NOT {{ template "current" . }}), 0)
+	COALESCE(SUM({{ template "views" . }}) FILTER (WHERE NOT {{ template "current" . }}), 0),
+	COALESCE(SUM(engaged_seconds) FILTER (WHERE {{ template "current" . }}), 0),
+	COALESCE(SUM(engaged_views) FILTER (WHERE {{ template "current" . }}), 0),
+	COALESCE(SUM(engaged_seconds) FILTER (WHERE NOT {{ template "current" . }}), 0),
+	COALESCE(SUM(engaged_views) FILTER (WHERE NOT {{ template "current" . }}), 0)
 FROM analytics_paths_agg
 WHERE {{ template "range" . }}
 {{- end }}

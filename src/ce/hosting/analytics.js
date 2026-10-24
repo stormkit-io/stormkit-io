@@ -39,6 +39,73 @@
   // de-duplicating route changes.
   var lastPath = path();
 
+  function now() {
+    return window.performance && performance.now
+      ? performance.now()
+      : Date.now();
+  }
+
+  function newViewID() {
+    try {
+      return crypto.randomUUID();
+    } catch (e) {
+      return Math.random().toString(36).slice(2) + Date.now().toString(36);
+    }
+  }
+
+  function isVisible() {
+    return document.visibilityState === "visible" && !document.prerendering;
+  }
+
+  // The page view whose foreground time is being measured. Time only counts
+  // while the page is visible, and is reported when the page is hidden or
+  // left, so one view can report several times under the same id.
+  var view = { path: lastPath, id: newViewID(), ms: 0, since: 0 };
+
+  function resume() {
+    if (!view.since && isVisible()) {
+      view.since = now();
+    }
+  }
+
+  function pause() {
+    if (view.since) {
+      view.ms += now() - view.since;
+      view.since = 0;
+    }
+  }
+
+  function reportEngagement() {
+    pause();
+
+    var seconds = Math.round(view.ms / 1000);
+    view.ms = 0;
+
+    if (seconds > 0) {
+      send({
+        engagements: [{ path: view.path, viewId: view.id, seconds: seconds }],
+      });
+    }
+  }
+
+  function startView(p) {
+    reportEngagement();
+    view = { path: p, id: newViewID(), ms: 0, since: 0 };
+    resume();
+  }
+
+  resume();
+
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden") {
+      reportEngagement();
+    } else {
+      resume();
+    }
+  });
+
+  window.addEventListener("pagehide", reportEngagement);
+
   function pageview() {
     var next = path();
 
@@ -52,6 +119,7 @@
     // credited to the page the visitor navigated from.
     var referrer = location.origin + lastPath;
     lastPath = next;
+    startView(next);
 
     send({
       pageviews: [{ path: next, referrer: referrer, requestId: rid }],
@@ -102,7 +170,14 @@
   }
 
   if (document.prerendering) {
-    document.addEventListener("prerenderingchange", landing, { once: true });
+    document.addEventListener(
+      "prerenderingchange",
+      function () {
+        landing();
+        resume();
+      },
+      { once: true },
+    );
   } else if (missedByServer()) {
     landing();
   }
@@ -144,6 +219,7 @@
   history.replaceState = function () {
     var result = replaceState.apply(this, arguments);
     lastPath = path();
+    view.path = lastPath;
     return result;
   };
 

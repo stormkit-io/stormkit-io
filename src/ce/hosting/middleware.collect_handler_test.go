@@ -12,6 +12,7 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
 	jobs "github.com/stormkit-io/stormkit-io/src/ce/workerserver"
+	"github.com/stormkit-io/stormkit-io/src/ee/api/analytics"
 	"github.com/stormkit-io/stormkit-io/src/lib/pool"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
@@ -277,6 +278,64 @@ func (s *CollectHandlerSuite) Test_Pageviews_Campaign() {
 	s.Equal("x", byPath["/launch"].Analytics.Campaign.Source.ValueOrZero())
 	s.Equal("hn", byPath["/launch"].Analytics.Campaign.Ref.ValueOrZero())
 	s.False(byPath["/about"].Analytics.Campaign.Source.Valid)
+}
+
+// Test_Engagements_Queued verifies that foreground time reports are queued with
+// their page view id, capped, and dropped when incomplete.
+func (s *CollectHandlerSuite) Test_Engagements_Queued() {
+	body := `{"engagements":[
+		{"path":"/blog","viewId":"v1","seconds":42},
+		{"path":"/blog","viewId":"v2","seconds":999999},
+		{"path":"","viewId":"v3","seconds":5},
+		{"path":"/blog","viewId":"","seconds":5},
+		{"path":"/blog","viewId":"v4","seconds":0},
+		{"path":"/blog","viewId":"` + strings.Repeat("x", 65) + `","seconds":5}
+	]}`
+
+	res := handleCollect(s.request(http.MethodPost, "203.0.113.50", collectTestUA, body))
+
+	s.Equal(http.StatusNoContent, res.Status)
+
+	records := s.waitForRecords(1)
+	s.Require().Len(records, 1)
+	s.Require().Len(records[0].Engagements, 2)
+
+	s.Equal("v1", records[0].Engagements[0].ViewID)
+	s.Equal(42, records[0].Engagements[0].Seconds)
+	s.Equal(analytics.MaxEngagementSeconds, records[0].Engagements[1].Seconds)
+	s.Equal(types.ID(3), records[0].Engagements[0].DomainID)
+}
+
+// Test_PathsDecoded verifies that beacon paths are decoded like the server
+// decodes request paths, so client and server rows for one page group together.
+func (s *CollectHandlerSuite) Test_PathsDecoded() {
+	body := `{
+		"pageviews":[{"path":"/caf%C3%A9"}],
+		"events":[{"name":"x","path":"/caf%C3%A9"}],
+		"engagements":[{"path":"/caf%C3%A9","viewId":"v1","seconds":3},{"path":"/100%","viewId":"v2","seconds":3}]
+	}`
+
+	res := handleCollect(s.request(http.MethodPost, "203.0.113.60", collectTestUA, body))
+
+	s.Equal(http.StatusNoContent, res.Status)
+
+	paths := []string{}
+
+	for _, r := range s.waitForRecords(3) {
+		if r.Analytics != nil {
+			paths = append(paths, r.Analytics.RequestPath)
+		}
+
+		for _, e := range r.Events {
+			paths = append(paths, e.RequestPath.ValueOrZero())
+		}
+
+		for _, e := range r.Engagements {
+			paths = append(paths, e.RequestPath)
+		}
+	}
+
+	s.ElementsMatch([]string{"/café", "/café", "/café", "/100%"}, paths, "a malformed encoding is kept as sent")
 }
 
 func (s *CollectHandlerSuite) Test_Events_Truncated() {

@@ -51,6 +51,7 @@ const (
 	noteChannels       = "channels group referrers: direct has no referrer (including browsers and links that hide it), internal is navigation within this site, and referral is any other site."
 	noteEntries        = "entries are visits that arrived on a page from outside the site: from another site or direct. Navigation within the site is not counted."
 	noteNoDomains      = "this environment has no custom domains; analytics are only recorded for custom domains."
+	noteTimeOnPage     = "avgTimeOnPage is the average foreground time per page view, in seconds, measured by the client script; it is absent when no page view reported it."
 	noteCampaignVisits = "campaigns are ranked by visits; visitors are only reported with an exact path, since a person landing on two pages from one campaign would otherwise count twice."
 	notePathlessEvents = "events are counted for the whole site; path filters do not apply."
 )
@@ -79,10 +80,35 @@ type ReportRange struct {
 
 // ReportDay is one day of a visitors report.
 type ReportDay struct {
-	Date         string `json:"date"`
-	PageViews    int64  `json:"pageViews"`
-	Visitors     *int64 `json:"visitors,omitempty"`
-	PageVisitors *int64 `json:"pageVisitors,omitempty"`
+	Date          string `json:"date"`
+	PageViews     int64  `json:"pageViews"`
+	Visitors      *int64 `json:"visitors,omitempty"`
+	PageVisitors  *int64 `json:"pageVisitors,omitempty"`
+	AvgTimeOnPage *int64 `json:"avgTimeOnPage,omitempty"`
+
+	engaged engagement
+}
+
+// engagement sums the foreground time the client script reported.
+type engagement struct {
+	seconds int64
+	views   int64
+}
+
+func (e engagement) add(o engagement) engagement {
+	return engagement{seconds: e.seconds + o.seconds, views: e.views + o.views}
+}
+
+// average returns the average seconds per engaged page view, or nil when no
+// page view reported any.
+func (e engagement) average() *int64 {
+	if e.views == 0 {
+		return nil
+	}
+
+	avg := (e.seconds + e.views/2) / e.views
+
+	return &avg
 }
 
 // ReportRow is one row of a ranked report. Only the fields relevant to the
@@ -98,11 +124,12 @@ type ReportRow struct {
 	Event       string `json:"event,omitempty"`
 	Channel     string `json:"channel,omitempty"`
 
-	PageViews    *int64 `json:"pageViews,omitempty"`
-	Visits       *int64 `json:"visits,omitempty"`
-	Visitors     *int64 `json:"visitors,omitempty"`
-	PageVisitors *int64 `json:"pageVisitors,omitempty"`
-	Count        *int64 `json:"count,omitempty"`
+	PageViews     *int64 `json:"pageViews,omitempty"`
+	Visits        *int64 `json:"visits,omitempty"`
+	Visitors      *int64 `json:"visitors,omitempty"`
+	PageVisitors  *int64 `json:"pageVisitors,omitempty"`
+	Count         *int64 `json:"count,omitempty"`
+	AvgTimeOnPage *int64 `json:"avgTimeOnPage,omitempty"`
 
 	// Channels breaks an entry page's visits down by channel.
 	Channels map[string]int64 `json:"channels,omitempty"`
@@ -114,13 +141,14 @@ type ReportRow struct {
 
 // ReportTotals sums a report across its rows or days.
 type ReportTotals struct {
-	PageViews    *int64 `json:"pageViews,omitempty"`
-	Visitors     *int64 `json:"visitors,omitempty"`
-	PageVisitors *int64 `json:"pageVisitors,omitempty"`
-	Visits       *int64 `json:"visits,omitempty"`
-	Direct       *int64 `json:"direct,omitempty"`
-	Internal     *int64 `json:"internal,omitempty"`
-	Count        *int64 `json:"count,omitempty"`
+	PageViews     *int64 `json:"pageViews,omitempty"`
+	Visitors      *int64 `json:"visitors,omitempty"`
+	PageVisitors  *int64 `json:"pageVisitors,omitempty"`
+	Visits        *int64 `json:"visits,omitempty"`
+	Direct        *int64 `json:"direct,omitempty"`
+	Internal      *int64 `json:"internal,omitempty"`
+	Count         *int64 `json:"count,omitempty"`
+	AvgTimeOnPage *int64 `json:"avgTimeOnPage,omitempty"`
 }
 
 // ReportPeriod is the previous period of a compared report.
@@ -319,6 +347,8 @@ func (r *reporter) notes() []string {
 			notes = append(notes, noteDailyUniques)
 		}
 
+		notes = append(notes, noteTimeOnPage)
+
 		if r.params.Source != "" {
 			notes = append(notes, noteSourceViews)
 		}
@@ -486,9 +516,11 @@ func (r *reporter) visitorsBetween(ctx context.Context, from, to time.Time) (*re
 		var day ReportDay
 		var uniques int64
 
-		if err := scan(&day.Date, &day.PageViews, &uniques); err != nil {
+		if err := scan(&day.Date, &day.PageViews, &uniques, &day.engaged.seconds, &day.engaged.views); err != nil {
 			return err
 		}
+
+		day.AvgTimeOnPage = day.engaged.average()
 
 		switch {
 		case r.params.Path != "":
@@ -533,6 +565,7 @@ func (r *reporter) visitorsBetween(ctx context.Context, from, to time.Time) (*re
 
 	result := &reportResult{Series: []ReportDay{}}
 	totals := ReportDay{}
+	engaged := engagement{}
 
 	for d := from; !d.After(to); d = d.AddDate(0, 0, 1) {
 		day := byDate[d.Format(time.DateOnly)]
@@ -550,12 +583,18 @@ func (r *reporter) visitorsBetween(ctx context.Context, from, to time.Time) (*re
 		}
 
 		totals.PageViews += day.PageViews
+		engaged = engaged.add(day.engaged)
 		totals.Visitors = addPtr(totals.Visitors, day.Visitors)
 		totals.PageVisitors = addPtr(totals.PageVisitors, day.PageVisitors)
 		result.Series = append(result.Series, *day)
 	}
 
-	result.Totals = ReportTotals{PageViews: &totals.PageViews, Visitors: totals.Visitors, PageVisitors: totals.PageVisitors}
+	result.Totals = ReportTotals{
+		PageViews:     &totals.PageViews,
+		Visitors:      totals.Visitors,
+		PageVisitors:  totals.PageVisitors,
+		AvgTimeOnPage: engaged.average(),
+	}
 
 	return result, nil
 }
@@ -580,12 +619,14 @@ func (r *reporter) paths(ctx context.Context) (*reportResult, error) {
 	err := r.rows(ctx, "paths", func(scan func(dest ...any) error) error {
 		var row ReportRow
 		var views, previous, visitors int64
+		var engaged engagement
 
-		if err := scan(&row.Path, &views, &previous, &visitors); err != nil {
+		if err := scan(&row.Path, &views, &previous, &visitors, &engaged.seconds, &engaged.views); err != nil {
 			return err
 		}
 
 		row.PageViews, row.Visitors, row.Previous = &views, &visitors, r.previous(previous)
+		row.AvgTimeOnPage = engaged.average()
 		out = append(out, row)
 
 		return nil
@@ -595,7 +636,12 @@ func (r *reporter) paths(ctx context.Context) (*reportResult, error) {
 		return nil, err
 	}
 
-	current, previous, err := r.totals(ctx, "pathsTotals")
+	var current, previous int64
+	var engaged, prevEngaged engagement
+
+	err = r.rows(ctx, "pathsTotals", func(scan func(dest ...any) error) error {
+		return scan(&current, &previous, &engaged.seconds, &engaged.views, &prevEngaged.seconds, &prevEngaged.views)
+	})
 
 	if err != nil {
 		return nil, err
@@ -603,8 +649,8 @@ func (r *reporter) paths(ctx context.Context) (*reportResult, error) {
 
 	return &reportResult{
 		Rows:     out,
-		Totals:   ReportTotals{PageViews: &current},
-		Previous: ReportTotals{PageViews: &previous},
+		Totals:   ReportTotals{PageViews: &current, AvgTimeOnPage: engaged.average()},
+		Previous: ReportTotals{PageViews: &previous, AvgTimeOnPage: prevEngaged.average()},
 	}, nil
 }
 

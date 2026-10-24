@@ -147,6 +147,43 @@ func (s *ReportSuite) Test_Visitors_SourceFiltersPageViews() {
 	s.Contains(r.Notes, "source filters page views only; visitor and visit counts include both sources.")
 }
 
+// engagedDay seeds foreground time on a path's day row.
+func (s *ReportSuite) engagedDay(offset int, path string, seconds, views int) {
+	s.exec(`UPDATE analytics_paths_agg SET engaged_seconds = $4, engaged_views = $5
+		WHERE domain_id = $1 AND aggregate_date = $2::date AND request_path = $3`,
+		s.domain, s.dayFrom(offset), path, seconds, views)
+}
+
+func (s *ReportSuite) Test_TimeOnPage() {
+	s.pathDay(s.domain, 0, "/blog/a", 3, 4, 0)
+	s.pathDay(s.domain, 0, "/blog/b", 1, 2, 0)
+	s.pathDay(s.domain, 0, "/about", 1, 1, 0)
+	s.pathDay(s.domain, -1, "/blog/a", 1, 1, 0)
+	s.engagedDay(0, "/blog/a", 100, 3)
+	s.engagedDay(0, "/blog/b", 20, 2)
+	s.engagedDay(-1, "/blog/a", 50, 1)
+
+	paths := s.report("metric=paths&span=1d&compare=previous")
+	byPath := map[string]*int64{}
+
+	for _, row := range paths.Rows {
+		byPath[row.Path] = row.AvgTimeOnPage
+	}
+
+	s.Equal(ptr(33), byPath["/blog/a"], "100s over 3 views, rounded")
+	s.Equal(ptr(10), byPath["/blog/b"])
+	s.Nil(byPath["/about"], "absent when no page view reported time")
+	s.Equal(ptr(24), paths.Totals.AvgTimeOnPage, "120s over 5 views")
+	s.Equal(ptr(50), paths.Previous.Totals.AvgTimeOnPage)
+	s.Contains(paths.Notes, "avgTimeOnPage is the average foreground time per page view, in seconds, measured by the client script; it is absent when no page view reported it.")
+
+	visitors := s.report("metric=visitors&span=2d&pathPrefix=/blog/")
+
+	s.Equal(ptr(28), visitors.Totals.AvgTimeOnPage, "170s over 6 views")
+	s.Equal(ptr(50), visitors.Series[0].AvgTimeOnPage)
+	s.Equal(ptr(24), visitors.Series[1].AvgTimeOnPage)
+}
+
 func (s *ReportSuite) Test_Paths_RankedAndLimited() {
 	s.pathDay(s.domain, 0, "/blog/a", 3, 5, 0)
 	s.pathDay(s.domain, -1, "/blog/a", 2, 2, 0)

@@ -194,6 +194,21 @@ CREATE TABLE skitapi.analytics_channels_agg (
 ALTER TABLE skitapi.analytics_channels_agg OWNER TO skitadmin;
 
 --
+-- Name: analytics_engagement; Type: TABLE; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE TABLE skitapi.analytics_engagement (
+    engagement_ts timestamp without time zone NOT NULL,
+    domain_id bigint NOT NULL,
+    request_path text NOT NULL,
+    view_id text NOT NULL,
+    seconds integer NOT NULL
+);
+
+
+ALTER TABLE skitapi.analytics_engagement OWNER TO skitadmin;
+
+--
 -- Name: analytics_path_countries_agg; Type: TABLE; Schema: skitapi; Owner: skitadmin
 --
 
@@ -221,7 +236,9 @@ CREATE TABLE skitapi.analytics_paths_agg (
     unique_visitors bigint NOT NULL,
     page_views bigint NOT NULL,
     server_views bigint NOT NULL,
-    client_views bigint NOT NULL
+    client_views bigint NOT NULL,
+    engaged_seconds bigint DEFAULT 0 NOT NULL,
+    engaged_views bigint DEFAULT 0 NOT NULL
 );
 
 
@@ -1834,6 +1851,13 @@ CREATE INDEX idx_analytics_channels_agg_date ON skitapi.analytics_channels_agg U
 --
 
 CREATE INDEX idx_analytics_path_countries_agg_date ON skitapi.analytics_path_countries_agg USING btree (aggregate_date);
+
+
+--
+-- Name: idx_analytics_engagement_ts; Type: INDEX; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE INDEX idx_analytics_engagement_ts ON skitapi.analytics_engagement USING btree (engagement_ts);
 
 
 --

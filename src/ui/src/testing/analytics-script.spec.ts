@@ -12,12 +12,36 @@ interface Pageview {
   referrer: string;
 }
 
+interface Engagement {
+  path: string;
+  viewId: string;
+  seconds: number;
+}
+
 describe("hosting/analytics.js", () => {
   const originalPushState = history.pushState;
   const originalReplaceState = history.replaceState;
   const originalAddEventListener = window.addEventListener;
-  const listeners: [string, EventListenerOrEventListenerObject][] = [];
+  const originalDocumentAddEventListener = document.addEventListener;
+  const listeners: [EventTarget, string, EventListenerOrEventListenerObject][] =
+    [];
   let beacons: Pageview[];
+  let engagements: Engagement[];
+  let clock: number;
+
+  // Moves the clock the script measures foreground time with.
+  const advance = (ms: number) => {
+    clock += ms;
+  };
+
+  const setVisibility = (state: "visible" | "hidden") => {
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: state,
+    });
+
+    document.dispatchEvent(new Event("visibilitychange"));
+  };
 
   const load = () => {
     new Function(script)();
@@ -25,36 +49,58 @@ describe("hosting/analytics.js", () => {
 
   beforeEach(() => {
     beacons = [];
+    engagements = [];
+    clock = 1000;
     history.replaceState(null, "", "/blog");
+    vi.spyOn(performance, "now").mockImplementation(() => clock);
+
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "visible",
+    });
 
     // Track listeners the script adds so each test starts without the
-    // previous test's popstate handler.
-    window.addEventListener = function (
-      this: Window,
-      type: string,
-      listener: EventListenerOrEventListenerObject,
-      options?: boolean | AddEventListenerOptions,
-    ) {
-      listeners.push([type, listener]);
-      originalAddEventListener.call(this, type, listener, options);
-    } as typeof window.addEventListener;
+    // previous test's handlers.
+    const tracked = <T extends EventTarget>(
+      target: T,
+      original: T["addEventListener"],
+    ) =>
+      function (
+        this: T,
+        type: string,
+        listener: EventListenerOrEventListenerObject,
+        options?: boolean | AddEventListenerOptions,
+      ) {
+        listeners.push([target, type, listener]);
+        original.call(this, type, listener, options);
+      } as T["addEventListener"];
+
+    window.addEventListener = tracked(window, originalAddEventListener);
+    document.addEventListener = tracked(
+      document,
+      originalDocumentAddEventListener,
+    );
 
     Object.defineProperty(navigator, "sendBeacon", {
       configurable: true,
       value: (_url: string, body: string) => {
-        beacons.push(...JSON.parse(body).pageviews);
+        const payload = JSON.parse(body);
+        beacons.push(...(payload.pageviews || []));
+        engagements.push(...(payload.engagements || []));
         return true;
       },
     });
   });
 
   afterEach(() => {
-    listeners.forEach(([type, listener]) =>
-      window.removeEventListener(type, listener),
+    listeners.forEach(([target, type, listener]) =>
+      target.removeEventListener(type, listener),
     );
 
     listeners.length = 0;
     window.addEventListener = originalAddEventListener;
+    document.addEventListener = originalDocumentAddEventListener;
+    delete (document as any).visibilityState;
     history.pushState = originalPushState;
     history.replaceState = originalReplaceState;
     delete (window as any).__skAnalytics;
@@ -199,5 +245,83 @@ describe("hosting/analytics.js", () => {
 
     load();
     expect(beacons).toEqual([]);
+  });
+
+  describe("time on page", () => {
+    it("reports the visible time when the page is hidden", () => {
+      load();
+      advance(5400);
+      setVisibility("hidden");
+
+      expect(engagements).toEqual([
+        { path: "/blog", viewId: expect.any(String), seconds: 5 },
+      ]);
+    });
+
+    it("does not count time while the page is hidden", () => {
+      load();
+      advance(3000);
+      setVisibility("hidden");
+      advance(60_000);
+      setVisibility("visible");
+      advance(2000);
+      window.dispatchEvent(new Event("pagehide"));
+
+      expect(engagements.map(e => e.seconds)).toEqual([3, 2]);
+      expect(engagements[0].viewId).toBe(engagements[1].viewId);
+    });
+
+    it("reports the previous page on a route change and starts a new view", () => {
+      load();
+      advance(4000);
+      history.pushState(null, "", "/pricing");
+      advance(7000);
+      setVisibility("hidden");
+
+      expect(engagements.map(e => [e.path, e.seconds])).toEqual([
+        ["/blog", 4],
+        ["/pricing", 7],
+      ]);
+
+      expect(engagements[0].viewId).not.toBe(engagements[1].viewId);
+    });
+
+    it("follows a redirect that replaces the URL", () => {
+      load();
+      history.replaceState(null, "", "/en");
+      advance(2000);
+      setVisibility("hidden");
+
+      expect(engagements.map(e => e.path)).toEqual(["/en"]);
+    });
+
+    it("does not report less than a second", () => {
+      load();
+      advance(400);
+      setVisibility("hidden");
+
+      expect(engagements).toEqual([]);
+    });
+
+    it("starts counting a prerendered page once it is shown", () => {
+      Object.defineProperty(document, "prerendering", {
+        configurable: true,
+        value: true,
+      });
+
+      load();
+      advance(10_000);
+
+      Object.defineProperty(document, "prerendering", {
+        configurable: true,
+        value: false,
+      });
+
+      document.dispatchEvent(new Event("prerenderingchange"));
+      advance(3000);
+      setVisibility("hidden");
+
+      expect(engagements.map(e => e.seconds)).toEqual([3]);
+    });
   });
 });

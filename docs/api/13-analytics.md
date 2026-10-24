@@ -49,8 +49,8 @@ and `entries` they select the landing page.
 
 | Metric      | Returns |
 | ----------- | ------- |
-| `visitors`  | `series`: page views and visitors per day, plus `totals`. |
-| `paths`     | Top pages by page views, each with its visitors. |
+| `visitors`  | `series`: page views, visitors and `avgTimeOnPage` per day, plus `totals`. |
+| `paths`     | Top pages by page views, each with its visitors and `avgTimeOnPage`. |
 | `referrers` | Top referring hosts by visits, each with its `channel`. The site's own domains are left out and counted in `totals.internal`; `totals.direct` counts visits without a referrer. |
 | `channels`  | Visits by channel (see below), plus the `pageViews` and `visitors` behind them. With `path`, this answers "how many people read this page, and where did they come from?" in one call. |
 | `entries`   | Landing pages: visits that arrived on a page from another site or directly, each with a `channels` breakdown. Navigation within the site is not counted. |
@@ -90,6 +90,18 @@ the sum of the folded paths' visitors. Folded page views do not match a `path`
 or `pathPrefix` filter, so on days with folding, filtered totals undercount by
 the folded single-view pages.
 
+### Time on page
+
+`avgTimeOnPage` is the average foreground time per page view, in seconds. The
+[client script](/docs/features/analytics) counts the time a page is visible
+(time in a background tab counts nothing) and reports it when the page is
+hidden or left, or on a single-page app route change. One report is capped at
+30 minutes. It is absent for pages and days no page view reported time for,
+for example on sites without the client script. Mobile browsers sometimes close
+a page before its last report is sent, so the last page of a visit can be
+slightly undercounted. Time is counted on the UTC day it was reported, so a
+page left open across midnight UTC is attributed to the next day.
+
 ### How visitors are counted
 
 Visitors are identified without cookies, by a hash of the IP address and user
@@ -112,8 +124,8 @@ Every response carries a `notes` array that says which of these applies.
 | ---------- | ------ | ----------- |
 | `metric`   | string | The metric reported. |
 | `range`    | object | `from`, `to` and `days` of the reported range. |
-| `totals`   | object | Totals for the range. Only the counts relevant to the metric are present: `pageViews`, `visitors`, `pageVisitors`, `visits`, `direct`, `internal`, `count`. |
-| `series`   | array  | One entry per day with `date`, `pageViews` and `visitors` or `pageVisitors` (`visitors` metric only). |
+| `totals`   | object | Totals for the range. Only the counts relevant to the metric are present: `pageViews`, `visitors`, `pageVisitors`, `visits`, `direct`, `internal`, `count`, `avgTimeOnPage`. |
+| `series`   | array  | One entry per day with `date`, `pageViews`, `visitors` or `pageVisitors`, and `avgTimeOnPage` (`visitors` metric only). |
 | `rows`     | array  | Top rows for the other metrics. Each carries its key (`path`, `referrer`, `channel`, `country`, `utmSource`/`utmMedium`/`utmCampaign`/`ref`, or `event`) and its counts; `entries` rows also carry `channels`. With `compare=previous`, each row also has `previous`: its main count in the previous period. |
 | `previous` | object | `range` and `totals` of the previous period, when `compare=previous`. |
 | `notes`    | array  | How the numbers in this response are counted. |

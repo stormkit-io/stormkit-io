@@ -21,6 +21,10 @@ CREATE TABLE IF NOT EXISTS analytics_paths_agg (
     page_views bigint NOT NULL,
     server_views bigint NOT NULL,
     client_views bigint NOT NULL,
+    -- Foreground time measured by the client script: the sum of seconds and
+    -- the number of page views that reported it.
+    engaged_seconds bigint NOT NULL DEFAULT 0,
+    engaged_views bigint NOT NULL DEFAULT 0,
     PRIMARY KEY (domain_id, aggregate_date, request_path_hash)
 );
 
@@ -89,3 +93,16 @@ CREATE TABLE IF NOT EXISTS analytics_rollup_days (
     aggregate_date date PRIMARY KEY,
     finalized_at timestamp without time zone NOT NULL DEFAULT now()
 );
+
+-- Foreground time per page view, reported by the client script each time a
+-- page is hidden or left, so one page view (view_id) can report several times.
+-- Retained like the analytics table and rolled up into analytics_paths_agg.
+CREATE TABLE IF NOT EXISTS analytics_engagement (
+    engagement_ts timestamp without time zone NOT NULL,
+    domain_id bigint NOT NULL,
+    request_path text NOT NULL,
+    view_id text NOT NULL,
+    seconds integer NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_analytics_engagement_ts ON analytics_engagement (engagement_ts);

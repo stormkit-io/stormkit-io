@@ -18,6 +18,7 @@ type statement struct {
 	removeOldLogs                    string
 	removeOldAnalytics               string
 	removeOldAnalyticsEvents         string
+	removeOldAnalyticsEngagement     string
 	syncAnalyticsVisitors            string
 	syncAnalyticsReferrers           string
 	syncAnalyticsCountries           string
@@ -73,6 +74,16 @@ var stmt = &statement{
 			SELECT ctid
 			FROM analytics_events
 			WHERE event_ts < now() - make_interval(days => $1)
+			LIMIT $2
+		)
+	`,
+
+	removeOldAnalyticsEngagement: `
+		DELETE FROM analytics_engagement
+		WHERE ctid IN (
+			SELECT ctid
+			FROM analytics_engagement
+			WHERE engagement_ts < now() - make_interval(days => $1)
 			LIMIT $2
 		)
 	`,
@@ -304,13 +315,31 @@ var stmt = &statement{
 				a.request_timestamp < $2::date
 			GROUP BY
 				agg_date, a.domain_id, a.request_path
+		), engaged AS (
+			SELECT
+				DATE(e.engagement_ts) AS agg_date,
+				e.domain_id,
+				e.request_path,
+				SUM(e.seconds) AS engaged_seconds,
+				COUNT(DISTINCT e.view_id) AS engaged_views
+			FROM
+				analytics_engagement e
+			WHERE
+				e.engagement_ts >= $1::date AND
+				e.engagement_ts < $2::date
+			GROUP BY
+				agg_date, e.domain_id, e.request_path
 		), ranked AS (
 			SELECT
-				*,
-				ROW_NUMBER() OVER (PARTITION BY agg_date, domain_id ORDER BY page_views DESC, request_path) AS rank,
-				ROW_NUMBER() OVER (PARTITION BY agg_date, domain_id, page_views > 1 ORDER BY request_path) AS rank_in_group
+				p.*,
+				COALESCE(g.engaged_seconds, 0) AS engaged_seconds,
+				COALESCE(g.engaged_views, 0) AS engaged_views,
+				ROW_NUMBER() OVER (PARTITION BY p.agg_date, p.domain_id ORDER BY p.page_views DESC, p.request_path) AS rank,
+				ROW_NUMBER() OVER (PARTITION BY p.agg_date, p.domain_id, p.page_views > 1 ORDER BY p.request_path) AS rank_in_group
 			FROM
-				per_path
+				per_path p
+			LEFT JOIN
+				engaged g USING (agg_date, domain_id, request_path)
 		), folded AS (
 			SELECT
 				agg_date,
@@ -319,16 +348,19 @@ var stmt = &statement{
 					WHEN rank <= $4 AND (page_views > 1 OR rank_in_group <= $3) THEN request_path
 					ELSE '(other)'
 				END AS request_path,
-				unique_visitors, page_views, server_views, client_views
+				unique_visitors, page_views, server_views, client_views,
+				engaged_seconds, engaged_views
 			FROM
 				ranked
 		)
 		INSERT INTO analytics_paths_agg
 			(aggregate_date, domain_id, request_path, request_path_hash,
-			 unique_visitors, page_views, server_views, client_views)
+			 unique_visitors, page_views, server_views, client_views,
+			 engaged_seconds, engaged_views)
 		SELECT
 			agg_date, domain_id, request_path, decode(md5(request_path), 'hex'),
-			SUM(unique_visitors), SUM(page_views), SUM(server_views), SUM(client_views)
+			SUM(unique_visitors), SUM(page_views), SUM(server_views), SUM(client_views),
+			SUM(engaged_seconds), SUM(engaged_views)
 		FROM
 			folded
 		GROUP BY

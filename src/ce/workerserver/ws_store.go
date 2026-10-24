@@ -220,6 +220,18 @@ func (s *Store) RemoveOldAnalyticsEvents(ctx context.Context, p RemoveOldAnalyti
 	return res.RowsAffected()
 }
 
+// RemoveOldAnalyticsEngagement deletes up to BatchSize engagement rows older
+// than RetentionDays and returns the number of rows removed.
+func (s *Store) RemoveOldAnalyticsEngagement(ctx context.Context, p RemoveOldAnalyticsParams) (int64, error) {
+	res, err := s.Exec(ctx, stmt.removeOldAnalyticsEngagement, p.RetentionDays, p.BatchSize)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return res.RowsAffected()
+}
+
 // CreateAccessLogPartition creates the daily request_logs partition covering the
 // given day, if it does not already exist. The day is normalized to its date.
 func (s *Store) CreateAccessLogPartition(ctx context.Context, day time.Time) error {
