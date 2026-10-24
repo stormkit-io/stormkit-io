@@ -12,15 +12,32 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
-const eventInsertFields = 9
+const (
+	eventInsertFields = 9
+
+	// eventInsertChunkSize bounds the rows per INSERT. Each row binds 9
+	// parameters and Postgres allows 65535 per statement, so a large ingest
+	// batch is written in chunks instead of one statement that would fail.
+	eventInsertChunkSize = 1000
+)
+
+var insertEventsTemplate = template.Must(template.New("insertEvents").
+	Funcs(template.FuncMap{"generateValues": utils.GenerateValues}).
+	Parse(stmt.insertEvents))
 
 // InsertEvents batch-inserts custom events. Unset domain_id/visitor_id/
 // request_id/metadata are stored as NULL so they do not pollute aggregates.
 func (s *Store) InsertEvents(ctx context.Context, events []Event) error {
-	if len(events) == 0 {
-		return nil
+	for start := 0; start < len(events); start += eventInsertChunkSize {
+		if err := s.insertEvents(ctx, events[start:min(start+eventInsertChunkSize, len(events))]); err != nil {
+			return err
+		}
 	}
 
+	return nil
+}
+
+func (s *Store) insertEvents(ctx context.Context, events []Event) error {
 	params := make([]any, 0, len(events)*eventInsertFields)
 
 	for _, event := range events {
@@ -39,11 +56,7 @@ func (s *Store) InsertEvents(ctx context.Context, events []Event) error {
 
 	var wr bytes.Buffer
 
-	query := template.Must(template.New("insertEvents").
-		Funcs(template.FuncMap{"generateValues": utils.GenerateValues}).
-		Parse(stmt.insertEvents))
-
-	if err := query.Execute(&wr, events); err != nil {
+	if err := insertEventsTemplate.Execute(&wr, events); err != nil {
 		return fmt.Errorf("error while compiling insertEvents template: %v", err)
 	}
 

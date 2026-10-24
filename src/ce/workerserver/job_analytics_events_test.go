@@ -91,6 +91,32 @@ func (s *JobAnalyticsEventsSuite) Test_InsertEvents_PersistsRequestIDAndMetadata
 	s.JSONEq(`{"price": 42}`, metadata)
 }
 
+// Test_InsertEvents_LargeBatch verifies that a batch larger than one
+// statement's parameter limit (65535 / 9 per row) is still written in full.
+func (s *JobAnalyticsEventsSuite) Test_InsertEvents_LargeBatch() {
+	app := s.MockApp(nil)
+	env := s.MockEnv(app)
+	events := make([]analytics.Event, 8000)
+
+	for i := range events {
+		events[i] = analytics.Event{
+			AppID:       app.ID,
+			EnvID:       env.ID,
+			DomainID:    s.domainID,
+			EventName:   "bulk",
+			RequestPath: null.StringFrom("/"),
+			EventTS:     utils.NewUnix(),
+		}
+	}
+
+	s.Require().NoError(analytics.NewStore().InsertEvents(context.Background(), events))
+
+	var count int
+
+	s.Require().NoError(s.conn.QueryRow(`SELECT COUNT(*) FROM analytics_events WHERE event_name = 'bulk'`).Scan(&count))
+	s.Equal(8000, count)
+}
+
 func (s *JobAnalyticsEventsSuite) Test_VisitorID_StableWithinDayAndDistinct() {
 	a := analytics.VisitorID(analytics.VisitorIDParams{IP: "1.2.3.4", UserAgent: "Mozilla/5.0"})
 	b := analytics.VisitorID(analytics.VisitorIDParams{IP: "1.2.3.4", UserAgent: "Mozilla/5.0"})
