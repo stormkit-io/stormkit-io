@@ -2,6 +2,7 @@ package analytics
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -21,6 +22,8 @@ const (
 	MetricCountries = "countries"
 	MetricCampaigns = "campaigns"
 	MetricEvents    = "events"
+	MetricChannels  = "channels"
+	MetricEntries   = "entries"
 
 	SourceServer = "server"
 	SourceClient = "client"
@@ -36,15 +39,17 @@ const (
 	ReportMaxLimit     = 50
 )
 
-var reportMetrics = []string{MetricVisitors, MetricPaths, MetricReferrers, MetricCountries, MetricCampaigns, MetricEvents}
+var reportMetrics = []string{MetricVisitors, MetricPaths, MetricReferrers, MetricChannels, MetricEntries, MetricCountries, MetricCampaigns, MetricEvents}
 
 // Notes explaining how a report's numbers are counted, returned alongside them
 // so an agent or a person reading the raw response does not misread them.
 const (
 	noteDailyUniques   = "visitors is the sum of daily unique visitors: visitor ids rotate daily, so the same person on two days counts twice."
 	notePageVisitors   = "pageVisitors sums each matching page's daily unique visitors: a person reading three matching pages on one day counts three times. Use an exact path for unique visitors."
-	noteSourceViews    = "source filters page views only; visitor counts include both sources."
-	noteRawReferrers   = "referrers are host names as sent by browsers, and include this site's own domain for in-site navigation."
+	noteSourceViews    = "source filters page views only; visitor and visit counts include both sources."
+	noteReferrers      = "referrers exclude this site's own domains, whose visits are counted in totals.internal; totals.direct counts visits without a referrer, which includes browsers and links that hide it."
+	noteChannels       = "channels group referrers: direct has no referrer (including browsers and links that hide it), internal is navigation within this site, and referral is any other site."
+	noteEntries        = "entries are visits that arrived on a page from outside the site: from another site or direct. Navigation within the site is not counted."
 	noteNoDomains      = "this environment has no custom domains; analytics are only recorded for custom domains."
 	noteCampaignVisits = "campaigns are ranked by visits; visitors are only reported with an exact path, since a person landing on two pages from one campaign would otherwise count twice."
 	notePathlessEvents = "events are counted for the whole site; path filters do not apply."
@@ -60,8 +65,9 @@ type ReportParams struct {
 	Path       string
 	PathPrefix string
 	Source     string
-	Compare    bool
-	Limit      int
+
+	Compare bool
+	Limit   int
 }
 
 // ReportRange is an inclusive range of UTC days.
@@ -90,6 +96,7 @@ type ReportRow struct {
 	UTMCampaign string `json:"utmCampaign,omitempty"`
 	Ref         string `json:"ref,omitempty"`
 	Event       string `json:"event,omitempty"`
+	Channel     string `json:"channel,omitempty"`
 
 	PageViews    *int64 `json:"pageViews,omitempty"`
 	Visits       *int64 `json:"visits,omitempty"`
@@ -97,11 +104,12 @@ type ReportRow struct {
 	PageVisitors *int64 `json:"pageVisitors,omitempty"`
 	Count        *int64 `json:"count,omitempty"`
 
+	// Channels breaks an entry page's visits down by channel.
+	Channels map[string]int64 `json:"channels,omitempty"`
+
 	// Previous is the row's main number in the previous period, set when the
 	// report compares periods.
 	Previous *int64 `json:"previous,omitempty"`
-
-	key string
 }
 
 // ReportTotals sums a report across its rows or days.
@@ -111,6 +119,7 @@ type ReportTotals struct {
 	PageVisitors *int64 `json:"pageVisitors,omitempty"`
 	Visits       *int64 `json:"visits,omitempty"`
 	Direct       *int64 `json:"direct,omitempty"`
+	Internal     *int64 `json:"internal,omitempty"`
 	Count        *int64 `json:"count,omitempty"`
 }
 
@@ -255,86 +264,48 @@ func (s *Store) Report(ctx context.Context, p ReportParams) (*Report, error) {
 		return report, nil
 	}
 
-	r := &reporter{store: s, params: p}
+	r := &reporter{store: s, params: p, from: p.From}
 
-	current, err := r.run(ctx, p.From, p.To)
+	if p.Compare {
+		days := rangeDays(p.From, p.To)
+		prevTo := p.From.AddDate(0, 0, -1)
+		r.from = prevTo.AddDate(0, 0, -(days - 1))
+		report.Previous = &ReportPeriod{Range: newReportRange(r.from, prevTo)}
+	}
+
+	result, err := r.run(ctx)
 
 	if err != nil {
 		return nil, err
 	}
 
-	report.Totals = current.Totals
-	report.Series = current.Series
-	report.Rows = current.Rows
+	report.Totals = result.Totals
+	report.Series = result.Series
+	report.Rows = result.Rows
 	report.Notes = r.notes()
 
-	if p.Compare {
-		days := rangeDays(p.From, p.To)
-		prevTo := p.From.AddDate(0, 0, -1)
-		prevFrom := prevTo.AddDate(0, 0, -(days - 1))
-		// The previous period is looked up for the current rows' keys rather
-		// than its own top N, so a row that ranked lower then still gets its
-		// number, without reading every row of the previous period.
-		keys := make([]string, 0, len(current.Rows))
-
-		for _, row := range current.Rows {
-			keys = append(keys, row.key)
-		}
-
-		prevReporter := &reporter{store: s, params: p, keys: keys}
-		previous, err := prevReporter.run(ctx, prevFrom, prevTo)
-
-		if err != nil {
-			return nil, err
-		}
-
-		report.Previous = &ReportPeriod{Range: newReportRange(prevFrom, prevTo), Totals: previous.Totals}
-
-		byKey := map[string]*int64{}
-
-		for _, row := range previous.Rows {
-			byKey[row.key] = row.main()
-		}
-
-		for i := range report.Rows {
-			prev := int64(0)
-
-			if v := byKey[report.Rows[i].key]; v != nil {
-				prev = *v
-			}
-
-			report.Rows[i].Previous = &prev
-		}
+	if report.Previous != nil {
+		report.Previous.Totals = result.Previous
 	}
 
 	return report, nil
 }
 
-// main returns the number a row is ranked by.
-func (row ReportRow) main() *int64 {
-	for _, v := range []*int64{row.PageViews, row.Visits, row.Count, row.Visitors, row.PageVisitors} {
-		if v != nil {
-			return v
-		}
-	}
-
-	return nil
-}
-
-// reporter builds the SQL for one report and runs it for a range of days.
+// reporter runs the queries of one report.
 type reporter struct {
 	store  *Store
 	params ReportParams
 
-	// keys restricts ranked rows to these keys, without a limit. It is set when
-	// looking up the previous period of a compared report.
-	keys []string
+	// from is the first day the queries read: the previous period's first
+	// day when the report compares periods, params.From otherwise.
+	from time.Time
 }
 
 type reportResult struct {
-	Totals ReportTotals
-	Series []ReportDay
-	Rows   []ReportRow
+	Totals   ReportTotals
+	Previous ReportTotals
+	Series   []ReportDay
+	Rows     []ReportRow
 }
 
 func (r *reporter) notes() []string {
@@ -352,7 +323,21 @@ func (r *reporter) notes() []string {
 			notes = append(notes, noteSourceViews)
 		}
 	case MetricReferrers:
-		notes = append(notes, noteRawReferrers)
+		notes = append(notes, noteReferrers)
+	case MetricChannels:
+		notes = append(notes, noteChannels)
+
+		if r.params.PathPrefix != "" {
+			notes = append(notes, notePageVisitors)
+		} else {
+			notes = append(notes, noteDailyUniques)
+		}
+
+		if r.params.Source != "" {
+			notes = append(notes, noteSourceViews)
+		}
+	case MetricEntries:
+		notes = append(notes, noteEntries)
 	case MetricCountries:
 		if r.params.PathPrefix != "" {
 			notes = append(notes, notePageVisitors)
@@ -374,41 +359,46 @@ func (r *reporter) notes() []string {
 	return notes
 }
 
-func (r *reporter) run(ctx context.Context, from, to time.Time) (*reportResult, error) {
+func (r *reporter) run(ctx context.Context) (*reportResult, error) {
 	switch r.params.Metric {
 	case MetricVisitors:
-		return r.visitors(ctx, from, to)
+		return r.visitors(ctx)
 	case MetricPaths:
-		return r.paths(ctx, from, to)
+		return r.paths(ctx)
 	case MetricReferrers:
-		return r.referrers(ctx, from, to)
+		return r.referrers(ctx)
+	case MetricChannels:
+		return r.channels(ctx)
+	case MetricEntries:
+		return r.entries(ctx)
 	case MetricCountries:
-		return r.countries(ctx, from, to)
+		return r.countries(ctx)
 	case MetricCampaigns:
-		return r.campaigns(ctx, from, to)
+		return r.campaigns(ctx)
 	case MetricEvents:
-		return r.events(ctx, from, to)
+		return r.events(ctx)
 	}
 
 	return nil, errUnknownMetric
 }
 
-// args returns the bind parameters shared by every report query: the domains
-// ($1), the range ($2, $3) and the path filter ($4) when there is one.
-func (r *reporter) args(from, to time.Time) []any {
+func (r *reporter) query() reportQuery {
 	ids := make([]int64, len(r.params.DomainIDs))
 
 	for i, id := range r.params.DomainIDs {
 		ids[i] = int64(id)
 	}
 
-	args := []any{pq.Array(ids), from.Format(time.DateOnly), to.Format(time.DateOnly)}
-
-	if v := r.pathValue(); v != "" {
-		args = append(args, v)
+	return reportQuery{
+		Domains:     pq.Array(ids),
+		From:        r.from.Format(time.DateOnly),
+		CurrentFrom: r.params.From.Format(time.DateOnly),
+		To:          r.params.To.Format(time.DateOnly),
+		Path:        r.params.Path,
+		PathPrefix:  r.params.PathPrefix,
+		Source:      r.params.Source,
+		Limit:       r.params.Limit,
 	}
-
-	return args
 }
 
 func (r *reporter) pathValue() string {
@@ -419,94 +409,85 @@ func (r *reporter) pathValue() string {
 	return r.params.PathPrefix
 }
 
-// pathFilter returns the SQL condition for the path filter ($4), or "".
-func (r *reporter) pathFilter() string {
-	if r.params.Path != "" {
-		return "AND request_path_hash = decode(md5($4), 'hex')"
+// previous returns v when the report compares periods, so rows only carry a
+// previous number when one was asked for.
+func (r *reporter) previous(v int64) *int64 {
+	if !r.params.Compare {
+		return nil
 	}
 
-	if r.params.PathPrefix != "" {
-		return "AND left(request_path, length($4)) = $4"
-	}
-
-	return ""
+	return &v
 }
 
-func (r *reporter) where() string {
-	return "domain_id = ANY($1::bigint[]) AND aggregate_date BETWEEN $2::date AND $3::date " + r.pathFilter()
-}
+// rows renders the named statement and runs it, calling scan for every row.
+func (r *reporter) rows(ctx context.Context, name string, scan func(scan func(dest ...any) error) error) error {
+	sql, args, err := renderReportQuery(name, r.query())
 
-// viewsColumn is the page-view count the source filter selects.
-func (r *reporter) viewsColumn() string {
-	switch r.params.Source {
-	case SourceServer:
-		return "server_views"
-	case SourceClient:
-		return "client_views"
+	if err != nil {
+		return err
 	}
 
-	return "page_views"
-}
+	rows, err := r.store.Query(ctx, sql, args...)
 
-// keyFilter returns the SQL condition restricting column to the reporter's
-// keys, bound at the parameter after the shared ones, or "".
-func (r *reporter) keyFilter(column string) string {
-	if r.keys == nil {
-		return ""
+	if err != nil {
+		return err
 	}
 
-	index := 4
+	defer rows.Close()
 
-	if r.pathValue() != "" {
-		index = 5
+	for rows.Next() {
+		if err := scan(rows.Scan); err != nil {
+			return err
+		}
 	}
 
-	return fmt.Sprintf("AND %s = ANY($%d::text[])", column, index)
+	return rows.Err()
 }
 
-// rankedArgs returns args plus the keys, when the reporter has them.
-func (r *reporter) rankedArgs(from, to time.Time) []any {
-	args := r.args(from, to)
+// totals runs a totals statement, which returns the current and the previous
+// period's total.
+func (r *reporter) totals(ctx context.Context, name string) (int64, int64, error) {
+	var current, previous int64
 
-	if r.keys != nil {
-		args = append(args, pq.Array(r.keys))
-	}
+	err := r.rows(ctx, name, func(scan func(dest ...any) error) error {
+		return scan(&current, &previous)
+	})
 
-	return args
+	return current, previous, err
 }
 
-func (r *reporter) limit() string {
-	if r.keys != nil {
-		return ""
-	}
-
-	return fmt.Sprintf("LIMIT %d", r.params.Limit)
-}
-
-func (r *reporter) visitors(ctx context.Context, from, to time.Time) (*reportResult, error) {
-	query := fmt.Sprintf(`
-		SELECT aggregate_date::text, SUM(%s), SUM(unique_visitors)
-		FROM analytics_paths_agg
-		WHERE %s
-		GROUP BY aggregate_date
-		ORDER BY aggregate_date`, r.viewsColumn(), r.where())
-
-	rows, err := r.store.Query(ctx, query, r.args(from, to)...)
+func (r *reporter) visitors(ctx context.Context) (*reportResult, error) {
+	current, err := r.visitorsBetween(ctx, r.params.From, r.params.To)
 
 	if err != nil {
 		return nil, err
 	}
 
-	defer rows.Close()
+	if r.params.Compare {
+		previous, err := r.visitorsBetween(ctx, r.from, r.params.From.AddDate(0, 0, -1))
 
+		if err != nil {
+			return nil, err
+		}
+
+		current.Previous = previous.Totals
+	}
+
+	return current, nil
+}
+
+// visitorsBetween returns the per-day series of a range of days.
+func (r *reporter) visitorsBetween(ctx context.Context, from, to time.Time) (*reportResult, error) {
+	period := &reporter{store: r.store, params: r.params, from: from}
+	period.params.From, period.params.To = from, to
 	byDate := map[string]*ReportDay{}
 
-	for rows.Next() {
+	err := period.rows(ctx, "visitorsSeries", func(scan func(dest ...any) error) error {
 		var day ReportDay
 		var uniques int64
 
-		if err := rows.Scan(&day.Date, &day.PageViews, &uniques); err != nil {
-			return nil, err
+		if err := scan(&day.Date, &day.PageViews, &uniques); err != nil {
+			return err
 		}
 
 		switch {
@@ -517,16 +498,35 @@ func (r *reporter) visitors(ctx context.Context, from, to time.Time) (*reportRes
 		}
 
 		byDate[day.Date] = &day
-	}
 
-	if err := rows.Err(); err != nil {
+		return nil
+	})
+
+	if err != nil {
 		return nil, err
 	}
 
 	// Site-wide unique visitors cannot be summed from per-path rows, which
 	// count a visitor once per page; the domain-level aggregate holds them.
-	if r.params.Path == "" && r.params.PathPrefix == "" {
-		if err := r.siteVisitors(ctx, from, to, byDate); err != nil {
+	if r.pathValue() == "" {
+		err := period.rows(ctx, "siteVisitors", func(scan func(dest ...any) error) error {
+			var date string
+			var uniques int64
+
+			if err := scan(&date, &uniques); err != nil {
+				return err
+			}
+
+			if byDate[date] == nil {
+				byDate[date] = &ReportDay{Date: date}
+			}
+
+			byDate[date].Visitors = &uniques
+
+			return nil
+		})
+
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -535,15 +535,17 @@ func (r *reporter) visitors(ctx context.Context, from, to time.Time) (*reportRes
 	totals := ReportDay{}
 
 	for d := from; !d.After(to); d = d.AddDate(0, 0, 1) {
-		date := d.Format(time.DateOnly)
-		day, ok := byDate[date]
+		day := byDate[d.Format(time.DateOnly)]
 
-		if !ok {
-			day = r.emptyDay(date)
+		if day == nil {
+			day = &ReportDay{Date: d.Format(time.DateOnly)}
 		}
 
-		if r.pathValue() == "" && day.Visitors == nil {
-			zero := int64(0)
+		zero := int64(0)
+
+		if r.params.PathPrefix != "" && day.PageVisitors == nil {
+			day.PageVisitors = &zero
+		} else if r.params.PathPrefix == "" && day.Visitors == nil {
 			day.Visitors = &zero
 		}
 
@@ -556,55 +558,6 @@ func (r *reporter) visitors(ctx context.Context, from, to time.Time) (*reportRes
 	result.Totals = ReportTotals{PageViews: &totals.PageViews, Visitors: totals.Visitors, PageVisitors: totals.PageVisitors}
 
 	return result, nil
-}
-
-// emptyDay returns a day with no traffic, carrying zeroes for the counts the
-// report's filters produce.
-func (r *reporter) emptyDay(date string) *ReportDay {
-	zero := int64(0)
-	day := &ReportDay{Date: date}
-
-	if r.params.PathPrefix != "" {
-		day.PageVisitors = &zero
-	} else {
-		day.Visitors = &zero
-	}
-
-	return day
-}
-
-func (r *reporter) siteVisitors(ctx context.Context, from, to time.Time, byDate map[string]*ReportDay) error {
-	rows, err := r.store.Query(ctx, `
-		SELECT aggregate_date::text, SUM(unique_visitors)
-		FROM analytics_visitors_agg_200
-		WHERE domain_id = ANY($1::bigint[]) AND aggregate_date BETWEEN $2::date AND $3::date
-		GROUP BY aggregate_date`, r.args(from, to)...)
-
-	if err != nil {
-		return err
-	}
-
-	defer rows.Close()
-
-	for rows.Next() {
-		var date string
-		var uniques int64
-
-		if err := rows.Scan(&date, &uniques); err != nil {
-			return err
-		}
-
-		day, ok := byDate[date]
-
-		if !ok {
-			day = &ReportDay{Date: date}
-			byDate[date] = day
-		}
-
-		day.Visitors = &uniques
-	}
-
-	return rows.Err()
 }
 
 func addPtr(sum, v *int64) *int64 {
@@ -621,261 +574,270 @@ func addPtr(sum, v *int64) *int64 {
 	return &total
 }
 
-// ranked runs a ranked query whose rows are (key columns..., numbers...) and
-// totals the numbers.
-type rankedQuery struct {
-	sql  string
-	scan func(scan func(dest ...any) error) (ReportRow, error)
-}
-
-func (r *reporter) ranked(ctx context.Context, q rankedQuery, from, to time.Time) ([]ReportRow, error) {
-	rows, err := r.store.Query(ctx, q.sql, r.rankedArgs(from, to)...)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer rows.Close()
-
+func (r *reporter) paths(ctx context.Context) (*reportResult, error) {
 	out := []ReportRow{}
 
-	for rows.Next() {
-		row, err := q.scan(rows.Scan)
-
-		if err != nil {
-			return nil, err
-		}
-
-		out = append(out, row)
-	}
-
-	return out, rows.Err()
-}
-
-// total sums a row field across a filtered table, independent of the limit.
-func (r *reporter) total(ctx context.Context, sql string, from, to time.Time) (*int64, error) {
-	row, err := r.store.QueryRow(ctx, sql, r.args(from, to)...)
-
-	if err != nil {
-		return nil, err
-	}
-
-	var total int64
-
-	if err := row.Scan(&total); err != nil {
-		return nil, err
-	}
-
-	return &total, nil
-}
-
-func (r *reporter) paths(ctx context.Context, from, to time.Time) (*reportResult, error) {
-	views := r.viewsColumn()
-	rows, err := r.ranked(ctx, rankedQuery{
-		sql: fmt.Sprintf(`
-			SELECT request_path, SUM(%s) AS views, SUM(unique_visitors)
-			FROM analytics_paths_agg
-			WHERE %s %s
-			GROUP BY request_path
-			HAVING SUM(%s) > 0
-			ORDER BY views DESC, request_path
-			%s`, views, r.where(), r.keyFilter("request_path"), views, r.limit()),
-		scan: func(scan func(dest ...any) error) (ReportRow, error) {
-			var row ReportRow
-			var pv, uv int64
-			err := scan(&row.Path, &pv, &uv)
-			row.PageViews, row.Visitors, row.key = &pv, &uv, row.Path
-			return row, err
-		},
-	}, from, to)
-
-	if err != nil {
-		return nil, err
-	}
-
-	total, err := r.total(ctx, fmt.Sprintf(`SELECT COALESCE(SUM(%s), 0) FROM analytics_paths_agg WHERE %s`, views, r.where()), from, to)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &reportResult{Rows: rows, Totals: ReportTotals{PageViews: total}}, nil
-}
-
-func (r *reporter) referrers(ctx context.Context, from, to time.Time) (*reportResult, error) {
-	rows, err := r.ranked(ctx, rankedQuery{
-		sql: fmt.Sprintf(`
-			SELECT referrer, SUM(visit_count) AS visits
-			FROM analytics_referrers
-			WHERE %s AND referrer <> '' %s
-			GROUP BY referrer
-			ORDER BY visits DESC, referrer
-			%s`, r.where(), r.keyFilter("referrer"), r.limit()),
-		scan: func(scan func(dest ...any) error) (ReportRow, error) {
-			var row ReportRow
-			var visits int64
-			err := scan(&row.Referrer, &visits)
-			row.Visits, row.key = &visits, row.Referrer
-			return row, err
-		},
-	}, from, to)
-
-	if err != nil {
-		return nil, err
-	}
-
-	total, err := r.total(ctx, `SELECT COALESCE(SUM(visit_count), 0) FROM analytics_referrers WHERE `+r.where(), from, to)
-
-	if err != nil {
-		return nil, err
-	}
-
-	direct, err := r.total(ctx, `SELECT COALESCE(SUM(visit_count), 0) FROM analytics_referrers WHERE referrer = '' AND `+r.where(), from, to)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &reportResult{Rows: rows, Totals: ReportTotals{Visits: total, Direct: direct}}, nil
-}
-
-func (r *reporter) countries(ctx context.Context, from, to time.Time) (*reportResult, error) {
-	table, column := "analytics_visitors_by_countries", "visit_count"
-
-	if r.pathValue() != "" {
-		table, column = "analytics_path_countries_agg", "unique_visitors"
-	}
-
-	rows, err := r.ranked(ctx, rankedQuery{
-		sql: fmt.Sprintf(`
-			SELECT country_iso_code, SUM(%s) AS visitors
-			FROM %s
-			WHERE %s %s
-			GROUP BY country_iso_code
-			ORDER BY visitors DESC, country_iso_code
-			%s`, column, table, r.where(), r.keyFilter("country_iso_code"), r.limit()),
-		scan: func(scan func(dest ...any) error) (ReportRow, error) {
-			var row ReportRow
-			var visitors int64
-			err := scan(&row.Country, &visitors)
-			row.key = row.Country
-
-			// Per-page rows count a reader of several matching pages once per
-			// page, so a prefix reports them under their own name.
-			if r.params.PathPrefix != "" {
-				row.PageVisitors = &visitors
-			} else {
-				row.Visitors = &visitors
-			}
-
-			return row, err
-		},
-	}, from, to)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &reportResult{Rows: rows}, nil
-}
-
-func (r *reporter) campaigns(ctx context.Context, from, to time.Time) (*reportResult, error) {
-	rows, err := r.ranked(ctx, rankedQuery{
-		sql: fmt.Sprintf(`
-			SELECT utm_source, utm_medium, utm_campaign, ref, SUM(visits) AS visits, SUM(unique_visitors)
-			FROM analytics_campaigns_agg
-			WHERE %s %s
-			GROUP BY utm_source, utm_medium, utm_campaign, ref
-			ORDER BY visits DESC, utm_source, utm_medium, utm_campaign, ref
-			%s`, r.where(), r.keyFilter("concat_ws(chr(31), utm_source, utm_medium, utm_campaign, ref)"), r.limit()),
-		scan: func(scan func(dest ...any) error) (ReportRow, error) {
-			var row ReportRow
-			var visits, visitors int64
-			err := scan(&row.UTMSource, &row.UTMMedium, &row.UTMCampaign, &row.Ref, &visits, &visitors)
-			row.Visits = &visits
-
-			// Visitors are summed across landing pages, so they are only
-			// unique when a single landing path is selected.
-			if r.params.Path != "" {
-				row.Visitors = &visitors
-			}
-
-			row.key = strings.Join([]string{row.UTMSource, row.UTMMedium, row.UTMCampaign, row.Ref}, "\x1f")
-			return row, err
-		},
-	}, from, to)
-
-	if err != nil {
-		return nil, err
-	}
-
-	total, err := r.total(ctx, `SELECT COALESCE(SUM(visits), 0) FROM analytics_campaigns_agg WHERE `+r.where(), from, to)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &reportResult{Rows: rows, Totals: ReportTotals{Visits: total}}, nil
-}
-
-func (r *reporter) events(ctx context.Context, from, to time.Time) (*reportResult, error) {
-	// The events aggregate has no path, so the path filter is not applied.
-	where := "domain_id = ANY($1::bigint[]) AND aggregate_date BETWEEN $2::date AND $3::date"
-	args := r.args(from, to)[:3]
-
-	keyFilter := ""
-	rowArgs := args
-
-	if r.keys != nil {
-		keyFilter = "AND event_name = ANY($4::text[])"
-		rowArgs = append(append([]any{}, args...), pq.Array(r.keys))
-	}
-
-	query := fmt.Sprintf(`
-		SELECT event_name, SUM(total_count) AS total, SUM(unique_actors)
-		FROM analytics_events_agg
-		WHERE %s %s
-		GROUP BY event_name
-		ORDER BY total DESC, event_name
-		%s`, where, keyFilter, r.limit())
-
-	rows, err := r.store.Query(ctx, query, rowArgs...)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer rows.Close()
-
-	out := []ReportRow{}
-
-	for rows.Next() {
+	err := r.rows(ctx, "paths", func(scan func(dest ...any) error) error {
 		var row ReportRow
-		var count, actors int64
+		var views, previous, visitors int64
 
-		if err := rows.Scan(&row.Event, &count, &actors); err != nil {
-			return nil, err
+		if err := scan(&row.Path, &views, &previous, &visitors); err != nil {
+			return err
 		}
 
-		row.Count, row.Visitors, row.key = &count, &actors, row.Event
+		row.PageViews, row.Visitors, row.Previous = &views, &visitors, r.previous(previous)
 		out = append(out, row)
-	}
 
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	totalRow, err := r.store.QueryRow(ctx, `SELECT COALESCE(SUM(total_count), 0) FROM analytics_events_agg WHERE `+where, args...)
+		return nil
+	})
 
 	if err != nil {
 		return nil, err
 	}
 
-	var total int64
+	current, previous, err := r.totals(ctx, "pathsTotals")
 
-	if err := totalRow.Scan(&total); err != nil {
+	if err != nil {
 		return nil, err
 	}
 
-	return &reportResult{Rows: out, Totals: ReportTotals{Count: &total}}, nil
+	return &reportResult{
+		Rows:     out,
+		Totals:   ReportTotals{PageViews: &current},
+		Previous: ReportTotals{PageViews: &previous},
+	}, nil
+}
+
+// channelTotals returns every channel's visits in the current and the
+// previous period.
+func (r *reporter) channelTotals(ctx context.Context) ([]ReportRow, map[string]int64, map[string]int64, error) {
+	rows := []ReportRow{}
+	current, previous := map[string]int64{}, map[string]int64{}
+
+	err := r.rows(ctx, "channels", func(scan func(dest ...any) error) error {
+		var channel string
+		var visits, prev int64
+
+		if err := scan(&channel, &visits, &prev); err != nil {
+			return err
+		}
+
+		current[channel], previous[channel] = visits, prev
+
+		if visits > 0 {
+			rows = append(rows, ReportRow{Channel: channel, Visits: &visits, Previous: r.previous(prev)})
+		}
+
+		return nil
+	})
+
+	return rows, current, previous, err
+}
+
+func sumValues(m map[string]int64) int64 {
+	total := int64(0)
+
+	for _, v := range m {
+		total += v
+	}
+
+	return total
+}
+
+// referrerTotals sums visits, direct visits and internal visits per period.
+func referrerTotals(byChannel map[string]int64) ReportTotals {
+	total := sumValues(byChannel)
+	direct := byChannel[ChannelDirect]
+	internal := byChannel[ChannelInternal]
+
+	return ReportTotals{Visits: &total, Direct: &direct, Internal: &internal}
+}
+
+func (r *reporter) referrers(ctx context.Context) (*reportResult, error) {
+	out := []ReportRow{}
+
+	err := r.rows(ctx, "referrers", func(scan func(dest ...any) error) error {
+		var row ReportRow
+		var visits, previous int64
+
+		if err := scan(&row.Referrer, &row.Channel, &visits, &previous); err != nil {
+			return err
+		}
+
+		row.Visits, row.Previous = &visits, r.previous(previous)
+		out = append(out, row)
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, current, previous, err := r.channelTotals(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &reportResult{Rows: out, Totals: referrerTotals(current), Previous: referrerTotals(previous)}, nil
+}
+
+func (r *reporter) channels(ctx context.Context) (*reportResult, error) {
+	rows, current, previous, err := r.channelTotals(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// The page views and visitors behind the channels, so one call answers
+	// "how many people read this and where did they come from".
+	views, err := r.visitors(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	totals, prevTotals := views.Totals, views.Previous
+	visits, prevVisits := sumValues(current), sumValues(previous)
+	totals.Visits, prevTotals.Visits = &visits, &prevVisits
+
+	return &reportResult{Rows: rows, Totals: totals, Previous: prevTotals}, nil
+}
+
+func (r *reporter) entries(ctx context.Context) (*reportResult, error) {
+	out := []ReportRow{}
+
+	err := r.rows(ctx, "entries", func(scan func(dest ...any) error) error {
+		var row ReportRow
+		var visits, previous int64
+		var channels []byte
+
+		if err := scan(&row.Path, &visits, &previous, &channels); err != nil {
+			return err
+		}
+
+		if err := json.Unmarshal(channels, &row.Channels); err != nil {
+			return err
+		}
+
+		row.Visits, row.Previous = &visits, r.previous(previous)
+		out = append(out, row)
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, current, previous, err := r.channelTotals(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	total := sumValues(current) - current[ChannelInternal]
+	prevTotal := sumValues(previous) - previous[ChannelInternal]
+
+	return &reportResult{Rows: out, Totals: ReportTotals{Visits: &total}, Previous: ReportTotals{Visits: &prevTotal}}, nil
+}
+
+func (r *reporter) countries(ctx context.Context) (*reportResult, error) {
+	out := []ReportRow{}
+
+	err := r.rows(ctx, "countries", func(scan func(dest ...any) error) error {
+		var row ReportRow
+		var visitors, previous int64
+
+		if err := scan(&row.Country, &visitors, &previous); err != nil {
+			return err
+		}
+
+		// Per-page rows count a reader of several matching pages once per
+		// page, so a prefix reports them under their own name.
+		if r.params.PathPrefix != "" {
+			row.PageVisitors = &visitors
+		} else {
+			row.Visitors = &visitors
+		}
+
+		row.Previous = r.previous(previous)
+		out = append(out, row)
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &reportResult{Rows: out}, nil
+}
+
+func (r *reporter) campaigns(ctx context.Context) (*reportResult, error) {
+	out := []ReportRow{}
+
+	err := r.rows(ctx, "campaigns", func(scan func(dest ...any) error) error {
+		var row ReportRow
+		var visits, previous, visitors int64
+
+		if err := scan(&row.UTMSource, &row.UTMMedium, &row.UTMCampaign, &row.Ref, &visits, &previous, &visitors); err != nil {
+			return err
+		}
+
+		row.Visits, row.Previous = &visits, r.previous(previous)
+
+		// Visitors are summed across landing pages, so they are only unique
+		// when a single landing path is selected.
+		if r.params.Path != "" {
+			row.Visitors = &visitors
+		}
+
+		out = append(out, row)
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	current, previous, err := r.totals(ctx, "campaignsTotals")
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &reportResult{Rows: out, Totals: ReportTotals{Visits: &current}, Previous: ReportTotals{Visits: &previous}}, nil
+}
+
+func (r *reporter) events(ctx context.Context) (*reportResult, error) {
+	out := []ReportRow{}
+
+	err := r.rows(ctx, "events", func(scan func(dest ...any) error) error {
+		var row ReportRow
+		var count, previous, actors int64
+
+		if err := scan(&row.Event, &count, &previous, &actors); err != nil {
+			return err
+		}
+
+		row.Count, row.Visitors, row.Previous = &count, &actors, r.previous(previous)
+		out = append(out, row)
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	current, previous, err := r.totals(ctx, "eventsTotals")
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &reportResult{Rows: out, Totals: ReportTotals{Count: &current}, Previous: ReportTotals{Count: &previous}}, nil
 }

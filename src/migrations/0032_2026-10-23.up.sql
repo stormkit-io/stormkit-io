@@ -20,11 +20,6 @@ CREATE TABLE IF NOT EXISTS analytics_paths_agg (
     PRIMARY KEY (domain_id, aggregate_date, request_path_hash)
 );
 
--- Lets the rollup job find the oldest aggregated day, where its backfill
--- resumes, without scanning the table.
-CREATE INDEX IF NOT EXISTS idx_analytics_paths_agg_date
-    ON analytics_paths_agg (aggregate_date);
-
 -- Daily unique visitors per path and country.
 CREATE TABLE IF NOT EXISTS analytics_path_countries_agg (
     aggregate_date date NOT NULL,

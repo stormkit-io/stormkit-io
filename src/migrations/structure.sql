@@ -176,6 +176,24 @@ CREATE TABLE skitapi.analytics_campaigns_agg (
 ALTER TABLE skitapi.analytics_campaigns_agg OWNER TO skitadmin;
 
 --
+-- Name: analytics_channels_agg; Type: TABLE; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE TABLE skitapi.analytics_channels_agg (
+    aggregate_date date NOT NULL,
+    domain_id bigint NOT NULL,
+    request_path text NOT NULL,
+    request_path_hash bytea NOT NULL,
+    referrer text NOT NULL,
+    referrer_hash bytea NOT NULL,
+    channel text NOT NULL,
+    visits bigint NOT NULL
+);
+
+
+ALTER TABLE skitapi.analytics_channels_agg OWNER TO skitadmin;
+
+--
 -- Name: analytics_path_countries_agg; Type: TABLE; Schema: skitapi; Owner: skitadmin
 --
 
@@ -1443,6 +1461,14 @@ ALTER TABLE ONLY skitapi.analytics_campaigns_agg
 
 
 --
+-- Name: analytics_channels_agg analytics_channels_agg_pkey; Type: CONSTRAINT; Schema: skitapi; Owner: skitadmin
+--
+
+ALTER TABLE ONLY skitapi.analytics_channels_agg
+    ADD CONSTRAINT analytics_channels_agg_pkey PRIMARY KEY (domain_id, aggregate_date, request_path_hash, referrer_hash);
+
+
+--
 -- Name: analytics_path_countries_agg analytics_path_countries_agg_pkey; Type: CONSTRAINT; Schema: skitapi; Owner: skitadmin
 --
 
@@ -1749,6 +1775,13 @@ CREATE UNIQUE INDEX domains_domain_name_unique_key ON skitapi.domains USING btre
 
 
 --
+-- Name: idx_domains_env_id; Type: INDEX; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE INDEX idx_domains_env_id ON skitapi.domains USING btree (env_id);
+
+
+--
 -- Name: idx_access_log_stats_host_name; Type: INDEX; Schema: skitapi; Owner: skitadmin
 --
 
@@ -1760,13 +1793,6 @@ CREATE INDEX idx_access_log_stats_host_name ON skitapi.access_log_stats USING bt
 --
 
 CREATE INDEX idx_access_logs_host_name ON skitapi.access_logs USING btree (host_name);
-
-
---
--- Name: idx_analytics_paths_agg_date; Type: INDEX; Schema: skitapi; Owner: skitadmin
---
-
-CREATE INDEX idx_analytics_paths_agg_date ON skitapi.analytics_paths_agg USING btree (aggregate_date);
 
 
 --

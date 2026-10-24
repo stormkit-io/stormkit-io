@@ -55,11 +55,29 @@ func (s *ReportSuite) siteDay(domain types.ID, offset, visitors, views int) {
 		VALUES ($1::date, $2, $3, $4)`, s.dayFrom(offset), domain, visitors, views)
 }
 
+// testChannels is the channel the rollup job assigns to each referrer host the
+// report tests use; classification itself is tested with the job.
+var testChannels = map[string]string{
+	"":                 "direct",
+	"example.org":      "internal",
+	"blog.example.org": "internal",
+	"google.com":       "search",
+	"bing.com":         "search",
+	"x.com":            "social",
+	"t.co":             "social",
+	"chatgpt.com":      "ai",
+	"evilexample.org":  "referral",
+}
+
+// referrer seeds analytics_channels_agg as the rollup job would.
 func (s *ReportSuite) referrer(offset int, referrer, path string, visits int) {
-	s.exec(`INSERT INTO analytics_referrers
-		(aggregate_date, domain_id, referrer, referrer_hash, request_path, request_path_hash, visit_count)
-		VALUES ($1::date, $2, $3, decode(md5($3), 'hex'), $4, decode(md5($4), 'hex'), $5)`,
-		s.dayFrom(offset), s.domain, referrer, path, visits)
+	channel, ok := testChannels[referrer]
+	s.Require().True(ok, "no test channel for %q", referrer)
+
+	s.exec(`INSERT INTO analytics_channels_agg
+		(aggregate_date, domain_id, request_path, request_path_hash, referrer, referrer_hash, channel, visits)
+		VALUES ($1::date, $2, $3, decode(md5($3), 'hex'), $4, decode(md5($4), 'hex'), $5, $6)`,
+		s.dayFrom(offset), s.domain, path, referrer, channel, visits)
 }
 
 func (s *ReportSuite) report(query string, domains ...types.ID) *analytics.Report {
@@ -126,7 +144,7 @@ func (s *ReportSuite) Test_Visitors_SourceFiltersPageViews() {
 	r := s.report("metric=visitors&span=1d&source=client")
 
 	s.Equal(analytics.ReportTotals{PageViews: ptr(2), Visitors: ptr(3)}, r.Totals)
-	s.Contains(r.Notes, "source filters page views only; visitor counts include both sources.")
+	s.Contains(r.Notes, "source filters page views only; visitor and visit counts include both sources.")
 }
 
 func (s *ReportSuite) Test_Paths_RankedAndLimited() {
@@ -156,7 +174,101 @@ func (s *ReportSuite) Test_Referrers_ForOnePath() {
 
 	s.Equal([]string{"google.com", "x.com"}, []string{r.Rows[0].Referrer, r.Rows[1].Referrer})
 	s.Equal(ptr(4), r.Rows[0].Visits)
-	s.Equal(analytics.ReportTotals{Visits: ptr(7), Direct: ptr(2)}, r.Totals)
+	s.Equal(analytics.ReportTotals{Visits: ptr(7), Direct: ptr(2), Internal: ptr(0)}, r.Totals)
+	s.Equal("search", r.Rows[0].Channel)
+	s.Equal("social", r.Rows[1].Channel)
+}
+
+// Test_Referrers_ExcludeInternal verifies that internal referrers are left out
+// of the rows and counted in totals.internal.
+func (s *ReportSuite) Test_Referrers_ExcludeInternal() {
+	s.referrer(0, "example.org", "/a", 20)
+	s.referrer(0, "blog.example.org", "/a", 5)
+	s.referrer(0, "evilexample.org", "/a", 1)
+	s.referrer(0, "google.com", "/a", 3)
+
+	r := s.report("metric=referrers&span=1d")
+
+	s.Equal([]string{"google.com", "evilexample.org"}, []string{r.Rows[0].Referrer, r.Rows[1].Referrer})
+	s.Equal("referral", r.Rows[1].Channel)
+	s.Equal(analytics.ReportTotals{Visits: ptr(29), Direct: ptr(0), Internal: ptr(25)}, r.Totals)
+}
+
+// Test_Referrers_OneRowPerReferrer verifies that a referrer whose channel
+// changed within the range is one row, labelled with its main channel.
+func (s *ReportSuite) Test_Referrers_OneRowPerReferrer() {
+	s.exec(`INSERT INTO analytics_channels_agg
+		(aggregate_date, domain_id, request_path, request_path_hash, referrer, referrer_hash, channel, visits)
+		VALUES
+		($1::date, $3, '/', decode(md5('/'), 'hex'), 'new.example', decode(md5('new.example'), 'hex'), 'referral', 4),
+		($2::date, $3, '/', decode(md5('/'), 'hex'), 'new.example', decode(md5('new.example'), 'hex'), 'social', 1)`,
+		s.dayFrom(-1), s.dayFrom(0), s.domain)
+
+	r := s.report("metric=referrers&span=2d&compare=previous")
+
+	s.Require().Len(r.Rows, 1)
+	s.Equal("new.example", r.Rows[0].Referrer)
+	s.Equal("referral", r.Rows[0].Channel)
+	s.Equal(ptr(5), r.Rows[0].Visits)
+}
+
+func (s *ReportSuite) Test_Channels_GroupsAndTotals() {
+	s.referrer(0, "", "/blog/a", 1)
+	s.referrer(0, "example.org", "/blog/a", 2)
+	s.referrer(0, "google.com", "/blog/a", 3)
+	s.referrer(0, "bing.com", "/blog/a", 4)
+	s.referrer(0, "chatgpt.com", "/blog/a", 5)
+	s.referrer(0, "t.co", "/about", 50)
+	s.pathDay(s.domain, 0, "/blog/a", 9, 15, 0)
+
+	r := s.report("metric=channels&span=1d&path=/blog/a")
+
+	s.Equal([]string{"search", "ai", "internal", "direct"}, []string{r.Rows[0].Channel, r.Rows[1].Channel, r.Rows[2].Channel, r.Rows[3].Channel})
+	s.Equal(ptr(7), r.Rows[0].Visits)
+
+	// One call also answers how many people read the page.
+	s.Equal(analytics.ReportTotals{PageViews: ptr(15), Visitors: ptr(9), Visits: ptr(15)}, r.Totals)
+
+	withSource := s.report("metric=channels&span=1d&path=/blog/a&source=client")
+	s.Contains(withSource.Notes, "source filters page views only; visitor and visit counts include both sources.")
+}
+
+func (s *ReportSuite) Test_Channels_ComparePrevious() {
+	s.referrer(0, "google.com", "/", 5)
+	s.referrer(-1, "google.com", "/", 2)
+	s.referrer(-1, "t.co", "/", 9)
+
+	r := s.report("metric=channels&span=1d&compare=previous")
+
+	s.Require().Len(r.Rows, 1)
+	s.Equal("search", r.Rows[0].Channel)
+	s.Equal(ptr(2), r.Rows[0].Previous)
+	s.Equal(ptr(11), r.Previous.Totals.Visits)
+}
+
+// Test_Entries verifies that landing pages count only visits arriving from
+// outside the site, with their channel breakdown.
+func (s *ReportSuite) Test_Entries() {
+	s.referrer(0, "google.com", "/blog/a", 4)
+	s.referrer(0, "", "/blog/a", 2)
+	s.referrer(0, "example.org", "/blog/a", 50)
+	s.referrer(0, "t.co", "/pricing", 3)
+	s.referrer(0, "example.org", "/pricing", 70)
+	s.referrer(0, "example.org", "/docs", 90)
+
+	r := s.report("metric=entries&span=1d")
+
+	s.Require().Len(r.Rows, 2, "a page reached only from inside the site is no entry")
+	s.Equal("/blog/a", r.Rows[0].Path)
+	s.Equal(ptr(6), r.Rows[0].Visits)
+	s.Equal(map[string]int64{"search": 4, "direct": 2}, r.Rows[0].Channels)
+	s.Equal(map[string]int64{"social": 3}, r.Rows[1].Channels)
+	s.Equal(ptr(9), r.Totals.Visits)
+
+	limited := s.report("metric=entries&span=1d&limit=1&compare=previous")
+
+	s.Require().Len(limited.Rows, 1)
+	s.Equal(ptr(0), limited.Rows[0].Previous)
 }
 
 func (s *ReportSuite) Test_Countries_SiteWideAndPerPath() {

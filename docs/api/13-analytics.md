@@ -31,7 +31,7 @@ Returns one report for the environment.
 | Parameter    | Type   | Required    | Description |
 | ------------ | ------ | ----------- | ----------- |
 | `envId`      | string | Conditional | Required when using an app, team, or user-level API key. Environment-level keys do not require this parameter. |
-| `metric`     | string | No          | What to report: `visitors` (default), `paths`, `referrers`, `countries`, `campaigns` or `events`. |
+| `metric`     | string | No          | What to report: `visitors` (default), `paths`, `referrers`, `channels`, `entries`, `countries`, `campaigns` or `events`. |
 | `from`       | string | No          | First day of the range, `YYYY-MM-DD` in UTC. Cannot be combined with `span`. |
 | `to`         | string | No          | Last day of the range, `YYYY-MM-DD` in UTC, inclusive. Defaults to today. |
 | `span`       | string | No          | Range length ending at `to`, e.g. `7d`, `30d`, `90d`. Defaults to `30d`, maximum `400d`. |
@@ -42,8 +42,8 @@ Returns one report for the environment.
 | `compare`    | string | No          | `previous` also returns the previous period of the same length. |
 | `limit`      | number | No          | How many rows to return. Defaults to `10`, maximum `50`. |
 
-`path` and `pathPrefix` filter `visitors`, `paths`, `referrers`, `countries`
-and `campaigns` (by landing page). They do not apply to `events`.
+`path` and `pathPrefix` filter every metric except `events`. For `campaigns`
+and `entries` they select the landing page.
 
 ### Metrics
 
@@ -51,10 +51,33 @@ and `campaigns` (by landing page). They do not apply to `events`.
 | ----------- | ------- |
 | `visitors`  | `series`: page views and visitors per day, plus `totals`. |
 | `paths`     | Top pages by page views, each with its visitors. |
-| `referrers` | Top referring hosts by visits. `totals.direct` counts visits without a referrer. |
+| `referrers` | Top referring hosts by visits, each with its `channel`. The site's own domains are left out and counted in `totals.internal`; `totals.direct` counts visits without a referrer. |
+| `channels`  | Visits by channel (see below), plus the `pageViews` and `visitors` behind them. With `path`, this answers "how many people read this page, and where did they come from?" in one call. |
+| `entries`   | Landing pages: visits that arrived on a page from another site or directly, each with a `channels` breakdown. Navigation within the site is not counted. |
 | `countries` | Visitors by country. With `pathPrefix`, `pageVisitors` instead (see below). |
 | `campaigns` | Visits by `utm_source`, `utm_medium`, `utm_campaign` and `ref`, read from the landing URL, ranked by visits. Visitors are only included with an exact `path`, because a person landing on two pages from one campaign would otherwise count twice. Visits recorded before campaign tracking was added have no campaign. |
 | `events`    | [Custom events](/docs/features/analytics) by count, each with the number of visitors who sent it. |
+
+### Channels
+
+Referrers are grouped by their host:
+
+| Channel    | Referrer |
+| ---------- | -------- |
+| `search`   | Search engines: Google, Bing, DuckDuckGo, Yahoo, Yandex, Baidu, Ecosia, Brave, Qwant, Startpage, Kagi, Naver, Seznam. |
+| `ai`       | AI assistants: ChatGPT, Perplexity, Claude, Gemini, Copilot, DeepSeek, Mistral, Grok, Meta AI, You.com, Phind, Poe. |
+| `social`   | Social sites and communities: X, Facebook, Instagram, LinkedIn, Reddit, Hacker News, YouTube, TikTok, Pinterest, Threads, Bluesky, Mastodon, Discord, Telegram, Product Hunt, Indie Hackers, DEV. |
+| `email`    | Webmail: Gmail, Outlook, Yahoo Mail, Proton Mail. |
+| `internal` | The environment's own domains and their subdomains, i.e. navigation within the site. |
+| `direct`   | No referrer: typed or bookmarked URLs, apps, and links or browsers that hide the referrer. |
+| `referral` | Any other site. |
+
+Channels are assigned when page views are rolled up, every hour. A domain
+added to the environment later is only treated as internal from then on.
+Page view, path, campaign, referrer, channel and entry data starts on the
+release that introduced this API; earlier days are empty. Site-wide visitor
+and country counts go back further, so for older days a `visitors` series can
+show visitors with no page views.
 
 ### How visitors are counted
 
@@ -78,9 +101,9 @@ Every response carries a `notes` array that says which of these applies.
 | ---------- | ------ | ----------- |
 | `metric`   | string | The metric reported. |
 | `range`    | object | `from`, `to` and `days` of the reported range. |
-| `totals`   | object | Totals for the range. Only the counts relevant to the metric are present: `pageViews`, `visitors`, `pageVisitors`, `visits`, `direct`, `count`. |
+| `totals`   | object | Totals for the range. Only the counts relevant to the metric are present: `pageViews`, `visitors`, `pageVisitors`, `visits`, `direct`, `internal`, `count`. |
 | `series`   | array  | One entry per day with `date`, `pageViews` and `visitors` or `pageVisitors` (`visitors` metric only). |
-| `rows`     | array  | Top rows for the other metrics. Each carries its key (`path`, `referrer`, `country`, `utmSource`/`utmMedium`/`utmCampaign`/`ref`, or `event`) and its counts. With `compare=previous`, each row also has `previous`: its main count in the previous period. |
+| `rows`     | array  | Top rows for the other metrics. Each carries its key (`path`, `referrer`, `channel`, `country`, `utmSource`/`utmMedium`/`utmCampaign`/`ref`, or `event`) and its counts; `entries` rows also carry `channels`. With `compare=previous`, each row also has `previous`: its main count in the previous period. |
 | `previous` | object | `range` and `totals` of the previous period, when `compare=previous`. |
 | `notes`    | array  | How the numbers in this response are counted. |
 
@@ -100,22 +123,24 @@ How many people read a blog post this week, and where did they come from?
 
 ```bash
 curl -H 'Authorization: <api_key>' \
-  'https://api.stormkit.io/v1/analytics?metric=referrers&path=/blog/my-post&span=7d'
+  'https://api.stormkit.io/v1/analytics?metric=channels&path=/blog/my-post&span=7d'
 ```
 
 ```json
 // Example response
 {
-  "metric": "referrers",
+  "metric": "channels",
   "range": { "from": "2026-10-18", "to": "2026-10-24", "days": 7 },
-  "totals": { "visits": 412, "direct": 96 },
+  "totals": { "pageViews": 412, "visitors": 355, "visits": 412 },
   "rows": [
-    { "referrer": "google.com", "visits": 201 },
-    { "referrer": "news.ycombinator.com", "visits": 87 },
-    { "referrer": "www.example.org", "visits": 28 }
+    { "channel": "search", "visits": 201 },
+    { "channel": "direct", "visits": 96 },
+    { "channel": "social", "visits": 87 },
+    { "channel": "internal", "visits": 28 }
   ],
   "notes": [
-    "referrers are host names as sent by browsers, and include this site's own domain for in-site navigation."
+    "channels group referrers: direct has no referrer (including browsers and links that hide it), internal is navigation within this site, and referral is any other site.",
+    "visitors is the sum of daily unique visitors: visitor ids rotate daily, so the same person on two days counts twice."
   ]
 }
 ```

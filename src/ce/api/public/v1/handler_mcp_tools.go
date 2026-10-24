@@ -371,7 +371,7 @@ func mcpAllTools() []mcpToolDef {
 				"type": "object",
 				"properties": map[string]any{
 					"envId":      map[string]any{"type": "string", "description": "Environment to read analytics for."},
-					"metric":     map[string]any{"type": "string", "enum": []string{"visitors", "paths", "referrers", "countries", "campaigns", "events"}, "description": "visitors: page views and visitors per day. paths: top pages. referrers: top referring hosts plus direct visits. countries: visitors by country. campaigns: visits by utm_source/utm_medium/utm_campaign/ref. events: custom events. Defaults to visitors."},
+					"metric":     map[string]any{"type": "string", "enum": []string{"visitors", "paths", "referrers", "channels", "entries", "countries", "campaigns", "events"}, "description": "visitors: page views and visitors per day. paths: top pages. referrers: top referring hosts, without the site's own domains. channels: visits by channel (search, ai, social, email, referral, direct, internal) plus page views and visitors; with path, answers 'how many people read this page and where did they come from' in one call. entries: landing pages, with visits from outside the site by channel. countries: visitors by country. campaigns: visits by utm_source/utm_medium/utm_campaign/ref. events: custom events. Defaults to visitors."},
 					"from":       map[string]any{"type": "string", "description": "First day of the range, YYYY-MM-DD (UTC). Cannot be combined with span."},
 					"to":         map[string]any{"type": "string", "description": "Last day of the range, YYYY-MM-DD (UTC), inclusive. Defaults to today."},
 					"span":       map[string]any{"type": "string", "description": "Range length ending at 'to', e.g. 7d, 30d, 90d. Defaults to 30d, maximum 400d."},

@@ -45,9 +45,21 @@ func (r Record) String() string {
 		r.ID, r.DomainID, r.AppID, r.EnvID, r.VisitorIP, r.RequestPath, r.HostName, referrer, userAgent, r.RequestTS, r.StatusCode)
 }
 
+// androidAppScheme prefixes referrers sent by Android apps, e.g.
+// android-app://com.google.android.googlequicksearchbox/https/www.google.com.
+const androidAppScheme = "android-app://"
+
+// NormalizeReferrer reduces a referrer to its host name. An Android app
+// referrer has no host, so its package name stands in for it.
 func NormalizeReferrer(referrer string) string {
 	if referrer == "" {
 		return ""
+	}
+
+	if rest, ok := strings.CutPrefix(strings.ToLower(referrer), androidAppScheme); ok {
+		pkg, _, _ := strings.Cut(rest, "/")
+
+		return pkg
 	}
 
 	if !strings.HasPrefix(referrer, "http") {

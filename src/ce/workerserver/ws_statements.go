@@ -25,8 +25,7 @@ type statement struct {
 	syncAnalyticsPaths              string
 	syncAnalyticsPathCountries      string
 	syncAnalyticsCampaigns          string
-	oldestAnalyticsPathsDay         string
-	oldestRawPageViewDay            string
+	syncAnalyticsChannels           string
 	selectUserIDsWithoutAPIKeys     string
 	selectStaleSchemas              string
 	selectStaleVolumeEnvs           string
@@ -362,18 +361,67 @@ var stmt = &statement{
 			visits = EXCLUDED.visits;
 	`,
 
-	oldestAnalyticsPathsDay: `SELECT MIN(aggregate_date) FROM analytics_paths_agg;`,
-
-	// Uses the same filter as the path rollups, so once the backfill is done
-	// this matches the oldest aggregated day.
-	oldestRawPageViewDay: `
-		SELECT
-			MIN(request_timestamp)::date
-		FROM
-			analytics
-		WHERE
-			response_code IN (200, 304) AND
-			domain_id IS NOT NULL;
+	// syncAnalyticsChannels classifies each page view's referrer host once, at
+	// rollup time. The host is the stored referrer without a scheme, path or
+	// leading "www.". It is internal when it is one of the page's environment
+	// domains or their subdomains; otherwise the pattern lists bound as $3-$6
+	// (ai, email, search, social) are checked in that order.
+	syncAnalyticsChannels: `
+		INSERT INTO analytics_channels_agg
+			(aggregate_date, domain_id, request_path, request_path_hash,
+			 referrer, referrer_hash, channel, visits)
+			SELECT
+				g.agg_date,
+				g.domain_id,
+				g.request_path,
+				decode(md5(g.request_path), 'hex'),
+				g.host,
+				decode(md5(g.host), 'hex'),
+				CASE
+					WHEN g.host = '' THEN 'direct'
+					WHEN EXISTS (
+						SELECT 1
+						FROM domains d
+						CROSS JOIN LATERAL (
+							SELECT regexp_replace(lower(d.domain_name), '^www\.', '') AS apex
+						) site
+						WHERE
+							d.env_id = g.env_id AND
+							(g.host = site.apex OR right(g.host, length(site.apex) + 1) = '.' || site.apex)
+					) THEN 'internal'
+					WHEN g.host ~ ANY($3::text[]) THEN 'ai'
+					WHEN g.host ~ ANY($4::text[]) THEN 'email'
+					WHEN g.host ~ ANY($5::text[]) THEN 'search'
+					WHEN g.host ~ ANY($6::text[]) THEN 'social'
+					ELSE 'referral'
+				END,
+				g.visits
+			FROM (
+				SELECT
+					DATE(a.request_timestamp) AS agg_date,
+					a.domain_id,
+					a.env_id,
+					a.request_path,
+					regexp_replace(
+						split_part(regexp_replace(lower(COALESCE(a.referrer, '')), '^[a-z][a-z0-9+.-]*://', ''), '/', 1),
+						'^www\.', ''
+					) AS host,
+					COUNT(*) AS visits
+				FROM
+					analytics a
+				WHERE
+					a.response_code IN (200, 304) AND
+					a.domain_id IS NOT NULL AND
+					a.request_timestamp >= $1::date AND
+					a.request_timestamp < $2::date
+				GROUP BY
+					agg_date, a.domain_id, a.env_id, a.request_path, host
+			) g
+		ON CONFLICT
+			(domain_id, aggregate_date, request_path_hash, referrer_hash)
+		DO UPDATE SET
+			channel = EXCLUDED.channel,
+			visits = EXCLUDED.visits;
 	`,
 
 	selectStaleSchemas: `

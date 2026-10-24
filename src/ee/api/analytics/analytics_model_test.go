@@ -40,6 +40,15 @@ func (s *AnalyticsModelSuite) Test_ExtractHostnameFromReferrer() {
 			referrer: "",
 			expected: "",
 		},
+		{
+			// Android apps send their package name instead of a host.
+			referrer: "android-app://com.google.android.googlequicksearchbox/https/www.google.com",
+			expected: "com.google.android.googlequicksearchbox",
+		},
+		{
+			referrer: "android-app://com.google.android.gm",
+			expected: "com.google.android.gm",
+		},
 	}
 
 	for _, test := range tests {

@@ -1464,6 +1464,8 @@
                 "visitors",
                 "paths",
                 "referrers",
+                "channels",
+                "entries",
                 "countries",
                 "campaigns",
                 "events"
@@ -4679,6 +4681,10 @@
                 "type": "integer",
                 "description": "Visits without a referrer (metric=referrers)."
               },
+              "internal": {
+                "type": "integer",
+                "description": "Visits referred by the site's own domains (metric=referrers)."
+              },
               "count": {
                 "type": "integer",
                 "description": "Event count (metric=events)."
@@ -4737,6 +4743,18 @@
                 "event": {
                   "type": "string"
                 },
+                "channel": {
+                  "type": "string",
+                  "enum": [
+                    "search",
+                    "ai",
+                    "social",
+                    "email",
+                    "referral",
+                    "direct",
+                    "internal"
+                  ]
+                },
                 "pageViews": {
                   "type": "integer"
                 },
@@ -4751,6 +4769,13 @@
                 },
                 "count": {
                   "type": "integer"
+                },
+                "channels": {
+                  "type": "object",
+                  "description": "An entry page's visits by channel (metric=entries).",
+                  "additionalProperties": {
+                    "type": "integer"
+                  }
                 },
                 "previous": {
                   "type": "integer",
@@ -4797,6 +4822,10 @@
                   "direct": {
                     "type": "integer",
                     "description": "Visits without a referrer (metric=referrers)."
+                  },
+                  "internal": {
+                    "type": "integer",
+                    "description": "Visits referred by the site's own domains (metric=referrers)."
                   },
                   "count": {
                     "type": "integer",

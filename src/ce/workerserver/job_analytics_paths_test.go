@@ -63,6 +63,7 @@ type visit struct {
 	At       time.Time
 	Source   string
 	Status   int
+	Referrer string
 	Campaign analytics.Campaign
 }
 
@@ -119,6 +120,7 @@ func (s *JobAnalyticsPathsSuite) insert(visits ...visit) {
 			RequestTS:   utils.Unix{Time: v.At, Valid: true},
 			StatusCode:  status,
 			Source:      null.StringFrom(source),
+			Referrer:    null.NewString(v.Referrer, v.Referrer != ""),
 			Campaign:    v.Campaign,
 		})
 	}
@@ -226,38 +228,14 @@ func (s *JobAnalyticsPathsSuite) Test_Paths_RerunReplacesTheDay() {
 	}, s.paths())
 }
 
-// Test_Paths_BackfillsOnFirstRun verifies that the first run rolls up every
-// day still in the raw table, while later runs only touch yesterday and today.
-func (s *JobAnalyticsPathsSuite) Test_Paths_BackfillsOnFirstRun() {
+// Test_Paths_OnlyRecentDays verifies that the job rolls up yesterday and today
+// only, and never backfills older raw page views.
+func (s *JobAnalyticsPathsSuite) Test_Paths_OnlyRecentDays() {
 	s.insert(
-		visit{IP: "1.1.1.1", UA: "a", Path: "/old", At: s.today.AddDate(0, 0, -20).Add(time.Hour)},
+		visit{IP: "1.1.1.1", UA: "a", Path: "/old", At: s.today.AddDate(0, 0, -2).Add(time.Hour)},
+		visit{IP: "1.1.1.1", UA: "a", Path: "/yesterday", At: s.today.AddDate(0, 0, -1).Add(time.Hour)},
 		visit{IP: "1.1.1.1", UA: "a", Path: "/", At: s.today.Add(time.Hour)},
 	)
-
-	s.Require().NoError(jobs.SyncAnalyticsPaths(context.Background()))
-
-	s.Equal([]string{"/old", "/"}, []string{s.paths()[0].Path, s.paths()[1].Path})
-
-	s.insert(visit{IP: "2.2.2.2", UA: "a", Path: "/old", At: s.today.AddDate(0, 0, -20).Add(2 * time.Hour)})
-	s.Require().NoError(jobs.SyncAnalyticsPaths(context.Background()))
-
-	s.Equal(1, s.paths()[0].PageViews, "a later run does not recompute old days")
-}
-
-// Test_Paths_BackfillResumes verifies that a backfill that stopped part-way
-// fills the remaining older days on the next run instead of leaving a gap.
-func (s *JobAnalyticsPathsSuite) Test_Paths_BackfillResumes() {
-	s.insert(
-		visit{IP: "1.1.1.1", UA: "a", Path: "/oldest", At: s.today.AddDate(0, 0, -30).Add(time.Hour)},
-		visit{IP: "1.1.1.1", UA: "a", Path: "/older", At: s.today.AddDate(0, 0, -12).Add(time.Hour)},
-		visit{IP: "1.1.1.1", UA: "a", Path: "/", At: s.today.Add(time.Hour)},
-	)
-
-	s.Require().NoError(jobs.SyncAnalyticsPaths(context.Background()))
-
-	// Simulate a first run that only finished the newest chunks.
-	_, err := s.conn.Exec(`DELETE FROM analytics_paths_agg WHERE domain_id = $1 AND aggregate_date < $2::date`, s.domainID, s.day(-10))
-	s.Require().NoError(err)
 
 	s.Require().NoError(jobs.SyncAnalyticsPaths(context.Background()))
 
@@ -267,26 +245,7 @@ func (s *JobAnalyticsPathsSuite) Test_Paths_BackfillResumes() {
 		paths = append(paths, p.Path)
 	}
 
-	s.Equal([]string{"/oldest", "/older", "/"}, paths)
-}
-
-// Test_Paths_AggregatesOlderThanRawRows verifies that once raw rows have aged
-// out, aggregates reaching further back do not trigger a backfill.
-func (s *JobAnalyticsPathsSuite) Test_Paths_AggregatesOlderThanRawRows() {
-	_, err := s.conn.Exec(`
-		INSERT INTO analytics_paths_agg
-			(aggregate_date, domain_id, request_path, request_path_hash, unique_visitors, page_views, server_views, client_views)
-		VALUES ($1::date, $2, '/ancient', decode(md5('/ancient'), 'hex'), 9, 9, 9, 0)`, s.day(-400), s.domainID)
-
-	s.Require().NoError(err)
-
-	s.insert(visit{IP: "1.1.1.1", UA: "a", Path: "/", At: s.today.Add(time.Hour)})
-	s.Require().NoError(jobs.SyncAnalyticsPaths(context.Background()))
-
-	s.Equal([]pathAgg{
-		{Date: s.day(-400), Path: "/ancient", UniqueVisitors: 9, PageViews: 9, ServerViews: 9, ClientViews: 0},
-		{Date: s.day(0), Path: "/", UniqueVisitors: 1, PageViews: 1, ServerViews: 1, ClientViews: 0},
-	}, s.paths())
+	s.Equal([]string{"/yesterday", "/"}, paths)
 }
 
 func (s *JobAnalyticsPathsSuite) Test_Paths_NoPageViews() {
@@ -338,6 +297,101 @@ func (s *JobAnalyticsPathsSuite) Test_Campaigns() {
 		{Date: s.day(0), Ref: "indiefounders", Path: "/pricing", UniqueVisitors: 1, Visits: 1},
 		{Date: s.day(0), Source: "x", Medium: "social", Campaign: "launch", Path: "/", UniqueVisitors: 2, Visits: 3},
 	}, s.campaigns())
+}
+
+// channels returns the stored channel of every referrer host on the domain.
+func (s *JobAnalyticsPathsSuite) channels() map[string]string {
+	rows, err := s.conn.PrepareOrPanic(`SELECT referrer, channel FROM analytics_channels_agg WHERE domain_id = $1`).Query(s.domainID)
+	s.Require().NoError(err)
+
+	defer rows.Close()
+
+	out := map[string]string{}
+
+	for rows.Next() {
+		var referrer, channel string
+		s.Require().NoError(rows.Scan(&referrer, &channel))
+		out[referrer] = channel
+	}
+
+	return out
+}
+
+func (s *JobAnalyticsPathsSuite) Test_Channels_Classification() {
+	// Another domain of the same environment is the same site; a domain of
+	// another environment is not.
+	s.addDomain(s.envID, "www.example.org")
+	other := s.MockEnv(s.MockApp(nil))
+	s.addDomain(other.ID, "other.org")
+
+	noon := s.today.Add(12 * time.Hour)
+	referrers := map[string]string{
+		"":                                    "direct",
+		"paths.stormkit.io":                   "internal",
+		"www.example.org":                     "internal",
+		"blog.example.org":                    "internal",
+		"evilexample.org":                     "referral",
+		"other.org":                           "referral",
+		"google.com":                          "search",
+		"www.google.com":                      "search",
+		"https://www.google.co.uk/search?q=x": "search",
+		"com.google.android.googlequicksearchbox": "search",
+		"accounts.google.com":                     "referral",
+		"notgoogle.com":                           "referral",
+		"gemini.google.com":                       "ai",
+		"www.meta.ai":                             "ai",
+		"chatgpt.com":                             "ai",
+		"mail.google.com":                         "email",
+		"com.google.android.gm":                   "email",
+		"t.co":                                    "social",
+		"news.ycombinator.com":                    "social",
+	}
+
+	for referrer := range referrers {
+		s.insert(visit{IP: "1.1.1.1", UA: "a", Path: "/", At: noon, Referrer: referrer})
+	}
+
+	s.Require().NoError(jobs.SyncAnalyticsPaths(context.Background()))
+
+	// Hosts are stored without scheme, path or "www.".
+	expected := map[string]string{
+		"":                  "direct",
+		"paths.stormkit.io": "internal",
+		"example.org":       "internal",
+		"blog.example.org":  "internal",
+		"evilexample.org":   "referral",
+		"other.org":         "referral",
+		"google.com":        "search",
+		"google.co.uk":      "search",
+		"com.google.android.googlequicksearchbox": "search",
+		"accounts.google.com":                     "referral",
+		"notgoogle.com":                           "referral",
+		"gemini.google.com":                       "ai",
+		"meta.ai":                                 "ai",
+		"chatgpt.com":                             "ai",
+		"mail.google.com":                         "email",
+		"com.google.android.gm":                   "email",
+		"t.co":                                    "social",
+		"news.ycombinator.com":                    "social",
+	}
+
+	s.Equal(expected, s.channels())
+}
+
+func (s *JobAnalyticsPathsSuite) addDomain(envID types.ID, name string) {
+	env, err := buildconf.NewStore().EnvironmentByID(context.Background(), envID)
+	s.Require().NoError(err)
+
+	d := &buildconf.DomainModel{
+		AppID:      env.AppID,
+		EnvID:      envID,
+		Name:       name,
+		Verified:   true,
+		VerifiedAt: utils.NewUnix(),
+		Token:      null.StringFrom(name),
+	}
+
+	s.Require().NoError(buildconf.DomainStore().Insert(context.Background(), d))
 }
 
 func TestJobAnalyticsPathsSuite(t *testing.T) {

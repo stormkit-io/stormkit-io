@@ -111,7 +111,7 @@ Every tool carries MCP annotations (`readOnlyHint`, `destructiveHint`, `openWorl
 
 | Tool            | Description                                                                    |
 | --------------- | ------------------------------------------------------------------------------ |
-| `get_analytics` | Return visitor analytics for an environment's custom domains: page views and visitors per day, or top pages, referrers, countries, campaigns or events. Filter by `path` or `pathPrefix`, pick a range with `span` or `from`/`to`, and pass `compare: "previous"` to compare with the period before. Enterprise only. See the [Analytics API](/docs/api/analytics). |
+| `get_analytics` | Return visitor analytics for an environment's custom domains: page views and visitors per day, or top pages, referrers, channels (search, AI, social, …), landing pages, countries, campaigns or events. Filter by `path` or `pathPrefix`, pick a range with `span` or `from`/`to`, and pass `compare: "previous"` to compare with the period before. Enterprise only. See the [Analytics API](/docs/api/analytics). |
 
 ### Apps & environments
 

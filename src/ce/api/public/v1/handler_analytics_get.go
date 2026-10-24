@@ -25,7 +25,7 @@ func handlerAnalyticsGet(req *RequestContext) *shttp.Response {
 		return shttp.BadRequest(map[string]any{"errors": errs})
 	}
 
-	domains, err := envDomainIDs(req)
+	domains, err := envDomains(req)
 
 	if err != nil {
 		return shttp.Error(err)
@@ -39,9 +39,9 @@ func handlerAnalyticsGet(req *RequestContext) *shttp.Response {
 		}
 	}
 
-	for _, id := range domains {
-		if domainID == 0 || id == domainID {
-			params.DomainIDs = append(params.DomainIDs, id)
+	for _, d := range domains {
+		if domainID == 0 || d.ID == domainID {
+			params.DomainIDs = append(params.DomainIDs, d.ID)
 		}
 	}
 
@@ -62,9 +62,9 @@ func handlerAnalyticsGet(req *RequestContext) *shttp.Response {
 	}
 }
 
-// envDomainIDs returns the ids of every domain of the request's environment.
-func envDomainIDs(req *RequestContext) ([]types.ID, error) {
-	ids := []types.ID{}
+// envDomains returns every domain of the request's environment.
+func envDomains(req *RequestContext) ([]*buildconf.DomainModel, error) {
+	all := []*buildconf.DomainModel{}
 	filters := buildconf.DomainFilters{EnvID: req.Env.ID, Limit: analyticsDomainsPageSize}
 
 	for {
@@ -81,12 +81,10 @@ func envDomainIDs(req *RequestContext) ([]types.ID, error) {
 			page = page[:analyticsDomainsPageSize]
 		}
 
-		for _, d := range page {
-			ids = append(ids, d.ID)
-		}
+		all = append(all, page...)
 
 		if !hasNext {
-			return ids, nil
+			return all, nil
 		}
 
 		filters.AfterID = page[len(page)-1].ID
