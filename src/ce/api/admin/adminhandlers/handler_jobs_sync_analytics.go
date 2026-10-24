@@ -13,7 +13,11 @@ func handlerJobsSyncAnalytics(req *user.RequestContext) *shttp.Response {
 	ts := req.Query().Get("ts")
 
 	if ts == "24h" {
-		if err := jobs.SyncAnalyticsVisitorsHourly(req.Context()); err != nil {
+		// The scheduled run only recomputes the last two hours; a manual
+		// resync covers the whole day.
+		ctx := context.WithValue(req.Context(), jobs.KeyContextNumberOfDays{}, 1)
+
+		if err := jobs.SyncAnalyticsVisitorsHourly(ctx); err != nil {
 			return shttp.Error(err)
 		}
 

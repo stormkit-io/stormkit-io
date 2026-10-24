@@ -171,10 +171,11 @@ func (s *JobAnalyticsSuite) Test_SyncAnalyticsVisitorsDaily_CustomDate() {
 }
 
 func (s *JobAnalyticsSuite) Test_SyncAnalyticsVisitorsHourly() {
-	ctx := context.Background()
+	// A manual resync over the last two days picks up yesterday's and today's
+	// hours; the scheduled run's two-hour window is tested separately.
+	ctx := context.WithValue(context.Background(), jobs.KeyContextNumberOfDays{}, 2)
+	ctx = context.WithValue(ctx, jobs.KeyContextNow{}, s.at(16, 10))
 
-	// We create records in the BeforeTest statement. This test
-	// will get all data from yesterday and sync it to the aggregate table.
 	s.NoError(jobs.SyncAnalyticsVisitorsHourly(ctx))
 
 	data, err := analytics.NewStore().Visitors(ctx, analytics.VisitorsArgs{
@@ -202,12 +203,52 @@ func (s *JobAnalyticsSuite) Test_SyncAnalyticsVisitorsHourly() {
 	s.Equal(expected, data)
 }
 
+// Test_SyncAnalyticsVisitorsHourly_RecentHours verifies that the scheduled run
+// only recomputes the current and the previous hour.
+func (s *JobAnalyticsSuite) Test_SyncAnalyticsVisitorsHourly_RecentHours() {
+	// The records at 15:30 today fall in the window of a run at 16:10, and
+	// yesterday's do not.
+	ctx := context.WithValue(context.Background(), jobs.KeyContextNow{}, s.at(16, 10))
+
+	s.NoError(jobs.SyncAnalyticsVisitorsHourly(ctx))
+
+	var buckets int
+
+	row := s.conn.QueryRow(`SELECT COUNT(*) FROM analytics_visitors_agg_hourly_200 WHERE domain_id = $1`, s.domainID)
+	s.Require().NoError(row.Scan(&buckets))
+	s.Equal(1, buckets)
+}
+
+// Test_SyncAnalyticsRollups_RebuildsHours verifies that the hourly rollup run
+// rebuilds every hour of its days, so hours whose page views were ingested
+// after the five-minute job moved on are repaired.
+func (s *JobAnalyticsSuite) Test_SyncAnalyticsRollups_RebuildsHours() {
+	ctx := context.WithValue(context.Background(), jobs.KeyContextNow{}, s.at(23, 10))
+
+	s.NoError(jobs.SyncAnalyticsRollups(ctx))
+
+	rows, err := s.conn.Query(`SELECT TO_CHAR(aggregate_date, 'YYYY-MM-DD HH24:MI') FROM analytics_visitors_agg_hourly_200 WHERE domain_id = $1 ORDER BY 1`, s.domainID)
+	s.Require().NoError(err)
+
+	defer rows.Close()
+
+	hours := []string{}
+
+	for rows.Next() {
+		var h string
+		s.Require().NoError(rows.Scan(&h))
+		hours = append(hours, h)
+	}
+
+	s.Equal([]string{s.yesterday + " 15:00", s.today + " 15:00"}, hours)
+}
+
 func (s *JobAnalyticsSuite) Test_SyncAnalyticsReferrers() {
 	ctx := context.Background()
 
 	// We create records in the BeforeTest statement. This test
 	// will get all data from yesterday and sync it to the aggregate table.
-	s.NoError(jobs.SyncAnalyticsReferrers(ctx))
+	s.NoError(jobs.SyncAnalyticsRollups(ctx))
 
 	data, err := analytics.NewStore().TopReferrers(ctx, analytics.TopReferrersArgs{
 		DomainID: s.domainID,
@@ -230,7 +271,7 @@ func (s *JobAnalyticsSuite) Test_SyncAnalyticsByCountries() {
 
 	// We create records in the BeforeTest statement. This test
 	// will get all data from yesterday and sync it to the aggregate table.
-	s.NoError(jobs.SyncAnalyticsByCountries(ctx))
+	s.NoError(jobs.SyncAnalyticsRollups(ctx))
 
 	data, err := analytics.NewStore().ByCountries(ctx, analytics.ByCountriesArgs{
 		DomainID: s.domainID,
@@ -243,6 +284,15 @@ func (s *JobAnalyticsSuite) Test_SyncAnalyticsByCountries() {
 	}
 
 	s.Equal(expected, data)
+}
+
+// at returns a time today at hour:minute in the wall clock the records were
+// stored with (BeforeTest stores them as UTC).
+func (s *JobAnalyticsSuite) at(hour, minute int) time.Time {
+	t, err := time.Parse(time.DateOnly, s.today)
+	s.Require().NoError(err)
+
+	return t.Add(time.Duration(hour)*time.Hour + time.Duration(minute)*time.Minute)
 }
 
 func TestJobAnalyticsSuite(t *testing.T) {

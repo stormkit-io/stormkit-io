@@ -242,7 +242,18 @@ func (s *CollectHandlerSuite) Test_SameOriginBeacon_Recorded() {
 		s.Equal(http.StatusNoContent, handleCollect(req).Status)
 	}
 
-	s.Len(s.waitForRecords(len(headers)), len(headers))
+	// The capture buffer is shared, so a late flush from an earlier test can
+	// land here; only this test's beacons, by their source IP, are counted.
+	sent := map[string]bool{"203.0.113.30": true, "203.0.113.31": true, "203.0.113.32": true}
+	recorded := map[string]bool{}
+
+	for _, r := range s.waitForRecords(len(headers)) {
+		if r.Analytics != nil && sent[r.Analytics.VisitorIP] {
+			recorded[r.Analytics.VisitorIP] = true
+		}
+	}
+
+	s.Equal(sent, recorded)
 }
 
 // Test_Pageviews_Campaign verifies that a landing the server never saw keeps

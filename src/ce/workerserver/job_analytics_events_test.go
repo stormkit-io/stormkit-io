@@ -108,7 +108,7 @@ func (s *JobAnalyticsEventsSuite) AfterTest(suiteName, _ string) {
 func (s *JobAnalyticsEventsSuite) Test_SyncAnalyticsEvents() {
 	ctx := context.Background()
 
-	s.NoError(jobs.SyncAnalyticsEvents(ctx))
+	s.NoError(jobs.SyncAnalyticsRollups(ctx))
 
 	events, err := analytics.NewStore().Events(ctx, analytics.EventsArgs{
 		DomainID: s.domainID,

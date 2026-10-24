@@ -192,13 +192,13 @@ func (s *JobAnalyticsPathsSuite) campaigns() []campaignAgg {
 	return out
 }
 
-// sync runs the path rollups as at noon today, when only today is recomputed.
+// sync runs the rollups as at noon today, when only today is recomputed.
 func (s *JobAnalyticsPathsSuite) sync() error {
 	return s.syncAt(s.today.Add(12 * time.Hour))
 }
 
 func (s *JobAnalyticsPathsSuite) syncAt(now time.Time) error {
-	return jobs.SyncAnalyticsPaths(context.WithValue(context.Background(), jobs.KeyContextNow{}, now))
+	return jobs.SyncAnalyticsRollups(context.WithValue(context.Background(), jobs.KeyContextNow{}, now))
 }
 
 func (s *JobAnalyticsPathsSuite) day(offset int) string {

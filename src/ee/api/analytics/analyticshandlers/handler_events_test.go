@@ -75,7 +75,7 @@ func (s *HandlerEventsSuite) SetupSuite() {
 	}
 
 	s.NoError(analytics.NewStore().InsertEvents(context.Background(), events))
-	s.NoError(jobs.SyncAnalyticsEvents(context.Background()))
+	s.NoError(jobs.SyncAnalyticsRollups(context.Background()))
 }
 
 func (s *HandlerEventsSuite) TearDownSuite() {

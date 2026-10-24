@@ -163,27 +163,32 @@ var stmt = &statement{
 			deleted_at IS NULL;
 	`,
 
+	// syncAnalyticsVisitors rolls page views of the statuses $1 up into daily
+	// or hourly unique and total visitors for the range [$2, $3). The table
+	// and bucket only vary between fixed branches; the range is bound.
 	syncAnalyticsVisitors: `
-		INSERT INTO {{ .tableName }}
+		INSERT INTO
+			{{- if .Hourly }} analytics_visitors_agg_hourly_{{ else }} analytics_visitors_agg_{{ end -}}
+			{{- if .NotFound }}404{{ else }}200{{ end }}
 			(aggregate_date, domain_id, unique_visitors, total_visitors)
 			SELECT
-				{{ .column }} as agg_date, domain_id,
+				{{ if .Hourly }}DATE_TRUNC('hour', a.request_timestamp){{ else }}DATE(a.request_timestamp){{ end }} AS agg_date,
+				domain_id,
 				COUNT(DISTINCT a.visitor_ip) AS unique_visitors,
-				COUNT(a.visitor_ip) as total_visitors
+				COUNT(a.visitor_ip) AS total_visitors
 			FROM
 				analytics a
 			WHERE
 				a.response_code = ANY($1) AND
-				a.request_timestamp >= {{ .interval }}
+				a.request_timestamp >= $2::timestamp AND
+				a.request_timestamp < $3::timestamp
 			GROUP BY
 				agg_date, a.domain_id
-			ORDER BY
-		 		agg_date DESC
 		ON CONFLICT
 			(aggregate_date, domain_id)
 		DO UPDATE SET
 			unique_visitors = EXCLUDED.unique_visitors,
-    		total_visitors = EXCLUDED.total_visitors`,
+			total_visitors = EXCLUDED.total_visitors`,
 
 	syncAnalyticsReferrers: `
 		INSERT INTO analytics_referrers
@@ -214,7 +219,8 @@ var stmt = &statement{
 				analytics a
             WHERE
 				a.response_code IN (200, 304) AND
-				a.request_timestamp >= current_date - interval '1 days'
+				a.request_timestamp >= $1::date AND
+				a.request_timestamp < $2::date
             GROUP BY
 				req_date, referrer_domain,
 				a.request_path, a.domain_id
@@ -236,7 +242,8 @@ var stmt = &statement{
 			WHERE
 				a.response_code IN (200, 304) AND
 				a.country_iso_code IS NOT NULL AND
-				a.request_timestamp >= current_date - interval '1 days'
+				a.request_timestamp >= $1::date AND
+				a.request_timestamp < $2::date
 			GROUP BY
 				a.country_iso_code, agg_date, domain_id
 		ON CONFLICT
@@ -257,7 +264,8 @@ var stmt = &statement{
 			FROM analytics_events e
 			WHERE
 				e.domain_id IS NOT NULL AND
-				e.event_ts >= current_date - interval '1 days'
+				e.event_ts >= $1::date AND
+				e.event_ts < $2::date
 			GROUP BY
 				agg_date, e.domain_id, e.event_name
 		ON CONFLICT
