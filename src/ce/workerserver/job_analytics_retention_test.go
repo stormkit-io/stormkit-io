@@ -94,6 +94,31 @@ func (s *JobAnalyticsRetentionSuite) Test_RemoveOldAnalytics_DeletesOnlyOldRows(
 	s.Equal(2, s.countAnalytics())
 }
 
+func (s *JobAnalyticsRetentionSuite) Test_RemoveOldAnalyticsEngagement() {
+	now := time.Now()
+	engagements := []analytics.Engagement{}
+
+	for i, age := range []time.Duration{200 * 24 * time.Hour, 10 * 24 * time.Hour} {
+		engagements = append(engagements, analytics.Engagement{
+			DomainID:    s.domainID,
+			RequestPath: "/",
+			ViewID:      string(rune('a' + i)),
+			Seconds:     10,
+			EngagedTS:   utils.Unix{Time: now.Add(-age), Valid: true},
+		})
+	}
+
+	s.Require().NoError(analytics.NewStore().InsertEngagements(context.Background(), engagements))
+
+	deleted, err := jobs.NewStore().RemoveOldAnalyticsEngagement(context.Background(), jobs.RemoveOldAnalyticsParams{
+		RetentionDays: 180,
+		BatchSize:     10000,
+	})
+
+	s.NoError(err)
+	s.Equal(int64(1), deleted)
+}
+
 func (s *JobAnalyticsRetentionSuite) Test_RemoveOldAnalytics_NoOpWhenNothingExpired() {
 	deleted, err := jobs.NewStore().RemoveOldAnalytics(context.Background(), jobs.RemoveOldAnalyticsParams{
 		RetentionDays: 365,

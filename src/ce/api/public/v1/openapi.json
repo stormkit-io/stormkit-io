@@ -4688,6 +4688,10 @@
               "count": {
                 "type": "integer",
                 "description": "Event count (metric=events)."
+              },
+              "avgTimeOnPage": {
+                "type": "integer",
+                "description": "Average foreground time per page view, in seconds, measured by the client script. Absent when no page view reported it."
               }
             }
           },
@@ -4709,6 +4713,10 @@
                 },
                 "pageVisitors": {
                   "type": "integer"
+                },
+                "avgTimeOnPage": {
+                  "type": "integer",
+                  "description": "Average foreground time per page view, in seconds, measured by the client script. Absent when no page view reported it."
                 }
               }
             }
@@ -4780,6 +4788,10 @@
                 "previous": {
                   "type": "integer",
                   "description": "The row's main count in the previous period (compare=previous)."
+                },
+                "avgTimeOnPage": {
+                  "type": "integer",
+                  "description": "Average foreground time per page view, in seconds, measured by the client script. Absent when no page view reported it."
                 }
               }
             }
@@ -4830,6 +4842,10 @@
                   "count": {
                     "type": "integer",
                     "description": "Event count (metric=events)."
+                  },
+                  "avgTimeOnPage": {
+                    "type": "integer",
+                    "description": "Average foreground time per page view, in seconds, measured by the client script. Absent when no page view reported it."
                   }
                 }
               }

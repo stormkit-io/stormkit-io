@@ -45,8 +45,15 @@ func RemoveOldAnalytics(ctx context.Context) error {
 		return err
 	}
 
-	if hits > 0 || events > 0 {
-		slog.Infof("removed %d analytics and %d event records (retention=%d days)", hits, events, days)
+	engagement, err := batchDeleteOldRows(ctx, days, store.RemoveOldAnalyticsEngagement)
+
+	if err != nil {
+		slog.Errorf("could not remove old analytics engagement: %s", err.Error())
+		return err
+	}
+
+	if hits > 0 || events > 0 || engagement > 0 {
+		slog.Infof("removed %d analytics, %d event and %d engagement records (retention=%d days)", hits, events, engagement, days)
 	}
 
 	return nil

@@ -23,17 +23,18 @@ var HostingQueueName = "hosting_forward_queue"
 var ingestContext = context.Background()
 
 type HostingRecord struct {
-	AppID           types.ID             `json:"appId"`
-	EnvID           types.ID             `json:"envId"`
-	DeploymentID    types.ID             `json:"deploymentId"`
-	BillingUserID   types.ID             `json:"billingUserId"`
-	HostName        string               `json:"hostName"`
-	Logs            []integrations.Log   `json:"logs"`
-	Analytics       *analytics.Record    `json:"analytics"`
-	AccessLog       *accesslog.AccessLog `json:"accessLog"`
-	Events          []analytics.Event    `json:"events"`
-	TotalBandwidth  int64                `json:"totalBandwidth"`
-	FunctionInvoked bool                 `json:"functionInvoked"`
+	AppID           types.ID               `json:"appId"`
+	EnvID           types.ID               `json:"envId"`
+	DeploymentID    types.ID               `json:"deploymentId"`
+	BillingUserID   types.ID               `json:"billingUserId"`
+	HostName        string                 `json:"hostName"`
+	Logs            []integrations.Log     `json:"logs"`
+	Analytics       *analytics.Record      `json:"analytics"`
+	AccessLog       *accesslog.AccessLog   `json:"accessLog"`
+	Events          []analytics.Event      `json:"events"`
+	Engagements     []analytics.Engagement `json:"engagements"`
+	TotalBandwidth  int64                  `json:"totalBandwidth"`
+	FunctionInvoked bool                   `json:"functionInvoked"`
 }
 
 // IngestHandlerForward reads rows from redis and inserts them into the database.
@@ -51,6 +52,7 @@ func IngestHandlerForward(ctx context.Context) error {
 	analyticsRecords := []analytics.Record{}
 	accessLogs := []accesslog.AccessLog{}
 	eventRecords := []analytics.Event{}
+	engagements := []analytics.Engagement{}
 	logRecords := []*applog.Log{}
 	stats := map[string]map[string]int64{} // userId -> metric -> value
 	rows := utils.StringToInt(os.Getenv("STORMKIT_HOSTING_QUEUE_BATCH_SIZE"))
@@ -124,6 +126,8 @@ func IngestHandlerForward(ctx context.Context) error {
 			eventRecords = append(eventRecords, record.Events...)
 		}
 
+		engagements = append(engagements, record.Engagements...)
+
 		if len(record.Logs) > 0 {
 			for _, log := range record.Logs {
 				logRecords = append(logRecords, &applog.Log{
@@ -169,6 +173,12 @@ func IngestHandlerForward(ctx context.Context) error {
 	if len(eventRecords) > 0 {
 		if err := analytics.NewStore().InsertEvents(analyticsContext, eventRecords); err != nil {
 			slog.Errorf("error while batch inserting event records: %v", err)
+		}
+	}
+
+	if len(engagements) > 0 {
+		if err := analytics.NewStore().InsertEngagements(analyticsContext, engagements); err != nil {
+			slog.Errorf("error while batch inserting engagements: %v", err)
 		}
 	}
 

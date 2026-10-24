@@ -64,9 +64,21 @@ type collectPageview struct {
 	Search string `json:"search"`
 }
 
+// collectEngagement is the foreground time the script measured on a page
+// since its last report.
+type collectEngagement struct {
+	Path    string `json:"path"`
+	ViewID  string `json:"viewId"`
+	Seconds int    `json:"seconds"`
+}
+
+// maxViewIDLength bounds the client-chosen page view id.
+const maxViewIDLength = 64
+
 type collectPayload struct {
-	Events    []collectEvent    `json:"events"`
-	Pageviews []collectPageview `json:"pageviews"`
+	Events      []collectEvent      `json:"events"`
+	Pageviews   []collectPageview   `json:"pageviews"`
+	Engagements []collectEngagement `json:"engagements"`
 }
 
 // handleCollect handles the client-side (and server-to-server) analytics beacon
@@ -129,7 +141,7 @@ func handleCollect(req *RequestContext) (res *shttp.Response) {
 			continue
 		}
 
-		path := stripNullChars(e.Path)
+		path := beaconPath(e.Path)
 
 		events = append(events, analytics.Event{
 			AppID:       cfg.AppID,
@@ -160,7 +172,7 @@ func handleCollect(req *RequestContext) (res *shttp.Response) {
 	// Client-side (SPA) pageviews are recorded into the analytics table tagged
 	// as "client", so they can be told apart from server-recorded hits.
 	for _, pv := range payload.Pageviews {
-		path := stripNullChars(pv.Path)
+		path := beaconPath(pv.Path)
 
 		if path == "" {
 			continue
@@ -188,6 +200,36 @@ func handleCollect(req *RequestContext) (res *shttp.Response) {
 				Source:      null.StringFrom("client"),
 				Campaign:    analytics.CampaignFromRawQuery(pv.Search),
 			},
+		})
+	}
+
+	engagements := make([]analytics.Engagement, 0, len(payload.Engagements))
+
+	for _, e := range payload.Engagements {
+		path := beaconPath(e.Path)
+		viewID := stripNullChars(e.ViewID)
+
+		if path == "" || viewID == "" || len(viewID) > maxViewIDLength || e.Seconds <= 0 {
+			continue
+		}
+
+		engagements = append(engagements, analytics.Engagement{
+			DomainID:    cfg.DomainID,
+			RequestPath: path,
+			ViewID:      viewID,
+			Seconds:     min(e.Seconds, analytics.MaxEngagementSeconds),
+			EngagedTS:   utils.NewUnix(),
+		})
+	}
+
+	if len(engagements) > 0 {
+		Queue(&jobs.HostingRecord{
+			AppID:         cfg.AppID,
+			EnvID:         cfg.EnvID,
+			DeploymentID:  cfg.DeploymentID,
+			HostName:      req.Host.Name,
+			BillingUserID: cfg.BillingUserID,
+			Engagements:   engagements,
 		})
 	}
 
@@ -237,7 +279,7 @@ func parseCollectBody(body io.ReadCloser) (collectPayload, bool) {
 		return payload, false
 	}
 
-	if len(payload.Events) == 0 && len(payload.Pageviews) == 0 {
+	if len(payload.Events) == 0 && len(payload.Pageviews) == 0 && len(payload.Engagements) == 0 {
 		return payload, false
 	}
 
@@ -249,7 +291,23 @@ func parseCollectBody(body io.ReadCloser) (collectPayload, bool) {
 		payload.Pageviews = payload.Pageviews[:maxEventsPerBeacon]
 	}
 
+	if len(payload.Engagements) > maxEventsPerBeacon {
+		payload.Engagements = payload.Engagements[:maxEventsPerBeacon]
+	}
+
 	return payload, true
+}
+
+// beaconPath returns a path the script sent in the form the server records
+// page views under. Browsers report location.pathname percent-encoded
+// (/caf%C3%A9) while the server records the decoded path (/café), so it is
+// decoded the same way; a malformed encoding is kept as sent.
+func beaconPath(p string) string {
+	if decoded, err := url.PathUnescape(p); err == nil {
+		p = decoded
+	}
+
+	return stripNullChars(p)
 }
 
 // stripNullChars removes NUL bytes, which Postgres text columns cannot store and
