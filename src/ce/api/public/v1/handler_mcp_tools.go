@@ -51,6 +51,7 @@ var mcpToolAccess = map[string]mcpToolAnnotations{
 	"list_deployments":  {ReadOnlyHint: true},
 	"get_runtime_logs":  {ReadOnlyHint: true},
 	"get_access_logs":   {ReadOnlyHint: true},
+	"get_analytics":     {ReadOnlyHint: true},
 	"list_apps":         {ReadOnlyHint: true},
 	"list_environments": {ReadOnlyHint: true},
 	"list_domains":      {ReadOnlyHint: true},
@@ -122,6 +123,7 @@ var mcpToolScope = map[string]string{
 	"delete_deployment":              apikey.SCOPE_ENV,
 	"get_runtime_logs":               apikey.SCOPE_ENV,
 	"get_access_logs":                apikey.SCOPE_ENV,
+	"get_analytics":                  apikey.SCOPE_ENV,
 	"update_environment":             apikey.SCOPE_ENV,
 	"list_domains":                   apikey.SCOPE_ENV,
 	"create_domain":                  apikey.SCOPE_ENV,
@@ -357,6 +359,28 @@ func mcpAllTools() []mcpToolDef {
 					"limit":    map[string]any{"type": "number", "description": "How many entries to return per page. Defaults to 100, maximum 1000."},
 
 					"minDurationMs": map[string]any{"type": "number", "description": "Only return requests that took at least this many milliseconds to serve. Use to inspect the latency tail, e.g. 500. Requests logged before durations were recorded are excluded."},
+				},
+				"required":             []string{"envId"},
+				"additionalProperties": false,
+			},
+		},
+		{
+			Name:        "get_analytics",
+			Description: "Return visitor analytics for an environment's custom domains as compact JSON: totals plus top rows, or a per-day series for metric=visitors. Answers questions like 'how many people read /blog/my-post this week and where did they come from'. Counts are human page views only (bots excluded). Visitor ids rotate daily, so multi-day visitor counts are sums of daily uniques; read the notes field, which explains how each number is counted. Enterprise only.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"envId":      map[string]any{"type": "string", "description": "Environment to read analytics for."},
+					"metric":     map[string]any{"type": "string", "enum": []string{"visitors", "paths", "referrers", "countries", "campaigns", "events"}, "description": "visitors: page views and visitors per day. paths: top pages. referrers: top referring hosts plus direct visits. countries: visitors by country. campaigns: visits by utm_source/utm_medium/utm_campaign/ref. events: custom events. Defaults to visitors."},
+					"from":       map[string]any{"type": "string", "description": "First day of the range, YYYY-MM-DD (UTC). Cannot be combined with span."},
+					"to":         map[string]any{"type": "string", "description": "Last day of the range, YYYY-MM-DD (UTC), inclusive. Defaults to today."},
+					"span":       map[string]any{"type": "string", "description": "Range length ending at 'to', e.g. 7d, 30d, 90d. Defaults to 30d, maximum 400d."},
+					"domainId":   map[string]any{"type": "string", "description": "Only report this domain. Defaults to all of the environment's domains."},
+					"path":       map[string]any{"type": "string", "description": "Only count this exact page path, e.g. /blog/my-post."},
+					"pathPrefix": map[string]any{"type": "string", "description": "Only count pages whose path starts with this, e.g. /blog/. Visitor counts then become per-page sums (pageVisitors)."},
+					"source":     map[string]any{"type": "string", "enum": []string{"server", "client"}, "description": "Only count page views recorded by the server (full page loads) or the client script (SPA navigations). Applies to page views only."},
+					"compare":    map[string]any{"type": "string", "enum": []string{"previous"}, "description": "Also return the previous period of the same length, as previous.totals and a previous number on each row."},
+					"limit":      map[string]any{"type": "number", "description": "How many rows to return. Defaults to 10, maximum 50."},
 				},
 				"required":             []string{"envId"},
 				"additionalProperties": false,
@@ -1153,6 +1177,37 @@ func mcpGetAccessLogs(req *RequestContextMCP, args map[string]any) *shttp.Respon
 	req.setQuery(query)
 
 	return handlerAccessLogsGet(req.RequestContext)
+}
+
+func mcpGetAnalytics(req *RequestContextMCP, args map[string]any) *shttp.Response {
+	if resp := req.withEnv(args); resp != nil {
+		return resp
+	}
+
+	query := map[string]string{
+		"metric":     stringArg(args, "metric"),
+		"from":       stringArg(args, "from"),
+		"to":         stringArg(args, "to"),
+		"span":       stringArg(args, "span"),
+		"path":       stringArg(args, "path"),
+		"pathPrefix": stringArg(args, "pathPrefix"),
+		"source":     stringArg(args, "source"),
+		"compare":    stringArg(args, "compare"),
+	}
+
+	// Agents often send ids as numbers; dropping one would silently widen the
+	// report to every domain.
+	if domainID := stringPtrArg(args, "domainId"); domainID != nil {
+		query["domainId"] = *domainID
+	}
+
+	if limit := intArg(args, "limit"); limit != 0 {
+		query["limit"] = strconv.Itoa(limit)
+	}
+
+	req.setQuery(query)
+
+	return handlerAnalyticsGet(req.RequestContext)
 }
 
 func mcpPublishDeployment(req *RequestContextMCP, args map[string]any) *shttp.Response {

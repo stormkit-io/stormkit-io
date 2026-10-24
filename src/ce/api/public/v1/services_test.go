@@ -28,6 +28,7 @@ func (s *ServicesSuite) Test_Services_SelfHosted() {
 		"DELETE:/v1/snippets",
 		"DELETE:/v1/trigger",
 		"GET:/v1/access-logs",
+		"GET:/v1/analytics",
 		"GET:/v1/app",
 		"GET:/v1/app/config",
 		"GET:/v1/app/{appId:[0-9]+}",
@@ -95,6 +96,7 @@ func (s *ServicesSuite) Test_Services_StormkitCloud() {
 		"DELETE:/v1/snippets",
 		"DELETE:/v1/trigger",
 		"GET:/v1/access-logs",
+		"GET:/v1/analytics",
 		"GET:/v1/app",
 		"GET:/v1/app/config",
 		"GET:/v1/app/{appId:[0-9]+}",
@@ -150,6 +152,7 @@ func (s *ServicesSuite) Test_EE() {
 
 	statusMap := map[string]int{
 		"GET:/v1/access-logs":                          http.StatusForbidden,
+		"GET:/v1/analytics":                            http.StatusForbidden,
 		"GET:/v1/apps":                                 http.StatusForbidden,
 		"GET:/v1/app":                                  http.StatusForbidden,
 		"GET:/v1/app/{appId:[0-9]+}":                   http.StatusForbidden,

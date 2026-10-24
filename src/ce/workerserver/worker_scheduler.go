@@ -86,7 +86,9 @@ func (s *Scheduler) RegisterMasterTasks(ctx context.Context) {
 		{Handler: EnsureAuthSchemas, Def: daily, Opt: immediate},
 		{Handler: RemoveDeploymentArtifacts, Def: dj(EVERY_6_HOURS), Opt: immediate},
 		{Handler: SyncAnalyticsVisitorsHourly, Def: dj(EVERY_MINUTE * 5), Opt: immediate},
-		{Handler: SyncAnalyticsVisitorsDaily, Def: daily, Opt: immediate},
+		// Hourly, so today's site-wide unique visitors in analytics reports are
+		// at most an hour old. Each run recomputes only yesterday and today.
+		{Handler: SyncAnalyticsVisitorsDaily, Def: dj(EVERY_HOUR), Opt: immediate},
 		{Handler: SyncAnalyticsReferrers, Def: dj(EVERY_HOUR), Opt: immediate},
 		{Handler: SyncAnalyticsByCountries, Def: dj(EVERY_HOUR), Opt: immediate},
 		{Handler: SyncAnalyticsEvents, Def: dj(EVERY_HOUR), Opt: immediate},

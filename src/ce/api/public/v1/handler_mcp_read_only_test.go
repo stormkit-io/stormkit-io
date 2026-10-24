@@ -27,6 +27,7 @@ var readOnlyTools = []string{
 	"list_deployments",
 	"get_runtime_logs",
 	"get_access_logs",
+	"get_analytics",
 	"list_apps",
 	"list_environments",
 	"list_domains",

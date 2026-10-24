@@ -107,6 +107,12 @@ Every tool carries MCP annotations (`readOnlyHint`, `destructiveHint`, `openWorl
 | ----------------- | ------------------------------------------------------------------------------ |
 | `get_access_logs` | Return raw HTTP access logs for an environment, newest first (last 24h by default, 100 entries per page — pass `limit` for up to 1000). |
 
+### Analytics
+
+| Tool            | Description                                                                    |
+| --------------- | ------------------------------------------------------------------------------ |
+| `get_analytics` | Return visitor analytics for an environment's custom domains: page views and visitors per day, or top pages, referrers, countries, campaigns or events. Filter by `path` or `pathPrefix`, pick a range with `span` or `from`/`to`, and pass `compare: "previous"` to compare with the period before. Enterprise only. See the [Analytics API](/docs/api/analytics). |
+
 ### Apps & environments
 
 | Tool                 | Description                                                       |

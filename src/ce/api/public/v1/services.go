@@ -46,6 +46,9 @@ func Services(r *shttp.Router) *shttp.Service {
 	s.NewEndpoint("/v1/access-logs").
 		Handler(shttp.MethodGet, "", WithAPIKey(handlerAccessLogsGet, &Opts{MinimumScope: apikey.SCOPE_ENV, ReadOnly: ReadOnlyAllowed}))
 
+	s.NewEndpoint("/v1/analytics").
+		Handler(shttp.MethodGet, "", WithAPIKey(handlerAnalyticsGet, &Opts{MinimumScope: apikey.SCOPE_ENV, ReadOnly: ReadOnlyAllowed}))
+
 	s.NewEndpoint("/v1/env").
 		Handler(shttp.MethodPost, "", WithAPIKey(handlerEnvAdd, &Opts{MinimumScope: apikey.SCOPE_APP})).
 		Handler(shttp.MethodPut, "", WithAPIKey(handlerEnvUpdate, &Opts{MinimumScope: apikey.SCOPE_ENV})).

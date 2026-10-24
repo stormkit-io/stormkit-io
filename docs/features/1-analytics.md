@@ -38,6 +38,14 @@ to [access logs](/docs/api/access-logs) — only page views and custom events ar
 dropped. The change applies to requests served after the setting is saved;
 data collected before it is not removed.
 
+## Reading analytics from the API or an agent
+
+The same numbers are available through the
+[Analytics API](/docs/api/analytics) and the `get_analytics`
+[MCP tool](/docs/api/mcp), so an agent can answer questions like "how many
+people read /blog/my-post this week, and where did they come from?" in one
+call.
+
 ## Collecting stats
 
 All stats are collected on the server-side, which makes this privacy friendly. We collect the following data:

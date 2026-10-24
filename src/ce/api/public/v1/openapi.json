@@ -63,6 +63,10 @@
       "description": "Runtime and HTTP access logs."
     },
     {
+      "name": "Analytics",
+      "description": "Visitor analytics: page views, visitors, referrers, countries, campaigns and events."
+    },
+    {
       "name": "Domains",
       "description": "Custom domains and certificates."
     },
@@ -1430,6 +1434,158 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/analytics": {
+      "get": {
+        "operationId": "getAnalytics",
+        "summary": "Get visitor analytics",
+        "description": "Return visitor analytics for the environment's custom domains: totals plus top rows, or a per-day series for `metric=visitors`. Counts are human page views only. Visitor ids rotate daily, so multi-day visitor counts are sums of daily uniques; the `notes` field explains how each number in the response is counted. Enterprise only.",
+        "tags": [
+          "Analytics"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EnvIdQueryOptional"
+          },
+          {
+            "name": "metric",
+            "in": "query",
+            "required": false,
+            "description": "What to report. Defaults to `visitors`.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "visitors",
+                "paths",
+                "referrers",
+                "countries",
+                "campaigns",
+                "events"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "description": "First day of the range, `YYYY-MM-DD` (UTC). Cannot be combined with `span`.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "description": "Last day of the range, `YYYY-MM-DD` (UTC), inclusive. Defaults to today.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "span",
+            "in": "query",
+            "required": false,
+            "description": "Range length ending at `to`, e.g. `7d`, `30d`, `90d`. Defaults to `30d`, maximum `400d`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "domainId",
+            "in": "query",
+            "required": false,
+            "description": "Only report this domain. Defaults to all of the environment's domains.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "description": "Only count this exact page path.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pathPrefix",
+            "in": "query",
+            "required": false,
+            "description": "Only count pages whose path starts with this value. Visitor counts then become per-page sums (`pageVisitors`).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "description": "Only count page views recorded by the server or by the client script. Applies to page views only.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "server",
+                "client"
+              ]
+            }
+          },
+          {
+            "name": "compare",
+            "in": "query",
+            "required": false,
+            "description": "Also return the previous period of the same length.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "previous"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "How many rows to return.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "An analytics report.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "402": {
+            "description": "The account is not on an Enterprise license."
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
@@ -4478,6 +4634,184 @@
           "database": {
             "type": "string",
             "description": "Database name."
+          }
+        }
+      },
+      "AnalyticsReport": {
+        "type": "object",
+        "properties": {
+          "metric": {
+            "type": "string"
+          },
+          "range": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string",
+                "format": "date"
+              },
+              "to": {
+                "type": "string",
+                "format": "date"
+              },
+              "days": {
+                "type": "integer"
+              }
+            }
+          },
+          "totals": {
+            "type": "object",
+            "description": "Only the counts relevant to the metric are present.",
+            "properties": {
+              "pageViews": {
+                "type": "integer"
+              },
+              "visitors": {
+                "type": "integer"
+              },
+              "pageVisitors": {
+                "type": "integer"
+              },
+              "visits": {
+                "type": "integer"
+              },
+              "direct": {
+                "type": "integer",
+                "description": "Visits without a referrer (metric=referrers)."
+              },
+              "count": {
+                "type": "integer",
+                "description": "Event count (metric=events)."
+              }
+            }
+          },
+          "series": {
+            "type": "array",
+            "description": "One entry per day (metric=visitors).",
+            "items": {
+              "type": "object",
+              "properties": {
+                "date": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "pageViews": {
+                  "type": "integer"
+                },
+                "visitors": {
+                  "type": "integer"
+                },
+                "pageVisitors": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "rows": {
+            "type": "array",
+            "description": "Top rows, ranked by their main count. Only the fields relevant to the metric are present.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "referrer": {
+                  "type": "string"
+                },
+                "country": {
+                  "type": "string"
+                },
+                "utmSource": {
+                  "type": "string"
+                },
+                "utmMedium": {
+                  "type": "string"
+                },
+                "utmCampaign": {
+                  "type": "string"
+                },
+                "ref": {
+                  "type": "string"
+                },
+                "event": {
+                  "type": "string"
+                },
+                "pageViews": {
+                  "type": "integer"
+                },
+                "visits": {
+                  "type": "integer"
+                },
+                "visitors": {
+                  "type": "integer"
+                },
+                "pageVisitors": {
+                  "type": "integer"
+                },
+                "count": {
+                  "type": "integer"
+                },
+                "previous": {
+                  "type": "integer",
+                  "description": "The row's main count in the previous period (compare=previous)."
+                }
+              }
+            }
+          },
+          "previous": {
+            "type": "object",
+            "properties": {
+              "range": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "to": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "days": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "totals": {
+                "type": "object",
+                "description": "Only the counts relevant to the metric are present.",
+                "properties": {
+                  "pageViews": {
+                    "type": "integer"
+                  },
+                  "visitors": {
+                    "type": "integer"
+                  },
+                  "pageVisitors": {
+                    "type": "integer"
+                  },
+                  "visits": {
+                    "type": "integer"
+                  },
+                  "direct": {
+                    "type": "integer",
+                    "description": "Visits without a referrer (metric=referrers)."
+                  },
+                  "count": {
+                    "type": "integer",
+                    "description": "Event count (metric=events)."
+                  }
+                }
+              }
+            }
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "How the numbers in this response are counted."
           }
         }
       }
