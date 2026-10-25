@@ -21,7 +21,8 @@ interface Props {
 }
 
 const helpTitle = "Track events";
-const helpSubtitle = "Send custom events from the browser or from your backend.";
+const helpSubtitle =
+  "Send custom events from the browser or from your backend.";
 
 export default function Events({ environment, domain, ts }: Props) {
   const [selected, setSelected] = useState("");

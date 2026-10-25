@@ -6,38 +6,59 @@ import { describe, expect, it, vi, Mock } from "vitest";
 import mockApp from "~/testing/data/mock_app";
 import mockEnvironments from "~/testing/data/mock_environments";
 import mockVisitors from "~/testing/data/mock_analytics_visitors";
+import mockReport from "~/testing/data/mock_analytics_report";
 import mockDomain from "~/testing/data/mock_domain";
-import { mockFetchVisitors } from "~/testing/nocks/nock_analytics";
-import Visitors from "./Visitors";
+import {
+  mockFetchVisitors,
+  mockFetchAnalyticsReport,
+} from "~/testing/nocks/nock_analytics";
+import Visitors, { formatDuration } from "./Visitors";
 
 interface WrapperProps {
-  app?: App;
   ts?: TimeSpan;
 }
+
+// The day spans end yesterday in UTC, so they hold complete days only.
+const yesterdayUTC = () => {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() - 1);
+
+  return date.toISOString().slice(0, 10);
+};
 
 describe("~/pages/apps/[id]/environments/[env-id]/analytics/Visitors.tsx", () => {
   let wrapper: RenderResult;
   let scope: Scope;
-  let currentApp: App;
   let currentEnv: Environment;
-  let currentEnvs: Environment[];
   let onTimeSpanChange: Mock;
-  const data = mockVisitors();
 
-  const createWrapper = ({ app, ts = "24h" }: WrapperProps) => {
+  const reportQuery = (domain: Domain, ts: TimeSpan) => ({
+    envId: currentEnv.id!,
+    domainId: domain.id,
+    metric: "visitors",
+    span: ts,
+    to: yesterdayUTC(),
+    compare: "previous",
+  });
+
+  const createWrapper = ({ ts = "24h" }: WrapperProps) => {
     const domain = mockDomain();
-    currentApp = app || mockApp();
-    currentEnvs = mockEnvironments({ app: currentApp });
-    currentEnv = currentEnvs[0];
+    currentEnv = mockEnvironments({ app: mockApp() })[0];
     onTimeSpanChange = vi.fn();
 
-    scope = mockFetchVisitors({
-      unique: "false",
-      ts,
-      envId: currentEnv.id,
-      domainId: domain.id,
-      response: data,
-    });
+    scope =
+      ts === "24h"
+        ? mockFetchVisitors({
+            unique: "false",
+            ts,
+            envId: currentEnv.id,
+            domainId: domain.id,
+            response: mockVisitors(),
+          })
+        : mockFetchAnalyticsReport({
+            query: reportQuery(domain, ts),
+            response: mockReport(),
+          });
 
     wrapper = render(
       <Visitors
@@ -49,149 +70,161 @@ describe("~/pages/apps/[id]/environments/[env-id]/analytics/Visitors.tsx", () =>
     );
   };
 
-  it("should include correct texts", async () => {
+  describe("last 24 hours", () => {
+    it("charts the hourly page views and visitors", async () => {
+      createWrapper({});
+
+      await waitFor(() => {
+        expect(scope.isDone()).toBe(true);
+        expect(wrapper.getByTestId("area-chart").innerHTML).toEqual(
+          JSON.stringify([
+            { name: "2024-01-14", total: 20, unique: 10 },
+            { name: "2024-01-13", total: 50, unique: 25 },
+            { name: "2023-12-19", total: 46, unique: 19 },
+            { name: "2023-11-04", total: 32, unique: 22 },
+            { name: "2023-07-02", total: 12, unique: 12 },
+          ]),
+        );
+      });
+    });
+
+    it("sums the page views without a comparison", async () => {
+      createWrapper({});
+
+      await waitFor(() => {
+        expect(wrapper.getByText("160")).toBeTruthy();
+        expect(wrapper.getByText(/in the last 24 hours/)).toBeTruthy();
+        expect(wrapper.queryByText(/%/)).toBeNull();
+      });
+
+      // Hourly unique visitors do not add up to unique visitors, so the
+      // header does not total them.
+      expect(wrapper.queryByText(/visitors in the last/)).toBeNull();
+      expect(
+        wrapper.getByText(/a person active in two hours counts twice/),
+      ).toBeTruthy();
+    });
+  });
+
+  describe("daily spans", () => {
+    it("charts the report's series", async () => {
+      createWrapper({ ts: "7d" });
+
+      await waitFor(() => {
+        expect(scope.isDone()).toBe(true);
+        expect(wrapper.getByTestId("area-chart").innerHTML).toEqual(
+          JSON.stringify([
+            { name: "2024-01-12", total: 300, unique: 100 },
+            { name: "2024-01-13", total: 500, unique: 150 },
+            { name: "2024-01-14", total: 400, unique: 150 },
+          ]),
+        );
+      });
+    });
+
+    it("shows the totals with their change against the previous period", async () => {
+      createWrapper({ ts: "7d" });
+
+      await waitFor(() => {
+        expect(wrapper.getByText("1,200")).toBeTruthy();
+        expect(wrapper.getByText("+20%")).toBeTruthy();
+        expect(wrapper.getByText("400")).toBeTruthy();
+        expect(wrapper.getByText("-20%")).toBeTruthy();
+        expect(wrapper.getByText("1m 35s")).toBeTruthy();
+        expect(wrapper.getByText("+0%")).toBeTruthy();
+        expect(wrapper.getByText(/in the last 7 days/)).toBeTruthy();
+      });
+    });
+
+    it.each<[TimeSpan, string]>([
+      ["30d", "30 days"],
+      ["90d", "90 days"],
+      ["365d", "year"],
+    ])("reads the %s report", async (ts, text) => {
+      createWrapper({ ts });
+
+      await waitFor(() => {
+        expect(scope.isDone()).toBe(true);
+        expect(
+          wrapper.getByText(new RegExp(`in the last ${text}`)),
+        ).toBeTruthy();
+      });
+    });
+  });
+
+  it.each<[string, TimeSpan]>([
+    ["7 Days", "7d"],
+    ["90 Days", "90d"],
+    ["1 Year", "365d"],
+  ])("emits %s when its span is picked", async (label, ts) => {
     createWrapper({});
 
-    expect(
-      wrapper.getByText("Bots are excluded from these statistics"),
-    ).toBeTruthy();
-
-    await waitFor(() => {
-      expect(scope.isDone()).toBe(true);
-      expect(wrapper.getByText("Visitors")).toBeTruthy();
-      expect(wrapper.getAllByText(/Total/).at(0)).toBeTruthy();
-      expect(wrapper.getByText("160")).toBeTruthy();
-      expect(wrapper.getByText(/visits in the last/)).toBeTruthy();
-      expect(wrapper.getByText("24 hours")).toBeTruthy();
-    });
-  });
-
-  it("should fetch visitors from the api", async () => {
-    createWrapper({});
-
-    await waitFor(() => {
-      expect(scope.isDone()).toBe(true);
-      expect(wrapper.getByTestId("area-chart").innerHTML).toEqual(
-        JSON.stringify([
-          { name: "2024-01-14", total: 20, unique: 10 },
-          { name: "2024-01-13", total: 50, unique: 25 },
-          { name: "2023-12-19", total: 46, unique: 19 },
-          { name: "2023-11-04", total: 32, unique: 22 },
-          { name: "2023-07-02", total: 12, unique: 12 },
-        ]),
-      );
-    });
-  });
-
-  it("should emit event when time span changes", async () => {
-    createWrapper({});
-
     await waitFor(() => {
       expect(scope.isDone()).toBe(true);
     });
 
-    fireEvent.click(wrapper.getByText("7 Days"));
+    fireEvent.click(wrapper.getByText(label));
 
     await waitFor(() => {
-      expect(onTimeSpanChange).toHaveBeenCalledWith("7d");
+      expect(onTimeSpanChange).toHaveBeenCalledWith(ts);
     });
   });
 
-  it("should fetch with specified time span", async () => {
-    // Local noon so the calendar date is the same in every timezone.
-    vi.useFakeTimers({
-      now: new Date(2024, 0, 14, 12, 0, 0).getTime(),
-      toFake: ["Date"],
-    });
-
-    createWrapper({
-      ts: "7d",
-    });
-
-    await waitFor(() => {
-      expect(scope.isDone()).toBe(true);
-      expect(wrapper.getByText("Visitors")).toBeTruthy();
-      expect(wrapper.getAllByText(/Total/).at(0)).toBeTruthy();
-      // 2024-01-13 (50) only. Today (2024-01-14, 20) is excluded because the
-      // daily aggregation has not run for it yet.
-      expect(wrapper.getByText("50")).toBeTruthy();
-      expect(wrapper.getByText(/visits in the last/)).toBeTruthy();
-      expect(wrapper.getByText(/7 days/)).toBeTruthy();
-    });
-
-    vi.useRealTimers();
-  });
-
-  it("should end the 7d window at yesterday, not today", async () => {
-    vi.useFakeTimers({
-      now: new Date(2024, 0, 14, 12, 0, 0).getTime(),
-      toFake: ["Date"],
-    });
-
+  it("explains how daily visitors are counted", async () => {
     createWrapper({ ts: "7d" });
 
     await waitFor(() => {
       expect(scope.isDone()).toBe(true);
-      expect(wrapper.getByTestId("area-chart").innerHTML).toEqual(
-        JSON.stringify([
-          { name: "2024-01-07", total: 0, unique: 0 },
-          { name: "2024-01-08", total: 0, unique: 0 },
-          { name: "2024-01-09", total: 0, unique: 0 },
-          { name: "2024-01-10", total: 0, unique: 0 },
-          { name: "2024-01-11", total: 0, unique: 0 },
-          { name: "2024-01-12", total: 0, unique: 0 },
-          { name: "2024-01-13", total: 50, unique: 25 },
-        ]),
-      );
     });
 
-    vi.useRealTimers();
+    expect(
+      wrapper.getByText(/a person who visits on two days counts twice/),
+    ).toBeTruthy();
   });
 
-  it("should end the 30d window at yesterday, not today", async () => {
-    vi.useFakeTimers({
-      now: new Date(2024, 0, 14, 12, 0, 0).getTime(),
-      toFake: ["Date"],
+  // A slow response for an earlier span must not replace the current one.
+  it("ignores the response of a span that is no longer selected", async () => {
+    const domain = mockDomain();
+    currentEnv = mockEnvironments({ app: mockApp() })[0];
+
+    const slow = mockFetchAnalyticsReport({
+      query: reportQuery(domain, "365d"),
+      response: {
+        ...mockReport(),
+        series: [{ date: "2023-01-01", pageViews: 9, visitors: 9 }],
+      },
+      delay: 300,
     });
 
-    createWrapper({ ts: "30d" });
+    const fast = mockFetchAnalyticsReport({
+      query: reportQuery(domain, "30d"),
+      response: mockReport(),
+    });
+
+    const props = {
+      environment: currentEnv,
+      onTimeSpanChange: vi.fn(),
+      domain,
+    };
+    const view = render(<Visitors {...props} ts="365d" />);
+
+    view.rerender(<Visitors {...props} ts="30d" />);
 
     await waitFor(() => {
-      expect(scope.isDone()).toBe(true);
-      expect(wrapper.getByTestId("area-chart")).toBeTruthy();
+      expect(fast.isDone()).toBe(true);
+      expect(slow.isDone()).toBe(true);
     });
 
-    const series = JSON.parse(wrapper.getByTestId("area-chart").innerHTML);
+    await new Promise(r => setTimeout(r, 350));
 
-    expect(series).toHaveLength(30);
-    expect(series[0].name).toBe("2023-12-15");
-    expect(series[series.length - 1]).toEqual({
-      name: "2024-01-13",
-      total: 50,
-      unique: 25,
-    });
-    expect(series.find((s: { name: string }) => s.name === "2024-01-14")).toBe(
-      undefined,
+    expect(JSON.parse(view.getByTestId("area-chart").innerHTML)).toHaveLength(
+      3,
     );
-
-    vi.useRealTimers();
   });
 
-  it("should not drop today for the 24h span", async () => {
-    createWrapper({ ts: "24h" });
-
-    await waitFor(() => {
-      expect(scope.isDone()).toBe(true);
-      // 24h renders whatever keys the API returns, untouched.
-      expect(wrapper.getByTestId("area-chart").innerHTML).toEqual(
-        JSON.stringify([
-          { name: "2024-01-14", total: 20, unique: 10 },
-          { name: "2024-01-13", total: 50, unique: 25 },
-          { name: "2023-12-19", total: 46, unique: 19 },
-          { name: "2023-11-04", total: 32, unique: 22 },
-          { name: "2023-07-02", total: 12, unique: 12 },
-        ]),
-      );
-    });
+  it("formats durations", () => {
+    expect(formatDuration(45)).toBe("45s");
+    expect(formatDuration(95)).toBe("1m 35s");
+    expect(formatDuration(600)).toBe("10m 00s");
   });
 });

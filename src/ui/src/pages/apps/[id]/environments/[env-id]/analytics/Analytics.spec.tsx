@@ -64,8 +64,8 @@ describe("~/pages/apps/[id]/environments/[env-id]/analytics/Analytics.tsx", () =
       expect(wrapper.getByText("Analytics")).toBeTruthy();
       expect(
         wrapper.getByText(
-          "Monitor user analytics for the specified domain within this environment configuration."
-        )
+          "Monitor user analytics for the specified domain within this environment configuration.",
+        ),
       ).toBeTruthy();
     });
 
@@ -115,7 +115,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/analytics/Analytics.tsx", () =
     it("should display empty page", async () => {
       await waitFor(() => {
         expect(
-          wrapper.getByText("Analytics are collected only for custom domains.")
+          wrapper.getByText("Analytics are collected only for custom domains."),
         ).toBeTruthy();
       });
     });
@@ -123,7 +123,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/analytics/Analytics.tsx", () =
     it("should contain a link to environment's domain page", async () => {
       await waitFor(() => {
         expect(
-          wrapper.getByText("Setup a custom domain").getAttribute("href")
+          wrapper.getByText("Setup a custom domain").getAttribute("href"),
         ).toBe(`/apps/${currentApp.id}/environments/${currentEnv.id}#domains`);
       });
     });

@@ -1,12 +1,11 @@
+import type { AnalyticsReport, TimeSpan } from "./index.d";
 import { useEffect, useState } from "react";
 import api from "~/utils/api/Api";
 
-interface FetchUniqueVisitorsProps {
+interface FetchHourlyVisitorsProps {
   envId: string;
   domainId?: string;
   refreshToken?: number;
-  unique?: "true" | "false";
-  ts?: "24h" | "7d" | "30d";
 }
 
 interface VisitorsChartData {
@@ -15,23 +14,13 @@ interface VisitorsChartData {
   unique: number;
 }
 
-// toLocalDate formats a date as YYYY-MM-DD in the local timezone. The API keys
-// its buckets by the server's calendar date, so formatting in UTC (via
-// toISOString) would shift the whole series by a day for most timezones.
-const toLocalDate = (date: Date): string => {
-  const month = `${date.getMonth() + 1}`.padStart(2, "0");
-  const day = `${date.getDate()}`.padStart(2, "0");
-
-  return `${date.getFullYear()}-${month}-${day}`;
-};
-
+// useFetchVisitors reads the hourly page views and visitors of the last 24
+// hours. Longer spans use useFetchVisitorsReport.
 export const useFetchVisitors = ({
   envId,
   refreshToken,
   domainId,
-  unique = "false",
-  ts = "24h",
-}: FetchUniqueVisitorsProps) => {
+}: FetchHourlyVisitorsProps) => {
   const [visitors, setVisitors] = useState<VisitorsChartData[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -46,52 +35,101 @@ export const useFetchVisitors = ({
 
     api
       .fetch<Record<string, { total: number; unique: number }>>(
-        `/analytics/visitors?unique=${unique}&envId=${envId}&ts=${ts}&domainId=${domainId}`
+        `/analytics/visitors?unique=false&envId=${envId}&ts=24h&domainId=${domainId}`,
       )
       .then(data => {
-        const VisitorsChartData: VisitorsChartData[] = [];
-
-        if (ts === "24h") {
-          Object.keys(data).forEach(name => {
-            VisitorsChartData.push({
-              name,
-              total: data[name]?.total || 0,
-              unique: data[name]?.unique || 0,
-            });
-          });
-        } else {
-          // The daily aggregation job runs once a day, so today's bucket is
-          // never synced and the API omits it. Ending the window at yesterday
-          // keeps the chart from rendering a phantom zero for today. The API
-          // already returns span + 1 days, which fills the extra leading slot.
-          const span = Number(ts.replace("d", ""));
-          const date = new Date();
-          date.setDate(date.getDate() - span);
-
-          for (let i = 0; i < span; i++) {
-            const name = toLocalDate(date);
-
-            VisitorsChartData.push({
-              name,
-              total: data[name]?.total || 0,
-              unique: data[name]?.unique || 0,
-            });
-
-            date.setDate(date.getDate() + 1);
-          }
-        }
-
-        setVisitors(VisitorsChartData);
+        setVisitors(
+          Object.keys(data).map(name => ({
+            name,
+            total: data[name]?.total || 0,
+            unique: data[name]?.unique || 0,
+          })),
+        );
       })
-      .catch(e => {
+      .catch(() => {
         setError("Something went wrong while fetching unique visitors.");
       })
       .finally(() => {
         setLoading(false);
       });
-  }, [refreshToken, ts, unique, envId, domainId]);
+  }, [refreshToken, envId, domainId]);
 
   return { visitors, error, loading };
+};
+
+interface FetchVisitorsReportProps {
+  envId: string;
+  domainId?: string;
+  ts: Exclude<TimeSpan, "24h">;
+}
+
+// yesterdayUTC returns yesterday's date in UTC as YYYY-MM-DD, the last complete
+// day of the daily aggregates.
+const yesterdayUTC = (): string => {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() - 1);
+
+  return date.toISOString().slice(0, 10);
+};
+
+// useFetchVisitorsReport reads the daily visitors report for a span, with the
+// previous period of the same length for comparison. The span ends yesterday
+// (UTC) so it holds complete days only: a partly elapsed today compared with a
+// full previous day would read as a drop.
+export const useFetchVisitorsReport = ({
+  envId,
+  domainId,
+  ts,
+}: FetchVisitorsReportProps) => {
+  const [report, setReport] = useState<AnalyticsReport>();
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setError("");
+
+    if (!domainId) {
+      return;
+    }
+
+    // A slow response of a previous span must not replace this one's.
+    let current = true;
+
+    const params = new URLSearchParams({
+      envId,
+      domainId,
+      metric: "visitors",
+      span: ts,
+      to: yesterdayUTC(),
+      compare: "previous",
+    });
+
+    setLoading(true);
+
+    api
+      .fetch<AnalyticsReport>(`/v1/analytics?${params.toString()}`)
+      .then(data => {
+        if (current) {
+          setReport(data);
+        }
+      })
+      .catch(() => {
+        if (current) {
+          setError("Something went wrong while fetching visitors.");
+        }
+      })
+      .finally(() => {
+        if (current) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      current = false;
+    };
+  }, [envId, domainId, ts]);
+
+  return { report, error, loading };
 };
 
 interface FetchTopReferrerProps {
@@ -134,7 +172,7 @@ export const useFetchTopReferrers = ({
 
     api
       .fetch<Record<string, number>>(
-        `/analytics/referrers?envId=${envId}&domainId=${domainId}&requestPath=${requestPath}`
+        `/analytics/referrers?envId=${envId}&domainId=${domainId}&requestPath=${requestPath}`,
       )
       .then(data => {
         const refs: Referrer[] = Object.keys(data).map(ref => ({
@@ -143,7 +181,7 @@ export const useFetchTopReferrers = ({
         }));
 
         refs.sort((a, b) =>
-          a.count > b.count ? -1 : a.count === b.count ? 0 : 1
+          a.count > b.count ? -1 : a.count === b.count ? 0 : 1,
         );
 
         setReferrers(refs);
@@ -181,7 +219,7 @@ export const useFetchTopPaths = ({ envId, domainId }: FetchTopPathsProps) => {
 
     api
       .fetch<Record<string, number>>(
-        `/analytics/paths?envId=${envId}&domainId=${domainId}`
+        `/analytics/paths?envId=${envId}&domainId=${domainId}`,
       )
       .then(data => {
         const paths: TopPath[] = Object.keys(data).map(ref => ({
@@ -190,7 +228,7 @@ export const useFetchTopPaths = ({ envId, domainId }: FetchTopPathsProps) => {
         }));
 
         paths.sort((a, b) =>
-          a.count > b.count ? -1 : a.count === b.count ? 0 : 1
+          a.count > b.count ? -1 : a.count === b.count ? 0 : 1,
         );
 
         setPaths(paths);
@@ -209,7 +247,7 @@ export const useFetchTopPaths = ({ envId, domainId }: FetchTopPathsProps) => {
 interface FetchEventsProps {
   envId: string;
   domainId?: string;
-  ts?: "24h" | "7d" | "30d";
+  ts?: TimeSpan;
 }
 
 interface AnalyticsEvent {
@@ -237,7 +275,7 @@ export const useFetchEvents = ({
 
     api
       .fetch<AnalyticsEvent[]>(
-        `/analytics/events?envId=${envId}&domainId=${domainId}&ts=${ts}`
+        `/analytics/events?envId=${envId}&domainId=${domainId}&ts=${ts}`,
       )
       .then(data => {
         setEvents(Array.isArray(data) ? data : []);
@@ -257,7 +295,7 @@ interface FetchEventPropertiesProps {
   envId: string;
   domainId?: string;
   event: string;
-  ts?: "24h" | "7d" | "30d";
+  ts?: TimeSpan;
   skip?: boolean;
 }
 
@@ -283,8 +321,8 @@ export const useFetchEventProperties = ({
     api
       .fetch<string[]>(
         `/analytics/events/properties?envId=${envId}&domainId=${domainId}&event=${encodeURIComponent(
-          event
-        )}&ts=${ts}`
+          event,
+        )}&ts=${ts}`,
       )
       .then(data => {
         setProperties(Array.isArray(data) ? data : []);
@@ -305,7 +343,7 @@ interface FetchEventBreakdownProps {
   domainId?: string;
   event: string;
   property: string;
-  ts?: "24h" | "7d" | "30d";
+  ts?: TimeSpan;
   skip?: boolean;
 }
 
@@ -332,8 +370,8 @@ export const useFetchEventBreakdown = ({
     api
       .fetch<AnalyticsEvent[]>(
         `/analytics/events/breakdown?envId=${envId}&domainId=${domainId}&event=${encodeURIComponent(
-          event
-        )}&property=${encodeURIComponent(property)}&ts=${ts}`
+          event,
+        )}&property=${encodeURIComponent(property)}&ts=${ts}`,
       )
       .then(data => {
         setBreakdown(Array.isArray(data) ? data : []);
@@ -374,7 +412,7 @@ export const useFetchByCountries = ({
 
     api
       .fetch<Record<string, number>>(
-        `/analytics/countries?envId=${envId}&domainId=${domainId}`
+        `/analytics/countries?envId=${envId}&domainId=${domainId}`,
       )
       .then(data => {
         const countries: ByCountry[] = Object.keys(data).map(ref => ({
@@ -414,7 +452,7 @@ export const useFetchAnalyticsStatus = ({
 
     api
       .fetch<{ enabled: boolean }>(
-        `/snippets/analytics?appId=${appId}&envId=${envId}`
+        `/snippets/analytics?appId=${appId}&envId=${envId}`,
       )
       .then(data => {
         setEnabled(Boolean(data.enabled));

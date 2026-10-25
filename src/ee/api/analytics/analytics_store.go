@@ -469,6 +469,8 @@ func (s *Store) insertRecords(ctx context.Context, records []Record) error {
 const SPAN_24h = "24h"
 const SPAN_7D = "7d"
 const SPAN_30D = "30d"
+const SPAN_90D = "90d"
+const SPAN_365D = "365d"
 
 type VisitorsArgs struct {
 	Span       string

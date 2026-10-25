@@ -1,4 +1,4 @@
-import type { TimeSpan } from "./index.d";
+import type { AnalyticsTotals, TimeSpan } from "./index.d";
 import { useMemo, useState, useContext } from "react";
 import {
   YAxis,
@@ -12,12 +12,17 @@ import Box from "@mui/material/Box";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Typography from "@mui/material/Typography";
-import { grey, pink } from "@mui/material/colors";
+import { green, grey, pink, red } from "@mui/material/colors";
 import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
 import CardFooter from "~/components/CardFooter";
 import { RootContext } from "~/pages/Root.context";
-import { useFetchVisitors } from "./actions";
+import { useFetchVisitors, useFetchVisitorsReport } from "./actions";
+
+const seriesLabels: Record<string, string> = {
+  total: "page views",
+  unique: "visitors",
+};
 
 interface CustomTooltipProps {
   active?: boolean;
@@ -50,7 +55,7 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
         </Typography>
         {payload.map((p: any) => (
           <Typography key={p.name}>
-            {formatter.format(p.value)} {p.name} visitors
+            {formatter.format(p.value)} {seriesLabels[p.name] || p.name}
           </Typography>
         ))}
       </Box>
@@ -60,15 +65,97 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
   return null;
 }
 
-const timeSpan: Record<TimeSpan, string> = {
-  "24h": "24 hours",
-  "7d": "7 days",
-  "30d": "30 days",
-};
+const timeSpans: { value: TimeSpan; label: string; text: string }[] = [
+  { value: "24h", label: "24 hours", text: "24 hours" },
+  { value: "7d", label: "7 Days", text: "7 days" },
+  { value: "30d", label: "30 Days", text: "30 days" },
+  { value: "90d", label: "90 Days", text: "90 days" },
+  { value: "365d", label: "1 Year", text: "year" },
+];
 
 const formatter = new Intl.NumberFormat(undefined, {
   minimumFractionDigits: 0,
 });
+
+// formatDuration renders seconds as e.g. "45s" or "2m 05s".
+export function formatDuration(seconds: number): string {
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+
+  const minutes = Math.floor(seconds / 60);
+  const rest = `${seconds % 60}`.padStart(2, "0");
+
+  return `${minutes}m ${rest}s`;
+}
+
+// Change renders the change of a total against the previous period, or nothing
+// when there is nothing to compare with.
+function Change({
+  current,
+  previous,
+}: {
+  current?: number;
+  previous?: number;
+}) {
+  if (current === undefined || !previous) {
+    return null;
+  }
+
+  const change = Math.round(((current - previous) / previous) * 100);
+
+  return (
+    <Box
+      component="span"
+      sx={{ ml: 0.5, fontSize: 12, color: change >= 0 ? green[400] : red[300] }}
+    >
+      {change >= 0 ? "+" : ""}
+      {change}%
+    </Box>
+  );
+}
+
+interface SummaryProps {
+  totals: AnalyticsTotals;
+  previous?: AnalyticsTotals;
+  span: string;
+}
+
+function Summary({ totals, previous, span }: SummaryProps) {
+  return (
+    <>
+      <Box component="span" sx={{ color: pink[300] }}>
+        {formatter.format(totals.pageViews || 0)}
+      </Box>{" "}
+      page views
+      <Change current={totals.pageViews} previous={previous?.pageViews} />
+      {totals.visitors !== undefined && (
+        <>
+          {" · "}
+          <Box component="span" sx={{ color: pink[300] }}>
+            {formatter.format(totals.visitors)}
+          </Box>{" "}
+          visitors
+          <Change current={totals.visitors} previous={previous?.visitors} />
+        </>
+      )}
+      {totals.avgTimeOnPage !== undefined && (
+        <>
+          {" · "}
+          <Box component="span" sx={{ color: pink[300] }}>
+            {formatDuration(totals.avgTimeOnPage)}
+          </Box>{" "}
+          average time on page
+          <Change
+            current={totals.avgTimeOnPage}
+            previous={previous?.avgTimeOnPage}
+          />
+        </>
+      )}{" "}
+      in the last {span}
+    </>
+  );
+}
 
 interface Props {
   environment: Environment;
@@ -85,33 +172,62 @@ export default function Visitors({
 }: Props) {
   const { mode } = useContext(RootContext);
   const [display, setDisplay] = useState<"unique" | "total" | "all">("all");
-  const { visitors, error, loading } = useFetchVisitors({
+  const hourly = ts === "24h";
+
+  // The last 24 hours are charted per hour from the hourly aggregate; longer
+  // spans read the daily report, which also has the previous period.
+  const hours = useFetchVisitors({
     envId: environment.id!,
-    domainId: domain?.id,
-    ts,
+    domainId: hourly ? domain?.id : undefined,
   });
 
-  const isDark = mode === "dark";
+  const days = useFetchVisitorsReport({
+    envId: environment.id!,
+    domainId: hourly ? undefined : domain?.id,
+    ts: hourly ? "7d" : ts,
+  });
 
-  const totalVisitors = useMemo(() => {
-    return visitors.reduce((prev, curr) => {
-      return prev + (display === "unique" ? curr.unique : curr.total);
-    }, 0);
-  }, [visitors, display]);
+  const visitors = useMemo(() => {
+    if (hourly) {
+      return hours.visitors;
+    }
+
+    return (days.report?.series || []).map(day => ({
+      name: day.date,
+      total: day.pageViews,
+      unique: day.visitors || 0,
+    }));
+  }, [hourly, hours.visitors, days.report]);
+
+  const totals: AnalyticsTotals = useMemo(() => {
+    if (!hourly && days.report) {
+      return days.report.totals;
+    }
+
+    // Hourly unique visitors cannot be summed into a day's unique visitors,
+    // so the last 24 hours only total their page views.
+    return {
+      pageViews: visitors.reduce((sum, v) => sum + v.total, 0),
+    } as AnalyticsTotals;
+  }, [hourly, days.report, visitors]);
+
+  const isDark = mode === "dark";
+  const largest = Math.max(totals.pageViews || 0, totals.visitors || 0);
+  const span = timeSpans.find(t => t.value === ts)?.text || ts;
 
   return (
-    <Card error={error} loading={loading}>
+    <Card
+      error={hourly ? hours.error : days.error}
+      loading={hourly ? hours.loading : days.loading}
+    >
       <CardHeader
         title="Visitors"
         subtitle={
-          <>
-            {display !== "unique" ? "Total " : ""}
-            <Box component="span" sx={{ color: pink[300] }}>
-              {formatter.format(totalVisitors)}
-            </Box>{" "}
-            {display === "unique" ? "unique" : ""} visits in the last{" "}
-            {timeSpan[ts]}
-          </>
+          <Summary
+            totals={totals}
+            previous={hourly ? undefined : days.report?.previous?.totals}
+            span={span}
+          />
         }
         actions={
           <ToggleButtonGroup
@@ -125,42 +241,21 @@ export default function Visitors({
             }}
             aria-label="display mode"
           >
-            <ToggleButton
-              value="24h"
-              aria-label="24 hours"
-              size="small"
-              sx={{
-                fontSize: 12,
-                textTransform: "capitalize",
-                color: "text.primary",
-              }}
-            >
-              24 hours
-            </ToggleButton>
-            <ToggleButton
-              value="7d"
-              aria-label="7 days"
-              size="small"
-              sx={{
-                fontSize: 12,
-                textTransform: "capitalize",
-                color: "text.primary",
-              }}
-            >
-              7 Days
-            </ToggleButton>
-            <ToggleButton
-              value="30d"
-              aria-label="30 days"
-              size="small"
-              sx={{
-                fontSize: 12,
-                textTransform: "capitalize",
-                color: "text.primary",
-              }}
-            >
-              30 Days
-            </ToggleButton>
+            {timeSpans.map(t => (
+              <ToggleButton
+                key={t.value}
+                value={t.value}
+                aria-label={t.text}
+                size="small"
+                sx={{
+                  fontSize: 12,
+                  textTransform: "capitalize",
+                  color: "text.primary",
+                }}
+              >
+                {t.label}
+              </ToggleButton>
+            ))}
           </ToggleButtonGroup>
         }
       />
@@ -172,8 +267,7 @@ export default function Visitors({
             margin={{
               top: 10,
               right: 5,
-              left:
-                totalVisitors > 1000 ? -15 : totalVisitors > 100 ? -25 : -28,
+              left: largest > 1000 ? -15 : largest > 100 ? -25 : -28,
               bottom: 10,
             }}
           >
@@ -219,7 +313,7 @@ export default function Visitors({
               setDisplay(display === "total" ? "all" : "total");
             }}
           >
-            Total visitors
+            Page views
           </Typography>
           <Typography
             sx={{ color: "#7a3782", cursor: "pointer" }}
@@ -227,13 +321,16 @@ export default function Visitors({
               setDisplay(display === "unique" ? "all" : "unique");
             }}
           >
-            Unique visitors
+            Visitors
           </Typography>
         </Box>
       </Box>
       <CardFooter sx={{ textAlign: "left" }}>
         <Typography sx={{ fontSize: 12 }}>
-          Bots are excluded from these statistics
+          Bots are excluded from these statistics.{" "}
+          {hourly
+            ? "Visitors are counted per hour, so a person active in two hours counts twice."
+            : "Visitors are counted per day, so a person who visits on two days counts twice. Days end at midnight UTC; today is in the 24 hours view."}
         </Typography>
       </CardFooter>
     </Card>

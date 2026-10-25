@@ -72,10 +72,18 @@ export default function EventBreakdown({
         </Alert>
       ) : (
         <>
+          {ts === "365d" && (
+            <Alert color="info" sx={{ mx: 2, mt: 2 }}>
+              Breakdowns are computed from raw events, which are kept for 180
+              days by default, so they can cover less than the event total.
+            </Alert>
+          )}
           <Box
             sx={{ px: 2, py: 1, display: "flex", alignItems: "center", gap: 1 }}
           >
-            <Typography sx={{ fontSize: 14, opacity: 0.6 }}>Group by</Typography>
+            <Typography sx={{ fontSize: 14, opacity: 0.6 }}>
+              Group by
+            </Typography>
             <Select
               size="small"
               value={property}

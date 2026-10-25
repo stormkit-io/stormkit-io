@@ -3,7 +3,7 @@ import nock from "nock";
 const endpoint = process.env.API_DOMAIN || "";
 
 interface MockFetchVisitorsProps {
-  ts?: "24h" | "7d" | "30d";
+  ts?: string;
   unique?: "true" | "false";
   envId?: string;
   domainId: string;
@@ -21,13 +21,36 @@ export const mockFetchVisitors = ({
 }: MockFetchVisitorsProps) => {
   return nock(endpoint)
     .get(
-      `/analytics/visitors?unique=${unique}&envId=${envId}&ts=${ts}&domainId=${domainId}`
+      `/analytics/visitors?unique=${unique}&envId=${envId}&ts=${ts}&domainId=${domainId}`,
     )
     .reply(status, response);
 };
 
+interface MockFetchAnalyticsReportProps {
+  query: Record<string, string>;
+  status?: number;
+  response?: unknown;
+  // delay holds the response back, in milliseconds.
+  delay?: number;
+}
+
+// mockFetchAnalyticsReport mocks GET /v1/analytics with exactly these query
+// parameters.
+export const mockFetchAnalyticsReport = ({
+  query,
+  status = 200,
+  response,
+  delay = 0,
+}: MockFetchAnalyticsReportProps) => {
+  return nock(endpoint)
+    .get("/v1/analytics")
+    .query(query)
+    .delay(delay)
+    .reply(status, response);
+};
+
 interface MockFetchEventsProps {
-  ts?: "24h" | "7d" | "30d";
+  ts?: string;
   envId?: string;
   domainId: string;
   status?: number;
@@ -47,7 +70,7 @@ export const mockFetchEvents = ({
 };
 
 interface MockFetchEventPropertiesProps {
-  ts?: "24h" | "7d" | "30d";
+  ts?: string;
   envId?: string;
   domainId: string;
   event: string;
@@ -65,13 +88,13 @@ export const mockFetchEventProperties = ({
 }: MockFetchEventPropertiesProps) => {
   return nock(endpoint)
     .get(
-      `/analytics/events/properties?envId=${envId}&domainId=${domainId}&event=${event}&ts=${ts}`
+      `/analytics/events/properties?envId=${envId}&domainId=${domainId}&event=${event}&ts=${ts}`,
     )
     .reply(status, response);
 };
 
 interface MockFetchEventBreakdownProps {
-  ts?: "24h" | "7d" | "30d";
+  ts?: string;
   envId?: string;
   domainId: string;
   event: string;
@@ -91,7 +114,7 @@ export const mockFetchEventBreakdown = ({
 }: MockFetchEventBreakdownProps) => {
   return nock(endpoint)
     .get(
-      `/analytics/events/breakdown?envId=${envId}&domainId=${domainId}&event=${event}&property=${property}&ts=${ts}`
+      `/analytics/events/breakdown?envId=${envId}&domainId=${domainId}&event=${event}&property=${property}&ts=${ts}`,
     )
     .reply(status, response);
 };

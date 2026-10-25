@@ -53,7 +53,7 @@ export default function AnalyticsToggle({ appId, envId }: Props) {
               })
               .catch(() => {
                 setError(
-                  "Something went wrong while updating client-side tracking. Please try again."
+                  "Something went wrong while updating client-side tracking. Please try again.",
                 );
               })
               .finally(() => {

@@ -67,9 +67,11 @@ type EventCount struct {
 // spanDays maps an analytics span to a number of days, defaulting to 30.
 func spanDays(span string) int {
 	days := map[string]int{
-		SPAN_24h: 1,
-		SPAN_7D:  7,
-		SPAN_30D: 30,
+		SPAN_24h:  1,
+		SPAN_7D:   7,
+		SPAN_30D:  30,
+		SPAN_90D:  90,
+		SPAN_365D: 365,
 	}[span]
 
 	if days == 0 {
