@@ -126,19 +126,17 @@ func (l *Node) Stop(ctx context.Context) {
 		l.electID.Stop()
 	}
 
-	l.isLeader(ctx, func(isLeader bool) {
-		if isLeader {
-			_, err := l.do(ctx, "DEL", l.key)
+	if l.leadership(ctx) == leadershipHeld {
+		_, err := l.do(ctx, "DEL", l.key)
 
-			if err != nil {
-				slog.Errorf("error while revoking key: %s", err.Error())
-			}
-
-			if l.onRenounce != nil {
-				l.onRenounce(l)
-			}
+		if err != nil {
+			slog.Errorf("error while revoking key: %s", err.Error())
 		}
-	})
+
+		if l.onRenounce != nil {
+			l.onRenounce(l)
+		}
+	}
 }
 
 func (l *Node) elect(ctx context.Context) {
@@ -162,11 +160,13 @@ func (l *Node) elect(ctx context.Context) {
 			}
 
 			if reply == "OK" {
+				ticker := time.NewTicker(l.options.TTL / 2)
+
 				l.renewMu.Lock()
-				l.renewID = time.NewTicker(l.options.TTL / 2)
+				l.renewID = ticker
 				l.renewMu.Unlock()
 
-				go l.renew(ctx)
+				go l.renew(ctx, ticker)
 
 				if l.onLeader != nil {
 					l.onLeader(l)
@@ -180,39 +180,69 @@ func (l *Node) elect(ctx context.Context) {
 	}
 }
 
-func (l *Node) renew(ctx context.Context) {
+// renew keeps the leader key alive on every tick. It returns once the
+// leadership is lost, after renouncing it and scheduling a new election.
+func (l *Node) renew(ctx context.Context, ticker *time.Ticker) {
 	for {
 		select {
 		case <-l.stopChan:
 			return
-		case <-l.renewID.C:
-			l.isLeader(ctx, func(isLeader bool) {
-				if isLeader {
-					_, err := l.do(ctx, "PEXPIRE", l.key, int(l.options.TTL/time.Millisecond))
-					if err != nil {
-						slog.Errorf("failed to renew leader key: %v", err)
-					}
-				} else {
-					l.renewMu.Lock()
-					l.renewID.Stop()
-					l.renewMu.Unlock()
+		case <-ticker.C:
+			switch l.leadership(ctx) {
+			case leadershipHeld:
+				_, err := l.do(ctx, "PEXPIRE", l.key, int(l.options.TTL/time.Millisecond))
 
-					time.AfterFunc(l.options.Wait, func() { l.elect(ctx) })
-					return
+				if err != nil {
+					slog.Errorf("failed to renew leader key: %v", err)
 				}
-			})
+
+			case leadershipUnknown:
+				// A failed read says nothing about who holds the key, so keep
+				// leading and check again on the next tick. If the outage outlasts
+				// the TTL, the key expires and the next successful read reports
+				// the loss.
+
+			case leadershipLost:
+				l.renewMu.Lock()
+				ticker.Stop()
+				l.renewMu.Unlock()
+
+				if l.onRenounce != nil {
+					l.onRenounce(l)
+				}
+
+				time.AfterFunc(l.options.Wait, func() { l.elect(ctx) })
+				return
+			}
 		}
 	}
 }
 
-func (l *Node) isLeader(ctx context.Context, callback func(bool)) {
+type leadershipState int
+
+const (
+	leadershipHeld leadershipState = iota
+	leadershipLost
+	leadershipUnknown
+)
+
+// leadership reports whether this node holds the leader key. A Redis error
+// other than a missing key yields leadershipUnknown.
+func (l *Node) leadership(ctx context.Context) leadershipState {
 	reply, err := l.do(ctx, "GET", l.key)
 
-	if err != nil && err != redis.Nil {
-		slog.Errorf("failed to get leader key: %v", err)
-		callback(false)
-		return
+	if errors.Is(err, redis.Nil) {
+		return leadershipLost
 	}
 
-	callback(reply == l.id)
+	if err != nil {
+		slog.Errorf("failed to get leader key: %v", err)
+		return leadershipUnknown
+	}
+
+	if reply == l.id {
+		return leadershipHeld
+	}
+
+	return leadershipLost
 }

@@ -65,10 +65,14 @@ func (s *Scheduler) RegisterReplicaTasks(ctx context.Context) {
 	s.replicaTasks = s.registerTasks(ctx, tasks)
 }
 
-// RegisterMaster registers tasks that should be executed only by one node.
+// RegisterMasterTasks registers tasks that should be executed only by one
+// node. Any master tasks registered earlier are removed first, so calling it
+// again never runs a task twice.
 func (s *Scheduler) RegisterMasterTasks(ctx context.Context) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
+
+	s.removeMasterTasks()
 
 	immediate := []gocron.JobOption{
 		gocron.JobOption(gocron.WithStartImmediately()),
@@ -97,11 +101,16 @@ func (s *Scheduler) RegisterMasterTasks(ctx context.Context) {
 	s.masterTasks = s.registerTasks(ctx, tasks)
 }
 
-// StopMasterTasks stops tasks that should be executed the the leader node.
+// StopMasterTasks stops tasks that should be executed by the leader node.
 func (s *Scheduler) StopMasterTasks() {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
+	s.removeMasterTasks()
+}
+
+// removeMasterTasks expects the caller to hold s.mux.
+func (s *Scheduler) removeMasterTasks() {
 	for _, task := range s.masterTasks {
 		s.scheduler.RemoveJob(task.ID())
 	}
@@ -113,7 +122,10 @@ func (s *Scheduler) registerTasks(ctx context.Context, tasks []TaskDefinition) [
 	registeredTasks := []gocron.Job{}
 
 	for _, task := range tasks {
-		job, err := s.scheduler.NewJob(task.Def, gocron.NewTask(task.Handler, ctx), task.Opt...)
+		// A run that outlasts its interval (e.g. a large analytics rollup)
+		// skips the overlapping tick instead of running concurrently.
+		opts := append([]gocron.JobOption{gocron.WithSingletonMode(gocron.LimitModeReschedule)}, task.Opt...)
+		job, err := s.scheduler.NewJob(task.Def, gocron.NewTask(task.Handler, ctx), opts...)
 
 		if err != nil {
 			slog.Errorf("error while registering job: %s", err.Error())
