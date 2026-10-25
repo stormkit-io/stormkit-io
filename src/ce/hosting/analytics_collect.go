@@ -8,10 +8,12 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	jobs "github.com/stormkit-io/stormkit-io/src/ce/workerserver"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/analytics"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp/limiter"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
@@ -75,6 +77,18 @@ type collectEngagement struct {
 // maxViewIDLength bounds the client-chosen page view id.
 const maxViewIDLength = 64
 
+// maxEventNameLength bounds a custom event name, in runes. Longer names are
+// truncated, like campaign values.
+const maxEventNameLength = 200
+
+// maxBeaconPathLength bounds a path the script reports, in bytes. Real paths
+// are far shorter, so an item with a longer one is dropped.
+const maxBeaconPathLength = 2048
+
+// maxMetadataLength bounds the raw metadata of one custom event, in bytes.
+// Larger metadata is dropped while the event itself is kept.
+const maxMetadataLength = 4 * 1024
+
 type collectPayload struct {
 	Events      []collectEvent      `json:"events"`
 	Pageviews   []collectPageview   `json:"pageviews"`
@@ -129,6 +143,13 @@ func handleCollect(req *RequestContext) (res *shttp.Response) {
 	}
 
 	cfg := req.Host.Config
+
+	// Analytics are read per domain, so rows for a host without one (a
+	// deployment preview or the env's default URL) could never be shown.
+	if cfg.DomainID == 0 && !config.IsDevelopment() {
+		return &shttp.Response{Status: http.StatusNoContent}
+	}
+
 	visitorID := analytics.VisitorID(analytics.VisitorIDParams{
 		IP:        req.RemoteIP(),
 		UserAgent: userAgent,
@@ -137,7 +158,7 @@ func handleCollect(req *RequestContext) (res *shttp.Response) {
 	events := make([]analytics.Event, 0, len(payload.Events))
 
 	for _, e := range payload.Events {
-		if e.Name == "" {
+		if e.Name == "" || len(e.Path) > maxBeaconPathLength {
 			continue
 		}
 
@@ -148,7 +169,7 @@ func handleCollect(req *RequestContext) (res *shttp.Response) {
 			EnvID:       cfg.EnvID,
 			DomainID:    cfg.DomainID,
 			VisitorID:   null.StringFrom(visitorID),
-			EventName:   stripNullChars(e.Name),
+			EventName:   eventName(e.Name),
 			RequestPath: null.NewString(path, path != ""),
 			// The request id is only present when Stormkit injects the
 			// client-side script; server-side events leave it null.
@@ -174,7 +195,7 @@ func handleCollect(req *RequestContext) (res *shttp.Response) {
 	for _, pv := range payload.Pageviews {
 		path := beaconPath(pv.Path)
 
-		if path == "" {
+		if path == "" || len(pv.Path) > maxBeaconPathLength {
 			continue
 		}
 
@@ -205,19 +226,32 @@ func handleCollect(req *RequestContext) (res *shttp.Response) {
 
 	engagements := make([]analytics.Engagement, 0, len(payload.Engagements))
 
+	// One page view's reports in a beacon are merged, so repeating a view id
+	// cannot multiply the per-report cap.
+	byViewID := map[string]int{}
+
 	for _, e := range payload.Engagements {
 		path := beaconPath(e.Path)
 		viewID := stripNullChars(e.ViewID)
 
-		if path == "" || viewID == "" || len(viewID) > maxViewIDLength || e.Seconds <= 0 {
+		if path == "" || len(e.Path) > maxBeaconPathLength || viewID == "" || len(viewID) > maxViewIDLength || e.Seconds <= 0 {
 			continue
 		}
+
+		seconds := min(e.Seconds, analytics.MaxEngagementSeconds)
+
+		if i, ok := byViewID[viewID]; ok {
+			engagements[i].Seconds = min(engagements[i].Seconds+seconds, analytics.MaxEngagementSeconds)
+			continue
+		}
+
+		byViewID[viewID] = len(engagements)
 
 		engagements = append(engagements, analytics.Engagement{
 			DomainID:    cfg.DomainID,
 			RequestPath: path,
 			ViewID:      viewID,
-			Seconds:     min(e.Seconds, analytics.MaxEngagementSeconds),
+			Seconds:     seconds,
 			EngagedTS:   utils.NewUnix(),
 		})
 	}
@@ -320,6 +354,18 @@ func stripNullChars(s string) string {
 	return strings.ReplaceAll(s, "\x00", "")
 }
 
+// eventName returns a custom event name without NUL bytes and capped at
+// maxEventNameLength runes.
+func eventName(name string) string {
+	name = stripNullChars(name)
+
+	if utf8.RuneCountInString(name) > maxEventNameLength {
+		name = string([]rune(name)[:maxEventNameLength])
+	}
+
+	return name
+}
+
 // sanitizeRequestID keeps the client-supplied request id only when it is a valid
 // UUID, returning an invalid (NULL) value otherwise. The column is typed uuid, so
 // a malformed value would abort the batch insert for every tenant in it.
@@ -335,18 +381,35 @@ func sanitizeRequestID(id string) null.String {
 	return null.StringFrom(id)
 }
 
-// sanitizeMetadata drops client metadata that Postgres jsonb cannot store. The
-// value is already well-formed JSON (it parsed as part of the payload), but jsonb
-// rejects a NUL escape or a raw NUL byte, either of which would abort the shared
-// batch insert; drop the bad value rather than fail.
+// sanitizeMetadata drops client metadata that Postgres jsonb cannot store, since
+// a single bad value would abort the shared batch insert. The value is decoded
+// and re-encoded first: Go's encoder replaces lone UTF-16 surrogate escapes
+// (e.g. \ud800), which jsonb rejects, with U+FFFD. A NUL escape survives the
+// round trip and is still valid JSON, so it is checked afterwards. Metadata
+// over maxMetadataLength is dropped too.
 func sanitizeMetadata(raw json.RawMessage) null.String {
-	if len(raw) == 0 {
+	if len(raw) == 0 || len(raw) > maxMetadataLength {
 		return null.String{}
 	}
 
-	if bytes.IndexByte(raw, 0) != -1 || bytes.Contains(bytes.ToLower(raw), jsonNullEscape) {
+	var value any
+
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+
+	if err := decoder.Decode(&value); err != nil {
 		return null.String{}
 	}
 
-	return null.StringFrom(string(raw))
+	canonical, err := json.Marshal(value)
+
+	if err != nil {
+		return null.String{}
+	}
+
+	if bytes.IndexByte(canonical, 0) != -1 || bytes.Contains(bytes.ToLower(canonical), jsonNullEscape) {
+		return null.String{}
+	}
+
+	return null.StringFrom(string(canonical))
 }

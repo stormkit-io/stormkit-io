@@ -13,6 +13,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
 	jobs "github.com/stormkit-io/stormkit-io/src/ce/workerserver"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/analytics"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/pool"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
@@ -306,6 +307,108 @@ func (s *CollectHandlerSuite) Test_Engagements_Queued() {
 	s.Equal(42, records[0].Engagements[0].Seconds)
 	s.Equal(analytics.MaxEngagementSeconds, records[0].Engagements[1].Seconds)
 	s.Equal(types.ID(3), records[0].Engagements[0].DomainID)
+}
+
+// Test_Engagements_MergedPerView verifies that repeating a view id in one
+// beacon cannot stack the per-report cap.
+func (s *CollectHandlerSuite) Test_Engagements_MergedPerView() {
+	var b strings.Builder
+	b.WriteString(`{"engagements":[`)
+
+	for i := 0; i < maxEventsPerBeacon; i++ {
+		if i > 0 {
+			b.WriteString(",")
+		}
+
+		b.WriteString(`{"path":"/blog","viewId":"v1","seconds":1800}`)
+	}
+
+	b.WriteString(`,{"path":"/blog","viewId":"v2","seconds":10}]}`)
+
+	res := handleCollect(s.request(http.MethodPost, "203.0.113.51", collectTestUA, b.String()))
+
+	s.Equal(http.StatusNoContent, res.Status)
+
+	records := s.waitForRecords(1)
+	s.Require().Len(records, 1)
+	s.Require().Len(records[0].Engagements, 1, "v2 is past the per-beacon item cap")
+	s.Equal("v1", records[0].Engagements[0].ViewID)
+	s.Equal(analytics.MaxEngagementSeconds, records[0].Engagements[0].Seconds)
+}
+
+func (s *CollectHandlerSuite) Test_Engagements_SumsReportsOfOneView() {
+	body := `{"engagements":[
+		{"path":"/blog","viewId":"v1","seconds":10},
+		{"path":"/blog","viewId":"v2","seconds":7},
+		{"path":"/blog","viewId":"v1","seconds":15}
+	]}`
+
+	res := handleCollect(s.request(http.MethodPost, "203.0.113.52", collectTestUA, body))
+
+	s.Equal(http.StatusNoContent, res.Status)
+
+	records := s.waitForRecords(1)
+	s.Require().Len(records, 1)
+	s.Require().Len(records[0].Engagements, 2)
+	s.Equal(25, records[0].Engagements[0].Seconds)
+	s.Equal(7, records[0].Engagements[1].Seconds)
+}
+
+// Test_LongPaths_Dropped verifies that items with an absurdly long path are
+// dropped instead of being stored.
+func (s *CollectHandlerSuite) Test_LongPaths_Dropped() {
+	long := "/" + strings.Repeat("a", maxBeaconPathLength)
+	body := `{
+		"pageviews":[{"path":"` + long + `"},{"path":"/ok"}],
+		"events":[{"name":"x","path":"` + long + `"}],
+		"engagements":[{"path":"` + long + `","viewId":"v1","seconds":3}]
+	}`
+
+	res := handleCollect(s.request(http.MethodPost, "203.0.113.61", collectTestUA, body))
+
+	s.Equal(http.StatusNoContent, res.Status)
+
+	records := s.waitForRecords(2)
+	s.Require().Len(records, 1)
+	s.Require().NotNil(records[0].Analytics)
+	s.Equal("/ok", records[0].Analytics.RequestPath)
+}
+
+// Test_Events_Sanitized verifies that a long name is truncated and that poison
+// or oversized metadata is dropped while the event is kept.
+func (s *CollectHandlerSuite) Test_Events_Sanitized() {
+	body := `{"events":[
+		{"name":"` + strings.Repeat("n", maxEventNameLength+10) + `"},
+		{"name":"surrogate","metadata":{"a":"\ud800"}},
+		{"name":"big","metadata":{"a":"` + strings.Repeat("x", maxMetadataLength) + `"}}
+	]}`
+
+	res := handleCollect(s.request(http.MethodPost, "203.0.113.62", collectTestUA, body))
+
+	s.Equal(http.StatusNoContent, res.Status)
+
+	records := s.waitForRecords(1)
+	s.Require().Len(records, 1)
+	s.Require().Len(records[0].Events, 3)
+
+	s.Equal(strings.Repeat("n", maxEventNameLength), records[0].Events[0].EventName)
+	s.JSONEq(`{"a":"\ufffd"}`, records[0].Events[1].Metadata.ValueOrZero())
+	s.False(records[0].Events[2].Metadata.Valid)
+}
+
+// Test_NoDomain_Dropped verifies that beacons from a host without a domain are
+// not queued, since analytics are only ever read per domain.
+func (s *CollectHandlerSuite) Test_NoDomain_Dropped() {
+	config.SetIsSelfHosted(true)
+	defer config.SetIsSelfHosted(false)
+
+	s.host.Config.DomainID = 0
+
+	body := `{"events":[{"name":"purchase"}],"pageviews":[{"path":"/pricing"}]}`
+	res := handleCollect(s.request(http.MethodPost, "203.0.113.63", collectTestUA, body))
+
+	s.Equal(http.StatusNoContent, res.Status)
+	s.Empty(s.waitForRecords(1))
 }
 
 // Test_PathsDecoded verifies that beacon paths are decoded like the server

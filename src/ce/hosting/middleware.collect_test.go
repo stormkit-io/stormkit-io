@@ -2,6 +2,7 @@ package hosting
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
@@ -43,6 +44,34 @@ func (s *CollectSanitizeSuite) Test_sanitizeMetadata() {
 	// A raw NUL byte cannot be stored in jsonb either.
 	rawNull := json.RawMessage([]byte{'"', 'a', 0, 'b', '"'})
 	s.False(sanitizeMetadata(rawNull).Valid)
+}
+
+// Test_sanitizeMetadata_LoneSurrogate verifies that a lone UTF-16 surrogate
+// escape, which Postgres jsonb rejects, is replaced rather than stored as sent.
+func (s *CollectSanitizeSuite) Test_sanitizeMetadata_LoneSurrogate() {
+	got := sanitizeMetadata(json.RawMessage(`{"a":"x\ud800y"}`))
+
+	s.Require().True(got.Valid)
+	s.NotContains(got.String, `\ud800`)
+	s.JSONEq(`{"a":"x\ufffdy"}`, got.String)
+}
+
+func (s *CollectSanitizeSuite) Test_sanitizeMetadata_KeepsLargeNumbers() {
+	got := sanitizeMetadata(json.RawMessage(`{"id":12345678901234567890}`))
+
+	s.Require().True(got.Valid)
+	s.Equal(`{"id":12345678901234567890}`, got.String)
+}
+
+func (s *CollectSanitizeSuite) Test_sanitizeMetadata_TooLarge() {
+	big := json.RawMessage(`{"a":"` + strings.Repeat("x", maxMetadataLength) + `"}`)
+
+	s.False(sanitizeMetadata(big).Valid)
+}
+
+func (s *CollectSanitizeSuite) Test_eventName() {
+	s.Equal("signup", eventName("sign\x00up"))
+	s.Equal(strings.Repeat("é", maxEventNameLength), eventName(strings.Repeat("é", maxEventNameLength+50)))
 }
 
 func TestCollectSanitizeSuite(t *testing.T) {

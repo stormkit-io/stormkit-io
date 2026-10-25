@@ -25,8 +25,9 @@ var insertEventsTemplate = template.Must(template.New("insertEvents").
 	Funcs(template.FuncMap{"generateValues": utils.GenerateValues}).
 	Parse(stmt.insertEvents))
 
-// InsertEvents batch-inserts custom events. Unset domain_id/visitor_id/
-// request_id/metadata are stored as NULL so they do not pollute aggregates.
+// InsertEvents batch-inserts custom events. Unset visitor_id/request_id/
+// metadata are stored as NULL; domain_id is stored as given, so a zero domain
+// id is written as 0 and never matches a domain's reports.
 func (s *Store) InsertEvents(ctx context.Context, events []Event) error {
 	for start := 0; start < len(events); start += eventInsertChunkSize {
 		if err := s.insertEvents(ctx, events[start:min(start+eventInsertChunkSize, len(events))]); err != nil {
