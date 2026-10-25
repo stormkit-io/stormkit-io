@@ -97,7 +97,7 @@ type rollupQuery struct {
 // SyncAnalyticsRollups recomputes every daily aggregate for every day in the
 // range, and the hourly visitor buckets of those days.
 //
-// The upserted aggregates (visitors, referrers, countries, events) commit one
+// The upserted aggregates (visitors, countries, events) commit one
 // by one, each within its own timeout, so one slow rollup does not hold back
 // the others. The path aggregates are deleted and rebuilt in one transaction,
 // so reports never see a partly rebuilt day and a path folded into '(other)'
@@ -109,7 +109,6 @@ func (s *Store) SyncAnalyticsRollups(ctx context.Context, p SyncAnalyticsRollups
 	days := []any{from, to}
 
 	upserts := []rollupQuery{
-		{stmt.syncAnalyticsReferrers, days},
 		{stmt.syncAnalyticsCountries, days},
 		{stmt.syncAnalyticsEvents, days},
 	}

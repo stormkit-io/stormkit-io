@@ -20,7 +20,6 @@ type statement struct {
 	removeOldAnalyticsEvents         string
 	removeOldAnalyticsEngagement     string
 	syncAnalyticsVisitors            string
-	syncAnalyticsReferrers           string
 	syncAnalyticsCountries           string
 	syncAnalyticsEvents              string
 	syncAnalyticsPaths               string
@@ -200,46 +199,6 @@ var stmt = &statement{
 		DO UPDATE SET
 			unique_visitors = EXCLUDED.unique_visitors,
 			total_visitors = EXCLUDED.total_visitors`,
-
-	syncAnalyticsReferrers: `
-		INSERT INTO analytics_referrers
-			(aggregate_date, referrer, referrer_hash, request_path, request_path_hash, domain_id, visit_count)
-            SELECT
-                DATE(a.request_timestamp) as req_date,
-				regexp_replace(
-					regexp_replace(
-						COALESCE(a.referrer, ''),
-						'^https?://(www\.)?', ''
-					),
-					'/$', ''
-				) as referrer_domain,
-				decode(md5(
-					regexp_replace(
-						regexp_replace(
-							COALESCE(a.referrer, ''),
-							'^https?://(www\.)?', ''
-						),
-						'/$', ''
-					)
-				), 'hex') as referrer_hash,
-				a.request_path,
-				decode(md5(a.request_path), 'hex') as request_path_hash,
-				a.domain_id,
-				COUNT(a.domain_id) AS total_count
-            FROM
-				analytics a
-            WHERE
-				a.response_code IN (200, 304) AND
-				a.request_timestamp >= $1::date AND
-				a.request_timestamp < $2::date
-            GROUP BY
-				req_date, referrer_domain,
-				a.request_path, a.domain_id
-		ON CONFLICT
-			(aggregate_date, referrer_hash, request_path_hash, domain_id)
-		DO UPDATE SET
-			visit_count = EXCLUDED.visit_count;
-	`,
 
 	syncAnalyticsCountries: `
 		INSERT INTO analytics_visitors_by_countries

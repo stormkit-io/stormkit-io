@@ -243,29 +243,6 @@ func (s *JobAnalyticsSuite) Test_SyncAnalyticsRollups_RebuildsHours() {
 	s.Equal([]string{s.yesterday + " 15:00", s.today + " 15:00"}, hours)
 }
 
-func (s *JobAnalyticsSuite) Test_SyncAnalyticsReferrers() {
-	ctx := context.Background()
-
-	// We create records in the BeforeTest statement. This test
-	// will get all data from yesterday and sync it to the aggregate table.
-	s.NoError(jobs.SyncAnalyticsRollups(ctx))
-
-	data, err := analytics.NewStore().TopReferrers(ctx, analytics.TopReferrersArgs{
-		DomainID: s.domainID,
-	})
-
-	s.NoError(err)
-
-	expected := map[string]int{
-		"google.com":  2,
-		"yahoo.com":   1,
-		"example.org": 1,
-		fmt.Sprintf("test.com?code=%s", s.randomToken): 1,
-	}
-
-	s.Equal(expected, data)
-}
-
 func (s *JobAnalyticsSuite) Test_SyncAnalyticsByCountries() {
 	ctx := context.Background()
 
@@ -273,17 +250,27 @@ func (s *JobAnalyticsSuite) Test_SyncAnalyticsByCountries() {
 	// will get all data from yesterday and sync it to the aggregate table.
 	s.NoError(jobs.SyncAnalyticsRollups(ctx))
 
-	data, err := analytics.NewStore().ByCountries(ctx, analytics.ByCountriesArgs{
-		DomainID: s.domainID,
-	})
+	rows, err := s.conn.Query(`
+		SELECT country_iso_code, SUM(visit_count)
+		FROM analytics_visitors_by_countries
+		WHERE domain_id = $1
+		GROUP BY country_iso_code`, s.domainID)
 
-	s.NoError(err)
+	s.Require().NoError(err)
 
-	expected := map[string]int{
-		"US": 2,
+	defer rows.Close()
+
+	data := map[string]int{}
+
+	for rows.Next() {
+		var country string
+		var count int
+
+		s.Require().NoError(rows.Scan(&country, &count))
+		data[country] = count
 	}
 
-	s.Equal(expected, data)
+	s.Equal(map[string]int{"US": 2}, data)
 }
 
 // at returns a time today at hour:minute in the wall clock the records were

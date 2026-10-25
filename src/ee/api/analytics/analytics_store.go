@@ -27,9 +27,6 @@ var stmt = struct {
 	breakdownEvents             string
 	eventPropertyKeys           string
 	visitors                    string
-	topReferrers                string
-	topPaths                    string
-	byCountries                 string
 	totalRequestsByTeam         string
 	totalAppsByTeam             string
 	totalDeploymentsByTeam      string
@@ -152,54 +149,6 @@ var stmt = struct {
 		ORDER BY
 			{{ .aggregateColumn }} DESC {{ if not .interval }} 
 		LIMIT 24{{ end }};
-	`,
-
-	topReferrers: `
-		SELECT
-			referrer,
-			SUM(visit_count) as total_count
-		FROM
-			analytics_referrers
-		WHERE
-			domain_id = $1 AND
-			aggregate_date >= current_date - interval '30 days' AND
-			referrer <> ''
-			{{ if .requestPath }}
-				AND request_path = $2
-			{{ end }}
-		GROUP BY
-			referrer
-		ORDER BY
-			total_count DESC
-		LIMIT 51;
-	`,
-
-	topPaths: `
-		SELECT
-			request_path,
-			SUM(visit_count) as total_count
-		FROM analytics_referrers
-		WHERE
-            domain_id = $1 AND
-			aggregate_date >= current_date - interval '30 days'
-		GROUP BY
-			request_path
-		ORDER BY
-			total_count DESC
-		LIMIT 50;
-	`,
-
-	byCountries: `
-		SELECT
-			country_iso_code,
-			SUM(visit_count) as count
-		FROM
-			analytics_visitors_by_countries
-		WHERE
-			domain_id = $1 AND
-			aggregate_date >= current_date - interval '30 days'
-		GROUP BY country_iso_code
-		ORDER BY count desc;
 	`,
 
 	totalRequestsByTeam: `
@@ -558,134 +507,6 @@ func (s *Store) Visitors(ctx context.Context, args VisitorsArgs) (map[string]any
 	}
 
 	return dates, nil
-}
-
-type TopReferrersArgs struct {
-	DomainID      types.ID
-	EnvID         types.ID
-	NotLikeDomain string
-	RequestPath   string
-}
-
-// TopReferrers returns the referrer domains ordered by most popular.
-func (s *Store) TopReferrers(ctx context.Context, args TopReferrersArgs) (map[string]int, error) {
-	refs := map[string]int{}
-	params := []any{args.DomainID}
-	data := map[string]any{}
-
-	if args.RequestPath != "" {
-		params = append(params, args.RequestPath)
-		data["requestPath"] = "true"
-	}
-
-	tmpl, err := template.New("topReferrers").Parse(stmt.topReferrers)
-
-	if err != nil {
-		return nil, err
-	}
-
-	var wr bytes.Buffer
-
-	if err = tmpl.Execute(&wr, data); err != nil {
-		return nil, err
-	}
-
-	rows, err := s.Query(ctx, wr.String(), params...)
-
-	if err != nil && err != sql.ErrNoRows {
-		return nil, err
-	}
-
-	if rows == nil {
-		return nil, nil
-	}
-
-	defer rows.Close()
-
-	for rows.Next() {
-		var referrer string
-		var count int
-
-		if err := rows.Scan(&referrer, &count); err != nil {
-			slog.Errorf("[analytics.TopReferrers]: error while scanning %s", err.Error())
-			return nil, err
-		}
-
-		refs[referrer] = count
-	}
-
-	return refs, nil
-}
-
-type TopPathsArgs struct {
-	EnvID    types.ID
-	DomainID types.ID
-}
-
-// TopPaths returns the paths that are most visited.
-func (s *Store) TopPaths(ctx context.Context, args TopPathsArgs) (map[string]int, error) {
-	paths := map[string]int{}
-	rows, err := s.Query(ctx, stmt.topPaths, args.DomainID)
-
-	if err != nil && err != sql.ErrNoRows {
-		return nil, err
-	}
-
-	if rows == nil {
-		return nil, nil
-	}
-
-	defer rows.Close()
-
-	for rows.Next() {
-		var path string
-		var count int
-
-		if err := rows.Scan(&path, &count); err != nil {
-			slog.Errorf("[analytics.TopPaths]: error while scanning %s", err.Error())
-			return nil, err
-		}
-
-		paths[path] = count
-	}
-
-	return paths, nil
-}
-
-type ByCountriesArgs struct {
-	DomainID types.ID
-}
-
-// Countries returns the list of country codes.
-func (s *Store) ByCountries(ctx context.Context, args ByCountriesArgs) (map[string]int, error) {
-	countries := map[string]int{}
-	rows, err := s.Query(ctx, stmt.byCountries, args.DomainID)
-
-	if err != nil && err != sql.ErrNoRows {
-		return nil, err
-	}
-
-	if rows == nil {
-		return nil, nil
-	}
-
-	defer rows.Close()
-
-	for rows.Next() {
-		var country null.String
-		var count int
-
-		if err := rows.Scan(&country, &count); err != nil {
-			slog.Errorf("[analytics.TopPaths]: error while scanning %s", err.Error())
-			return nil, err
-		}
-
-		if country.Valid {
-			countries[country.ValueOrZero()] = count
-		}
-	}
-
-	return countries, nil
 }
 
 type TotalRequestsByTeam struct {

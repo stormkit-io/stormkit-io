@@ -18,12 +18,9 @@ func (s *ServicesSuite) Test_Handlers() {
 	s.NotNil(services)
 
 	s.Equal([]string{
-		"GET:/analytics/countries",
 		"GET:/analytics/events",
 		"GET:/analytics/events/breakdown",
 		"GET:/analytics/events/properties",
-		"GET:/analytics/paths",
-		"GET:/analytics/referrers",
 		"GET:/analytics/visitors",
 	}, services.HandlerKeys())
 }

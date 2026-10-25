@@ -245,23 +245,6 @@ CREATE TABLE skitapi.analytics_paths_agg (
 ALTER TABLE skitapi.analytics_paths_agg OWNER TO skitadmin;
 
 --
--- Name: analytics_referrers; Type: TABLE; Schema: skitapi; Owner: skitadmin
---
-
-CREATE TABLE skitapi.analytics_referrers (
-    aggregate_date date NOT NULL,
-    domain_id bigint NOT NULL,
-    referrer text NOT NULL,
-    request_path text NOT NULL,
-    visit_count bigint NOT NULL,
-    referrer_hash bytea NOT NULL,
-    request_path_hash bytea NOT NULL
-);
-
-
-ALTER TABLE skitapi.analytics_referrers OWNER TO skitadmin;
-
---
 -- Name: analytics_rollup_days; Type: TABLE; Schema: skitapi; Owner: skitadmin
 --
 
@@ -1514,14 +1497,6 @@ ALTER TABLE ONLY skitapi.analytics_paths_agg
 
 
 --
--- Name: analytics_referrers analytics_referrers_pkey; Type: CONSTRAINT; Schema: skitapi; Owner: skitadmin
---
-
-ALTER TABLE ONLY skitapi.analytics_referrers
-    ADD CONSTRAINT analytics_referrers_pkey PRIMARY KEY (aggregate_date, referrer_hash, request_path_hash, domain_id);
-
-
---
 -- Name: analytics_rollup_days analytics_rollup_days_pkey; Type: CONSTRAINT; Schema: skitapi; Owner: skitadmin
 --
 
@@ -1865,13 +1840,6 @@ CREATE INDEX idx_analytics_engagement_ts ON skitapi.analytics_engagement USING b
 --
 
 CREATE INDEX idx_analytics_paths_agg_date ON skitapi.analytics_paths_agg USING btree (aggregate_date);
-
-
---
--- Name: idx_analytics_referrers_hash; Type: INDEX; Schema: skitapi; Owner: skitadmin
---
-
-CREATE INDEX idx_analytics_referrers_hash ON skitapi.analytics_referrers USING btree (aggregate_date, referrer_hash, request_path_hash, domain_id);
 
 
 --

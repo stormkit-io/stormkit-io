@@ -79,7 +79,7 @@ func SyncAnalyticsVisitorsHourly(ctx context.Context) error {
 const analyticsFinalizeAfter = 3 * time.Hour
 
 // SyncAnalyticsRollups rolls raw page views and events up into the daily
-// aggregates (visitors, referrers, countries, events, and the per-path,
+// aggregates (visitors, countries, events, and the per-path,
 // per-path-country, campaign and channel tables) and the hourly visitor
 // buckets for today, and for yesterday
 // until a run started at least analyticsFinalizeAfter past midnight has

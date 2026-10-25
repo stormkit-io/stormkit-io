@@ -106,3 +106,7 @@ CREATE TABLE IF NOT EXISTS analytics_engagement (
 );
 
 CREATE INDEX IF NOT EXISTS idx_analytics_engagement_ts ON analytics_engagement (engagement_ts);
+
+-- The referrers dashboard endpoint and its rollup were replaced by the channel
+-- aggregate (analytics_channels_agg); nothing reads this table any more.
+DROP TABLE IF EXISTS analytics_referrers;
