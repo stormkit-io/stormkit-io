@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/suite"
 )
@@ -80,8 +81,31 @@ func (s *BotVerdictCacheSuite) Test_OversizedUserAgentIsNotCached() {
 	d := newBotDetector()
 	ua := "Mozilla/5.0 " + strings.Repeat("x", maxCachedUserAgentLen)
 
-	s.False(d.isBot(ua))
+	s.True(d.isBot(ua))
 	s.Equal(0, d.verdicts.len())
+}
+
+// Test_LongUserAgentSkipsRegex verifies that a huge user agent is rejected as a
+// bot without paying for the crawler regex, which takes over a second on 64KB.
+func (s *BotVerdictCacheSuite) Test_LongUserAgentSkipsRegex() {
+	d := newBotDetector()
+	ua := "Mozilla/5.0 " + strings.Repeat("a", 64*1024)
+
+	start := time.Now()
+
+	s.True(d.isBot(ua))
+	s.Less(time.Since(start), 50*time.Millisecond)
+}
+
+// Test_UserAgentAtLimitIsClassified verifies the cutoff is exclusive: a user
+// agent of exactly the limit still goes through classification.
+func (s *BotVerdictCacheSuite) Test_UserAgentAtLimitIsClassified() {
+	d := newBotDetector()
+	prefix := "Mozilla/5.0 "
+	ua := prefix + strings.Repeat("x", maxBrowserUserAgentLen-len(prefix))
+
+	s.Len(ua, maxBrowserUserAgentLen)
+	s.False(d.isBot(ua))
 }
 
 func (s *BotVerdictCacheSuite) Test_ConcurrentAccess() {
@@ -138,5 +162,19 @@ func BenchmarkIsBot_Cached(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		d.isBot(sampleUserAgents[i%len(sampleUserAgents)])
+	}
+}
+
+// BenchmarkIsBot_LongUserAgent is the cost of a 64KB user agent, which must not
+// reach the crawler regex.
+func BenchmarkIsBot_LongUserAgent(b *testing.B) {
+	d := newBotDetector()
+	ua := "Mozilla/5.0 " + strings.Repeat("a", 64*1024)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		d.isBot(ua)
 	}
 }

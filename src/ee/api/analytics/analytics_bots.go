@@ -145,8 +145,14 @@ func compileCrawlerPattern(data []byte) *regexp.Regexp {
 	return combined
 }
 
+// maxBrowserUserAgentLen is longer than any real browser user agent. Anything
+// beyond it is treated as a bot without running the crawler regex, whose cost
+// grows with input length: a 64KB user agent would otherwise burn over a
+// second of CPU on every request, and the verdict cache skips long strings.
+const maxBrowserUserAgentLen = 512
+
 func (d *botDetector) isBot(userAgent string) bool {
-	if userAgent == "" {
+	if userAgent == "" || len(userAgent) > maxBrowserUserAgentLen {
 		return true
 	}
 
