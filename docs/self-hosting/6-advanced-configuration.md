@@ -33,7 +33,19 @@ If Stormkit sits behind a trusted HTTP reverse proxy that sets `X-Forwarded-For`
 | ------------------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `STORMKIT_TRUST_PROXY_HEADERS` | `false` | Set to `true` when Stormkit runs behind a trusted upstream HTTP proxy. `X-Forwarded-For` and `X-Real-IP` are passed through unchanged. When `false` (default), `X-Forwarded-For` is always overwritten with the real socket address. |
 
-Stormkit reads the visitor's IP from the right of `X-Forwarded-For`: it takes the right-most public address and skips private or loopback hops added by internal proxies. Entries to the left of that were sent by the client and are ignored, so a visitor cannot spoof their IP by sending the header themselves. If you chain two public proxies (for example Cloudflare in front of a load balancer), the right-most public address is the first proxy's, so configure the inner proxy to overwrite `X-Forwarded-For` with the visitor's IP (for example from `CF-Connecting-IP`) instead of appending to it.
+Stormkit reads the visitor's IP from the right of `X-Forwarded-For`, where your proxies append it. Walking from the right, it skips internal hops (private, loopback, link-local, CGNAT `100.64.0.0/10` and other non-routable addresses) and any proxy listed in `STORMKIT_TRUSTED_PROXIES`, and uses the first address left. Entries further left were sent by the client and are ignored, so a visitor cannot spoof their IP by sending the header themselves. If every entry is internal, as on an intranet-only install, the left-most address is used.
+
+| Variable                   | Default | Description                                                                                                                                                                                                   |
+| -------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `STORMKIT_TRUSTED_PROXIES` | empty   | Comma-separated CIDRs or IPs of public proxies in front of Stormkit, such as a CDN. Their entries in `X-Forwarded-For` are skipped when looking for the visitor's IP. Invalid entries are logged and ignored. |
+
+If you chain two public proxies (for example Cloudflare in front of a load balancer), every request reaches the load balancer from a Cloudflare address, which would otherwise be taken as the visitor's IP. Either set `STORMKIT_TRUSTED_PROXIES` to [Cloudflare's published ranges](https://www.cloudflare.com/ips/):
+
+```bash
+STORMKIT_TRUSTED_PROXIES=173.245.48.0/20,103.21.244.0/22,104.16.0.0/13,2400:cb00::/32,...
+```
+
+or configure the load balancer to overwrite `X-Forwarded-For` with the visitor's IP (for example from `CF-Connecting-IP`) instead of appending to it.
 
 ### L4 TCP load balancer (PROXY protocol)
 
