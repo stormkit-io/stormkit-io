@@ -10,8 +10,10 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
-// MaxEngagementSeconds caps one engagement report, so a page left in the
-// foreground for hours does not skew the averages.
+// MaxEngagementSeconds caps the foreground time counted for one page view, so
+// a page left in the foreground for hours does not skew the averages. It
+// bounds each report, the merged reports of one view in a beacon, and the
+// view's daily total in the rollup.
 const MaxEngagementSeconds = 30 * 60
 
 // Engagement is the foreground time the client script reported for a page view.

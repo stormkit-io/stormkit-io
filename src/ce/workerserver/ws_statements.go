@@ -254,7 +254,9 @@ var stmt = &statement{
 	// first $3 single-view paths are kept too; no more than $4 paths are kept
 	// in total. The rest are folded into one '(other)' row, whose visitors
 	// are the sum of the folded paths' visitors. The other path rollups fold
-	// every path this one did not keep, so they run after it.
+	// every path this one did not keep, so they run after it. A page view's
+	// foreground time is capped at $5 seconds per day, however many reports
+	// it sent.
 	syncAnalyticsPaths: `
 		WITH per_path AS (
 			SELECT
@@ -274,20 +276,31 @@ var stmt = &statement{
 				a.request_timestamp < $2::date
 			GROUP BY
 				agg_date, a.domain_id, a.request_path
-		), engaged AS (
+		), per_view AS (
 			SELECT
 				DATE(e.engagement_ts) AS agg_date,
 				e.domain_id,
 				e.request_path,
-				SUM(e.seconds) AS engaged_seconds,
-				COUNT(DISTINCT e.view_id) AS engaged_views
+				e.view_id,
+				LEAST(SUM(e.seconds), $5) AS seconds
 			FROM
 				analytics_engagement e
 			WHERE
 				e.engagement_ts >= $1::date AND
 				e.engagement_ts < $2::date
 			GROUP BY
-				agg_date, e.domain_id, e.request_path
+				agg_date, e.domain_id, e.request_path, e.view_id
+		), engaged AS (
+			SELECT
+				agg_date,
+				domain_id,
+				request_path,
+				SUM(seconds) AS engaged_seconds,
+				COUNT(*) AS engaged_views
+			FROM
+				per_view
+			GROUP BY
+				agg_date, domain_id, request_path
 		), ranked AS (
 			SELECT
 				p.*,

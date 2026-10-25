@@ -142,7 +142,7 @@ func (s *Store) SyncAnalyticsRollups(ctx context.Context, p SyncAnalyticsRollups
 		{stmt.deleteAnalyticsPathCountriesDays, days},
 		{stmt.deleteAnalyticsCampaignsDays, days},
 		{stmt.deleteAnalyticsChannelsDays, days},
-		{stmt.syncAnalyticsPaths, []any{from, to, analyticsSingleViewPathsLimit, analyticsPathsLimit}},
+		{stmt.syncAnalyticsPaths, []any{from, to, analyticsSingleViewPathsLimit, analyticsPathsLimit, analytics.MaxEngagementSeconds}},
 		{stmt.syncAnalyticsPathCountries, days},
 		{stmt.syncAnalyticsCampaigns, days},
 		{stmt.syncAnalyticsChannels, []any{

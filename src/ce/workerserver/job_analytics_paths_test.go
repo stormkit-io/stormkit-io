@@ -398,6 +398,35 @@ func (s *JobAnalyticsPathsSuite) Test_Paths_Engagement() {
 	s.Equal(2, views, "view a reported twice")
 }
 
+// Test_Paths_EngagementCappedPerView verifies that a page view sending many
+// capped reports is counted at most MaxEngagementSeconds.
+func (s *JobAnalyticsPathsSuite) Test_Paths_EngagementCappedPerView() {
+	noon := s.today.Add(12 * time.Hour)
+	at := utils.Unix{Time: noon, Valid: true}
+
+	s.insert(visit{IP: "1.1.1.1", UA: "a", Path: "/blog", At: noon}, visit{IP: "2.2.2.2", UA: "a", Path: "/blog", At: noon})
+
+	engagements := []analytics.Engagement{
+		{DomainID: s.domainID, RequestPath: "/blog", ViewID: "b", Seconds: 20, EngagedTS: at},
+	}
+
+	for i := 0; i < 5; i++ {
+		engagements = append(engagements, analytics.Engagement{
+			DomainID: s.domainID, RequestPath: "/blog", ViewID: "a", Seconds: analytics.MaxEngagementSeconds, EngagedTS: at,
+		})
+	}
+
+	s.Require().NoError(analytics.NewStore().InsertEngagements(context.Background(), engagements))
+	s.Require().NoError(s.sync())
+
+	var seconds, views int
+
+	row := s.conn.QueryRow(`SELECT engaged_seconds, engaged_views FROM analytics_paths_agg WHERE domain_id = $1 AND request_path = '/blog'`, s.domainID)
+	s.Require().NoError(row.Scan(&seconds, &views))
+	s.Equal(analytics.MaxEngagementSeconds+20, seconds)
+	s.Equal(2, views)
+}
+
 // channels returns the stored channel of every referrer host on the domain.
 func (s *JobAnalyticsPathsSuite) channels() map[string]string {
 	rows, err := s.conn.PrepareOrPanic(`SELECT referrer, channel FROM analytics_channels_agg WHERE domain_id = $1`).Query(s.domainID)
