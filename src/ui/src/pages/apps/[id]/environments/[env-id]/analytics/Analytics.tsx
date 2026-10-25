@@ -102,7 +102,11 @@ export default function Analytics() {
           gap: 2,
         }}
       >
-        <TopReferrers environment={environment} domain={domain!} />
+        <TopReferrers
+          environment={environment}
+          domain={domain!}
+          ts={timeSpan}
+        />
         <TopPaths environment={environment} domain={domain!} ts={timeSpan} />
       </Box>
       <ByCountries environment={environment} domain={domain!} />

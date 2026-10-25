@@ -12,27 +12,8 @@ import CardHeader from "~/components/CardHeader";
 import CardRow from "~/components/CardRow";
 import CardFooter from "~/components/CardFooter";
 import { useFetchAnalyticsReport } from "./actions";
-import { truncate } from "./helpers";
+import { channelLabels, spanText, truncate } from "./helpers";
 import { formatDuration } from "./Visitors";
-
-export const channelLabels: Record<string, string> = {
-  search: "Search",
-  ai: "AI assistants",
-  social: "Social",
-  email: "Email",
-  referral: "Other sites",
-  direct: "Direct",
-  internal: "Within this site",
-};
-
-export const spanText = (ts: TimeSpan) =>
-  ({
-    "24h": "today (since midnight UTC)",
-    "7d": "in the last 7 days",
-    "30d": "in the last 30 days",
-    "90d": "in the last 90 days",
-    "365d": "in the last year",
-  })[ts];
 
 const formatter = new Intl.NumberFormat();
 
@@ -186,7 +167,7 @@ export default function TopPaths({ environment, domain, ts }: Props) {
         }}
       >
         {!requestPath ? (
-          paths.length ? (
+          !report ? null : paths.length ? (
             paths.map(path => (
               <CardRow
                 key={path.path}

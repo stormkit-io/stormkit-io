@@ -1,28 +1,37 @@
+import type { TimeSpan } from "./index.d";
 import Box from "@mui/material/Box";
+import Alert from "@mui/material/Alert";
 import Typography from "@mui/material/Typography";
+import LinearProgress from "@mui/material/LinearProgress";
 import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
 import CardRow from "~/components/CardRow";
 import CardFooter from "~/components/CardFooter";
-import { useFetchTopReferrers } from "./actions";
-import { truncate } from "./helpers";
+import { useFetchAnalyticsReport } from "./actions";
+import { channelLabels, spanText, truncate } from "./helpers";
+
+const formatter = new Intl.NumberFormat();
 
 interface Props {
   environment: Environment;
-  domainName?: string;
   domain: Domain;
+  ts: TimeSpan;
 }
 
-export default function TopReferrers({ environment, domain }: Props) {
-  const { referrers, error, loading } = useFetchTopReferrers({
+export default function TopReferrers({ environment, domain, ts }: Props) {
+  const { report, error, loading } = useFetchAnalyticsReport({
     envId: environment.id!,
     domainId: domain?.id,
+    query: { metric: "referrers", ts, limit: 50 },
   });
+
+  const referrers = report?.rows || [];
+  const totals = report?.totals;
 
   return (
     <Card
       error={error}
-      loading={loading}
+      loading={loading && !report}
       sx={{
         width: { xs: "100%", md: "50%" },
         margin: "",
@@ -32,8 +41,20 @@ export default function TopReferrers({ environment, domain }: Props) {
     >
       <CardHeader
         title="Referrers"
-        subtitle="Top 50 referrers in the last 30 days."
+        subtitle={
+          <>
+            Top referring sites {spanText(ts)}.
+            {totals && (
+              <>
+                {" "}
+                {formatter.format(totals.direct || 0)} direct visits,{" "}
+                {formatter.format(totals.internal || 0)} within this site.
+              </>
+            )}
+          </>
+        }
       />
+      {loading && report && <LinearProgress color="secondary" />}
       <Box
         sx={{
           maxHeight: "300px",
@@ -41,20 +62,42 @@ export default function TopReferrers({ environment, domain }: Props) {
           flex: 1,
         }}
       >
-        {referrers.map(ref => (
-          <CardRow
-            key={ref.name}
-            chipLabel={
-              <Typography component="span">{ref.count.toString()} </Typography>
-            }
+        {!report ? null : referrers.length ? (
+          referrers.map(ref => (
+            <CardRow
+              key={ref.referrer}
+              chipLabel={
+                <Typography component="span">
+                  {formatter.format(ref.visits || 0)}
+                </Typography>
+              }
+            >
+              <Typography component="span">
+                {truncate(ref.referrer!)}
+              </Typography>
+              {ref.channel && (
+                <Typography
+                  component="span"
+                  sx={{ ml: 1, fontSize: 12, opacity: 0.6 }}
+                >
+                  {channelLabels[ref.channel] || ref.channel}
+                </Typography>
+              )}
+            </CardRow>
+          ))
+        ) : (
+          <Alert
+            color="info"
+            sx={{ mx: 2, mb: 2, bgcolor: "rgba(255,255,255,0.025)" }}
           >
-            <Typography component="span">{truncate(ref.name)}</Typography>
-          </CardRow>
-        ))}
+            No visits from other sites {spanText(ts)}.
+          </Alert>
+        )}
       </Box>
       <CardFooter sx={{ textAlign: "left" }}>
         <Typography sx={{ fontSize: 12 }}>
-          Same domain referrers are excluded.
+          Visits from this environment&apos;s own domains are counted as within
+          this site.
         </Typography>
       </CardFooter>
     </Card>

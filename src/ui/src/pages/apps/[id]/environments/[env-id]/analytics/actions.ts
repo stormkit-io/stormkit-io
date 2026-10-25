@@ -144,6 +144,9 @@ export const useFetchAnalyticsReport = ({
       })
       .catch(() => {
         if (current) {
+          // Keeping the previous report would show its numbers under the new
+          // query's labels.
+          setReport(undefined);
           setError(`Something went wrong while fetching ${query.metric}.`);
         }
       })
@@ -179,71 +182,6 @@ export const useFetchVisitorsReport = ({
     domainId,
     query: { metric: "visitors", ts, compare: true },
   });
-
-interface FetchTopReferrerProps {
-  envId: string;
-  domainId?: string;
-  requestPath?: string;
-  skip?: boolean;
-}
-
-interface Referrer {
-  name: string;
-  count: number;
-}
-
-export const useFetchTopReferrers = ({
-  envId,
-  domainId,
-  requestPath = "",
-  skip,
-}: FetchTopReferrerProps) => {
-  const [referrers, setReferrers] = useState<Referrer[]>([]);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    setReferrers([]);
-  }, [requestPath]);
-
-  useEffect(() => {
-    if (skip) {
-      setLoading(false);
-      return;
-    }
-
-    if (!domainId) {
-      return;
-    }
-
-    setLoading(true);
-
-    api
-      .fetch<Record<string, number>>(
-        `/analytics/referrers?envId=${envId}&domainId=${domainId}&requestPath=${requestPath}`,
-      )
-      .then(data => {
-        const refs: Referrer[] = Object.keys(data).map(ref => ({
-          name: ref,
-          count: data[ref],
-        }));
-
-        refs.sort((a, b) =>
-          a.count > b.count ? -1 : a.count === b.count ? 0 : 1,
-        );
-
-        setReferrers(refs);
-      })
-      .catch(() => {
-        setError("Something went wrong while fetching referrers.");
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, [envId, requestPath, domainId, skip]);
-
-  return { referrers, loading, error };
-};
 
 interface FetchEventsProps {
   envId: string;
