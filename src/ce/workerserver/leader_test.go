@@ -3,6 +3,7 @@ package jobs_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -77,6 +78,10 @@ func (h *failingRedisHook) touchesKey(cmd redis.Cmder) bool {
 type leaderCounters struct {
 	elected   atomic.Int32
 	renounced atomic.Int32
+
+	// keyTTLAtRenounce is the leader key's remaining TTL when the node first
+	// renounced, as reported by PTTL.
+	keyTTLAtRenounce atomic.Int64
 }
 
 type startNodeParams struct {
@@ -90,11 +95,16 @@ func (s *LeaderElectionSuite) startNode(p startNodeParams) *jobs.Node {
 	counters := p.counters
 
 	node := jobs.NewNode(jobs.Options{
-		Key:        s.key,
-		TTL:        p.ttl,
-		Wait:       10 * time.Millisecond,
-		OnLeader:   func(*jobs.Node) { counters.elected.Add(1) },
-		OnRenounce: func(*jobs.Node) { counters.renounced.Add(1) },
+		Key:      s.key,
+		TTL:      p.ttl,
+		Wait:     10 * time.Millisecond,
+		OnLeader: func(*jobs.Node) { counters.elected.Add(1) },
+		OnRenounce: func(*jobs.Node) {
+			if counters.renounced.Add(1) == 1 {
+				ttl := rediscache.Client().PTTL(context.Background(), s.key).Val()
+				counters.keyTTLAtRenounce.Store(int64(ttl))
+			}
+		},
 	})
 
 	node.Start(p.ctx)
@@ -111,6 +121,8 @@ func (s *LeaderElectionSuite) BeforeTest(_, _ string) {
 }
 
 func (s *LeaderElectionSuite) Test_LeaderElection() {
+	var mu sync.Mutex
+
 	calledOnLeader := map[string]bool{}
 	calledOnRenounce := map[string]bool{}
 	nodes := []*jobs.Node{}
@@ -121,9 +133,15 @@ func (s *LeaderElectionSuite) Test_LeaderElection() {
 		node := jobs.NewNode(jobs.Options{
 			Key: s.key,
 			OnLeader: func(n *jobs.Node) {
+				mu.Lock()
+				defer mu.Unlock()
+
 				calledOnLeader[n.ID()] = true
 			},
 			OnRenounce: func(n *jobs.Node) {
+				mu.Lock()
+				defer mu.Unlock()
+
 				calledOnRenounce[n.ID()] = true
 			},
 		})
@@ -136,6 +154,8 @@ func (s *LeaderElectionSuite) Test_LeaderElection() {
 
 	leaders := []*jobs.Node{}
 
+	mu.Lock()
+
 	for i := 0; i <= 4; i++ {
 		id := nodes[i].ID()
 
@@ -143,8 +163,6 @@ func (s *LeaderElectionSuite) Test_LeaderElection() {
 			leaders = append(leaders, nodes[i])
 		}
 	}
-
-	s.Len(leaders, 1)
 
 	// No one renounced their leadership yet
 	for i := 0; i <= 4; i++ {
@@ -155,14 +173,40 @@ func (s *LeaderElectionSuite) Test_LeaderElection() {
 	calledOnLeader = map[string]bool{}
 	calledOnRenounce = map[string]bool{}
 
+	mu.Unlock()
+
+	s.Require().Len(leaders, 1)
+
 	// Renounce the leadership
 	leaders[0].Stop(ctx)
 
+	mu.Lock()
 	s.True(calledOnRenounce[leaders[0].ID()])
+	mu.Unlock()
 
-	// There should be a new leader now
-	time.Sleep(time.Second)
-	s.Len(calledOnLeader, 1)
+	// There should be a new leader once the others retry the election
+	s.Eventually(func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+
+		return len(calledOnLeader) == 1
+	}, 3*time.Second, 10*time.Millisecond)
+
+	// Stop the remaining nodes so they cannot contend for the key in later tests.
+	var wg sync.WaitGroup
+
+	for _, node := range nodes {
+		if node != leaders[0] {
+			wg.Add(1)
+
+			go func() {
+				defer wg.Done()
+				node.Stop(ctx)
+			}()
+		}
+	}
+
+	wg.Wait()
 }
 
 // Test_LostLeadership_Renounces verifies that a node whose key was taken over
@@ -216,12 +260,13 @@ func (s *LeaderElectionSuite) Test_RedisError_KeepsLeadership() {
 	s.Equal(int32(1), counters.renounced.Load())
 }
 
-// Test_RedisError_RenouncesAfterTTL verifies that a node unable to renew for a
-// full TTL renounces, since its key may have expired and been taken over.
-func (s *LeaderElectionSuite) Test_RedisError_RenouncesAfterTTL() {
+// Test_RedisError_RenouncesBeforeExpiry verifies that a node unable to renew
+// steps down on the second failed renewal, while its key is still alive, so
+// no other node can take over while it still runs master tasks.
+func (s *LeaderElectionSuite) Test_RedisError_RenouncesBeforeExpiry() {
 	ctx := context.Background()
 	counters := &leaderCounters{}
-	node := s.startNode(startNodeParams{ctx: ctx, counters: counters, ttl: 200 * time.Millisecond})
+	node := s.startNode(startNodeParams{ctx: ctx, counters: counters, ttl: 300 * time.Millisecond})
 
 	s.failRedis.Store(true)
 
@@ -229,7 +274,8 @@ func (s *LeaderElectionSuite) Test_RedisError_RenouncesAfterTTL() {
 		return counters.renounced.Load() >= 1
 	}, 2*time.Second, 5*time.Millisecond)
 
-	s.GreaterOrEqual(s.failed.Load(), int32(2))
+	s.Equal(int32(2), s.failed.Load())
+	s.Greater(time.Duration(counters.keyTTLAtRenounce.Load()), time.Duration(0))
 
 	s.failRedis.Store(false)
 	node.Stop(ctx)

@@ -145,6 +145,7 @@ func (l *Node) elect(ctx context.Context) {
 		case <-l.stopChan:
 			return
 		default:
+			sentAt := time.Now()
 			reply, err := l.do(ctx, "SET", l.key, l.id, "PX", int(l.options.TTL/time.Millisecond), "NX")
 
 			if rediscache.IsConnectionError(err) {
@@ -168,7 +169,7 @@ func (l *Node) elect(ctx context.Context) {
 				l.renewID = ticker
 				l.renewMu.Unlock()
 
-				go l.renew(ctx, ticker)
+				go l.renew(ctx, renewParams{ticker: ticker, acquiredAt: sentAt})
 
 				if l.onLeader != nil {
 					l.onLeader(l)
@@ -193,29 +194,41 @@ end
 return 0
 `
 
+type renewParams struct {
+	ticker *time.Ticker
+
+	// acquiredAt is when the SET that won the election was sent.
+	acquiredAt time.Time
+}
+
 // renew keeps the leader key alive on every tick. It returns once the
 // leadership is lost, after renouncing it and scheduling a new election.
 //
 // A failed renewal leaves the leadership unknown, so the node keeps leading
-// and retries on the next tick. Once a full TTL has passed without a
-// confirmed renewal, the key may have expired and been taken by another node,
-// so the node renounces rather than risk two leaders.
-func (l *Node) renew(ctx context.Context, ticker *time.Ticker) {
-	lastRenewed := time.Now()
+// and retries on the next tick. Renewals run every TTL/3, so one failed tick
+// is tolerated and the second one steps down while the key is still alive,
+// before another node can take it over. Renewal times are taken before the
+// command is sent, so they never run later than the expiry Redis applied.
+func (l *Node) renew(ctx context.Context, p renewParams) {
+	ticker := p.ticker
+	lastRenewed := p.acquiredAt
 
 	for {
 		select {
 		case <-l.stopChan:
 			return
 		case <-ticker.C:
+			sentAt := time.Now()
 			state := l.extend(ctx)
 
 			if state == leadershipHeld {
-				lastRenewed = time.Now()
+				lastRenewed = sentAt
 				continue
 			}
 
-			if state == leadershipUnknown && time.Since(lastRenewed) < l.options.TTL {
+			// Half the TTL rather than two thirds, so ticker jitter cannot
+			// let the second failed tick slip through.
+			if state == leadershipUnknown && time.Since(lastRenewed) < l.options.TTL/2 {
 				continue
 			}
 
