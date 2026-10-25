@@ -145,16 +145,19 @@ func compileCrawlerPattern(data []byte) *regexp.Regexp {
 	return combined
 }
 
-// maxBrowserUserAgentLen is longer than any real browser user agent. Anything
-// beyond it is treated as a bot without running the crawler regex, whose cost
-// grows with input length: a 64KB user agent would otherwise burn over a
-// second of CPU on every request, and the verdict cache skips long strings.
-const maxBrowserUserAgentLen = 512
+// maxClassifiedUserAgentLen is how much of a user agent is classified. The
+// crawler regex's cost grows with input length, so a 64KB user agent would
+// otherwise burn over a second of CPU on every request. Real user agents,
+// including long in-app webview ones, identify themselves well within it, and
+// the truncated string is short enough for the verdict cache.
+const maxClassifiedUserAgentLen = maxCachedUserAgentLen
 
 func (d *botDetector) isBot(userAgent string) bool {
-	if userAgent == "" || len(userAgent) > maxBrowserUserAgentLen {
+	if userAgent == "" {
 		return true
 	}
+
+	userAgent = truncateUserAgent(userAgent)
 
 	if verdict, ok := d.verdicts.get(userAgent); ok {
 		return verdict
@@ -164,6 +167,22 @@ func (d *botDetector) isBot(userAgent string) bool {
 	d.verdicts.put(userAgent, verdict)
 
 	return verdict
+}
+
+// truncateUserAgent cuts the user agent to maxClassifiedUserAgentLen bytes,
+// backing off to the start of a rune so a multi-byte character is not split.
+func truncateUserAgent(userAgent string) string {
+	if len(userAgent) <= maxClassifiedUserAgentLen {
+		return userAgent
+	}
+
+	n := maxClassifiedUserAgentLen
+
+	for n > 0 && !utf8.RuneStart(userAgent[n]) {
+		n--
+	}
+
+	return userAgent[:n]
 }
 
 // classify runs the three detection layers. It is the uncached path.
