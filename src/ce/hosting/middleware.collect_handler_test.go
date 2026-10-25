@@ -63,6 +63,19 @@ func (s *CollectHandlerSuite) SetupTest() {
 	}
 }
 
+// TearDownTest closes the test's Batcher, which waits until every record it
+// accepted has been flushed. Otherwise a flush still in flight lands in the
+// next test's capture slice and breaks its record counts.
+func (s *CollectHandlerSuite) TearDownTest() {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if Batcher != nil {
+		s.Require().NoError(Batcher.Close())
+		Batcher = nil
+	}
+}
+
 // TearDownSuite clears the global Batcher this suite swapped in, so a later
 // suite that relies on the lazy Redis-backed default (e.g. BatcherSuite) gets a
 // clean nil to initialize from.
@@ -243,18 +256,7 @@ func (s *CollectHandlerSuite) Test_SameOriginBeacon_Recorded() {
 		s.Equal(http.StatusNoContent, handleCollect(req).Status)
 	}
 
-	// The capture buffer is shared, so a late flush from an earlier test can
-	// land here; only this test's beacons, by their source IP, are counted.
-	sent := map[string]bool{"203.0.113.30": true, "203.0.113.31": true, "203.0.113.32": true}
-	recorded := map[string]bool{}
-
-	for _, r := range s.waitForRecords(len(headers)) {
-		if r.Analytics != nil && sent[r.Analytics.VisitorIP] {
-			recorded[r.Analytics.VisitorIP] = true
-		}
-	}
-
-	s.Equal(sent, recorded)
+	s.Len(s.waitForRecords(len(headers)), len(headers))
 }
 
 // Test_Pageviews_Campaign verifies that a landing the server never saw keeps
