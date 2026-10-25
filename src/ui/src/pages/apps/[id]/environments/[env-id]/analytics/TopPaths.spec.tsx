@@ -195,6 +195,41 @@ describe("~/pages/apps/[id]/environments/[env-id]/analytics/TopPaths.tsx", () =>
       });
     });
 
+    it("stays on the list when switching back to the first domain", async () => {
+      const wrapper = await drillIn();
+      const other = { ...domain, id: "2", domainName: "other.dev" };
+
+      mockFetchAnalyticsReport({
+        query: {
+          ...query("7d", { metric: "paths", limit: "50" }),
+          domainId: other.id,
+        },
+        response: { ...pathsReport(), rows: [{ path: "/docs", pageViews: 5 }] },
+      });
+
+      wrapper.rerender(<TopPaths environment={env} domain={other} ts="7d" />);
+
+      await waitFor(() => {
+        expect(wrapper.getByText("/docs")).toBeTruthy();
+      });
+
+      const back = mockFetchAnalyticsReport({
+        query: query("7d", { metric: "paths", limit: "50" }),
+        response: pathsReport(),
+      });
+
+      wrapper.rerender(<TopPaths environment={env} domain={domain} ts="7d" />);
+
+      expect(wrapper.queryByLabelText("Back to paths")).toBeNull();
+
+      await waitFor(() => {
+        expect(back.isDone()).toBe(true);
+        expect(wrapper.getByText("/pricing")).toBeTruthy();
+      });
+
+      expect(wrapper.queryByLabelText("Back to paths")).toBeNull();
+    });
+
     it.each([
       [
         "pressing Enter",

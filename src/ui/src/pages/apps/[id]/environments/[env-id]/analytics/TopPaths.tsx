@@ -124,6 +124,12 @@ export default function TopPaths({ environment, domain, ts }: Props) {
     path: "",
   });
 
+  // Reset during render rather than in an effect, so the old drill-down never
+  // renders (and requests) for the new domain, nor returns with the old one.
+  if (drillDown.domainId !== domain?.id) {
+    setDrillDown({ domainId: domain?.id, path: "" });
+  }
+
   const requestPath = drillDown.domainId === domain?.id ? drillDown.path : "";
   const setRequestPath = (path: string) =>
     setDrillDown({ domainId: domain?.id, path });

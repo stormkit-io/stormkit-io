@@ -32,6 +32,12 @@ export default function Events({ environment, domain, ts }: Props) {
     event: "",
   });
 
+  // Reset during render rather than in an effect, so the old breakdown never
+  // renders (and requests) for the new domain, nor returns with the old one.
+  if (selection.domainId !== domain?.id) {
+    setSelection({ domainId: domain?.id, event: "" });
+  }
+
   const selected = selection.domainId === domain?.id ? selection.event : "";
   const setSelected = (event: string) =>
     setSelection({ domainId: domain?.id, event });

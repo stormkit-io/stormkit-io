@@ -202,6 +202,23 @@ describe("~/pages/apps/[id]/environments/[env-id]/analytics/Events.tsx", () => {
       await fetches.settle();
 
       expect(wrapper.getByText("checkout")).toBeTruthy();
+
+      // Back on the first domain, the list shows, not the old breakdown.
+      mockFetchEvents({
+        ts: "30d",
+        envId: currentEnv.id,
+        domainId: currentDomain.id,
+        response: [{ name: "trip_creation", total: 4, unique: 2 }],
+      });
+
+      wrapper.rerender(
+        <Events environment={currentEnv} domain={currentDomain} ts="30d" />,
+      );
+
+      await fetches.settle();
+
+      expect(wrapper.queryByText("Group by")).toBeNull();
+      expect(wrapper.getByLabelText("Group trip_creation")).toBeTruthy();
     });
   });
 
