@@ -33,6 +33,8 @@ If Stormkit sits behind a trusted HTTP reverse proxy that sets `X-Forwarded-For`
 | ------------------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `STORMKIT_TRUST_PROXY_HEADERS` | `false` | Set to `true` when Stormkit runs behind a trusted upstream HTTP proxy. `X-Forwarded-For` and `X-Real-IP` are passed through unchanged. When `false` (default), `X-Forwarded-For` is always overwritten with the real socket address. |
 
+Stormkit reads the visitor's IP from the right of `X-Forwarded-For`: it takes the right-most public address and skips private or loopback hops added by internal proxies. Entries to the left of that were sent by the client and are ignored, so a visitor cannot spoof their IP by sending the header themselves. If you chain two public proxies (for example Cloudflare in front of a load balancer), the right-most public address is the first proxy's, so configure the inner proxy to overwrite `X-Forwarded-For` with the visitor's IP (for example from `CF-Connecting-IP`) instead of appending to it.
+
 ### L4 TCP load balancer (PROXY protocol)
 
 TCP load balancers forward connections at the network level and cannot inject HTTP headers, so `X-Forwarded-For` will never be set. Instead, configure the load balancer to emit a [PROXY protocol](https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt) header (v1 or v2) at the start of each TCP connection, and enable the corresponding Stormkit flag:
