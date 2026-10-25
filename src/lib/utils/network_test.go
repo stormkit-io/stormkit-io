@@ -136,6 +136,29 @@ func (s *NetworkTestSuite) Test_IsPortInUse_ConcurrentAccess() {
 	}
 }
 
+func (s *NetworkTestSuite) Test_ForwardedClientIP() {
+	cases := map[string]string{
+		"":                              "",
+		"1.2.3.4":                       "1.2.3.4",
+		" 1.2.3.4 ":                     "1.2.3.4",
+		"10.0.0.1":                      "10.0.0.1",
+		"9.9.9.9, 1.2.3.4":              "1.2.3.4",
+		"9.9.9.9, 1.2.3.4, 10.0.0.5":    "1.2.3.4",
+		"9.9.9.9, 1.2.3.4, 127.0.0.1":   "1.2.3.4",
+		"10.0.0.1, 192.168.1.1":         "192.168.1.1",
+		"spoofed, 1.2.3.4:5678":         "1.2.3.4",
+		"9.9.9.9, 2001:db8::1, fd00::1": "2001:db8::1",
+		"9.9.9.9, [2001:db8::1]:443":    "2001:db8::1",
+		"9.9.9.9, 1.2.3.4, unknown":     "1.2.3.4",
+		"unknown":                       "unknown",
+		"9.9.9.9,,":                     "9.9.9.9",
+	}
+
+	for header, want := range cases {
+		s.Equal(want, utils.ForwardedClientIP(header), header)
+	}
+}
+
 func TestNetworkTestSuite(t *testing.T) {
 	suite.Run(t, &NetworkTestSuite{})
 }

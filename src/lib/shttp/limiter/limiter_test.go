@@ -52,6 +52,22 @@ func (s *IPSuite) Test_TrustProxy_UsesXForwardedFor() {
 	s.Equal("1.1.1.1", limiter.IP(req))
 }
 
+// Test_TrustProxy_IgnoresClientSuppliedEntries verifies that a client cannot
+// pick a fresh rate-limit bucket by prepending addresses to X-Forwarded-For.
+func (s *IPSuite) Test_TrustProxy_IgnoresClientSuppliedEntries() {
+	config.Get().TrustProxyHeaders = true
+
+	hdr := http.Header{}
+	hdr.Set("X-Forwarded-For", "9.9.9.9, 1.1.1.1")
+
+	req := &http.Request{
+		RemoteAddr: "10.0.0.1:1234",
+		Header:     hdr,
+	}
+
+	s.Equal("1.1.1.1", limiter.IP(req))
+}
+
 func (s *IPSuite) Test_TrustProxy_FallsBackToXRealIP() {
 	config.Get().TrustProxyHeaders = true
 

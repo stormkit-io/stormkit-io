@@ -15,6 +15,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/model"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp/shttperr"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
 // File is a struct that represent an uploaded file.
@@ -107,18 +108,12 @@ func (r *RequestContext) RemoteAddr() string {
 }
 
 // RemoteIP returns only the IP part of the remote address, guaranteed to be a
-// plain IP string with no port suffix. When the address contains a
-// comma-separated list (as some proxies produce for X-Forwarded-For), the
-// first entry — the original client IP — is returned.
+// plain IP string with no port suffix.
 func (r *RequestContext) RemoteIP() string {
 	addr := r.RemoteAddr()
 
 	if ip, _, err := net.SplitHostPort(addr); err == nil {
 		addr = ip
-	}
-
-	if idx := strings.IndexByte(addr, ','); idx != -1 {
-		addr = addr[:idx]
 	}
 
 	return strings.TrimSpace(addr)
@@ -252,16 +247,19 @@ func (r *RequestContext) Redirect(url string, status int) {
 // Otherwise it uses the real socket address so clients cannot spoof it, except
 // on loopback connections: those come from this server proxying a request to
 // a site it serves itself, and carry the visitor's address in the headers.
+//
+// A proxy appends to X-Forwarded-For what the client sent, so the client IP is
+// taken from the right of the list (see utils.ForwardedClientIP), not the left.
 func RemoteAddr(r *http.Request) string {
 	if !config.Get().TrustProxyHeaders && !isLoopback(r.RemoteAddr) {
 		return r.RemoteAddr
 	}
 
-	addr := r.Header.Get("X-Forwarded-For")
+	addr := utils.ForwardedClientIP(r.Header.Get("X-Forwarded-For"))
 	port := r.Header.Get("X-Forwarded-Port")
 
 	if addr == "" {
-		addr = r.Header.Get("X-Real-IP")
+		addr = utils.ForwardedClientIP(r.Header.Get("X-Real-IP"))
 	}
 
 	if port == "" {
@@ -276,7 +274,7 @@ func RemoteAddr(r *http.Request) string {
 		return addr
 	}
 
-	return fmt.Sprintf("%s:%s", addr, port)
+	return net.JoinHostPort(addr, port)
 }
 
 // isLoopback reports whether addr (host:port) is a loopback address.
