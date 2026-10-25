@@ -10,8 +10,16 @@ import Countries from "./Countries";
 
 // The map is an SVG library; the test checks the data it is given.
 vi.mock("react-svg-worldmap", () => ({
-  default: ({ data, valueSuffix }: { data: unknown; valueSuffix: string }) => (
-    <pre data-testid="world-map" data-suffix={valueSuffix}>
+  default: ({
+    data,
+    valueSuffix,
+    size,
+  }: {
+    data: unknown;
+    valueSuffix: string;
+    size: number;
+  }) => (
+    <pre data-testid="world-map" data-suffix={valueSuffix} data-size={size}>
       {JSON.stringify(data)}
     </pre>
   ),
@@ -58,6 +66,11 @@ describe("~/pages/apps/[id]/environments/[env-id]/analytics/Countries.tsx", () =
     });
 
     expect(wrapper.getByTestId("world-map").dataset.suffix).toBe("visitors");
+
+    // Sized from the card, never wider than the cap.
+    const size = Number(wrapper.getByTestId("world-map").dataset.size);
+    expect(size).toBeGreaterThan(0);
+    expect(size).toBeLessThanOrEqual(760);
     expect(
       wrapper.getByText("Visitors per country in the last 90 days."),
     ).toBeTruthy();

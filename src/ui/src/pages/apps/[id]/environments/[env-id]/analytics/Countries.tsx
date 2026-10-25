@@ -1,5 +1,5 @@
 import type { TimeSpan } from "./index.d";
-import { useContext, useMemo } from "react";
+import { useContext, useLayoutEffect, useMemo, useRef, useState } from "react";
 import WorldMap from "react-svg-worldmap";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -11,6 +11,42 @@ import LinearProgress from "@mui/material/LinearProgress";
 import { grey } from "@mui/material/colors";
 import { useFetchAnalyticsReport } from "./actions";
 import { spanText } from "./helpers";
+
+// maxMapWidth caps the map so it stays a sensible height on wide screens; the
+// map's height is three quarters of its width.
+const maxMapWidth = 760;
+
+// useContainerWidth returns the width of the referenced element, following
+// resizes. The map library sizes itself from the window otherwise, which
+// overflows the card.
+function useContainerWidth() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+
+  useLayoutEffect(() => {
+    const element = ref.current;
+
+    if (!element) {
+      return;
+    }
+
+    setWidth(element.clientWidth);
+
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const observer = new ResizeObserver(([entry]) => {
+      setWidth(entry.contentRect.width);
+    });
+
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, []);
+
+  return { ref, width };
+}
 
 interface Props {
   environment: Environment;
@@ -36,6 +72,8 @@ export default function Countries({ environment, domain, ts }: Props) {
   );
 
   const isDark = mode === "dark";
+  const container = useContainerWidth();
+  const mapWidth = Math.min(container.width || maxMapWidth, maxMapWidth);
 
   return (
     <Card
@@ -55,11 +93,14 @@ export default function Countries({ environment, domain, ts }: Props) {
       />
       {loading && report && <LinearProgress color="secondary" />}
       <Box
+        ref={container.ref}
         sx={{
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           bgcolor: isDark ? "black" : grey[200],
+          // Some country outlines are drawn past the map's own bounds.
+          overflow: "hidden",
           mb: 4,
         }}
       >
@@ -67,7 +108,7 @@ export default function Countries({ environment, domain, ts }: Props) {
           backgroundColor={isDark ? "transparent" : grey[200]}
           borderColor={isDark ? "white" : "black"}
           color="white"
-          size="responsive"
+          size={mapWidth}
           valueSuffix="visitors"
           richInteraction
           data={countries}
