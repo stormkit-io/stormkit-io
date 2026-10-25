@@ -16,36 +16,34 @@ import (
 type LeaderElectionSuite struct {
 	suite.Suite
 
-	key      string
-	failGets atomic.Bool
-	failed   atomic.Int32
+	key       string
+	failRedis atomic.Bool
+	failed    atomic.Int32
 }
 
 func (s *LeaderElectionSuite) SetupSuite() {
 	s.key = "leader_election_test"
-	rediscache.Client().AddHook(&failingGetHook{suite: s})
+	rediscache.Client().AddHook(&failingRedisHook{suite: s})
 }
 
 func (s *LeaderElectionSuite) TearDownTest() {
-	s.failGets.Store(false)
+	s.failRedis.Store(false)
 	s.failed.Store(0)
 }
 
-// failingGetHook fails GET commands on the suite's key while failGets is set,
-// simulating a Redis blip for the leader check only.
-type failingGetHook struct {
+// failingRedisHook fails leader checks and renewals on the suite's key while
+// failRedis is set, simulating a Redis blip for the leader node only.
+type failingRedisHook struct {
 	suite *LeaderElectionSuite
 }
 
-func (h *failingGetHook) DialHook(next redis.DialHook) redis.DialHook {
+func (h *failingRedisHook) DialHook(next redis.DialHook) redis.DialHook {
 	return next
 }
 
-func (h *failingGetHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
+func (h *failingRedisHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
 	return func(ctx context.Context, cmd redis.Cmder) error {
-		args := cmd.Args()
-
-		if h.suite.failGets.Load() && cmd.Name() == "get" && len(args) > 1 && args[1] == h.suite.key {
+		if h.suite.failRedis.Load() && h.touchesKey(cmd) {
 			err := errors.New("simulated redis failure")
 			cmd.SetErr(err)
 			h.suite.failed.Add(1)
@@ -57,8 +55,23 @@ func (h *failingGetHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
 	}
 }
 
-func (h *failingGetHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.ProcessPipelineHook {
+func (h *failingRedisHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.ProcessPipelineHook {
 	return next
+}
+
+// touchesKey reports whether cmd is a leader check or renewal on the suite's key.
+func (h *failingRedisHook) touchesKey(cmd redis.Cmder) bool {
+	if cmd.Name() != "get" && cmd.Name() != "eval" {
+		return false
+	}
+
+	for _, arg := range cmd.Args()[1:] {
+		if arg == h.suite.key {
+			return true
+		}
+	}
+
+	return false
 }
 
 type leaderCounters struct {
@@ -66,17 +79,25 @@ type leaderCounters struct {
 	renounced atomic.Int32
 }
 
-// startNode starts a single node with a short TTL and waits until it leads.
-func (s *LeaderElectionSuite) startNode(ctx context.Context, counters *leaderCounters) *jobs.Node {
+type startNodeParams struct {
+	ctx      context.Context
+	counters *leaderCounters
+	ttl      time.Duration
+}
+
+// startNode starts a single node and waits until it leads.
+func (s *LeaderElectionSuite) startNode(p startNodeParams) *jobs.Node {
+	counters := p.counters
+
 	node := jobs.NewNode(jobs.Options{
 		Key:        s.key,
-		TTL:        200 * time.Millisecond,
+		TTL:        p.ttl,
 		Wait:       10 * time.Millisecond,
 		OnLeader:   func(*jobs.Node) { counters.elected.Add(1) },
 		OnRenounce: func(*jobs.Node) { counters.renounced.Add(1) },
 	})
 
-	node.Start(ctx)
+	node.Start(p.ctx)
 
 	s.Require().Eventually(func() bool {
 		return counters.elected.Load() == 1
@@ -149,7 +170,7 @@ func (s *LeaderElectionSuite) Test_LeaderElection() {
 func (s *LeaderElectionSuite) Test_LostLeadership_Renounces() {
 	ctx := context.Background()
 	counters := &leaderCounters{}
-	node := s.startNode(ctx, counters)
+	node := s.startNode(startNodeParams{ctx: ctx, counters: counters, ttl: 200 * time.Millisecond})
 
 	s.Require().NoError(rediscache.Client().Set(ctx, s.key, "another-node", time.Minute).Err())
 
@@ -163,26 +184,28 @@ func (s *LeaderElectionSuite) Test_LostLeadership_Renounces() {
 	s.Equal(int32(1), counters.elected.Load())
 	s.Equal(int32(1), counters.renounced.Load())
 
+	// The other node's lock must not have been touched by this node's renewal.
+	s.Greater(rediscache.Client().PTTL(ctx, s.key).Val(), 30*time.Second)
+	s.Equal("another-node", rediscache.Client().Get(ctx, s.key).Val())
+
 	node.Stop(ctx)
 }
 
-// Test_GetError_KeepsLeadership verifies that a failed leader check is not
+// Test_RedisError_KeepsLeadership verifies that a single failed renewal is not
 // treated as a lost leadership.
-func (s *LeaderElectionSuite) Test_GetError_KeepsLeadership() {
+func (s *LeaderElectionSuite) Test_RedisError_KeepsLeadership() {
 	ctx := context.Background()
 	counters := &leaderCounters{}
-	node := s.startNode(ctx, counters)
+	node := s.startNode(startNodeParams{ctx: ctx, counters: counters, ttl: time.Second})
 
-	// Keep the key alive while renewals are skipped, so only the read fails.
-	s.Require().NoError(rediscache.Client().PExpire(ctx, s.key, time.Minute).Err())
-	s.failGets.Store(true)
+	s.failRedis.Store(true)
 
 	s.Require().Eventually(func() bool {
-		return s.failed.Load() >= 2
+		return s.failed.Load() >= 1
 	}, 2*time.Second, 5*time.Millisecond)
 
-	s.failGets.Store(false)
-	time.Sleep(250 * time.Millisecond)
+	s.failRedis.Store(false)
+	time.Sleep(600 * time.Millisecond)
 
 	s.Equal(int32(0), counters.renounced.Load())
 	s.Equal(int32(1), counters.elected.Load())
@@ -191,6 +214,25 @@ func (s *LeaderElectionSuite) Test_GetError_KeepsLeadership() {
 	node.Stop(ctx)
 
 	s.Equal(int32(1), counters.renounced.Load())
+}
+
+// Test_RedisError_RenouncesAfterTTL verifies that a node unable to renew for a
+// full TTL renounces, since its key may have expired and been taken over.
+func (s *LeaderElectionSuite) Test_RedisError_RenouncesAfterTTL() {
+	ctx := context.Background()
+	counters := &leaderCounters{}
+	node := s.startNode(startNodeParams{ctx: ctx, counters: counters, ttl: 200 * time.Millisecond})
+
+	s.failRedis.Store(true)
+
+	s.Eventually(func() bool {
+		return counters.renounced.Load() >= 1
+	}, 2*time.Second, 5*time.Millisecond)
+
+	s.GreaterOrEqual(s.failed.Load(), int32(2))
+
+	s.failRedis.Store(false)
+	node.Stop(ctx)
 }
 
 func TestLeaderElection(t *testing.T) {

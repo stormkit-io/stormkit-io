@@ -160,7 +160,9 @@ func (l *Node) elect(ctx context.Context) {
 			}
 
 			if reply == "OK" {
-				ticker := time.NewTicker(l.options.TTL / 2)
+				// Renewing every third of the TTL lets one failed renewal be
+				// retried before the key expires.
+				ticker := time.NewTicker(l.options.TTL / 3)
 
 				l.renewMu.Lock()
 				l.renewID = ticker
@@ -180,42 +182,71 @@ func (l *Node) elect(ctx context.Context) {
 	}
 }
 
+// renewScript extends the leader key only while this node still holds it, so a
+// takeover between the check and the extension can never extend another
+// node's lock. It returns 1 when the key was extended and 0 otherwise.
+const renewScript = `
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+	return redis.call("PEXPIRE", KEYS[1], ARGV[2])
+end
+
+return 0
+`
+
 // renew keeps the leader key alive on every tick. It returns once the
 // leadership is lost, after renouncing it and scheduling a new election.
+//
+// A failed renewal leaves the leadership unknown, so the node keeps leading
+// and retries on the next tick. Once a full TTL has passed without a
+// confirmed renewal, the key may have expired and been taken by another node,
+// so the node renounces rather than risk two leaders.
 func (l *Node) renew(ctx context.Context, ticker *time.Ticker) {
+	lastRenewed := time.Now()
+
 	for {
 		select {
 		case <-l.stopChan:
 			return
 		case <-ticker.C:
-			switch l.leadership(ctx) {
-			case leadershipHeld:
-				_, err := l.do(ctx, "PEXPIRE", l.key, int(l.options.TTL/time.Millisecond))
+			state := l.extend(ctx)
 
-				if err != nil {
-					slog.Errorf("failed to renew leader key: %v", err)
-				}
-
-			case leadershipUnknown:
-				// A failed read says nothing about who holds the key, so keep
-				// leading and check again on the next tick. If the outage outlasts
-				// the TTL, the key expires and the next successful read reports
-				// the loss.
-
-			case leadershipLost:
-				l.renewMu.Lock()
-				ticker.Stop()
-				l.renewMu.Unlock()
-
-				if l.onRenounce != nil {
-					l.onRenounce(l)
-				}
-
-				time.AfterFunc(l.options.Wait, func() { l.elect(ctx) })
-				return
+			if state == leadershipHeld {
+				lastRenewed = time.Now()
+				continue
 			}
+
+			if state == leadershipUnknown && time.Since(lastRenewed) < l.options.TTL {
+				continue
+			}
+
+			l.renewMu.Lock()
+			ticker.Stop()
+			l.renewMu.Unlock()
+
+			if l.onRenounce != nil {
+				l.onRenounce(l)
+			}
+
+			time.AfterFunc(l.options.Wait, func() { l.elect(ctx) })
+			return
 		}
 	}
+}
+
+// extend atomically extends the leader key if this node still holds it.
+func (l *Node) extend(ctx context.Context) leadershipState {
+	reply, err := l.do(ctx, "EVAL", renewScript, 1, l.key, l.id, int(l.options.TTL/time.Millisecond))
+
+	if err != nil {
+		slog.Errorf("failed to renew leader key: %v", err)
+		return leadershipUnknown
+	}
+
+	if n, ok := reply.(int64); ok && n == 1 {
+		return leadershipHeld
+	}
+
+	return leadershipLost
 }
 
 type leadershipState int

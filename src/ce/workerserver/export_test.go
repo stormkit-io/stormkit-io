@@ -12,3 +12,16 @@ func (s *Scheduler) MasterTaskCount() int {
 
 	return len(s.masterTasks)
 }
+
+// SetMasterTasks replaces the master task list registered by RegisterMasterTasks.
+func (s *Scheduler) SetMasterTasks(tasks []TaskDefinition) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
+	s.masterTaskDefs = tasks
+}
+
+// Shutdown stops the underlying scheduler.
+func (s *Scheduler) Shutdown() error {
+	return s.scheduler.Shutdown()
+}
