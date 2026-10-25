@@ -38,11 +38,23 @@ func IP(r *http.Request) string {
 	}
 
 	if config.Get().TrustProxyHeaders {
-		if forwardedFor := utils.ForwardedClientIP(r.Header.Get("X-Forwarded-For")); forwardedFor != "" {
+		trusted := config.Get().TrustedProxies
+
+		forwardedFor := utils.ForwardedClientIP(utils.ForwardedClientIPParams{
+			Header:         r.Header.Get("X-Forwarded-For"),
+			TrustedProxies: trusted,
+		})
+
+		if forwardedFor != "" {
 			return forwardedFor
 		}
 
-		if realIP := utils.ForwardedClientIP(r.Header.Get("X-Real-IP")); realIP != "" {
+		realIP := utils.ForwardedClientIP(utils.ForwardedClientIPParams{
+			Header:         r.Header.Get("X-Real-IP"),
+			TrustedProxies: trusted,
+		})
+
+		if realIP != "" {
 			return realIP
 		}
 	}

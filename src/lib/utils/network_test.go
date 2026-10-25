@@ -2,6 +2,7 @@ package utils_test
 
 import (
 	"net"
+	"net/netip"
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
@@ -145,17 +146,51 @@ func (s *NetworkTestSuite) Test_ForwardedClientIP() {
 		"9.9.9.9, 1.2.3.4":              "1.2.3.4",
 		"9.9.9.9, 1.2.3.4, 10.0.0.5":    "1.2.3.4",
 		"9.9.9.9, 1.2.3.4, 127.0.0.1":   "1.2.3.4",
-		"10.0.0.1, 192.168.1.1":         "192.168.1.1",
+		"203.0.113.7, 100.64.1.2":       "203.0.113.7",
+		"203.0.113.7, 169.254.10.1":     "203.0.113.7",
+		"203.0.113.7, fe80::1":          "203.0.113.7",
+		"203.0.113.7, 0.1.2.3":          "203.0.113.7",
+		"203.0.113.7, 192.0.0.8":        "203.0.113.7",
+		"203.0.113.7, ::ffff:10.0.0.1":  "203.0.113.7",
+		"10.0.0.1, 192.168.1.1":         "10.0.0.1",
+		"10.0.0.1, 100.64.0.1, ::1":     "10.0.0.1",
 		"spoofed, 1.2.3.4:5678":         "1.2.3.4",
 		"9.9.9.9, 2001:db8::1, fd00::1": "2001:db8::1",
 		"9.9.9.9, [2001:db8::1]:443":    "2001:db8::1",
 		"9.9.9.9, 1.2.3.4, unknown":     "1.2.3.4",
+		"unknown, 10.0.0.1":             "10.0.0.1",
 		"unknown":                       "unknown",
 		"9.9.9.9,,":                     "9.9.9.9",
 	}
 
 	for header, want := range cases {
-		s.Equal(want, utils.ForwardedClientIP(header), header)
+		s.Equal(want, utils.ForwardedClientIP(utils.ForwardedClientIPParams{Header: header}), header)
+	}
+}
+
+// Test_ForwardedClientIP_TrustedProxies verifies that entries from trusted
+// proxy ranges are skipped like internal hops.
+func (s *NetworkTestSuite) Test_ForwardedClientIP_TrustedProxies() {
+	trusted := []netip.Prefix{
+		netip.MustParsePrefix("104.16.0.0/13"),
+		netip.MustParsePrefix("2400:cb00::/32"),
+		netip.MustParsePrefix("192.0.2.10/32"),
+	}
+
+	cases := map[string]string{
+		"198.51.100.9, 104.16.0.1":           "198.51.100.9",
+		"198.51.100.9, 104.16.0.1, 10.0.0.5": "198.51.100.9",
+		"6.6.6.6, 198.51.100.9, 104.16.0.1":  "198.51.100.9",
+		"198.51.100.9, 2400:cb00::1":         "198.51.100.9",
+		"198.51.100.9, 192.0.2.10":           "198.51.100.9",
+		"198.51.100.9, 192.0.2.11":           "192.0.2.11",
+		"104.16.0.1":                         "104.16.0.1",
+		"104.16.0.2, 104.16.0.1":             "104.16.0.2",
+	}
+
+	for header, want := range cases {
+		got := utils.ForwardedClientIP(utils.ForwardedClientIPParams{Header: header, TrustedProxies: trusted})
+		s.Equal(want, got, header)
 	}
 }
 

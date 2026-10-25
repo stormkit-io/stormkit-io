@@ -255,11 +255,18 @@ func RemoteAddr(r *http.Request) string {
 		return r.RemoteAddr
 	}
 
-	addr := utils.ForwardedClientIP(r.Header.Get("X-Forwarded-For"))
+	trusted := config.Get().TrustedProxies
+	addr := utils.ForwardedClientIP(utils.ForwardedClientIPParams{
+		Header:         r.Header.Get("X-Forwarded-For"),
+		TrustedProxies: trusted,
+	})
 	port := r.Header.Get("X-Forwarded-Port")
 
 	if addr == "" {
-		addr = utils.ForwardedClientIP(r.Header.Get("X-Real-IP"))
+		addr = utils.ForwardedClientIP(utils.ForwardedClientIPParams{
+			Header:         r.Header.Get("X-Real-IP"),
+			TrustedProxies: trusted,
+		})
 	}
 
 	if port == "" {
