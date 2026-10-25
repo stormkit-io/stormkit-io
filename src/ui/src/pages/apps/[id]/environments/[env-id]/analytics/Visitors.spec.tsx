@@ -2,7 +2,8 @@ import type { TimeSpan } from "./index.d";
 import type { RenderResult } from "@testing-library/react";
 import type { Scope } from "nock";
 import { waitFor, render, fireEvent } from "@testing-library/react";
-import { describe, expect, it, vi, Mock } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, Mock } from "vitest";
+import { trackFetches } from "~/testing/helpers";
 import mockApp from "~/testing/data/mock_app";
 import mockEnvironments from "~/testing/data/mock_environments";
 import mockVisitors from "~/testing/data/mock_analytics_visitors";
@@ -12,7 +13,7 @@ import {
   mockFetchVisitors,
   mockFetchAnalyticsReport,
 } from "~/testing/nocks/nock_analytics";
-import Visitors, { formatDuration } from "./Visitors";
+import Visitors, { formatDuration, tooltipLabel } from "./Visitors";
 
 interface WrapperProps {
   ts?: TimeSpan;
@@ -220,6 +221,130 @@ describe("~/pages/apps/[id]/environments/[env-id]/analytics/Visitors.tsx", () =>
     expect(JSON.parse(view.getByTestId("area-chart").innerHTML)).toHaveLength(
       3,
     );
+  });
+
+  describe("switching domains", () => {
+    const props = () => ({
+      environment: currentEnv,
+      onTimeSpanChange: vi.fn(),
+    });
+
+    const hourly = (domain: Domain, total: number, delay = 0) =>
+      mockFetchVisitors({
+        unique: "false",
+        ts: "24h",
+        envId: currentEnv.id,
+        domainId: domain.id,
+        response: { "2024-01-14 13:00": { total, unique: 1 } },
+        delay,
+      });
+
+    const chart = () => JSON.parse(wrapper.getByTestId("area-chart").innerHTML);
+
+    let fetches: ReturnType<typeof trackFetches>;
+
+    beforeEach(() => {
+      currentEnv = mockEnvironments({ app: mockApp() })[0];
+      fetches = trackFetches();
+    });
+
+    afterEach(() => {
+      fetches.restore();
+    });
+
+    // A slow response for the previous domain must not replace the current one.
+    it("ignores the hours of a domain that is no longer selected", async () => {
+      const first = mockDomain();
+      const second = { ...mockDomain(), id: "2", domainName: "second.dev" };
+
+      hourly(first, 9, 100);
+      hourly(second, 3);
+
+      wrapper = render(<Visitors {...props()} domain={first} ts="24h" />);
+      wrapper.rerender(<Visitors {...props()} domain={second} ts="24h" />);
+
+      await fetches.settle();
+
+      expect(chart()).toEqual([
+        { name: "2024-01-14 13:00", total: 3, unique: 1 },
+      ]);
+    });
+
+    it("shows progress over the previous hours until the new ones arrive", async () => {
+      const first = mockDomain();
+      const second = { ...mockDomain(), id: "2", domainName: "second.dev" };
+
+      hourly(first, 9);
+
+      wrapper = render(<Visitors {...props()} domain={first} ts="24h" />);
+
+      await fetches.settle();
+
+      expect(chart()[0].total).toBe(9);
+      expect(wrapper.queryByTestId("card-loading")).toBeNull();
+
+      // Another domain is picked on a daily span, then 24 hours again.
+      mockFetchAnalyticsReport({
+        query: reportQuery(second, "7d"),
+        response: mockReport(),
+      });
+
+      wrapper.rerender(<Visitors {...props()} domain={second} ts="7d" />);
+      await fetches.settle();
+
+      hourly(second, 3, 50);
+      wrapper.rerender(<Visitors {...props()} domain={second} ts="24h" />);
+
+      expect(wrapper.getByTestId("card-loading")).toBeTruthy();
+
+      await fetches.settle();
+
+      expect(wrapper.queryByTestId("card-loading")).toBeNull();
+      expect(chart()[0].total).toBe(3);
+    });
+
+    it("clears the hours when they fail to load", async () => {
+      const first = mockDomain();
+      const second = { ...mockDomain(), id: "2", domainName: "second.dev" };
+
+      hourly(first, 9);
+
+      wrapper = render(<Visitors {...props()} domain={first} ts="24h" />);
+      await fetches.settle();
+
+      mockFetchVisitors({
+        unique: "false",
+        ts: "24h",
+        envId: currentEnv.id,
+        domainId: second.id,
+        status: 500,
+      });
+
+      wrapper.rerender(<Visitors {...props()} domain={second} ts="24h" />);
+      await fetches.settle();
+
+      expect(
+        wrapper.getByText(
+          /Something went wrong while fetching unique visitors/,
+        ),
+      ).toBeTruthy();
+      expect(chart()).toEqual([]);
+    });
+  });
+
+  it("labels the span picker", async () => {
+    createWrapper({});
+
+    expect(wrapper.getByRole("group", { name: "Time span" })).toBeTruthy();
+
+    await waitFor(() => {
+      expect(scope.isDone()).toBe(true);
+    });
+  });
+
+  it("labels hourly points in UTC and daily points by date", () => {
+    expect(tooltipLabel("2024-01-14 13:00")).toBe("13:00 UTC");
+    expect(tooltipLabel("2024-01-14")).toBe("2024-01-14");
   });
 
   it("formats durations", () => {

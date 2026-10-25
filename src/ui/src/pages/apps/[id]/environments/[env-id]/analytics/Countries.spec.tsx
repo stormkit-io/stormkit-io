@@ -1,6 +1,7 @@
 import type { AnalyticsReport } from "./index.d";
-import { render, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, render, waitFor } from "@testing-library/react";
+import type { MockInstance } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import mockApp from "~/testing/data/mock_app";
 import mockEnvironments from "~/testing/data/mock_environments";
 import mockDomain from "~/testing/data/mock_domain";
@@ -74,5 +75,87 @@ describe("~/pages/apps/[id]/environments/[env-id]/analytics/Countries.tsx", () =
     expect(
       wrapper.getByText("Visitors per country in the last 90 days."),
     ).toBeTruthy();
+  });
+
+  describe("sizing", () => {
+    let observers: { callback: ResizeObserverCallback; element?: Element }[];
+    let clientWidth: MockInstance;
+    const originalObserver = window.ResizeObserver;
+
+    beforeEach(() => {
+      observers = [];
+
+      window.ResizeObserver = class {
+        entry: (typeof observers)[number];
+
+        constructor(callback: ResizeObserverCallback) {
+          this.entry = { callback };
+          observers.push(this.entry);
+        }
+
+        observe(element: Element) {
+          this.entry.element = element;
+        }
+
+        unobserve() {}
+
+        disconnect() {
+          this.entry.element = undefined;
+        }
+      } as unknown as typeof ResizeObserver;
+
+      clientWidth = vi
+        .spyOn(HTMLElement.prototype, "clientWidth", "get")
+        .mockReturnValue(400);
+    });
+
+    afterEach(() => {
+      window.ResizeObserver = originalObserver;
+      clientWidth.mockRestore();
+    });
+
+    // resize reports a new width for the elements that are on screen, as the
+    // browser would.
+    const resize = (width: number) => {
+      observers
+        .filter(o => o.element?.isConnected)
+        .forEach(o =>
+          o.callback(
+            [{ contentRect: { width } } as ResizeObserverEntry],
+            {} as ResizeObserver,
+          ),
+        );
+    };
+
+    // The card remounts its content after the first load, so the map must
+    // follow the container that is on screen afterwards.
+    it("follows the width of the mounted container", async () => {
+      mockFetchAnalyticsReport({
+        query: {
+          envId: env.id!,
+          domainId: domain.id,
+          metric: "countries",
+          limit: "50",
+          ...reportRange("7d"),
+        },
+        response: countriesReport(),
+      });
+
+      const wrapper = render(
+        <Countries environment={env} domain={domain} ts="7d" />,
+      );
+
+      const size = () => Number(wrapper.getByTestId("world-map").dataset.size);
+
+      await waitFor(() => {
+        expect(wrapper.getByText(/"DE"/)).toBeTruthy();
+      });
+
+      expect(size()).toBe(400);
+
+      act(() => resize(320));
+
+      expect(size()).toBe(320);
+    });
   });
 });

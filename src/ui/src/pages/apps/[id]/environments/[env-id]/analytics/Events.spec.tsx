@@ -2,7 +2,8 @@ import type { TimeSpan } from "./index.d";
 import type { RenderResult } from "@testing-library/react";
 import type { Scope } from "nock";
 import { waitFor, render, fireEvent, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { trackFetches } from "~/testing/helpers";
 import mockApp from "~/testing/data/mock_app";
 import mockEnvironments from "~/testing/data/mock_environments";
 import mockDomain from "~/testing/data/mock_domain";
@@ -17,6 +18,7 @@ import Events from "./Events";
 interface WrapperProps {
   ts?: TimeSpan;
   response?: { name: string; total: number; unique: number }[];
+  delay?: number;
 }
 
 describe("~/pages/apps/[id]/environments/[env-id]/analytics/Events.tsx", () => {
@@ -25,7 +27,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/analytics/Events.tsx", () => {
   let currentEnv: Environment;
   let currentDomain: Domain;
 
-  const createWrapper = ({ ts = "30d", response }: WrapperProps) => {
+  const createWrapper = ({ ts = "30d", response, delay }: WrapperProps) => {
     currentDomain = mockDomain();
     currentEnv = mockEnvironments({ app: mockApp() })[0];
 
@@ -34,6 +36,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/analytics/Events.tsx", () => {
       envId: currentEnv.id,
       domainId: currentDomain.id,
       response,
+      delay,
     });
 
     mockFetchAnalyticsStatus({
@@ -114,6 +117,92 @@ describe("~/pages/apps/[id]/environments/[env-id]/analytics/Events.tsx", () => {
     expect(screen.getByText("Track events")).toBeTruthy();
     expect(screen.getByDisplayValue(/window.stormkit.track/)).toBeTruthy();
     expect(screen.getByDisplayValue(/_stormkit\/collect/)).toBeTruthy();
+  });
+
+  describe("changing the selection", () => {
+    let fetches: ReturnType<typeof trackFetches>;
+
+    beforeEach(() => {
+      fetches = trackFetches();
+    });
+
+    afterEach(() => {
+      fetches.restore();
+    });
+
+    // A slow response for the previous span must not replace the current one.
+    it("ignores the events of a span that is no longer selected", async () => {
+      createWrapper({
+        ts: "365d",
+        response: [{ name: "slow_event", total: 1, unique: 1 }],
+        delay: 100,
+      });
+
+      mockFetchEvents({
+        ts: "7d",
+        envId: currentEnv.id,
+        domainId: currentDomain.id,
+        response: [{ name: "fast_event", total: 2, unique: 2 }],
+      });
+
+      wrapper.rerender(
+        <Events environment={currentEnv} domain={currentDomain} ts="7d" />,
+      );
+
+      await fetches.settle();
+
+      expect(wrapper.getByText("fast_event")).toBeTruthy();
+      expect(wrapper.queryByText("slow_event")).toBeNull();
+    });
+
+    it("returns to the event list when the domain changes", async () => {
+      createWrapper({
+        response: [{ name: "trip_creation", total: 4, unique: 2 }],
+      });
+
+      await fetches.settle();
+
+      mockFetchEventProperties({
+        ts: "30d",
+        envId: currentEnv.id,
+        domainId: currentDomain.id,
+        event: "trip_creation",
+        response: ["ref"],
+      });
+
+      mockFetchEventBreakdown({
+        ts: "30d",
+        envId: currentEnv.id,
+        domainId: currentDomain.id,
+        event: "trip_creation",
+        property: "ref",
+        response: [{ name: "mobile", total: 2, unique: 1 }],
+      });
+
+      fireEvent.click(wrapper.getByLabelText("Group trip_creation"));
+      await fetches.settle();
+
+      expect(wrapper.getByText("Group by")).toBeTruthy();
+
+      const other = { ...mockDomain(), id: "2", domainName: "other.dev" };
+
+      mockFetchEvents({
+        ts: "30d",
+        envId: currentEnv.id,
+        domainId: other.id,
+        response: [{ name: "checkout", total: 1, unique: 1 }],
+      });
+
+      wrapper.rerender(
+        <Events environment={currentEnv} domain={other} ts="30d" />,
+      );
+
+      expect(wrapper.queryByText("Group by")).toBeNull();
+
+      await fetches.settle();
+
+      expect(wrapper.getByText("checkout")).toBeTruthy();
+    });
   });
 
   it("drills into an event and groups by a property", async () => {

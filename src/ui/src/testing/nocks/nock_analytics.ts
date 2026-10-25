@@ -9,9 +9,12 @@ interface MockFetchVisitorsProps {
   domainId: string;
   status?: number;
   response?: Record<string, { total: number; unique: number }>;
+  // delay holds the response back, in milliseconds.
+  delay?: number;
 }
 
 export const mockFetchVisitors = ({
+  delay = 0,
   unique,
   ts,
   envId,
@@ -23,6 +26,7 @@ export const mockFetchVisitors = ({
     .get(
       `/analytics/visitors?unique=${unique}&envId=${envId}&ts=${ts}&domainId=${domainId}`,
     )
+    .delay(delay)
     .reply(status, response);
 };
 
@@ -55,9 +59,12 @@ interface MockFetchEventsProps {
   domainId: string;
   status?: number;
   response?: { name: string; total: number; unique: number }[];
+  // delay holds the response back, in milliseconds.
+  delay?: number;
 }
 
 export const mockFetchEvents = ({
+  delay = 0,
   ts,
   envId,
   status = 200,
@@ -66,6 +73,7 @@ export const mockFetchEvents = ({
 }: MockFetchEventsProps) => {
   return nock(endpoint)
     .get(`/analytics/events?envId=${envId}&domainId=${domainId}&ts=${ts}`)
+    .delay(delay)
     .reply(status, response);
 };
 
@@ -76,9 +84,12 @@ interface MockFetchEventPropertiesProps {
   event: string;
   status?: number;
   response?: string[];
+  // delay holds the response back, in milliseconds.
+  delay?: number;
 }
 
 export const mockFetchEventProperties = ({
+  delay = 0,
   ts,
   envId,
   status = 200,
@@ -90,6 +101,7 @@ export const mockFetchEventProperties = ({
     .get(
       `/analytics/events/properties?envId=${envId}&domainId=${domainId}&event=${event}&ts=${ts}`,
     )
+    .delay(delay)
     .reply(status, response);
 };
 
@@ -101,9 +113,12 @@ interface MockFetchEventBreakdownProps {
   property: string;
   status?: number;
   response?: { name: string; total: number; unique: number }[];
+  // delay holds the response back, in milliseconds.
+  delay?: number;
 }
 
 export const mockFetchEventBreakdown = ({
+  delay = 0,
   ts,
   envId,
   status = 200,
@@ -116,6 +131,7 @@ export const mockFetchEventBreakdown = ({
     .get(
       `/analytics/events/breakdown?envId=${envId}&domainId=${domainId}&event=${event}&property=${property}&ts=${ts}`,
     )
+    .delay(delay)
     .reply(status, response);
 };
 

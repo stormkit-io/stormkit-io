@@ -2,6 +2,47 @@ import type { AnalyticsReport, TimeSpan } from "./index.d";
 import { useEffect, useState } from "react";
 import api from "~/utils/api/Api";
 
+interface FetchLatestParams<T> {
+  url: string;
+  onData: (data: T) => void;
+  onError: () => void;
+  onSettled: () => void;
+}
+
+// fetchLatest requests url and calls back unless the returned cleanup ran
+// first, so a slow response of a previous request never replaces the current
+// one's. Effects return the cleanup.
+const fetchLatest = <T>({
+  url,
+  onData,
+  onError,
+  onSettled,
+}: FetchLatestParams<T>) => {
+  let current = true;
+
+  api
+    .fetch<T>(url)
+    .then(data => {
+      if (current) {
+        onData(data);
+      }
+    })
+    .catch(() => {
+      if (current) {
+        onError();
+      }
+    })
+    .finally(() => {
+      if (current) {
+        onSettled();
+      }
+    });
+
+  return () => {
+    current = false;
+  };
+};
+
 interface FetchHourlyVisitorsProps {
   envId: string;
   domainId?: string;
@@ -26,18 +67,19 @@ export const useFetchVisitors = ({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // setLoading(true) is not called here because we want to display the spinner only the first time.
     setError("");
 
     if (!domainId) {
       return;
     }
 
-    api
-      .fetch<Record<string, { total: number; unique: number }>>(
-        `/analytics/visitors?unique=false&envId=${envId}&ts=24h&domainId=${domainId}`,
-      )
-      .then(data => {
+    // The previous hours stay on screen under a progress bar until these
+    // arrive.
+    setLoading(true);
+
+    return fetchLatest<Record<string, { total: number; unique: number }>>({
+      url: `/analytics/visitors?unique=false&envId=${envId}&ts=24h&domainId=${domainId}`,
+      onData: data => {
         setVisitors(
           Object.keys(data).map(name => ({
             name,
@@ -45,13 +87,13 @@ export const useFetchVisitors = ({
             unique: data[name]?.unique || 0,
           })),
         );
-      })
-      .catch(() => {
+      },
+      onError: () => {
+        setVisitors([]);
         setError("Something went wrong while fetching unique visitors.");
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+      },
+      onSettled: () => setLoading(false),
+    });
   }, [refreshToken, envId, domainId]);
 
   return { visitors, error, loading };
@@ -106,8 +148,6 @@ export const useFetchAnalyticsReport = ({
       return;
     }
 
-    // A slow response of a previous query must not replace this one's.
-    let current = true;
     const { span, to } = reportRange(query.ts);
     const params = new URLSearchParams({
       envId,
@@ -135,30 +175,17 @@ export const useFetchAnalyticsReport = ({
 
     setLoading(true);
 
-    api
-      .fetch<AnalyticsReport>(`/v1/analytics?${params.toString()}`)
-      .then(data => {
-        if (current) {
-          setReport(data);
-        }
-      })
-      .catch(() => {
-        if (current) {
-          // Keeping the previous report would show its numbers under the new
-          // query's labels.
-          setReport(undefined);
-          setError(`Something went wrong while fetching ${query.metric}.`);
-        }
-      })
-      .finally(() => {
-        if (current) {
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      current = false;
-    };
+    return fetchLatest<AnalyticsReport>({
+      url: `/v1/analytics?${params.toString()}`,
+      onData: setReport,
+      onError: () => {
+        // Keeping the previous report would show its numbers under the new
+        // query's labels.
+        setReport(undefined);
+        setError(`Something went wrong while fetching ${query.metric}.`);
+      },
+      onSettled: () => setLoading(false),
+    });
   }, [envId, domainId, key, skip]);
 
   return { report, error, loading };
@@ -212,19 +239,15 @@ export const useFetchEvents = ({
     setError("");
     setLoading(true);
 
-    api
-      .fetch<AnalyticsEvent[]>(
-        `/analytics/events?envId=${envId}&domainId=${domainId}&ts=${ts}`,
-      )
-      .then(data => {
-        setEvents(Array.isArray(data) ? data : []);
-      })
-      .catch(() => {
+    return fetchLatest<AnalyticsEvent[]>({
+      url: `/analytics/events?envId=${envId}&domainId=${domainId}&ts=${ts}`,
+      onData: data => setEvents(Array.isArray(data) ? data : []),
+      onError: () => {
+        setEvents([]);
         setError("Something went wrong while fetching events.");
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+      },
+      onSettled: () => setLoading(false),
+    });
   }, [envId, domainId, ts]);
 
   return { events, loading, error };
@@ -257,21 +280,17 @@ export const useFetchEventProperties = ({
     setError("");
     setLoading(true);
 
-    api
-      .fetch<string[]>(
-        `/analytics/events/properties?envId=${envId}&domainId=${domainId}&event=${encodeURIComponent(
-          event,
-        )}&ts=${ts}`,
-      )
-      .then(data => {
-        setProperties(Array.isArray(data) ? data : []);
-      })
-      .catch(() => {
+    return fetchLatest<string[]>({
+      url: `/analytics/events/properties?envId=${envId}&domainId=${domainId}&event=${encodeURIComponent(
+        event,
+      )}&ts=${ts}`,
+      onData: data => setProperties(Array.isArray(data) ? data : []),
+      onError: () => {
+        setProperties([]);
         setError("Something went wrong while fetching event properties.");
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+      },
+      onSettled: () => setLoading(false),
+    });
   }, [envId, domainId, event, ts, skip]);
 
   return { properties, loading, error };
@@ -296,7 +315,7 @@ export const useFetchEventBreakdown = ({
 }: FetchEventBreakdownProps) => {
   const [breakdown, setBreakdown] = useState<AnalyticsEvent[]>([]);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (skip || !domainId || !event || !property) {
@@ -306,21 +325,17 @@ export const useFetchEventBreakdown = ({
     setError("");
     setLoading(true);
 
-    api
-      .fetch<AnalyticsEvent[]>(
-        `/analytics/events/breakdown?envId=${envId}&domainId=${domainId}&event=${encodeURIComponent(
-          event,
-        )}&property=${encodeURIComponent(property)}&ts=${ts}`,
-      )
-      .then(data => {
-        setBreakdown(Array.isArray(data) ? data : []);
-      })
-      .catch(() => {
+    return fetchLatest<AnalyticsEvent[]>({
+      url: `/analytics/events/breakdown?envId=${envId}&domainId=${domainId}&event=${encodeURIComponent(
+        event,
+      )}&property=${encodeURIComponent(property)}&ts=${ts}`,
+      onData: data => setBreakdown(Array.isArray(data) ? data : []),
+      onError: () => {
+        setBreakdown([]);
         setError("Something went wrong while fetching the event breakdown.");
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+      },
+      onSettled: () => setLoading(false),
+    });
   }, [envId, domainId, event, property, ts, skip]);
 
   return { breakdown, loading, error };

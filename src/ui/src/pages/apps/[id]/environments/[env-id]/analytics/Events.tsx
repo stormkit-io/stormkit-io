@@ -25,7 +25,17 @@ const helpSubtitle =
   "Send custom events from the browser or from your backend.";
 
 export default function Events({ environment, domain, ts }: Props) {
-  const [selected, setSelected] = useState("");
+  // A selected event belongs to the domain it was picked on, so picking
+  // another domain returns to the list.
+  const [selection, setSelection] = useState({
+    domainId: domain?.id,
+    event: "",
+  });
+
+  const selected = selection.domainId === domain?.id ? selection.event : "";
+  const setSelected = (event: string) =>
+    setSelection({ domainId: domain?.id, event });
+
   const { events, error, loading } = useFetchEvents({
     envId: environment.id!,
     domainId: domain?.id,

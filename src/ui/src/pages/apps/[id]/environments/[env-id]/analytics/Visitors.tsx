@@ -30,10 +30,16 @@ interface CustomTooltipProps {
   label?: string;
 }
 
+// tooltipLabel names a chart point: the hour of an hourly point
+// ("YYYY-MM-DD HH:MM", aggregated in UTC) or the date of a daily one.
+export function tooltipLabel(name: string): string {
+  const [date, hour] = name.split(" ");
+
+  return hour ? `${hour} UTC` : date;
+}
+
 function CustomTooltip({ active, payload }: CustomTooltipProps) {
   if (active && payload && payload.length) {
-    const pieces = payload[0].payload.name.split(" ");
-
     return (
       <Box
         sx={{
@@ -51,7 +57,7 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
             mb: 1,
           }}
         >
-          {pieces[1] || pieces[0]}
+          {tooltipLabel(payload[0].payload.name)}
         </Typography>
         {payload.map((p: any) => (
           <Typography key={p.name}>
@@ -239,7 +245,7 @@ export default function Visitors({
                 onTimeSpanChange(val);
               }
             }}
-            aria-label="display mode"
+            aria-label="Time span"
           >
             {timeSpans.map(t => (
               <ToggleButton

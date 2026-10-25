@@ -10,7 +10,7 @@ import LinearProgress from "@mui/material/LinearProgress";
 import ArrowBack from "@mui/icons-material/ArrowBackIos";
 import CardRow from "~/components/CardRow";
 import { useFetchEventBreakdown, useFetchEventProperties } from "./actions";
-import { truncate } from "./helpers";
+import { spanText, truncate } from "./helpers";
 
 interface Props {
   envId: string;
@@ -29,14 +29,18 @@ export default function EventBreakdown({
 }: Props) {
   const [property, setProperty] = useState("");
 
-  const { properties, loading: propsLoading } = useFetchEventProperties({
+  const {
+    properties,
+    loading: propsLoading,
+    error: propsError,
+  } = useFetchEventProperties({
     envId,
     domainId,
     event,
     ts,
   });
 
-  const { breakdown, loading } = useFetchEventBreakdown({
+  const { breakdown, loading, error } = useFetchEventBreakdown({
     envId,
     domainId,
     event,
@@ -45,13 +49,17 @@ export default function EventBreakdown({
     skip: property === "",
   });
 
+  // Another span can have other properties; keep the choice only while it is
+  // still one of them.
   useEffect(() => {
-    if (!property && properties.length) {
-      setProperty(properties[0]);
+    if (!propsLoading && !properties.includes(property)) {
+      setProperty(properties[0] || "");
     }
-  }, [properties, property]);
+  }, [properties, property, propsLoading]);
 
   const hasProperties = propsLoading || properties.length > 0;
+  const isEmpty =
+    !loading && !error && property !== "" && breakdown.length === 0;
 
   return (
     <Box>
@@ -65,7 +73,11 @@ export default function EventBreakdown({
         <Typography component="span">{truncate(event)}</Typography>
       </CardRow>
 
-      {!hasProperties ? (
+      {propsError ? (
+        <Alert color="error" sx={{ m: 2 }}>
+          {propsError}
+        </Alert>
+      ) : !hasProperties ? (
         <Alert color="info" sx={{ m: 2 }}>
           This event has no properties to group by yet. Attach a property with
           the second argument of track(), e.g. {`{ ref: "mobile" }`}.
@@ -99,6 +111,18 @@ export default function EventBreakdown({
           </Box>
 
           {loading && <LinearProgress color="secondary" />}
+
+          {error && (
+            <Alert color="error" sx={{ m: 2 }}>
+              {error}
+            </Alert>
+          )}
+
+          {isEmpty && (
+            <Alert color="info" sx={{ m: 2 }}>
+              No {property} values {spanText(ts)}.
+            </Alert>
+          )}
 
           <Box sx={{ maxHeight: "260px", overflow: "auto" }}>
             {breakdown.map(row => (

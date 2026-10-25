@@ -1,5 +1,5 @@
 import type { TimeSpan } from "./index.d";
-import { useContext, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useContext, useLayoutEffect, useMemo, useState } from "react";
 import WorldMap from "react-svg-worldmap";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -18,14 +18,14 @@ const maxMapWidth = 760;
 
 // useContainerWidth returns the width of the referenced element, following
 // resizes. The map library sizes itself from the window otherwise, which
-// overflows the card.
+// overflows the card. The ref is a callback because the card remounts its
+// content once the first load ends, and the observer must follow the element
+// that is on screen.
 function useContainerWidth() {
-  const ref = useRef<HTMLDivElement>(null);
+  const [element, setElement] = useState<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(0);
 
   useLayoutEffect(() => {
-    const element = ref.current;
-
     if (!element) {
       return;
     }
@@ -43,9 +43,9 @@ function useContainerWidth() {
     observer.observe(element);
 
     return () => observer.disconnect();
-  }, []);
+  }, [element]);
 
-  return { ref, width };
+  return { ref: setElement, width };
 }
 
 interface Props {

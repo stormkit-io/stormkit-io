@@ -144,6 +144,101 @@ describe("~/pages/apps/[id]/environments/[env-id]/analytics/TopPaths.tsx", () =>
     });
   });
 
+  describe("leaving a drill-down", () => {
+    const drillIn = async () => {
+      mockFetchAnalyticsReport({
+        query: query("7d", { metric: "paths", limit: "50" }),
+        response: pathsReport(),
+      });
+
+      mockFetchAnalyticsReport({
+        query: query("7d", { metric: "channels", path: "/blog/a" }),
+        response: channelsReport(),
+      });
+
+      const wrapper = renderPaths();
+
+      await waitFor(() => {
+        expect(wrapper.getByText("/blog/a")).toBeTruthy();
+      });
+
+      fireEvent.click(
+        wrapper.getByLabelText("Show where /blog/a visitors came from"),
+      );
+
+      await waitFor(() => {
+        expect(wrapper.getByText("Search")).toBeTruthy();
+      });
+
+      return wrapper;
+    };
+
+    it("returns to the list when the domain changes", async () => {
+      const wrapper = await drillIn();
+      const other = { ...domain, id: "2", domainName: "other.dev" };
+
+      const scope = mockFetchAnalyticsReport({
+        query: {
+          ...query("7d", { metric: "paths", limit: "50" }),
+          domainId: other.id,
+        },
+        response: { ...pathsReport(), rows: [{ path: "/docs", pageViews: 5 }] },
+      });
+
+      wrapper.rerender(<TopPaths environment={env} domain={other} ts="7d" />);
+
+      expect(wrapper.queryByLabelText("Back to paths")).toBeNull();
+
+      await waitFor(() => {
+        expect(scope.isDone()).toBe(true);
+        expect(wrapper.getByText("/docs")).toBeTruthy();
+      });
+    });
+
+    it.each([
+      [
+        "pressing Enter",
+        (input: HTMLElement) => fireEvent.keyDown(input, { key: "Enter" }),
+      ],
+      ["leaving the field", (input: HTMLElement) => fireEvent.blur(input)],
+    ])(
+      "applies a new prefix on %s and returns to the list",
+      async (_, apply) => {
+        const wrapper = await drillIn();
+
+        const filtered = mockFetchAnalyticsReport({
+          query: query("7d", {
+            metric: "paths",
+            limit: "50",
+            pathPrefix: "/blog/",
+          }),
+          response: { ...pathsReport(), rows: [pathsReport().rows![0]] },
+        });
+
+        const input = wrapper.getByLabelText("Path prefix");
+
+        fireEvent.change(input, { target: { value: "blog/" } });
+        apply(input);
+
+        expect(wrapper.queryByLabelText("Back to paths")).toBeNull();
+
+        await waitFor(() => {
+          expect(filtered.isDone()).toBe(true);
+          expect(wrapper.queryByText("/pricing")).toBeNull();
+          expect(wrapper.getByText("/blog/a")).toBeTruthy();
+        });
+      },
+    );
+
+    it("keeps the drill-down when the prefix is unchanged", async () => {
+      const wrapper = await drillIn();
+
+      fireEvent.blur(wrapper.getByLabelText("Path prefix"));
+
+      expect(wrapper.getByLabelText("Back to paths")).toBeTruthy();
+    });
+  });
+
   it("does not offer a drill-down into (other)", async () => {
     mockFetchAnalyticsReport({
       query: query("7d", { metric: "paths", limit: "50" }),
