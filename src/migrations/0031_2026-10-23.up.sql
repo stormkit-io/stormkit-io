@@ -1,13 +1,11 @@
+-- The file runs as one transaction. Fail fast instead of queueing every
+-- ingest insert behind an ALTER that waits on a long-running read of a big
+-- table; the migrator retries a migration that times out on a lock.
+SET LOCAL lock_timeout = '5s';
+
 -- Drop the copy of auth_wall taken before Auth Wall logins moved to teams
 -- (0030). The migration shipped in v2026.10.22.1 and no rollback is needed.
 DROP TABLE IF EXISTS auth_wall_backup;
-
--- Campaign attribution read from the landing URL before its query is stripped
--- from request_path. Nullable with no default, so the ALTERs are metadata-only.
-ALTER TABLE analytics ADD COLUMN IF NOT EXISTS utm_source text;
-ALTER TABLE analytics ADD COLUMN IF NOT EXISTS utm_medium text;
-ALTER TABLE analytics ADD COLUMN IF NOT EXISTS utm_campaign text;
-ALTER TABLE analytics ADD COLUMN IF NOT EXISTS ref text;
 
 -- Daily page views and unique visitors per path. Visitor ids rotate daily, so
 -- unique_visitors is exact per day and a multi-day total is a sum of daily
@@ -110,3 +108,22 @@ CREATE INDEX IF NOT EXISTS idx_analytics_engagement_ts ON analytics_engagement (
 -- The referrers dashboard endpoint and its rollup were replaced by the channel
 -- aggregate (analytics_channels_agg); nothing reads this table any more.
 DROP TABLE IF EXISTS analytics_referrers;
+
+-- The visitors, countries and events aggregate tables are keyed by date first,
+-- but every report reads one site's rows over a date range, which otherwise
+-- scans every tenant's rows for those days.
+CREATE INDEX IF NOT EXISTS idx_analytics_visitors_agg_200_domain_date ON analytics_visitors_agg_200 (domain_id, aggregate_date);
+CREATE INDEX IF NOT EXISTS idx_analytics_visitors_agg_404_domain_date ON analytics_visitors_agg_404 (domain_id, aggregate_date);
+CREATE INDEX IF NOT EXISTS idx_analytics_visitors_agg_hourly_200_domain_date ON analytics_visitors_agg_hourly_200 (domain_id, aggregate_date);
+CREATE INDEX IF NOT EXISTS idx_analytics_visitors_agg_hourly_404_domain_date ON analytics_visitors_agg_hourly_404 (domain_id, aggregate_date);
+CREATE INDEX IF NOT EXISTS idx_analytics_visitors_by_countries_domain_date ON analytics_visitors_by_countries (domain_id, aggregate_date);
+CREATE INDEX IF NOT EXISTS idx_analytics_events_agg_domain_date ON analytics_events_agg (domain_id, aggregate_date);
+
+-- Campaign attribution read from the landing URL before its query is stripped
+-- from request_path. Nullable with no default, so the ALTERs are metadata-only.
+-- They stay last: the file is one transaction, and the ACCESS EXCLUSIVE lock
+-- they take on analytics is held until commit, blocking ingest meanwhile.
+ALTER TABLE analytics ADD COLUMN IF NOT EXISTS utm_source text;
+ALTER TABLE analytics ADD COLUMN IF NOT EXISTS utm_medium text;
+ALTER TABLE analytics ADD COLUMN IF NOT EXISTS utm_campaign text;
+ALTER TABLE analytics ADD COLUMN IF NOT EXISTS ref text;

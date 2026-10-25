@@ -2,8 +2,10 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 17.7 (Debian 17.7-3.pgdg13+1)
--- Dumped by pg_dump version 17.7 (Debian 17.7-3.pgdg13+1)
+\restrict yDguPaYWQ2Lm4kpk5NaWyknrykHTfcdnjVcTNq3BqyqFBOZo6QIWhJpNNGbQvEE
+
+-- Dumped from database version 17.10 (Debian 17.10-1.pgdg13+1)
+-- Dumped by pg_dump version 17.10 (Debian 17.10-1.pgdg13+1)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -207,6 +209,62 @@ CREATE TABLE skitapi.analytics_engagement (
 
 
 ALTER TABLE skitapi.analytics_engagement OWNER TO skitadmin;
+
+--
+-- Name: analytics_events; Type: TABLE; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE TABLE skitapi.analytics_events (
+    event_id bigint NOT NULL,
+    app_id bigint NOT NULL,
+    env_id bigint NOT NULL,
+    domain_id bigint,
+    visitor_id text,
+    event_name text NOT NULL,
+    request_path text,
+    event_ts timestamp without time zone NOT NULL,
+    request_id uuid,
+    metadata jsonb
+);
+
+
+ALTER TABLE skitapi.analytics_events OWNER TO skitadmin;
+
+--
+-- Name: analytics_events_agg; Type: TABLE; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE TABLE skitapi.analytics_events_agg (
+    aggregate_date date NOT NULL,
+    domain_id bigint NOT NULL,
+    event_name text NOT NULL,
+    total_count bigint NOT NULL,
+    unique_actors bigint NOT NULL
+);
+
+
+ALTER TABLE skitapi.analytics_events_agg OWNER TO skitadmin;
+
+--
+-- Name: analytics_events_event_id_seq; Type: SEQUENCE; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE SEQUENCE skitapi.analytics_events_event_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE skitapi.analytics_events_event_id_seq OWNER TO skitadmin;
+
+--
+-- Name: analytics_events_event_id_seq; Type: SEQUENCE OWNED BY; Schema: skitapi; Owner: skitadmin
+--
+
+ALTER SEQUENCE skitapi.analytics_events_event_id_seq OWNED BY skitapi.analytics_events.event_id;
+
 
 --
 -- Name: analytics_path_countries_agg; Type: TABLE; Schema: skitapi; Owner: skitadmin
@@ -671,7 +729,8 @@ CREATE TABLE skitapi.deployments (
     webhook_event jsonb,
     created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text) NOT NULL,
     deleted_at timestamp without time zone,
-    stopped_at timestamp without time zone
+    stopped_at timestamp without time zone,
+    is_priority boolean DEFAULT false NOT NULL
 );
 
 
@@ -990,6 +1049,75 @@ ALTER SEQUENCE skitapi.oauth_configs_provider_id_seq OWNED BY skitapi.oauth_conf
 
 
 --
+-- Name: request_logs; Type: TABLE; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE TABLE skitapi.request_logs (
+    log_id bigint NOT NULL,
+    app_id bigint NOT NULL,
+    env_id bigint NOT NULL,
+    deployment_id bigint,
+    domain_id bigint,
+    host_name text,
+    request_timestamp timestamp without time zone NOT NULL,
+    method text,
+    request_path text,
+    response_code integer,
+    client_ip text,
+    user_agent text,
+    referrer text,
+    is_bot boolean DEFAULT false NOT NULL,
+    bytes_sent bigint,
+    request_id uuid,
+    duration_ms integer
+)
+PARTITION BY RANGE (request_timestamp);
+
+
+ALTER TABLE skitapi.request_logs OWNER TO skitadmin;
+
+--
+-- Name: request_logs_default; Type: TABLE; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE TABLE skitapi.request_logs_default (
+    log_id bigint NOT NULL,
+    app_id bigint NOT NULL,
+    env_id bigint NOT NULL,
+    deployment_id bigint,
+    domain_id bigint,
+    host_name text,
+    request_timestamp timestamp without time zone NOT NULL,
+    method text,
+    request_path text,
+    response_code integer,
+    client_ip text,
+    user_agent text,
+    referrer text,
+    is_bot boolean DEFAULT false NOT NULL,
+    bytes_sent bigint,
+    request_id uuid,
+    duration_ms integer
+);
+
+
+ALTER TABLE skitapi.request_logs_default OWNER TO skitadmin;
+
+--
+-- Name: request_logs_log_id_seq; Type: SEQUENCE; Schema: skitapi; Owner: skitadmin
+--
+
+ALTER TABLE skitapi.request_logs ALTER COLUMN log_id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME skitapi.request_logs_log_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: snippets; Type: TABLE; Schema: skitapi; Owner: skitadmin
 --
 
@@ -1004,8 +1132,8 @@ CREATE TABLE skitapi.snippets (
     snippet_rules jsonb,
     should_prepend boolean DEFAULT false NOT NULL,
     is_enabled boolean DEFAULT false NOT NULL,
-    snippet_interpolate boolean DEFAULT false NOT NULL,
-    created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text) NOT NULL
+    created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text) NOT NULL,
+    snippet_interpolate boolean DEFAULT false NOT NULL
 );
 
 
@@ -1288,10 +1416,24 @@ ALTER SEQUENCE skitapi.volumes_file_id_seq OWNED BY skitapi.volumes.file_id;
 
 
 --
+-- Name: request_logs_default; Type: TABLE ATTACH; Schema: skitapi; Owner: skitadmin
+--
+
+ALTER TABLE ONLY skitapi.request_logs ATTACH PARTITION skitapi.request_logs_default DEFAULT;
+
+
+--
 -- Name: analytics analytics_id; Type: DEFAULT; Schema: skitapi; Owner: skitadmin
 --
 
 ALTER TABLE ONLY skitapi.analytics ALTER COLUMN analytics_id SET DEFAULT nextval('skitapi.analytics_analytics_id_seq'::regclass);
+
+
+--
+-- Name: analytics_events event_id; Type: DEFAULT; Schema: skitapi; Owner: skitadmin
+--
+
+ALTER TABLE ONLY skitapi.analytics_events ALTER COLUMN event_id SET DEFAULT nextval('skitapi.analytics_events_event_id_seq'::regclass);
 
 
 --
@@ -1457,14 +1599,6 @@ ALTER TABLE ONLY skitapi.access_log_stats
 
 
 --
--- Name: analytics analytics_pkey; Type: CONSTRAINT; Schema: skitapi; Owner: skitadmin
---
-
-ALTER TABLE ONLY skitapi.analytics
-    ADD CONSTRAINT analytics_pkey PRIMARY KEY (analytics_id);
-
-
---
 -- Name: analytics_campaigns_agg analytics_campaigns_agg_pkey; Type: CONSTRAINT; Schema: skitapi; Owner: skitadmin
 --
 
@@ -1481,6 +1615,22 @@ ALTER TABLE ONLY skitapi.analytics_channels_agg
 
 
 --
+-- Name: analytics_events_agg analytics_events_agg_pkey; Type: CONSTRAINT; Schema: skitapi; Owner: skitadmin
+--
+
+ALTER TABLE ONLY skitapi.analytics_events_agg
+    ADD CONSTRAINT analytics_events_agg_pkey PRIMARY KEY (aggregate_date, domain_id, event_name);
+
+
+--
+-- Name: analytics_events analytics_events_pkey; Type: CONSTRAINT; Schema: skitapi; Owner: skitadmin
+--
+
+ALTER TABLE ONLY skitapi.analytics_events
+    ADD CONSTRAINT analytics_events_pkey PRIMARY KEY (event_id);
+
+
+--
 -- Name: analytics_path_countries_agg analytics_path_countries_agg_pkey; Type: CONSTRAINT; Schema: skitapi; Owner: skitadmin
 --
 
@@ -1494,6 +1644,14 @@ ALTER TABLE ONLY skitapi.analytics_path_countries_agg
 
 ALTER TABLE ONLY skitapi.analytics_paths_agg
     ADD CONSTRAINT analytics_paths_agg_pkey PRIMARY KEY (domain_id, aggregate_date, request_path_hash);
+
+
+--
+-- Name: analytics analytics_pkey; Type: CONSTRAINT; Schema: skitapi; Owner: skitadmin
+--
+
+ALTER TABLE ONLY skitapi.analytics
+    ADD CONSTRAINT analytics_pkey PRIMARY KEY (analytics_id);
 
 
 --
@@ -1673,6 +1831,22 @@ ALTER TABLE ONLY skitapi.oauth_configs
 
 
 --
+-- Name: request_logs request_logs_pkey; Type: CONSTRAINT; Schema: skitapi; Owner: skitadmin
+--
+
+ALTER TABLE ONLY skitapi.request_logs
+    ADD CONSTRAINT request_logs_pkey PRIMARY KEY (log_id, request_timestamp);
+
+
+--
+-- Name: request_logs_default request_logs_default_pkey; Type: CONSTRAINT; Schema: skitapi; Owner: skitadmin
+--
+
+ALTER TABLE ONLY skitapi.request_logs_default
+    ADD CONSTRAINT request_logs_default_pkey PRIMARY KEY (log_id, request_timestamp);
+
+
+--
 -- Name: snippets snippets_pkey; Type: CONSTRAINT; Schema: skitapi; Owner: skitadmin
 --
 
@@ -1787,13 +1961,6 @@ CREATE UNIQUE INDEX domains_domain_name_unique_key ON skitapi.domains USING btre
 
 
 --
--- Name: idx_domains_env_id; Type: INDEX; Schema: skitapi; Owner: skitadmin
---
-
-CREATE INDEX idx_domains_env_id ON skitapi.domains USING btree (env_id);
-
-
---
 -- Name: idx_access_log_stats_host_name; Type: INDEX; Schema: skitapi; Owner: skitadmin
 --
 
@@ -1822,13 +1989,6 @@ CREATE INDEX idx_analytics_channels_agg_date ON skitapi.analytics_channels_agg U
 
 
 --
--- Name: idx_analytics_path_countries_agg_date; Type: INDEX; Schema: skitapi; Owner: skitadmin
---
-
-CREATE INDEX idx_analytics_path_countries_agg_date ON skitapi.analytics_path_countries_agg USING btree (aggregate_date);
-
-
---
 -- Name: idx_analytics_engagement_ts; Type: INDEX; Schema: skitapi; Owner: skitadmin
 --
 
@@ -1836,10 +1996,94 @@ CREATE INDEX idx_analytics_engagement_ts ON skitapi.analytics_engagement USING b
 
 
 --
+-- Name: idx_analytics_events_agg_domain_date; Type: INDEX; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE INDEX idx_analytics_events_agg_domain_date ON skitapi.analytics_events_agg USING btree (domain_id, aggregate_date);
+
+
+--
+-- Name: idx_analytics_events_breakdown; Type: INDEX; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE INDEX idx_analytics_events_breakdown ON skitapi.analytics_events USING btree (domain_id, event_name, event_ts);
+
+
+--
+-- Name: idx_analytics_events_request_id; Type: INDEX; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE INDEX idx_analytics_events_request_id ON skitapi.analytics_events USING btree (request_id);
+
+
+--
+-- Name: idx_analytics_events_ts; Type: INDEX; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE INDEX idx_analytics_events_ts ON skitapi.analytics_events USING btree (event_ts, domain_id, event_name);
+
+
+--
+-- Name: idx_analytics_path_countries_agg_date; Type: INDEX; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE INDEX idx_analytics_path_countries_agg_date ON skitapi.analytics_path_countries_agg USING btree (aggregate_date);
+
+
+--
 -- Name: idx_analytics_paths_agg_date; Type: INDEX; Schema: skitapi; Owner: skitadmin
 --
 
 CREATE INDEX idx_analytics_paths_agg_date ON skitapi.analytics_paths_agg USING btree (aggregate_date);
+
+
+--
+-- Name: idx_analytics_request_id; Type: INDEX; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE INDEX idx_analytics_request_id ON skitapi.analytics USING btree (request_id);
+
+
+--
+-- Name: idx_analytics_ts; Type: INDEX; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE INDEX idx_analytics_ts ON skitapi.analytics USING btree (request_timestamp, response_code, domain_id);
+
+
+--
+-- Name: idx_analytics_visitors_agg_200_domain_date; Type: INDEX; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE INDEX idx_analytics_visitors_agg_200_domain_date ON skitapi.analytics_visitors_agg_200 USING btree (domain_id, aggregate_date);
+
+
+--
+-- Name: idx_analytics_visitors_agg_404_domain_date; Type: INDEX; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE INDEX idx_analytics_visitors_agg_404_domain_date ON skitapi.analytics_visitors_agg_404 USING btree (domain_id, aggregate_date);
+
+
+--
+-- Name: idx_analytics_visitors_agg_hourly_200_domain_date; Type: INDEX; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE INDEX idx_analytics_visitors_agg_hourly_200_domain_date ON skitapi.analytics_visitors_agg_hourly_200 USING btree (domain_id, aggregate_date);
+
+
+--
+-- Name: idx_analytics_visitors_agg_hourly_404_domain_date; Type: INDEX; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE INDEX idx_analytics_visitors_agg_hourly_404_domain_date ON skitapi.analytics_visitors_agg_hourly_404 USING btree (domain_id, aggregate_date);
+
+
+--
+-- Name: idx_analytics_visitors_by_countries_domain_date; Type: INDEX; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE INDEX idx_analytics_visitors_by_countries_domain_date ON skitapi.analytics_visitors_by_countries USING btree (domain_id, aggregate_date);
 
 
 --
@@ -1948,6 +2192,13 @@ CREATE UNIQUE INDEX idx_deployments_published_env_id_unique ON skitapi.deploymen
 
 
 --
+-- Name: idx_domains_env_id; Type: INDEX; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE INDEX idx_domains_env_id ON skitapi.domains USING btree (env_id);
+
+
+--
 -- Name: idx_geo_ips_network; Type: INDEX; Schema: skitapi; Owner: skitadmin
 --
 
@@ -1962,6 +2213,20 @@ CREATE INDEX idx_next_run_at ON skitapi.function_triggers USING btree (next_run_
 
 
 --
+-- Name: idx_request_logs_app_ts; Type: INDEX; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE INDEX idx_request_logs_app_ts ON ONLY skitapi.request_logs USING btree (app_id, request_timestamp);
+
+
+--
+-- Name: idx_request_logs_domain_ts; Type: INDEX; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE INDEX idx_request_logs_domain_ts ON ONLY skitapi.request_logs USING btree (domain_id, request_timestamp);
+
+
+--
 -- Name: idx_user_access_tokens_user_id; Type: INDEX; Schema: skitapi; Owner: skitadmin
 --
 
@@ -1973,6 +2238,20 @@ CREATE INDEX idx_user_access_tokens_user_id ON skitapi.user_access_tokens USING 
 --
 
 CREATE UNIQUE INDEX oauth_configs_env_provider_unique_key ON skitapi.oauth_configs USING btree (env_id, provider_name);
+
+
+--
+-- Name: request_logs_default_app_id_request_timestamp_idx; Type: INDEX; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE INDEX request_logs_default_app_id_request_timestamp_idx ON skitapi.request_logs_default USING btree (app_id, request_timestamp);
+
+
+--
+-- Name: request_logs_default_domain_id_request_timestamp_idx; Type: INDEX; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE INDEX request_logs_default_domain_id_request_timestamp_idx ON skitapi.request_logs_default USING btree (domain_id, request_timestamp);
 
 
 --
@@ -1997,6 +2276,27 @@ CREATE UNIQUE INDEX user_emails_email_unique_key ON skitapi.user_emails USING bt
 
 
 --
+-- Name: request_logs_default_app_id_request_timestamp_idx; Type: INDEX ATTACH; Schema: skitapi; Owner: skitadmin
+--
+
+ALTER INDEX skitapi.idx_request_logs_app_ts ATTACH PARTITION skitapi.request_logs_default_app_id_request_timestamp_idx;
+
+
+--
+-- Name: request_logs_default_domain_id_request_timestamp_idx; Type: INDEX ATTACH; Schema: skitapi; Owner: skitadmin
+--
+
+ALTER INDEX skitapi.idx_request_logs_domain_ts ATTACH PARTITION skitapi.request_logs_default_domain_id_request_timestamp_idx;
+
+
+--
+-- Name: request_logs_default_pkey; Type: INDEX ATTACH; Schema: skitapi; Owner: skitadmin
+--
+
+ALTER INDEX skitapi.request_logs_pkey ATTACH PARTITION skitapi.request_logs_default_pkey;
+
+
+--
 -- Name: access_logs access_logs_app_id_fkey; Type: FK CONSTRAINT; Schema: skitapi; Owner: skitadmin
 --
 
@@ -2018,6 +2318,22 @@ ALTER TABLE ONLY skitapi.analytics
 
 ALTER TABLE ONLY skitapi.analytics
     ADD CONSTRAINT analytics_env_id_fkey FOREIGN KEY (env_id) REFERENCES skitapi.apps_build_conf(env_id) ON DELETE CASCADE;
+
+
+--
+-- Name: analytics_events analytics_events_app_id_fkey; Type: FK CONSTRAINT; Schema: skitapi; Owner: skitadmin
+--
+
+ALTER TABLE ONLY skitapi.analytics_events
+    ADD CONSTRAINT analytics_events_app_id_fkey FOREIGN KEY (app_id) REFERENCES skitapi.apps(app_id) ON DELETE CASCADE;
+
+
+--
+-- Name: analytics_events analytics_events_env_id_fkey; Type: FK CONSTRAINT; Schema: skitapi; Owner: skitadmin
+--
+
+ALTER TABLE ONLY skitapi.analytics_events
+    ADD CONSTRAINT analytics_events_env_id_fkey FOREIGN KEY (env_id) REFERENCES skitapi.apps_build_conf(env_id) ON DELETE CASCADE;
 
 
 --
@@ -2327,3 +2643,6 @@ ALTER TABLE ONLY skitapi.volumes
 --
 -- PostgreSQL database dump complete
 --
+
+\unrestrict yDguPaYWQ2Lm4kpk5NaWyknrykHTfcdnjVcTNq3BqyqFBOZo6QIWhJpNNGbQvEE
+

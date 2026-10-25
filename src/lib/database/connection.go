@@ -145,3 +145,10 @@ func IsDuplicate(dberr error) bool {
 	err, ok := dberr.(*pq.Error)
 	return ok && err.Code == pq.ErrorCode(duplicateErrCode)
 }
+
+// IsLockNotAvailable checks whether a statement failed because it could not
+// acquire a lock within lock_timeout.
+func IsLockNotAvailable(dberr error) bool {
+	err, ok := dberr.(*pq.Error)
+	return ok && err.Code == "55P03"
+}
