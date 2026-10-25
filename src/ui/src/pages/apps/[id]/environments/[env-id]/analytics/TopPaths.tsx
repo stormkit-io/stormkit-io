@@ -1,40 +1,149 @@
+import type { AnalyticsRow, TimeSpan } from "./index.d";
 import { useState } from "react";
 import Box from "@mui/material/Box";
 import Alert from "@mui/material/Alert";
 import Typography from "@mui/material/Typography";
 import IconButton from "@mui/material/IconButton";
+import TextField from "@mui/material/TextField";
 import LinearProgress from "@mui/material/LinearProgress";
 import ArrowForward from "@mui/icons-material/ArrowForwardIos";
 import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
 import CardRow from "~/components/CardRow";
 import CardFooter from "~/components/CardFooter";
-import { useFetchTopPaths, useFetchTopReferrers } from "./actions";
+import { useFetchAnalyticsReport } from "./actions";
 import { truncate } from "./helpers";
+import { formatDuration } from "./Visitors";
+
+export const channelLabels: Record<string, string> = {
+  search: "Search",
+  ai: "AI assistants",
+  social: "Social",
+  email: "Email",
+  referral: "Other sites",
+  direct: "Direct",
+  internal: "Within this site",
+};
+
+export const spanText = (ts: TimeSpan) =>
+  ({
+    "24h": "today (since midnight UTC)",
+    "7d": "in the last 7 days",
+    "30d": "in the last 30 days",
+    "90d": "in the last 90 days",
+    "365d": "in the last year",
+  })[ts];
+
+const formatter = new Intl.NumberFormat();
+
+// otherPath is the row that single-view pages are folded into on busy days.
+const otherPath = "(other)";
+
+// PathStats renders a path's page views, visitors and time on page.
+function PathStats({ row }: { row: AnalyticsRow }) {
+  return (
+    <Typography component="span" sx={{ fontSize: 13 }}>
+      {formatter.format(row.pageViews || 0)} views
+      {row.visitors !== undefined &&
+        ` · ${formatter.format(row.visitors)} visitors`}
+      {row.avgTimeOnPage !== undefined &&
+        ` · ${formatDuration(row.avgTimeOnPage)}`}
+    </Typography>
+  );
+}
+
+interface PathChannelsProps {
+  envId: string;
+  domainId?: string;
+  path: string;
+  ts: TimeSpan;
+}
+
+// PathChannels answers who read a page and where they came from.
+function PathChannels({ envId, domainId, path, ts }: PathChannelsProps) {
+  const { report, loading, error } = useFetchAnalyticsReport({
+    envId,
+    domainId,
+    query: { metric: "channels", ts, path },
+  });
+
+  if (loading) {
+    return <LinearProgress color="secondary" />;
+  }
+
+  if (error) {
+    return (
+      <Alert color="error" sx={{ m: 2 }}>
+        {error}
+      </Alert>
+    );
+  }
+
+  const rows = report?.rows || [];
+
+  return (
+    <>
+      <CardRow>
+        <PathStats row={report?.totals || {}} />
+      </CardRow>
+      {rows.length ? (
+        rows.map(row => (
+          <CardRow
+            key={row.channel}
+            chipLabel={
+              <Typography component="span">
+                {formatter.format(row.visits || 0)}
+              </Typography>
+            }
+          >
+            <Typography component="span">
+              {channelLabels[row.channel!] || row.channel}
+            </Typography>
+          </CardRow>
+        ))
+      ) : (
+        <Alert
+          color="info"
+          sx={{
+            mb: 4,
+            px: 4,
+            bgcolor: "rgba(255,255,255,0.025)",
+            borderRadius: 0,
+          }}
+        >
+          <Box>No visits found for this path.</Box>
+        </Alert>
+      )}
+    </>
+  );
+}
 
 interface Props {
   environment: Environment;
   domain: Domain;
+  ts: TimeSpan;
 }
 
-export default function TopPaths({ environment, domain }: Props) {
+// normalizePrefix makes a typed prefix a path, as the API requires.
+const normalizePrefix = (value: string) => {
+  const prefix = value.trim();
+
+  return prefix && !prefix.startsWith("/") ? `/${prefix}` : prefix;
+};
+
+export default function TopPaths({ environment, domain, ts }: Props) {
   const envId = environment.id!;
   const [requestPath, setRequestPath] = useState("");
-  const { paths, error, loading } = useFetchTopPaths({
+  const [prefixInput, setPrefixInput] = useState("");
+  const [pathPrefix, setPathPrefix] = useState("");
+
+  const { report, error, loading } = useFetchAnalyticsReport({
     envId,
     domainId: domain?.id,
+    query: { metric: "paths", ts, pathPrefix, limit: 50 },
   });
 
-  const {
-    referrers,
-    error: refsError,
-    loading: refsLoading,
-  } = useFetchTopReferrers({
-    envId,
-    domainId: domain?.id,
-    requestPath,
-    skip: requestPath == "",
-  });
+  const paths = report?.rows || [];
 
   return (
     <Card
@@ -44,13 +153,32 @@ export default function TopPaths({ environment, domain }: Props) {
         display: "flex",
         flexDirection: "column",
       }}
-      error={error || refsError}
-      loading={loading}
+      error={error}
+      loading={loading && !report}
     >
       <CardHeader
         title="Paths"
-        subtitle="Top 50 visited paths in the last 30 days."
+        subtitle={`Top visited paths ${spanText(ts)}.`}
+        actions={
+          <TextField
+            size="small"
+            variant="filled"
+            label="Path prefix"
+            placeholder="/blog/"
+            value={prefixInput}
+            onChange={e => setPrefixInput(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === "Enter") {
+                setPathPrefix(normalizePrefix(prefixInput));
+                setRequestPath("");
+              }
+            }}
+            onBlur={() => setPathPrefix(normalizePrefix(prefixInput))}
+            sx={{ maxWidth: 160 }}
+          />
+        }
       />
+      {loading && report && <LinearProgress color="secondary" />}
       <Box
         sx={{
           maxHeight: "300px",
@@ -58,35 +186,47 @@ export default function TopPaths({ environment, domain }: Props) {
         }}
       >
         {!requestPath ? (
-          paths.map(path => (
-            <CardRow
-              key={path.name}
-              chipLabel={
-                <Typography component="span">
-                  {path.count.toString()}
-                </Typography>
-              }
-              actions={
-                <IconButton
-                  sx={{ ml: 2 }}
-                  size="small"
-                  onClick={() => {
-                    setRequestPath(path.name);
-                  }}
-                >
-                  <ArrowForward sx={{ fontSize: 12 }} />
-                </IconButton>
-              }
+          paths.length ? (
+            paths.map(path => (
+              <CardRow
+                key={path.path}
+                chipLabel={<PathStats row={path} />}
+                actions={
+                  // (other) groups folded pages; it is not a path to look
+                  // into.
+                  path.path === otherPath ? undefined : (
+                    <IconButton
+                      sx={{ ml: 2 }}
+                      size="small"
+                      aria-label={`Show where ${path.path} visitors came from`}
+                      onClick={() => {
+                        setRequestPath(path.path!);
+                      }}
+                    >
+                      <ArrowForward sx={{ fontSize: 12 }} />
+                    </IconButton>
+                  )
+                }
+              >
+                <Typography component="span">{truncate(path.path!)}</Typography>
+              </CardRow>
+            ))
+          ) : (
+            <Alert
+              color="info"
+              sx={{ mx: 2, mb: 2, bgcolor: "rgba(255,255,255,0.025)" }}
             >
-              <Typography component="span">{truncate(path.name)}</Typography>
-            </CardRow>
-          ))
+              No page views {spanText(ts)}
+              {pathPrefix ? ` under ${pathPrefix}` : ""}.
+            </Alert>
+          )
         ) : (
           <Box sx={{ flex: 1 }}>
             <CardRow
               actions={
                 <IconButton
                   sx={{ ml: 1, textAlign: "center" }}
+                  aria-label="Back to paths"
                   onClick={() => {
                     setRequestPath("");
                   }}
@@ -99,42 +239,19 @@ export default function TopPaths({ environment, domain }: Props) {
             >
               <Typography component="span">{requestPath}</Typography>
             </CardRow>
-            {refsLoading && <LinearProgress color="secondary" />}
-            {!refsLoading &&
-              (referrers.length ? (
-                referrers.map(ref => (
-                  <CardRow
-                    key={ref.name}
-                    chipLabel={
-                      <Typography component="span">
-                        {ref.count.toString()}
-                      </Typography>
-                    }
-                  >
-                    <Typography component="span">
-                      {truncate(ref.name)}
-                    </Typography>
-                  </CardRow>
-                ))
-              ) : (
-                <Alert
-                  color="info"
-                  sx={{
-                    mb: 4,
-                    px: 4,
-                    bgcolor: "rgba(255,255,255,0.025)",
-                    borderRadius: 0,
-                  }}
-                >
-                  <Box>No referrers found for this path.</Box>
-                </Alert>
-              ))}
+            <PathChannels
+              envId={envId}
+              domainId={domain?.id}
+              path={requestPath}
+              ts={ts}
+            />
           </Box>
         )}
       </Box>
       <CardFooter sx={{ textAlign: "left" }}>
         <Typography sx={{ fontSize: 12 }}>
-          Client-side routing is not calculated.
+          Time on page needs client-side tracking. (other) groups single-view
+          pages on busy days.
         </Typography>
       </CardFooter>
     </Card>

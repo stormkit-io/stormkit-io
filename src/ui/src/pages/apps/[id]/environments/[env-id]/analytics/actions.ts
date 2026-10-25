@@ -57,52 +57,81 @@ export const useFetchVisitors = ({
   return { visitors, error, loading };
 };
 
-interface FetchVisitorsReportProps {
-  envId: string;
-  domainId?: string;
-  ts: Exclude<TimeSpan, "24h">;
-}
-
-// yesterdayUTC returns yesterday's date in UTC as YYYY-MM-DD, the last complete
-// day of the daily aggregates.
-const yesterdayUTC = (): string => {
+// utcDate returns the UTC date `offset` days from today as YYYY-MM-DD.
+const utcDate = (offset: number): string => {
   const date = new Date();
-  date.setUTCDate(date.getUTCDate() - 1);
+  date.setUTCDate(date.getUTCDate() + offset);
 
   return date.toISOString().slice(0, 10);
 };
 
-// useFetchVisitorsReport reads the daily visitors report for a span, with the
-// previous period of the same length for comparison. The span ends yesterday
-// (UTC) so it holds complete days only: a partly elapsed today compared with a
-// full previous day would read as a drop.
-export const useFetchVisitorsReport = ({
+// reportRange returns the report range of a time span. The last 24 hours read
+// today so far; longer spans read complete days ending yesterday (UTC), so a
+// partly elapsed today is never compared with full previous days.
+export const reportRange = (ts: TimeSpan) =>
+  ts === "24h" ? { span: "1d", to: utcDate(0) } : { span: ts, to: utcDate(-1) };
+
+export interface AnalyticsReportQuery {
+  metric: string;
+  ts: TimeSpan;
+  path?: string;
+  pathPrefix?: string;
+  limit?: number;
+  compare?: boolean;
+}
+
+interface FetchAnalyticsReportProps {
+  envId: string;
+  domainId?: string;
+  query: AnalyticsReportQuery;
+  skip?: boolean;
+}
+
+// useFetchAnalyticsReport reads a GET /v1/analytics report.
+export const useFetchAnalyticsReport = ({
   envId,
   domainId,
-  ts,
-}: FetchVisitorsReportProps) => {
+  query,
+  skip,
+}: FetchAnalyticsReportProps) => {
   const [report, setReport] = useState<AnalyticsReport>();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const key = JSON.stringify(query);
 
   useEffect(() => {
     setError("");
 
-    if (!domainId) {
+    if (!domainId || skip) {
       return;
     }
 
-    // A slow response of a previous span must not replace this one's.
+    // A slow response of a previous query must not replace this one's.
     let current = true;
-
+    const { span, to } = reportRange(query.ts);
     const params = new URLSearchParams({
       envId,
       domainId,
-      metric: "visitors",
-      span: ts,
-      to: yesterdayUTC(),
-      compare: "previous",
+      metric: query.metric,
+      span,
+      to,
     });
+
+    if (query.path) {
+      params.set("path", query.path);
+    }
+
+    if (query.pathPrefix) {
+      params.set("pathPrefix", query.pathPrefix);
+    }
+
+    if (query.limit) {
+      params.set("limit", `${query.limit}`);
+    }
+
+    if (query.compare) {
+      params.set("compare", "previous");
+    }
 
     setLoading(true);
 
@@ -115,7 +144,7 @@ export const useFetchVisitorsReport = ({
       })
       .catch(() => {
         if (current) {
-          setError("Something went wrong while fetching visitors.");
+          setError(`Something went wrong while fetching ${query.metric}.`);
         }
       })
       .finally(() => {
@@ -127,10 +156,29 @@ export const useFetchVisitorsReport = ({
     return () => {
       current = false;
     };
-  }, [envId, domainId, ts]);
+  }, [envId, domainId, key, skip]);
 
   return { report, error, loading };
 };
+
+interface FetchVisitorsReportProps {
+  envId: string;
+  domainId?: string;
+  ts: Exclude<TimeSpan, "24h">;
+}
+
+// useFetchVisitorsReport reads the daily visitors report for a span, with the
+// previous period of the same length for comparison.
+export const useFetchVisitorsReport = ({
+  envId,
+  domainId,
+  ts,
+}: FetchVisitorsReportProps) =>
+  useFetchAnalyticsReport({
+    envId,
+    domainId,
+    query: { metric: "visitors", ts, compare: true },
+  });
 
 interface FetchTopReferrerProps {
   envId: string;
@@ -195,53 +243,6 @@ export const useFetchTopReferrers = ({
   }, [envId, requestPath, domainId, skip]);
 
   return { referrers, loading, error };
-};
-
-interface FetchTopPathsProps {
-  envId: string;
-  domainId?: string;
-}
-
-interface TopPath {
-  name: string;
-  count: number;
-}
-
-export const useFetchTopPaths = ({ envId, domainId }: FetchTopPathsProps) => {
-  const [paths, setPaths] = useState<TopPath[]>([]);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!domainId) {
-      return;
-    }
-
-    api
-      .fetch<Record<string, number>>(
-        `/analytics/paths?envId=${envId}&domainId=${domainId}`,
-      )
-      .then(data => {
-        const paths: TopPath[] = Object.keys(data).map(ref => ({
-          name: ref,
-          count: data[ref],
-        }));
-
-        paths.sort((a, b) =>
-          a.count > b.count ? -1 : a.count === b.count ? 0 : 1,
-        );
-
-        setPaths(paths);
-      })
-      .catch(() => {
-        setError("Something went wrong while fetching top paths.");
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, [envId, domainId]);
-
-  return { paths, loading, error };
 };
 
 interface FetchEventsProps {

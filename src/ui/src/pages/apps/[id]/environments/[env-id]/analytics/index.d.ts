@@ -21,11 +21,32 @@ export interface AnalyticsDay {
   avgTimeOnPage?: number;
 }
 
+export interface AnalyticsRow {
+  path?: string;
+  referrer?: string;
+  channel?: string;
+  country?: string;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  ref?: string;
+  event?: string;
+  pageViews?: number;
+  visits?: number;
+  visitors?: number;
+  pageVisitors?: number;
+  count?: number;
+  avgTimeOnPage?: number;
+  channels?: Record<string, number>;
+  previous?: number;
+}
+
 export interface AnalyticsReport {
   metric: string;
   range: { from: string; to: string; days: number };
   totals: AnalyticsTotals;
   series?: AnalyticsDay[];
+  rows?: AnalyticsRow[];
   previous?: {
     range: { from: string; to: string; days: number };
     totals: AnalyticsTotals;
