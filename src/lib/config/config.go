@@ -1,6 +1,7 @@
 package config
 
 import (
+	"net/netip"
 	"os"
 	"path"
 	"runtime"
@@ -232,6 +233,11 @@ type Config struct {
 	TrustProxyHeaders bool
 	ProxyProtocol     bool
 
+	// TrustedProxies are the ranges of public proxies in front of Stormkit
+	// (STORMKIT_TRUSTED_PROXIES, comma-separated CIDRs or IPs). Their entries
+	// in X-Forwarded-For are skipped when looking for the client IP.
+	TrustedProxies []netip.Prefix
+
 	// ProxyLocalDial lets proxy rules that target one of this instance's dev
 	// domains connect over loopback instead of through DNS. On by default;
 	// STORMKIT_PROXY_LOCAL_DIAL=false turns it off.
@@ -323,6 +329,7 @@ func New() *Config {
 
 		TrustProxyHeaders: isTrueString(os.Getenv("STORMKIT_TRUST_PROXY_HEADERS")),
 		ProxyProtocol:     isTrueString(os.Getenv("STORMKIT_PROXY_PROTOCOL")),
+		TrustedProxies:    ParseTrustedProxies(os.Getenv("STORMKIT_TRUSTED_PROXIES")),
 		ProxyLocalDial:    !isFalseString(os.Getenv("STORMKIT_PROXY_LOCAL_DIAL")),
 
 		HTTPTimeouts: &HttpTimeoutsConfig{
@@ -716,6 +723,35 @@ func getInt(val string, def int) int {
 	}
 
 	return valInt
+}
+
+// ParseTrustedProxies parses a comma-separated list of CIDRs and bare IPs.
+// Invalid entries are logged and ignored.
+func ParseTrustedProxies(value string) []netip.Prefix {
+	prefixes := []netip.Prefix{}
+
+	for _, entry := range strings.Split(value, ",") {
+		entry = strings.TrimSpace(entry)
+
+		if entry == "" {
+			continue
+		}
+
+		if prefix, err := netip.ParsePrefix(entry); err == nil {
+			prefixes = append(prefixes, prefix.Masked())
+			continue
+		}
+
+		if addr, err := netip.ParseAddr(entry); err == nil {
+			addr = addr.Unmap().WithZone("")
+			prefixes = append(prefixes, netip.PrefixFrom(addr, addr.BitLen()))
+			continue
+		}
+
+		slog.Errorf("STORMKIT_TRUSTED_PROXIES: ignoring invalid entry %q", entry)
+	}
+
+	return prefixes
 }
 
 func isTrueString(s string) bool {

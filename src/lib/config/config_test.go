@@ -30,6 +30,7 @@ func (s *PackageSuite) AfterTest(_, _ string) {
 	os.Unsetenv("STORMKIT_HTTP_PROXY_TIMEOUT")
 	os.Unsetenv("STORMKIT_HTTP_CLIENT_BODY_TIMEOUT")
 	os.Unsetenv("STORMKIT_PROXY_LOCAL_DIAL")
+	os.Unsetenv("STORMKIT_TRUSTED_PROXIES")
 }
 
 func (s *PackageSuite) Test_HTTPTimeouts_Defaults() {
@@ -80,6 +81,22 @@ func (s *PackageSuite) Test_ProxyLocalDial_TurnedOff() {
 		os.Setenv("STORMKIT_PROXY_LOCAL_DIAL", v)
 		s.False(config.New().ProxyLocalDial, v)
 	}
+}
+
+// Test_TrustedProxies verifies CIDRs and bare IPs are parsed and invalid
+// entries are ignored.
+func (s *PackageSuite) Test_TrustedProxies() {
+	s.Empty(config.New().TrustedProxies)
+
+	os.Setenv("STORMKIT_TRUSTED_PROXIES", "104.16.0.1/13, 192.0.2.10,not-a-cidr, 2400:cb00::/32,")
+
+	got := []string{}
+
+	for _, prefix := range config.New().TrustedProxies {
+		got = append(got, prefix.String())
+	}
+
+	s.Equal([]string{"104.16.0.0/13", "192.0.2.10/32", "2400:cb00::/32"}, got)
 }
 
 func TestPackages(t *testing.T) {
