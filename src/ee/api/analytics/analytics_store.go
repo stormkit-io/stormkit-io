@@ -3,7 +3,6 @@ package analytics
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"fmt"
 	"net"
 	"net/http"
@@ -136,19 +135,22 @@ var stmt = struct {
 		LIMIT 50;
 	`,
 
+	// visitors reads the hourly or daily visitors of a domain ($1) in
+	// [$2, $3). The table only varies between fixed branches; values are bound.
 	visitors: `
 		SELECT
-			{{ .aggregateColumn }}, unique_visitors, total_visitors
+			{{ if .Hourly }}TO_CHAR(aggregate_date, 'YYYY-MM-DD HH24:MI'){{ else }}aggregate_date::text{{ end }},
+			unique_visitors,
+			total_visitors
 		FROM
-			{{ .tableName }}
+			{{- if .Hourly }} analytics_visitors_agg_hourly_{{ else }} analytics_visitors_agg_{{ end -}}
+			{{- if .NotFound }}404{{ else }}200{{ end }}
 		WHERE
-			domain_id = $1
-			{{ if .interval }}
-				AND {{ .aggregateColumn }} >= {{ .interval }}
-			{{ end }}
+			domain_id = $1 AND
+			aggregate_date >= $2::timestamp AND
+			aggregate_date < $3::timestamp
 		ORDER BY
-			{{ .aggregateColumn }} DESC {{ if not .interval }} 
-		LIMIT 24{{ end }};
+			aggregate_date;
 	`,
 
 	totalRequestsByTeam: `
@@ -421,68 +423,81 @@ const SPAN_30D = "30d"
 const SPAN_90D = "90d"
 const SPAN_365D = "365d"
 
+// visitorsDays is how many days back each daily span of Visitors reads.
+var visitorsDays = map[string]int{
+	SPAN_7D:  8,
+	SPAN_30D: 31,
+}
+
+// visitorsTemplate renders the visitors statement.
+var visitorsTemplate = template.Must(template.New("visitors").Parse(stmt.visitors))
+
+// IsVisitorsSpan reports whether Visitors accepts the span.
+func IsVisitorsSpan(span string) bool {
+	_, daily := visitorsDays[span]
+
+	return span == SPAN_24h || daily
+}
+
 type VisitorsArgs struct {
 	Span       string
 	DomainID   types.ID
 	EnvID      types.ID
 	StatusCode int
+
+	// Now is the moment the 24h span ends at. It defaults to the current time.
+	Now time.Time
 }
 
-func (s *Store) prepareVisitorsQuery(args VisitorsArgs) string {
-	data := map[string]any{
-		"interval": map[string]string{
-			SPAN_24h: "",
-			SPAN_7D:  "CURRENT_DATE - INTERVAL '8 days'",
-			SPAN_30D: "CURRENT_DATE - INTERVAL '31 days'",
-		}[args.Span],
-		"aggregateColumn": map[string]string{
-			SPAN_24h: "TO_CHAR(DATE_TRUNC('hour', aggregate_date), 'YYYY-MM-DD HH24:MI')",
-			SPAN_7D:  "aggregate_date",
-			SPAN_30D: "aggregate_date",
-		}[args.Span],
-		"tableName": map[string]string{
-			SPAN_24h: fmt.Sprintf("analytics_visitors_agg_hourly_%d", args.StatusCode),
-			SPAN_7D:  fmt.Sprintf("analytics_visitors_agg_%d", args.StatusCode),
-			SPAN_30D: fmt.Sprintf("analytics_visitors_agg_%d", args.StatusCode),
-		}[args.Span],
-	}
-
-	tmpl, err := template.New("visitors").Parse(stmt.visitors)
-
-	if err != nil {
-		slog.Errorf("failed parsing visitors template: %s", err.Error())
-		return ""
-	}
-
-	var wr bytes.Buffer
-
-	if err = tmpl.Execute(&wr, data); err != nil {
-		slog.Errorf("failed executing analytics visitors query template: %s", err.Error())
-		return ""
-	}
-
-	return wr.String()
-}
-
-// Visitors returns the number of unique and total vistors for the given environment.
+// Visitors returns the number of unique and total vistors for the given
+// environment. The 24h span returns every hour of the last 24 hours (UTC),
+// zero when an hour had no traffic; daily spans return the days with traffic.
 func (s *Store) Visitors(ctx context.Context, args VisitorsArgs) (map[string]any, error) {
 	if args.StatusCode != http.StatusOK && args.StatusCode != http.StatusNotFound {
 		return nil, fmt.Errorf("invalid status code provided: %d - only 200 and 404 are allowed", args.StatusCode)
 	}
 
-	dates := map[string]any{}
-	query := s.prepareVisitorsQuery(args)
-	rows, err := s.Query(ctx, query, args.DomainID)
+	if !IsVisitorsSpan(args.Span) {
+		return nil, fmt.Errorf("invalid span provided: %q", args.Span)
+	}
 
-	if err != nil && err != sql.ErrNoRows {
+	now := args.Now
+
+	if now.IsZero() {
+		now = time.Now()
+	}
+
+	// The 24h span ends with the current hour. Daily spans end before today,
+	// which is not yet synced; the 24h span covers it.
+	hourly := args.Span == SPAN_24h
+	until := now.UTC().Truncate(time.Hour).Add(time.Hour)
+	since := until.Add(-24 * time.Hour)
+
+	if !hourly {
+		until = now.UTC().Truncate(24 * time.Hour)
+		since = until.AddDate(0, 0, -visitorsDays[args.Span])
+	}
+
+	var query bytes.Buffer
+
+	err := visitorsTemplate.Execute(&query, map[string]bool{
+		"Hourly":   hourly,
+		"NotFound": args.StatusCode == http.StatusNotFound,
+	})
+
+	if err != nil {
 		return nil, err
 	}
 
-	if rows == nil {
-		return nil, nil
+	rows, err := s.Query(ctx, query.String(), args.DomainID, since.Format(time.DateTime), until.Format(time.DateTime))
+
+	if err != nil {
+		return nil, err
 	}
 
 	defer rows.Close()
+
+	dates := map[string]any{}
 
 	for rows.Next() {
 		var date string
@@ -494,16 +509,24 @@ func (s *Store) Visitors(ctx context.Context, args VisitorsArgs) (map[string]any
 			return nil, err
 		}
 
-		dates[strings.Split(date, "T")[0]] = map[string]int{
+		dates[date] = map[string]int{
 			"unique": unique,
 			"total":  total,
 		}
 	}
 
-	// Remove today because the data is not yet synced.
-	// Users can use the 24h view to view last day.
-	if args.Span != SPAN_24h {
-		delete(dates, time.Now().Format(time.DateOnly))
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if hourly {
+		for h := since; h.Before(until); h = h.Add(time.Hour) {
+			key := h.Format("2006-01-02 15:04")
+
+			if dates[key] == nil {
+				dates[key] = map[string]int{"unique": 0, "total": 0}
+			}
+		}
 	}
 
 	return dates, nil

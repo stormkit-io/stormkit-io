@@ -23,10 +23,12 @@ type statement struct {
 	syncAnalyticsCountries           string
 	syncAnalyticsEvents              string
 	syncAnalyticsPaths               string
+	syncAnalyticsSite                string
 	syncAnalyticsPathCountries       string
 	syncAnalyticsCampaigns           string
 	syncAnalyticsChannels            string
 	deleteAnalyticsPathsDays         string
+	deleteAnalyticsSiteDays          string
 	deleteAnalyticsPathCountriesDays string
 	deleteAnalyticsCampaignsDays     string
 	deleteAnalyticsChannelsDays      string
@@ -339,6 +341,25 @@ var stmt = &statement{
 			agg_date, domain_id, request_path;
 	`,
 
+	// syncAnalyticsSite sums the days [$1, $2) of analytics_paths_agg per
+	// domain. It runs after syncAnalyticsPaths in the same transaction, so the
+	// site totals always match the sum of the paths.
+	syncAnalyticsSite: `
+		INSERT INTO analytics_site_agg
+			(domain_id, aggregate_date, page_views, server_views, client_views,
+			 engaged_seconds, engaged_views)
+		SELECT
+			domain_id, aggregate_date, SUM(page_views), SUM(server_views), SUM(client_views),
+			SUM(engaged_seconds), SUM(engaged_views)
+		FROM
+			analytics_paths_agg
+		WHERE
+			aggregate_date >= $1::date AND
+			aggregate_date < $2::date
+		GROUP BY
+			domain_id, aggregate_date;
+	`,
+
 	syncAnalyticsPathCountries: `
 		WITH per_path AS (
 			SELECT
@@ -507,6 +528,7 @@ var stmt = &statement{
 	// The delete statements clear the days [$1, $2) of a path rollup before
 	// they are recomputed.
 	deleteAnalyticsPathsDays:         `DELETE FROM analytics_paths_agg WHERE aggregate_date >= $1::date AND aggregate_date < $2::date;`,
+	deleteAnalyticsSiteDays:          `DELETE FROM analytics_site_agg WHERE aggregate_date >= $1::date AND aggregate_date < $2::date;`,
 	deleteAnalyticsPathCountriesDays: `DELETE FROM analytics_path_countries_agg WHERE aggregate_date >= $1::date AND aggregate_date < $2::date;`,
 	deleteAnalyticsCampaignsDays:     `DELETE FROM analytics_campaigns_agg WHERE aggregate_date >= $1::date AND aggregate_date < $2::date;`,
 	deleteAnalyticsChannelsDays:      `DELETE FROM analytics_channels_agg WHERE aggregate_date >= $1::date AND aggregate_date < $2::date;`,

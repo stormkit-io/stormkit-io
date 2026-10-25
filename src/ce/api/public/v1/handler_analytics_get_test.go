@@ -64,9 +64,10 @@ func (s *HandlerAnalyticsGetSuite) BeforeTest(suiteName, _ string) {
 	today := time.Now().UTC().Format(time.DateOnly)
 
 	for id, views := range map[types.ID]int{s.www: 3, s.blog: 4, s.others: 100} {
-		_, err := s.conn.Exec(`INSERT INTO analytics_paths_agg
+		_, err := s.conn.Exec(`WITH path AS (INSERT INTO analytics_paths_agg
 			(aggregate_date, domain_id, request_path, request_path_hash, unique_visitors, page_views, server_views, client_views)
-			VALUES ($1::date, $2, '/', decode(md5('/'), 'hex'), 1, $3, $3, 0)`, today, id, views)
+			VALUES ($1::date, $2, '/', decode(md5('/'), 'hex'), 1, $3, $3, 0) RETURNING *)
+			INSERT INTO analytics_site_agg SELECT domain_id, aggregate_date, page_views, server_views, client_views, engaged_seconds, engaged_views FROM path`, today, id, views)
 
 		s.Require().NoError(err)
 	}
@@ -138,9 +139,10 @@ func (s *HandlerAnalyticsGetSuite) Test_Success_ManyDomains() {
 		last = s.domain(s.env.AppID, s.env.ID, fmt.Sprintf("d%d.example.org", i))
 	}
 
-	_, err := s.conn.Exec(`INSERT INTO analytics_paths_agg
+	_, err := s.conn.Exec(`WITH path AS (INSERT INTO analytics_paths_agg
 		(aggregate_date, domain_id, request_path, request_path_hash, unique_visitors, page_views, server_views, client_views)
-		VALUES ($1::date, $2, '/', decode(md5('/'), 'hex'), 1, 5, 5, 0)`, time.Now().UTC().Format(time.DateOnly), last)
+		VALUES ($1::date, $2, '/', decode(md5('/'), 'hex'), 1, 5, 5, 0) RETURNING *)
+		INSERT INTO analytics_site_agg SELECT domain_id, aggregate_date, page_views, server_views, client_views, engaged_seconds, engaged_views FROM path`, time.Now().UTC().Format(time.DateOnly), last)
 
 	s.Require().NoError(err)
 

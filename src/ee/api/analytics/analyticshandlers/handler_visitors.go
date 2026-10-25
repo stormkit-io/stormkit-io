@@ -15,6 +15,12 @@ func handlerVisitors(req *app.RequestContext) *shttp.Response {
 		span = analytics.SPAN_24h
 	}
 
+	if !analytics.IsVisitorsSpan(span) {
+		return shttp.BadRequest(map[string]any{
+			"error": "ts must be one of: 24h, 7d, 30d",
+		})
+	}
+
 	domainID, errResp := authorizedDomainID(req)
 
 	if errResp != nil {

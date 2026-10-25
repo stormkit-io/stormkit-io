@@ -47,6 +47,22 @@ func (s *ReportSuite) pathDay(domain types.ID, offset int, path string, visitors
 		(aggregate_date, domain_id, request_path, request_path_hash, unique_visitors, page_views, server_views, client_views)
 		VALUES ($1::date, $2, $3, decode(md5($3), 'hex'), $4, $5, $6, $7)`,
 		s.dayFrom(offset), domain, path, visitors, server+client, server, client)
+
+	s.syncSite()
+}
+
+// syncSite sums the seeded paths into analytics_site_agg, as the rollup does.
+func (s *ReportSuite) syncSite() {
+	s.exec(`INSERT INTO analytics_site_agg
+		SELECT domain_id, aggregate_date, SUM(page_views), SUM(server_views), SUM(client_views), SUM(engaged_seconds), SUM(engaged_views)
+		FROM analytics_paths_agg
+		GROUP BY domain_id, aggregate_date
+		ON CONFLICT (domain_id, aggregate_date) DO UPDATE SET
+			page_views = EXCLUDED.page_views,
+			server_views = EXCLUDED.server_views,
+			client_views = EXCLUDED.client_views,
+			engaged_seconds = EXCLUDED.engaged_seconds,
+			engaged_views = EXCLUDED.engaged_views`)
 }
 
 // siteDay seeds the domain-level daily visitors aggregate.
@@ -152,6 +168,8 @@ func (s *ReportSuite) engagedDay(offset int, path string, seconds, views int) {
 	s.exec(`UPDATE analytics_paths_agg SET engaged_seconds = $4, engaged_views = $5
 		WHERE domain_id = $1 AND aggregate_date = $2::date AND request_path = $3`,
 		s.domain, s.dayFrom(offset), path, seconds, views)
+
+	s.syncSite()
 }
 
 func (s *ReportSuite) Test_TimeOnPage() {

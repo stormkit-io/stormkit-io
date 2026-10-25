@@ -32,9 +32,22 @@ AND starts_with(request_path, {{ bind .PathPrefix }})
 {{ if eq .Source "server" }}server_views{{ else if eq .Source "client" }}client_views{{ else }}page_views{{ end }}
 {{- end }}
 
+{{- define "viewsTable" -}}
+{{- /* Site-wide page views read the per-domain sum of the paths, one row per
+day, instead of summing up to one row per path. */ -}}
+{{ if or .Path .PathPrefix }}analytics_paths_agg{{ else }}analytics_site_agg{{ end }}
+{{- end }}
+
 {{- define "visitorsSeries" -}}
-SELECT aggregate_date::text, SUM({{ template "views" . }}), SUM(unique_visitors), SUM(engaged_seconds), SUM(engaged_views)
-FROM analytics_paths_agg
+{{- /* Site-wide unique visitors are read by siteVisitors: summing per-path
+visitors would count a visitor once per page. */ -}}
+SELECT
+	aggregate_date::text,
+	SUM({{ template "views" . }}),
+	{{ if or .Path .PathPrefix }}SUM(unique_visitors){{ else }}0{{ end }},
+	SUM(engaged_seconds),
+	SUM(engaged_views)
+FROM {{ template "viewsTable" . }}
 WHERE {{ template "range" . }}
 GROUP BY aggregate_date
 {{- end }}
@@ -71,7 +84,7 @@ SELECT
 	COALESCE(SUM(engaged_views) FILTER (WHERE {{ template "current" . }}), 0),
 	COALESCE(SUM(engaged_seconds) FILTER (WHERE NOT {{ template "current" . }}), 0),
 	COALESCE(SUM(engaged_views) FILTER (WHERE NOT {{ template "current" . }}), 0)
-FROM analytics_paths_agg
+FROM {{ template "viewsTable" . }}
 WHERE {{ template "range" . }}
 {{- end }}
 

@@ -315,6 +315,23 @@ CREATE TABLE skitapi.analytics_rollup_days (
 ALTER TABLE skitapi.analytics_rollup_days OWNER TO skitadmin;
 
 --
+-- Name: analytics_site_agg; Type: TABLE; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE TABLE skitapi.analytics_site_agg (
+    domain_id bigint NOT NULL,
+    aggregate_date date NOT NULL,
+    page_views bigint NOT NULL,
+    server_views bigint NOT NULL,
+    client_views bigint NOT NULL,
+    engaged_seconds bigint NOT NULL,
+    engaged_views bigint NOT NULL
+);
+
+
+ALTER TABLE skitapi.analytics_site_agg OWNER TO skitadmin;
+
+--
 -- Name: analytics_visitors_agg_200; Type: TABLE; Schema: skitapi; Owner: skitadmin
 --
 
@@ -1663,6 +1680,14 @@ ALTER TABLE ONLY skitapi.analytics_rollup_days
 
 
 --
+-- Name: analytics_site_agg analytics_site_agg_pkey; Type: CONSTRAINT; Schema: skitapi; Owner: skitadmin
+--
+
+ALTER TABLE ONLY skitapi.analytics_site_agg
+    ADD CONSTRAINT analytics_site_agg_pkey PRIMARY KEY (domain_id, aggregate_date);
+
+
+--
 -- Name: analytics_visitors_agg_200 analytics_visitors_agg_200_pkey; Type: CONSTRAINT; Schema: skitapi; Owner: skitadmin
 --
 
@@ -2035,6 +2060,13 @@ CREATE INDEX idx_analytics_path_countries_agg_date ON skitapi.analytics_path_cou
 --
 
 CREATE INDEX idx_analytics_paths_agg_date ON skitapi.analytics_paths_agg USING btree (aggregate_date);
+
+
+--
+-- Name: idx_analytics_site_agg_date; Type: INDEX; Schema: skitapi; Owner: skitadmin
+--
+
+CREATE INDEX idx_analytics_site_agg_date ON skitapi.analytics_site_agg USING btree (aggregate_date);
 
 
 --

@@ -182,17 +182,17 @@ func (s *JobAnalyticsSuite) Test_SyncAnalyticsVisitorsHourly() {
 		StatusCode: http.StatusOK,
 		Span:       analytics.SPAN_24h,
 		DomainID:   s.domainID,
+		Now:        s.at(16, 10),
 	})
 
 	s.NoError(err)
 
+	// The last 24 hours run from yesterday 17:00 to today 16:00, so
+	// yesterday's 15:00 bucket is left out and quiet hours read zero.
 	expected := map[string]any{}
 
-	// We receive yesterday as well because the hourly view
-	// fetches last 24 records sorted by date.
-	expected[fmt.Sprintf("%s 15:00", s.yesterday)] = map[string]int{
-		"unique": 2,
-		"total":  3,
+	for h := s.at(16, 0).Add(-23 * time.Hour); !h.After(s.at(16, 0)); h = h.Add(time.Hour) {
+		expected[h.Format("2006-01-02 15:04")] = map[string]int{"unique": 0, "total": 0}
 	}
 
 	expected[fmt.Sprintf("%s 15:00", s.today)] = map[string]int{

@@ -91,6 +91,25 @@ func (s *ReportStatementsSuite) Test_ChannelsReadStoredChannels() {
 	}
 }
 
+// Test_SiteWideViewsReadSiteTotals verifies that only path-filtered page
+// views are summed from the per-path rows.
+func (s *ReportStatementsSuite) Test_SiteWideViewsReadSiteTotals() {
+	for _, name := range []string{"visitorsSeries", "pathsTotals"} {
+		q := s.query()
+		sql, _, err := renderReportQuery(name, q)
+
+		s.Require().NoError(err)
+		s.Contains(sql, "FROM analytics_paths_agg", name)
+
+		q.PathPrefix = ""
+		sql, _, err = renderReportQuery(name, q)
+
+		s.Require().NoError(err)
+		s.Contains(sql, "FROM analytics_site_agg", name)
+		s.NotContains(sql, "request_path", name)
+	}
+}
+
 func TestReportStatementsSuite(t *testing.T) {
 	suite.Run(t, new(ReportStatementsSuite))
 }

@@ -39,9 +39,10 @@ func (s *HandlerMCPSuite) mockAnalytics(env *factory.MockEnv) types.ID {
 
 	s.Require().NoError(buildconf.DomainStore().Insert(context.Background(), d))
 
-	_, err := s.conn.Exec(`INSERT INTO analytics_paths_agg
+	_, err := s.conn.Exec(`WITH path AS (INSERT INTO analytics_paths_agg
 		(aggregate_date, domain_id, request_path, request_path_hash, unique_visitors, page_views, server_views, client_views)
-		VALUES ($1::date, $2, '/blog/a', decode(md5('/blog/a'), 'hex'), 2, 5, 4, 1)`,
+		VALUES ($1::date, $2, '/blog/a', decode(md5('/blog/a'), 'hex'), 2, 5, 4, 1) RETURNING *)
+		INSERT INTO analytics_site_agg SELECT domain_id, aggregate_date, page_views, server_views, client_views, engaged_seconds, engaged_views FROM path`,
 		time.Now().UTC().Format(time.DateOnly), d.ID)
 
 	s.Require().NoError(err)

@@ -35,6 +35,7 @@ type HandlerVisitorsSuite struct {
 	t15DaysAgo string
 	t30DaysAgo string
 	t45DaysAgo string
+	thisHour   time.Time
 }
 
 func (s *HandlerVisitorsSuite) SetupSuite() {
@@ -99,16 +100,20 @@ func (s *HandlerVisitorsSuite) SetupSuite() {
 
 	s.NoError(err)
 
-	// Hourly table
+	// Hourly table: the current hour, and an hour from days ago that the
+	// 24h view must leave out.
+	s.thisHour = time.Now().UTC().Truncate(time.Hour)
+
 	_, err = s.conn.Exec(`
 		INSERT INTO
 			analytics_visitors_agg_hourly_200 (aggregate_date, total_visitors, unique_visitors, domain_id)
 		VALUES
 			-- Domain 1
 			($3, 15, 5, $1),
+			($4, 9, 9, $1),
 			-- Domain 2
 			($3, 24010, 600, $2)
-	`, s.domainID, domain2.ID, now)
+	`, s.domainID, domain2.ID, s.thisHour.Format(time.DateTime), s.thisHour.Add(-72*time.Hour).Format(time.DateTime))
 
 	s.NoError(err)
 }
@@ -160,6 +165,8 @@ func (s *HandlerVisitorsSuite) Test_Success_7d_Unique() {
 	s.JSONEq(expected, response.String())
 }
 
+// Test_Success_24h_Unique verifies that the 24h view returns every hour of
+// the last 24 hours, zero-filled, and leaves out older hours.
 func (s *HandlerVisitorsSuite) Test_Success_24h_Unique() {
 	response := shttptest.RequestWithHeaders(
 		shttp.NewRouter().RegisterService(analyticshandlers.Services).Router().Handler(),
@@ -171,12 +178,37 @@ func (s *HandlerVisitorsSuite) Test_Success_24h_Unique() {
 		},
 	)
 
-	expected := fmt.Sprintf(`{
-		"%s 15:00": { "total": 15, "unique": 5 }
-	}`, s.t0DaysAgo)
+	expected := map[string]any{}
+
+	for i := 0; i < 24; i++ {
+		expected[s.thisHour.Add(-time.Duration(i)*time.Hour).Format("2006-01-02 15:04")] = map[string]any{
+			"total":  float64(0),
+			"unique": float64(0),
+		}
+	}
+
+	expected[s.thisHour.Format("2006-01-02 15:04")] = map[string]any{
+		"total":  float64(15),
+		"unique": float64(5),
+	}
 
 	s.Equal(http.StatusOK, response.Code)
-	s.JSONEq(expected, response.String())
+	s.Equal(expected, response.Map())
+}
+
+func (s *HandlerVisitorsSuite) Test_BadRequest_UnknownSpan() {
+	response := shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(analyticshandlers.Services).Router().Handler(),
+		shttp.MethodGet,
+		fmt.Sprintf("/analytics/visitors?envId=%d&ts=12x&domainId=%d", s.env.ID, s.domainID),
+		nil,
+		map[string]string{
+			"Authorization": usertest.Authorization(s.user.ID),
+		},
+	)
+
+	s.Equal(http.StatusBadRequest, response.Code)
+	s.Equal(map[string]any{"error": "ts must be one of: 24h, 7d, 30d"}, response.Map())
 }
 
 func TestHandlerVisitors(t *testing.T) {

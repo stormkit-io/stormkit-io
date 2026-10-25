@@ -26,6 +26,21 @@ CREATE TABLE IF NOT EXISTS analytics_paths_agg (
     PRIMARY KEY (domain_id, aggregate_date, request_path_hash)
 );
 
+-- Daily page views and foreground time per domain: analytics_paths_agg summed
+-- over its paths by the same rollup run, so a site-wide report reads one row
+-- per day instead of up to one per path. Unique visitors are not summable
+-- across paths; site-wide reports read them from analytics_visitors_agg_200.
+CREATE TABLE IF NOT EXISTS analytics_site_agg (
+    domain_id bigint NOT NULL,
+    aggregate_date date NOT NULL,
+    page_views bigint NOT NULL,
+    server_views bigint NOT NULL,
+    client_views bigint NOT NULL,
+    engaged_seconds bigint NOT NULL,
+    engaged_views bigint NOT NULL,
+    PRIMARY KEY (domain_id, aggregate_date)
+);
+
 -- Daily unique visitors per path and country.
 CREATE TABLE IF NOT EXISTS analytics_path_countries_agg (
     aggregate_date date NOT NULL,
@@ -80,6 +95,7 @@ CREATE INDEX IF NOT EXISTS idx_domains_env_id ON domains (env_id);
 -- keyed by domain first, so without these indexes each delete would scan the
 -- whole table.
 CREATE INDEX IF NOT EXISTS idx_analytics_paths_agg_date ON analytics_paths_agg (aggregate_date);
+CREATE INDEX IF NOT EXISTS idx_analytics_site_agg_date ON analytics_site_agg (aggregate_date);
 CREATE INDEX IF NOT EXISTS idx_analytics_path_countries_agg_date ON analytics_path_countries_agg (aggregate_date);
 CREATE INDEX IF NOT EXISTS idx_analytics_campaigns_agg_date ON analytics_campaigns_agg (aggregate_date);
 CREATE INDEX IF NOT EXISTS idx_analytics_channels_agg_date ON analytics_channels_agg (aggregate_date);
