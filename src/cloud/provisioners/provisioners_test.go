@@ -20,7 +20,7 @@ type CreateInstanceParamsSuite struct {
 
 func (s *CreateInstanceParamsSuite) Test_Valid() {
 	s.NoError(provisioners.CreateInstanceParams{Name: "acme"}.Validate())
-	s.NoError(provisioners.CreateInstanceParams{Name: "a", AdminEmail: "owner@acme.com", Domain: "acme.stormkit.dev"}.Validate())
+	s.NoError(provisioners.CreateInstanceParams{Name: "a", AdminEmail: "owner@acme.com"}.Validate())
 }
 
 // Test_ReportsAllErrors verifies that every invalid field is reported at once.
@@ -28,13 +28,11 @@ func (s *CreateInstanceParamsSuite) Test_ReportsAllErrors() {
 	err := provisioners.CreateInstanceParams{
 		Name:       "Acme_Corp",
 		AdminEmail: "Owner <owner@acme.com>",
-		Domain:     "nodot",
 	}.Validate()
 
 	s.Require().Error(err)
 	s.Contains(err.Error(), `name "Acme_Corp"`)
 	s.Contains(err.Error(), "admin email")
-	s.Contains(err.Error(), `domain "nodot"`)
 }
 
 func (s *CreateInstanceParamsSuite) Test_RejectsBadNames() {
@@ -47,25 +45,6 @@ func TestCreateInstanceParamsSuite(t *testing.T) {
 	suite.Run(t, new(CreateInstanceParamsSuite))
 }
 
-type APIKeySuite struct {
-	suite.Suite
-}
-
-func (s *APIKeySuite) Test_FormatMatchesInstallScript() {
-	a, err := provisioners.NewAPIKey()
-	s.Require().NoError(err)
-
-	b, err := provisioners.NewAPIKey()
-	s.Require().NoError(err)
-
-	s.Regexp(`^SK_[0-9a-f]{62}$`, a)
-	s.NotEqual(a, b)
-}
-
-func TestAPIKeySuite(t *testing.T) {
-	suite.Run(t, new(APIKeySuite))
-}
-
 type CloudInitSuite struct {
 	suite.Suite
 }
@@ -75,33 +54,48 @@ func (s *CloudInitSuite) Test_Render() {
 		InstallScriptURL: "https://www.stormkit.io/install.sh",
 		APIKey:           "SK_abc",
 		AdminEmail:       "o'brien@acme.com",
-		Domain:           "acme.stormkit.dev",
 	}.Render()
 
 	s.Require().NoError(err)
 	s.True(strings.HasPrefix(out, "#cloud-config\n"))
 	s.Equal([]string{
 		"mkdir -p /opt/stormkit",
-		`cd /opt/stormkit && curl -fsSL 'https://www.stormkit.io/install.sh' | sh -s -- --agent --api-key 'SK_abc' --email 'o'\''brien@acme.com' --domain 'acme.stormkit.dev'`,
-	}, s.runcmd(out))
+		`cd /opt/stormkit && curl -fsSL 'https://www.stormkit.io/install.sh' | sh -s -- --agent --api-key 'SK_abc' --email 'o'\''brien@acme.com'`,
+	}, s.doc(out).Runcmd)
 }
 
-// runcmd parses a rendered cloud-config and returns its commands.
-func (s *CloudInitSuite) runcmd(out string) []string {
-	doc := struct {
-		Runcmd []string `yaml:"runcmd"`
-	}{}
+// Test_Render_BlocksMetadataFromContainers verifies that containers on the
+// instance cannot read the user-data, and its owner key, from the metadata
+// service, on every boot.
+func (s *CloudInitSuite) Test_Render_BlocksMetadataFromContainers() {
+	out, err := provisioners.CloudInit{InstallScriptURL: "https://x.test/install.sh", APIKey: "SK_abc"}.Render()
+
+	s.Require().NoError(err)
+	s.Equal([]string{
+		"iptables -N DOCKER-USER 2>/dev/null || true",
+		"iptables -C DOCKER-USER -d 169.254.169.254 -j DROP 2>/dev/null || iptables -I DOCKER-USER -d 169.254.169.254 -j DROP",
+	}, s.doc(out).Bootcmd)
+}
+
+type cloudConfig struct {
+	Bootcmd []string `yaml:"bootcmd"`
+	Runcmd  []string `yaml:"runcmd"`
+}
+
+// doc parses a rendered cloud-config.
+func (s *CloudInitSuite) doc(out string) cloudConfig {
+	doc := cloudConfig{}
 
 	s.Require().NoError(yaml.Unmarshal([]byte(out), &doc))
 
-	return doc.Runcmd
+	return doc
 }
 
 func (s *CloudInitSuite) Test_Render_OmitsOptionalFlags() {
 	out, err := provisioners.CloudInit{InstallScriptURL: "https://x.test/install.sh", APIKey: "SK_abc"}.Render()
 
 	s.Require().NoError(err)
-	s.Equal(`cd /opt/stormkit && curl -fsSL 'https://x.test/install.sh' | sh -s -- --agent --api-key 'SK_abc'`, s.runcmd(out)[1])
+	s.Equal(`cd /opt/stormkit && curl -fsSL 'https://x.test/install.sh' | sh -s -- --agent --api-key 'SK_abc'`, s.doc(out).Runcmd[1])
 }
 
 func TestCloudInitSuite(t *testing.T) {
@@ -142,11 +136,15 @@ func (s *ReadinessSuite) TearDownTest() {
 }
 
 func (s *ReadinessSuite) wait() error {
+	return s.waitCtx(context.Background())
+}
+
+func (s *ReadinessSuite) waitCtx(ctx context.Context) error {
 	r := provisioners.NewReadiness(200 * time.Millisecond)
 	r.PollInterval = 5 * time.Millisecond
 	r.APIURL = func(domain string) string { return s.srv.URL + "/" }
 
-	return r.Wait(context.Background(), &provisioners.Instance{Domain: "acme.stormkit.dev", APIKey: "SK_abc"})
+	return r.Wait(ctx, &provisioners.Instance{Domain: "acme.stormkit.dev", APIKey: "SK_abc"})
 }
 
 // Test_RetriesUntilReady verifies that early 401s, before bootstrap stores
@@ -166,6 +164,21 @@ func (s *ReadinessSuite) Test_TimesOut() {
 
 	s.ErrorIs(err, provisioners.ErrNotReady)
 	s.Contains(err.Error(), "HTTP 401")
+}
+
+// Test_CallerCancelIsNotATimeout verifies that giving up early is reported
+// as a cancellation rather than as an instance that never became ready.
+func (s *ReadinessSuite) Test_CallerCancelIsNotATimeout() {
+	s.readyAfter = -1
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+
+	err := s.waitCtx(ctx)
+
+	s.Require().Error(err)
+	s.NotErrorIs(err, provisioners.ErrNotReady)
+	s.ErrorIs(err, context.DeadlineExceeded)
 }
 
 func (s *ReadinessSuite) Test_DefaultAPIURL() {

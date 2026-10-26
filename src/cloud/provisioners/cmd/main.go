@@ -2,12 +2,14 @@
 // by hand, for operators and for testing the flow end to end. Only Hetzner
 // Cloud is supported for now.
 //
-//	go run ./src/cloud/provisioners/cmd create -name acme [-email owner@acme.com] [-domain acme.example.com]
+//	go run ./src/cloud/provisioners/cmd create -name acme [-email owner@acme.com]
 //	go run ./src/cloud/provisioners/cmd delete -id 12345678
 //
 // Configuration is read from the environment; see hetzner.ConfigFromEnv.
 // create prints the instance as JSON, including its owner API key, which is
-// not recoverable afterwards.
+// not recoverable afterwards. Instances are reachable at <ip>.sslip.io until
+// Stormkit creates DNS records for them. delete only removes servers the
+// provisioner created.
 package main
 
 import (
@@ -24,7 +26,7 @@ import (
 )
 
 const usage = `usage:
-  provisioners create -name <name> [-email <email>] [-domain <domain>]
+  provisioners create -name <name> [-email <email>]
   provisioners delete -id <server-id>`
 
 func main() {
@@ -55,7 +57,6 @@ func run(ctx context.Context, args []string) error {
 		fs := flag.NewFlagSet("create", flag.ContinueOnError)
 		name := fs.String("name", "", "instance name (lowercase letters, digits, dashes)")
 		email := fs.String("email", "", "owner admin email (default agent@<domain>)")
-		domain := fs.String("domain", "", "instance base domain (default <ip>.sslip.io)")
 
 		if err := fs.Parse(args[1:]); err != nil {
 			return err
@@ -66,7 +67,6 @@ func run(ctx context.Context, args []string) error {
 		instance, err := p.CreateInstance(ctx, provisioners.CreateInstanceParams{
 			Name:       *name,
 			AdminEmail: *email,
-			Domain:     *domain,
 		})
 
 		if err != nil {

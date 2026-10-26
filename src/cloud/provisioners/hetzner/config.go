@@ -35,7 +35,8 @@ type Config struct {
 	// FirewallID attaches an existing Hetzner firewall when non-zero.
 	FirewallID int64
 
-	// SSHKeyIDs are existing Hetzner SSH keys that get root access, for operators.
+	// SSHKeyIDs are existing Hetzner SSH keys that get root access, for
+	// operators. At least one is required.
 	SSHKeyIDs []int64
 
 	// InstallScriptURL is where a new server downloads install.sh from.
@@ -51,13 +52,13 @@ func ConfigFromEnv() (Config, error) {
 
 	cfg := Config{
 		Token:            os.Getenv("HETZNER_API_KEY"),
-		ServerTypes:      r.list("HETZNER_SERVER_TYPES", defaultServerTypes),
-		Locations:        r.list("HETZNER_LOCATIONS", defaultLocations),
-		Image:            r.str("HETZNER_IMAGE", defaultImage),
+		ServerTypes:      r.list(envVar{name: "HETZNER_SERVER_TYPES", fallback: defaultServerTypes}),
+		Locations:        r.list(envVar{name: "HETZNER_LOCATIONS", fallback: defaultLocations}),
+		Image:            r.str(envVar{name: "HETZNER_IMAGE", fallback: defaultImage}),
 		FirewallID:       r.int64("HETZNER_FIREWALL_ID"),
 		SSHKeyIDs:        r.int64List("HETZNER_SSH_KEY_IDS"),
-		InstallScriptURL: r.str("STORMKIT_INSTALL_SCRIPT_URL", defaultInstallScriptURL),
-		ReadyTimeout:     r.duration("PROVISIONER_READY_TIMEOUT", defaultReadyTimeout),
+		InstallScriptURL: r.str(envVar{name: "STORMKIT_INSTALL_SCRIPT_URL", fallback: defaultInstallScriptURL}),
+		ReadyTimeout:     r.duration(durationVar{name: "PROVISIONER_READY_TIMEOUT", fallback: defaultReadyTimeout}),
 	}
 
 	if cfg.Token == "" {
@@ -72,6 +73,12 @@ func ConfigFromEnv() (Config, error) {
 		r.errs = append(r.errs, errors.New("HETZNER_LOCATIONS must list at least one location"))
 	}
 
+	// Without an SSH key Hetzner enables root password login and emails the
+	// password for every server it creates.
+	if len(cfg.SSHKeyIDs) == 0 {
+		r.errs = append(r.errs, errors.New("HETZNER_SSH_KEY_IDS must list at least one SSH key"))
+	}
+
 	return cfg, errors.Join(r.errs...)
 }
 
@@ -81,18 +88,29 @@ type envReader struct {
 	errs []error
 }
 
-func (r *envReader) str(name, fallback string) string {
-	if v := strings.TrimSpace(os.Getenv(name)); v != "" {
-		return v
-	}
-
-	return fallback
+// envVar names a variable and the value to use when it is unset or blank.
+type envVar struct {
+	name     string
+	fallback string
 }
 
-func (r *envReader) list(name, fallback string) []string {
+type durationVar struct {
+	name     string
+	fallback time.Duration
+}
+
+func (r *envReader) str(v envVar) string {
+	if value := strings.TrimSpace(os.Getenv(v.name)); value != "" {
+		return value
+	}
+
+	return v.fallback
+}
+
+func (r *envReader) list(v envVar) []string {
 	items := []string{}
 
-	for item := range strings.SplitSeq(r.str(name, fallback), ",") {
+	for item := range strings.SplitSeq(r.str(v), ",") {
 		if item = strings.TrimSpace(item); item != "" {
 			items = append(items, item)
 		}
@@ -102,7 +120,7 @@ func (r *envReader) list(name, fallback string) []string {
 }
 
 func (r *envReader) int64(name string) int64 {
-	v := r.str(name, "")
+	v := r.str(envVar{name: name})
 
 	if v == "" {
 		return 0
@@ -121,7 +139,7 @@ func (r *envReader) int64(name string) int64 {
 func (r *envReader) int64List(name string) []int64 {
 	ids := []int64{}
 
-	for _, item := range r.list(name, "") {
+	for _, item := range r.list(envVar{name: name}) {
 		n, err := strconv.ParseInt(item, 10, 64)
 
 		if err != nil || n <= 0 {
@@ -135,18 +153,18 @@ func (r *envReader) int64List(name string) []int64 {
 	return ids
 }
 
-func (r *envReader) duration(name string, fallback time.Duration) time.Duration {
-	v := r.str(name, "")
+func (r *envReader) duration(v durationVar) time.Duration {
+	value := r.str(envVar{name: v.name})
 
-	if v == "" {
-		return fallback
+	if value == "" {
+		return v.fallback
 	}
 
-	d, err := time.ParseDuration(v)
+	d, err := time.ParseDuration(value)
 
 	if err != nil || d <= 0 {
-		r.errs = append(r.errs, fmt.Errorf("%s must be a positive duration like 20m, got %q", name, v))
-		return fallback
+		r.errs = append(r.errs, fmt.Errorf("%s must be a positive duration like 20m, got %q", v.name, value))
+		return v.fallback
 	}
 
 	return d

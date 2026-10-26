@@ -9,14 +9,26 @@ import (
 	"time"
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/apikey"
 	"github.com/stormkit-io/stormkit-io/src/cloud/provisioners"
+	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
 // ProviderName identifies Hetzner in provisioners.Instance.Provider.
 const ProviderName = "hetzner"
 
-// instanceLabel tags every server the provisioner creates with the instance name.
-const instanceLabel = "stormkit-instance"
+const (
+	// instanceLabel tags every server the provisioner creates with the
+	// instance name. DeleteInstance refuses servers without it.
+	instanceLabel = "stormkit-instance"
+
+	// attemptLabel tags a server with the create call that made it, so a
+	// create whose outcome is unknown can find and remove exactly its server.
+	attemptLabel = "stormkit-attempt"
+)
+
+// cleanupTimeout bounds deletes that run after the caller's context failed.
+const cleanupTimeout = time.Minute
 
 // Provisioner creates and deletes Stormkit instances on Hetzner Cloud.
 type Provisioner struct {
@@ -44,17 +56,12 @@ func (p *Provisioner) CreateInstance(ctx context.Context, params provisioners.Cr
 		return nil, err
 	}
 
-	apiKey, err := provisioners.NewAPIKey()
-
-	if err != nil {
-		return nil, err
-	}
+	apiKey := apikey.GenerateTokenValue()
 
 	userData, err := provisioners.CloudInit{
 		InstallScriptURL: p.cfg.InstallScriptURL,
 		APIKey:           apiKey,
 		AdminEmail:       params.AdminEmail,
-		Domain:           params.Domain,
 	}.Render()
 
 	if err != nil {
@@ -76,32 +83,31 @@ func (p *Provisioner) CreateInstance(ctx context.Context, params provisioners.Cr
 		Name:       params.Name,
 		ServerType: created.serverType,
 		Location:   created.location,
-		Domain:     params.Domain,
 		AdminEmail: params.AdminEmail,
 		APIKey:     apiKey,
-	}
-
-	if ip := created.server.PublicNet.IPv4.IP; ip != nil {
-		instance.IPv4 = ip.String()
 	}
 
 	if ip := created.server.PublicNet.IPv6.IP; ip != nil {
 		instance.IPv6 = ip.String()
 	}
 
-	if instance.Domain == "" && instance.IPv4 != "" {
-		instance.Domain = strings.ReplaceAll(instance.IPv4, ".", "-") + ".sslip.io"
-	}
-
 	readyErr := errors.New("server has no public IPv4 address")
 
-	if instance.Domain != "" {
+	if ip := created.server.PublicNet.IPv4.IP; ip != nil {
+		instance.IPv4 = ip.String()
+		instance.Domain = strings.ReplaceAll(instance.IPv4, ".", "-") + ".sslip.io"
+
+		// Mirrors install.sh, which names the owner agent@<domain> by default.
+		if instance.AdminEmail == "" {
+			instance.AdminEmail = "agent@" + instance.Domain
+		}
+
 		readyErr = p.readiness.Wait(ctx, instance)
 	}
 
 	if readyErr != nil {
 		// The caller's context may be what failed, so clean up on a fresh one.
-		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Minute)
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
 		defer cancel()
 
 		if err := p.DeleteInstance(cleanupCtx, instance.ServerID); err != nil {
@@ -114,9 +120,25 @@ func (p *Provisioner) CreateInstance(ctx context.Context, params provisioners.Cr
 	return instance, nil
 }
 
-// DeleteInstance deletes the server backing an instance.
+// DeleteInstance deletes the server backing an instance. It refuses servers
+// the provisioner did not create, so a wrong ID cannot take down unrelated
+// machines in the same Hetzner project.
 func (p *Provisioner) DeleteInstance(ctx context.Context, serverID int64) error {
-	_, _, err := p.hcloud.Server.DeleteWithResult(ctx, &hcloud.Server{ID: serverID})
+	server, _, err := p.hcloud.Server.GetByID(ctx, serverID)
+
+	if err != nil {
+		return err
+	}
+
+	if server == nil {
+		return nil
+	}
+
+	if server.Labels[instanceLabel] == "" {
+		return fmt.Errorf("server %d (%s) has no %s label; refusing to delete a server the provisioner did not create", serverID, server.Name, instanceLabel)
+	}
+
+	_, _, err = p.hcloud.Server.DeleteWithResult(ctx, server)
 
 	if hcloud.IsError(err, hcloud.ErrorCodeNotFound) {
 		return nil
@@ -141,20 +163,27 @@ type createdServer struct {
 // move on to the next option; anything else (bad token, quota, name taken)
 // would fail the same way everywhere, so it is returned immediately.
 func (p *Provisioner) createServer(ctx context.Context, params createServerParams) (*createdServer, error) {
-	stock, err := p.inStock(ctx)
+	cat, err := p.catalog(ctx)
 
 	if err != nil {
 		return nil, fmt.Errorf("list server availability: %w", err)
 	}
 
+	if err := cat.validate(p.cfg); err != nil {
+		return nil, err
+	}
+
+	attempt := utils.RandomToken(16)
+
 	for _, serverType := range p.cfg.ServerTypes {
 		for _, location := range p.cfg.Locations {
-			if !stock[location][serverType] {
+			if !cat.stock[location][serverType] {
 				continue
 			}
 
 			result, _, err := p.hcloud.Server.Create(ctx, p.serverCreateOpts(serverCreateOptsParams{
 				name:       params.name,
+				attempt:    attempt,
 				userData:   params.userData,
 				serverType: serverType,
 				location:   location,
@@ -164,27 +193,61 @@ func (p *Provisioner) createServer(ctx context.Context, params createServerParam
 				continue
 			}
 
-			if err != nil {
-				return nil, fmt.Errorf("create %s server in %s: %w", serverType, location, err)
+			if err == nil && result.Server != nil {
+				return &createdServer{
+					server:     result.Server,
+					serverType: serverType,
+					location:   location,
+				}, nil
 			}
 
-			if result.Server == nil {
-				return nil, errors.New("hetzner returned no server")
+			if err == nil {
+				err = errors.New("hetzner returned no server")
 			}
 
-			return &createdServer{
-				server:     result.Server,
-				serverType: serverType,
-				location:   location,
-			}, nil
+			err = fmt.Errorf("create %s server in %s: %w", serverType, location, err)
+
+			// Hetzner may have created the server even though we never saw it
+			// (a cancelled request, a dropped response). It would keep running
+			// and billing with a valid owner key in its user-data.
+			if cleanupErr := p.deleteAttempt(ctx, attempt); cleanupErr != nil {
+				return nil, errors.Join(err, fmt.Errorf("clean up servers of failed create: %w", cleanupErr))
+			}
+
+			return nil, err
 		}
 	}
 
 	return nil, provisioners.ErrNoCapacity
 }
 
+// deleteAttempt deletes every server labelled with the given create attempt.
+func (p *Provisioner) deleteAttempt(ctx context.Context, attempt string) error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
+	defer cancel()
+
+	servers, err := p.hcloud.Server.AllWithOpts(ctx, hcloud.ServerListOpts{
+		ListOpts: hcloud.ListOpts{LabelSelector: attemptLabel + "=" + attempt},
+	})
+
+	if err != nil {
+		return err
+	}
+
+	errs := []error{}
+
+	for _, server := range servers {
+		if err := p.DeleteInstance(ctx, server.ID); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
 type serverCreateOptsParams struct {
 	name       string
+	attempt    string
 	userData   string
 	serverType string
 	location   string
@@ -198,7 +261,10 @@ func (p *Provisioner) serverCreateOpts(params serverCreateOptsParams) hcloud.Ser
 		Location:         &hcloud.Location{Name: params.location},
 		UserData:         params.userData,
 		StartAfterCreate: hcloud.Ptr(true),
-		Labels:           map[string]string{instanceLabel: params.name},
+		Labels: map[string]string{
+			instanceLabel: params.name,
+			attemptLabel:  params.attempt,
+		},
 		PublicNet: &hcloud.ServerCreatePublicNet{
 			EnableIPv4: true,
 			EnableIPv6: true,
@@ -216,19 +282,52 @@ func (p *Provisioner) serverCreateOpts(params serverCreateOptsParams) hcloud.Ser
 	return opts
 }
 
-// inStock returns, per location name, the server type names that can be
-// ordered there right now.
-func (p *Provisioner) inStock(ctx context.Context) (map[string]map[string]bool, error) {
+// catalog is what Hetzner offers right now.
+type catalog struct {
+	// serverTypes holds every server type name Hetzner knows.
+	serverTypes map[string]bool
+
+	// stock maps a location name to the server type names in stock there.
+	stock map[string]map[string]bool
+}
+
+// validate reports configured server types and locations Hetzner does not
+// know, which would otherwise look like a permanent capacity shortage.
+func (c *catalog) validate(cfg Config) error {
+	errs := []error{}
+
+	for _, serverType := range cfg.ServerTypes {
+		if !c.serverTypes[serverType] {
+			errs = append(errs, fmt.Errorf("HETZNER_SERVER_TYPES: unknown server type %q", serverType))
+		}
+	}
+
+	for _, location := range cfg.Locations {
+		if _, ok := c.stock[location]; !ok {
+			errs = append(errs, fmt.Errorf("HETZNER_LOCATIONS: unknown location %q", location))
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
+func (p *Provisioner) catalog(ctx context.Context) (*catalog, error) {
 	serverTypes, err := p.hcloud.ServerType.All(ctx)
 
 	if err != nil {
 		return nil, err
 	}
 
+	cat := &catalog{
+		serverTypes: map[string]bool{},
+		stock:       map[string]map[string]bool{},
+	}
+
 	names := map[int64]string{}
 
 	for _, st := range serverTypes {
 		names[st.ID] = st.Name
+		cat.serverTypes[st.Name] = true
 	}
 
 	datacenters, err := p.hcloud.Datacenter.All(ctx)
@@ -237,23 +336,21 @@ func (p *Provisioner) inStock(ctx context.Context) (map[string]map[string]bool, 
 		return nil, err
 	}
 
-	stock := map[string]map[string]bool{}
-
 	for _, dc := range datacenters {
 		if dc.Location == nil {
 			continue
 		}
 
-		if stock[dc.Location.Name] == nil {
-			stock[dc.Location.Name] = map[string]bool{}
+		if cat.stock[dc.Location.Name] == nil {
+			cat.stock[dc.Location.Name] = map[string]bool{}
 		}
 
 		for _, st := range dc.ServerTypes.Available {
 			if name := names[st.ID]; name != "" {
-				stock[dc.Location.Name][name] = true
+				cat.stock[dc.Location.Name][name] = true
 			}
 		}
 	}
 
-	return stock, nil
+	return cat, nil
 }

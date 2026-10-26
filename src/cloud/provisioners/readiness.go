@@ -33,9 +33,10 @@ func NewReadiness(timeout time.Duration) *Readiness {
 // Wait polls the instance's MCP endpoint with its API key until it answers
 // 2xx. Everything else is retried: right after boot the certificate may not
 // be issued yet, the containers may still be pulling, and bootstrap may not
-// have stored the key yet. Returns an error wrapping ErrNotReady on timeout.
-func (r *Readiness) Wait(ctx context.Context, instance *Instance) error {
-	ctx, cancel := context.WithTimeout(ctx, r.Timeout)
+// have stored the key yet. Returns an error wrapping ErrNotReady on timeout,
+// or the parent context's error if the caller gave up first.
+func (r *Readiness) Wait(parent context.Context, instance *Instance) error {
+	ctx, cancel := context.WithTimeout(parent, r.Timeout)
 	defer cancel()
 
 	url := strings.TrimRight(r.APIURL(instance.Domain), "/") + "/v1/mcp"
@@ -58,6 +59,10 @@ func (r *Readiness) Wait(ctx context.Context, instance *Instance) error {
 
 		select {
 		case <-ctx.Done():
+			if err := parent.Err(); err != nil {
+				return fmt.Errorf("wait for %s: %w", url, err)
+			}
+
 			return fmt.Errorf("%w: %s did not accept the api key after %s (last: %s)", ErrNotReady, url, r.Timeout, last)
 		case <-time.After(r.PollInterval):
 		}

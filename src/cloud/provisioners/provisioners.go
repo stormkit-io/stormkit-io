@@ -1,14 +1,12 @@
 // Package provisioners holds the provider-neutral parts of creating dedicated
-// Stormkit Cloud instances: the instance model, input validation, the owner
-// API key, the first-boot install script and the readiness check. Each
+// Stormkit Cloud instances: the instance model, input validation, the
+// first-boot install script and the readiness check. Each
 // hosting provider lives in its own subpackage (e.g. provisioners/hetzner)
 // and implements Provisioner.
 package provisioners
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/mail"
@@ -25,10 +23,7 @@ var (
 	ErrNotReady = errors.New("instance did not become ready in time")
 )
 
-var (
-	namePattern   = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,40}[a-z0-9])?$`)
-	domainPattern = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$`)
-)
+var namePattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,40}[a-z0-9])?$`)
 
 // Provisioner creates and deletes Stormkit instances on one hosting provider.
 type Provisioner interface {
@@ -48,9 +43,6 @@ type CreateInstanceParams struct {
 
 	// AdminEmail is the owner admin's email. Defaults to agent@<domain>.
 	AdminEmail string
-
-	// Domain is the instance's base domain. Defaults to <ip>.sslip.io.
-	Domain string
 }
 
 // Validate reports every invalid field at once.
@@ -69,10 +61,6 @@ func (p CreateInstanceParams) Validate() error {
 		}
 	}
 
-	if p.Domain != "" && (len(p.Domain) > 253 || !domainPattern.MatchString(p.Domain)) {
-		errs = append(errs, fmt.Errorf("domain %q is not a valid hostname", p.Domain))
-	}
-
 	return errors.Join(errs...)
 }
 
@@ -85,21 +73,13 @@ type Instance struct {
 	Location   string `json:"location"`
 	IPv4       string `json:"ipv4"`
 	IPv6       string `json:"ipv6"`
+
+	// Domain is the instance's base domain: <ip>.sslip.io until Stormkit
+	// creates DNS records for instances.
 	Domain     string `json:"domain"`
-	AdminEmail string `json:"adminEmail,omitempty"`
+	AdminEmail string `json:"adminEmail"`
 
-	// APIKey is the owner API key. The instance only stores its hash, so this
-	// is the one place the raw value exists.
+	// APIKey is the owner API key. The instance stores only its hash, so it
+	// cannot be read back from the dashboard or API afterwards.
 	APIKey string `json:"apiKey"`
-}
-
-// NewAPIKey generates an owner key in the same format install.sh mints.
-func NewAPIKey() (string, error) {
-	b := make([]byte, 31)
-
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-
-	return "SK_" + hex.EncodeToString(b), nil
 }
