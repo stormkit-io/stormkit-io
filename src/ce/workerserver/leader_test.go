@@ -100,10 +100,14 @@ func (s *LeaderElectionSuite) startNode(p startNodeParams) *jobs.Node {
 		Wait:     10 * time.Millisecond,
 		OnLeader: func(*jobs.Node) { counters.elected.Add(1) },
 		OnRenounce: func(*jobs.Node) {
-			if counters.renounced.Add(1) == 1 {
+			// Record the TTL before counting the renounce: tests wait on the
+			// counter and then read the TTL, so the reverse order races.
+			if counters.renounced.Load() == 0 {
 				ttl := rediscache.Client().PTTL(context.Background(), s.key).Val()
 				counters.keyTTLAtRenounce.Store(int64(ttl))
 			}
+
+			counters.renounced.Add(1)
 		},
 	})
 
