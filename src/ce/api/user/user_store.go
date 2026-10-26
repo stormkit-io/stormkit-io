@@ -289,6 +289,28 @@ func (s *Store) UserByEmail(ctx context.Context, emails []string) (*User, error)
 	return users[0], nil
 }
 
+// UsersByVerifiedEmail returns the users that own the given email as a
+// verified address, compared case-insensitively. Unverified addresses are
+// ignored: anyone can attach one to their account, so they prove nothing.
+// It returns at most two users, enough for callers to detect ambiguity.
+func (s *Store) UsersByVerifiedEmail(ctx context.Context, email string) ([]*User, error) {
+	var wr bytes.Buffer
+
+	data := map[string]any{
+		"where": `deleted_at IS NULL AND
+			 u.user_id IN (
+			     SELECT ue2.user_id FROM user_emails ue2
+				 WHERE ue2.is_verified IS TRUE AND LOWER(ue2.email) = LOWER($1))`,
+		"limit": 2,
+	}
+
+	if err := s.selectTmpl.Execute(&wr, data); err != nil {
+		return nil, err
+	}
+
+	return s.selectUsers(ctx, wr.String(), strings.TrimSpace(email))
+}
+
 // Admins will lists admin users.
 func (s *Store) Admins(ctx context.Context) ([]*User, error) {
 	var wr bytes.Buffer

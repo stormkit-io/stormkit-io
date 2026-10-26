@@ -23,6 +23,7 @@ func (s *ServicesSuite) Test_Services() {
 		"GET:/auth/{provider:github|gitlab|bitbucket}/callback",
 		"POST:/auth/admin/login",
 		"POST:/auth/admin/register",
+		"POST:/auth/trusted",
 	}
 
 	s.Equal(handlers, services.HandlerKeys())

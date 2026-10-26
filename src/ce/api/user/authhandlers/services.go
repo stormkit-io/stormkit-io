@@ -51,6 +51,10 @@ func Services(r *shttp.Router) *shttp.Service {
 			Handler(shttp.MethodPost, "/admin/login", shttp.WithRateLimit(
 				handlerAdminLogin,
 				&limiter.Options{Limit: 10, Burst: 2, Duration: time.Minute},
+			)).
+			Handler(shttp.MethodPost, "/trusted", shttp.WithRateLimit(
+				handlerAuthTrustedLogin,
+				&limiter.Options{Limit: 20, Burst: 5, Duration: time.Minute},
 			))
 	}
 
