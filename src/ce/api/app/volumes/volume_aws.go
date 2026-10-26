@@ -3,13 +3,13 @@ package volumes
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"path"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/lib/integrations"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
@@ -111,37 +111,51 @@ func (c *vmAWS) upload(args uploadArgs) (*File, error) {
 }
 
 // removeFiles deletes files from the S3 destination. This function
-// supports deleting from different buckets.
+// supports deleting from different buckets. Files whose path carries no
+// bucket are skipped and reported as an error.
 func (c *vmAWS) removeFiles(files []*File) ([]*File, error) {
 	objectsToDelete := map[string][]types.ObjectIdentifier{}
+	filesByBucket := map[string][]*File{}
+
+	var firstErr error
 
 	for _, file := range files {
 		bucket, keyPrefix := c.parseBucketInfo(file)
 
-		if objectsToDelete[bucket] == nil {
-			objectsToDelete[bucket] = []types.ObjectIdentifier{}
+		if bucket == "" {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("volume file %d has no bucket in its path", file.ID)
+			}
+
+			continue
 		}
 
 		objectsToDelete[bucket] = append(objectsToDelete[bucket], types.ObjectIdentifier{
-			Key: &keyPrefix,
+			Key: utils.Ptr(keyPrefix),
 		})
+
+		filesByBucket[bucket] = append(filesByBucket[bucket], file)
 	}
+
+	removed := []*File{}
 
 	for bucketName, objects := range objectsToDelete {
 		_, err := c.cli.S3Client.DeleteObjects(context.Background(), &s3.DeleteObjectsInput{
-			Bucket: &bucketName,
+			Bucket: utils.Ptr(bucketName),
 			Delete: &types.Delete{
 				Objects: objects,
-				Quiet:   aws.Bool(true),
+				Quiet:   utils.Ptr(true),
 			},
 		})
 
 		if err != nil {
-			return nil, err
+			return removed, err
 		}
+
+		removed = append(removed, filesByBucket[bucketName]...)
 	}
 
-	return files, nil
+	return removed, firstErr
 }
 
 func (c *vmAWS) parseBucketInfo(file *File) (string, string) {

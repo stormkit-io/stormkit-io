@@ -44,15 +44,19 @@ var stmt = struct {
 			file_name,
 			file_path,
 			file_size,
+			file_metadata,
 			is_public,
 			env_id,
 			created_at
 		)
 		VALUES
-			{{ generateValues 6 (len .) }}
+			{{ generateValues 7 (len .) }}
 		ON CONFLICT
 			(file_name, env_id)
 		DO UPDATE SET
+			file_path = EXCLUDED.file_path,
+			file_size = EXCLUDED.file_size,
+			file_metadata = EXCLUDED.file_metadata,
 			updated_at = EXCLUDED.created_at
 		RETURNING
 			file_id
@@ -164,7 +168,7 @@ func (s *store) SelectFiles(ctx context.Context, args SelectFilesArgs) ([]*File,
 		}
 
 		if file.Metadata == nil || file.Metadata["mountType"] == "" {
-			file.Metadata = utils.Map{"mountType": FileSys}
+			file.Metadata = utils.Map{"mountType": file.MountType()}
 		}
 
 		files = append(files, file)
@@ -199,8 +203,14 @@ func (s *store) Insert(ctx context.Context, files []*File, envID types.ID) error
 	params := []any{}
 
 	for _, file := range files {
+		var metadata any
+
+		if len(file.Metadata) > 0 {
+			metadata = file.Metadata
+		}
+
 		params = append(params,
-			file.Name, file.Path, file.Size, file.IsPublic, envID, file.CreatedAt,
+			file.Name, file.Path, file.Size, metadata, file.IsPublic, envID, file.CreatedAt,
 		)
 	}
 

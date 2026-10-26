@@ -61,6 +61,21 @@ func (f *File) FullPath() string {
 	return filepath.Join(f.Path, filepath.Base(f.Name))
 }
 
+// MountType returns the backend the file is stored in. Rows that do not carry
+// a mount type are inferred from their path: S3 stores "<bucket>/<key prefix>",
+// while the filesystem backend stores an absolute path.
+func (f *File) MountType() string {
+	if mt, ok := f.Metadata["mountType"].(string); ok && mt != "" {
+		return mt
+	}
+
+	if f.Path != "" && !filepath.IsAbs(f.Path) {
+		return AWSS3
+	}
+
+	return FileSys
+}
+
 // PublicLink returns the link to access the file.
 func (f *File) PublicLink() string {
 	token := utils.EncryptToString(f.ID.String() + ":" + f.EnvID.String())
@@ -180,27 +195,72 @@ func Upload(vc *admin.VolumesConfig, args UploadArgs) (*File, error) {
 	return nil, nil
 }
 
-// Download downloads a file from the source.
+// Download downloads a file from the backend it was stored in, which may
+// differ from the currently configured one.
 func Download(vc *admin.VolumesConfig, file *File) (io.ReadSeeker, error) {
-	switch vc.MountType {
+	switch file.MountType() {
 	case FileSys:
 		return clientFilesys(vc).download(file)
 	case AWSS3:
+		if vc.MountType != AWSS3 {
+			return nil, fmt.Errorf("volume file %d is stored in %s but volumes are not configured for it", file.ID, AWSS3)
+		}
+
 		return clientAWS(vc).download(file)
 	}
 
 	return nil, nil
 }
 
-// Upload a file to the destination specified by args.MountType.
-// This function returns a list of files that are successfully removed.
-// When encountered an error other than os.IsNotExist, returns immediately.
+// RemoveFiles removes each file from the backend it was stored in, which may
+// differ from the currently configured one. It returns the files that were
+// successfully removed along with the first error encountered. Files that no
+// longer exist on disk count as removed.
 func RemoveFiles(vc *admin.VolumesConfig, files []*File) ([]*File, error) {
-	switch vc.MountType {
+	groups := map[string][]*File{}
+
+	for _, file := range files {
+		groups[file.MountType()] = append(groups[file.MountType()], file)
+	}
+
+	removed := []*File{}
+
+	var firstErr error
+
+	for _, mountType := range []string{FileSys, AWSS3} {
+		group := groups[mountType]
+
+		if len(group) == 0 {
+			continue
+		}
+
+		success, err := removeFilesFrom(removeFilesFromParams{vc: vc, mountType: mountType, files: group})
+		removed = append(removed, success...)
+
+		if err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+
+	return removed, firstErr
+}
+
+type removeFilesFromParams struct {
+	vc        *admin.VolumesConfig
+	mountType string
+	files     []*File
+}
+
+func removeFilesFrom(p removeFilesFromParams) ([]*File, error) {
+	switch p.mountType {
 	case FileSys:
-		return clientFilesys(vc).removeFiles(files)
+		return clientFilesys(p.vc).removeFiles(p.files)
 	case AWSS3:
-		return clientAWS(vc).removeFiles(files)
+		if p.vc.MountType != AWSS3 {
+			return nil, fmt.Errorf("%d volume files are stored in %s but volumes are not configured for it", len(p.files), AWSS3)
+		}
+
+		return clientAWS(p.vc).removeFiles(p.files)
 	}
 
 	return nil, nil

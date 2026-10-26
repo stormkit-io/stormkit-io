@@ -49,6 +49,10 @@ func (fs *vmFileSys) download(file *File) (io.ReadSeeker, error) {
 		return nil, nil
 	}
 
+	if err != nil {
+		return nil, err
+	}
+
 	return f, nil
 }
 

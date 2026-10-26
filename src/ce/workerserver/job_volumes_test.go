@@ -2,14 +2,17 @@ package jobs
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/aws/smithy-go/middleware"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/volumes"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
+	"github.com/stormkit-io/stormkit-io/src/lib/integrations"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 	"github.com/stretchr/testify/suite"
@@ -108,6 +111,57 @@ func (s *JobVolumesSuite) Test_RemoveStaleVolumes_NoVolumesConfig() {
 	// so the rows must be left intact for a later run rather than orphaning files.
 	s.NoError(removeStaleVolumes(context.Background(), NewStore()))
 	s.Equal(1, s.countVolumes(deletedEnv.ID))
+}
+
+// Test_RemoveStaleVolumes_S3ConfigLegacyFiles verifies that filesystem files
+// written before the instance switched to S3 are still purged from disk and DB.
+func (s *JobVolumesSuite) Test_RemoveStaleVolumes_S3ConfigLegacyFiles() {
+	s3Calls := 0
+
+	_, err := integrations.AWS(integrations.ClientArgs{
+		Middlewares: []func(stack *middleware.Stack) error{
+			func(stack *middleware.Stack) error {
+				return stack.Finalize.Add(
+					middleware.FinalizeMiddlewareFunc("Fake", func(context.Context, middleware.FinalizeInput, middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
+						s3Calls++
+						return middleware.FinalizeOutput{}, middleware.Metadata{}, errors.New("unexpected S3 call")
+					}),
+					middleware.Before,
+				)
+			},
+		},
+	}, nil)
+	s.Require().NoError(err)
+
+	volumes.CachedAWS = nil
+
+	defer func() {
+		volumes.CachedAWS = nil
+		integrations.CachedAWSClient = nil
+	}()
+
+	s.NoError(admin.Store().UpsertConfig(context.Background(), admin.InstanceConfig{
+		VolumesConfig: &admin.VolumesConfig{
+			MountType:  volumes.AWSS3,
+			BucketName: "my-bucket",
+		},
+	}))
+
+	app := s.MockApp(nil)
+
+	deletedEnv := s.MockEnv(app, map[string]any{
+		"DeletedAt": utils.Unix{Time: time.Now(), Valid: true},
+	})
+
+	onDisk := s.writeFile(deletedEnv.ID, "on-disk.txt")
+	gone := s.writeFile(deletedEnv.ID, "gone.txt")
+	s.Require().NoError(os.Remove(gone.FullPath()))
+
+	s.NoError(removeStaleVolumes(context.Background(), NewStore()))
+
+	s.Equal(0, s.countVolumes(deletedEnv.ID))
+	s.NoFileExists(onDisk.FullPath())
+	s.Zero(s3Calls)
 }
 
 func TestJobVolumesSuite(t *testing.T) {

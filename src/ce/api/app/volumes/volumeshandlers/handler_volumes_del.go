@@ -57,14 +57,16 @@ func HandlerVolumesDel(req *app.RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
-	removedFiles, err := volumes.RemoveFiles(config.VolumesConfig, files)
+	removedFiles, removeErr := volumes.RemoveFiles(config.VolumesConfig, files)
 
-	if err != nil {
-		return shttp.Error(err)
+	if len(removedFiles) > 0 {
+		if err = store.RemoveFiles(ctx, removedFiles, req.EnvID); err != nil {
+			return shttp.Error(err)
+		}
 	}
 
-	if err = store.RemoveFiles(ctx, removedFiles, req.EnvID); err != nil {
-		return shttp.Error(err)
+	if removeErr != nil {
+		return shttp.Error(removeErr)
 	}
 
 	return &shttp.Response{
