@@ -9,6 +9,7 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/authwall"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"go.uber.org/zap"
@@ -70,6 +71,23 @@ type Host struct {
 	IsStormkitSubdomain bool
 
 	Request *shttp.RequestContext
+}
+
+// IsAuthWallProtected reports whether visitors of this host must log in
+// through the Auth Wall.
+func (h *Host) IsAuthWallProtected() bool {
+	if h.Config == nil {
+		return false
+	}
+
+	switch h.Config.AuthWall {
+	case authwall.StatusAll:
+		return true
+	case authwall.StatusDev:
+		return h.IsStormkitSubdomain
+	default:
+		return false
+	}
 }
 
 func getConfFromCache(hostName string) *CachedConfig {

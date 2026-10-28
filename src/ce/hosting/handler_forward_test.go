@@ -1183,6 +1183,51 @@ func (s *HandlerForwardSuite) Test_CacheControl_NonHTMLKeepsTheAssetPolicy() {
 	s.Equal("public, max-age=86400", res.Headers.Get("Cache-Control"))
 }
 
+// Test_CacheControl_AuthWallAssetIsPrivate verifies that an asset served to a
+// logged-in visitor cannot be stored by a shared cache.
+func (s *HandlerForwardSuite) Test_CacheControl_AuthWallAssetIsPrivate() {
+	s.mockClient.On("GetFile", integrations.GetFileArgs{
+		Location:     "aws:my-bucket/my-key-prefix",
+		FileName:     "/some/url/index.html",
+		DeploymentID: types.ID(1),
+	}).Return(&integrations.GetFileResult{
+		Content: []byte("{}"),
+	}, nil)
+
+	host := s.htmlCaseHost("application/json")
+	host.Config.AuthWall = "all"
+
+	token, err := authwall.Token{EnvID: host.Config.EnvID}.Session(authwall.Session{})
+	s.Require().NoError(err)
+
+	req := s.newRequest(host, "/some/url")
+	req.Header.Set("Cookie", fmt.Sprintf("%s=%s", hosting.SESSION_COOKIE_NAME, token))
+	res := hosting.HandlerForward(req)
+
+	s.Equal(http.StatusOK, res.Status)
+	s.Equal("private, max-age=86400", res.Headers.Get("Cache-Control"))
+}
+
+// Test_CacheControl_AuthWallDevModeCustomDomainIsPublic verifies that a custom
+// domain, which the dev mode leaves open, keeps the shared asset policy.
+func (s *HandlerForwardSuite) Test_CacheControl_AuthWallDevModeCustomDomainIsPublic() {
+	s.mockClient.On("GetFile", integrations.GetFileArgs{
+		Location:     "aws:my-bucket/my-key-prefix",
+		FileName:     "/some/url/index.html",
+		DeploymentID: types.ID(1),
+	}).Return(&integrations.GetFileResult{
+		Content: []byte("{}"),
+	}, nil)
+
+	host := s.htmlCaseHost("application/json")
+	host.Config.AuthWall = "dev"
+
+	res := hosting.HandlerForward(s.newRequest(host, "/some/url"))
+
+	s.Equal(http.StatusOK, res.Status)
+	s.Equal("public, max-age=86400", res.Headers.Get("Cache-Control"))
+}
+
 func (s *HandlerForwardSuite) Test_Analytics_RecordsUnusuallyCasedHTML() {
 	s.mockClient.On("GetFile", integrations.GetFileArgs{
 		Location:     "aws:my-bucket/my-key-prefix",

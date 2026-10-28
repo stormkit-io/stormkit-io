@@ -447,6 +447,10 @@ func (r *RequestServer) Static() *shttp.Response {
 		// outlives the other by a day.
 		if r.markdown || isHTMLContentType(headers.Get("Content-Type")) {
 			headers.Add("Cache-Control", "no-cache, must-revalidate")
+		} else if r.req.Host.IsAuthWallProtected() {
+			// A shared cache (e.g. a CDN) would otherwise store an asset served to
+			// a logged-in visitor and hand it to anyone without asking us.
+			headers.Add("Cache-Control", "private, max-age=86400")
 		} else {
 			headers.Add("Cache-Control", "public, max-age=86400")
 		}

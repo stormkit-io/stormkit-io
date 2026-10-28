@@ -30,13 +30,7 @@ func WithAuthWall(req *RequestContext) (*shttp.Response, error) {
 	req.Header.Del(HeaderAuthWallEmail)
 	req.Header.Del(HeaderAuthWallMetadata)
 
-	authWall := req.Host.Config.AuthWall
-
-	if authWall == "" {
-		return nil, nil
-	}
-
-	if authWall == "dev" && !req.Host.IsStormkitSubdomain {
+	if !req.Host.IsAuthWallProtected() {
 		return nil, nil
 	}
 
