@@ -137,6 +137,35 @@ func (s *WithSKAuthOAuthSuite) Test_Initiate_AllowedRedirect_Redirects() {
 	s.Equal("https://accounts.google.com/o/oauth2/auth", *res.Redirect)
 }
 
+func (s *WithSKAuthOAuthSuite) Test_Initiate_GitHub_Redirects() {
+	env := s.setupEnv([]string{"https://app.example.com"}, false)
+
+	s.Require().NoError(skauth.NewStore().SaveProvider(context.Background(), skauth.SaveProviderArgs{
+		EnvID:    env.ID,
+		AppID:    s.app.ID,
+		Provider: &skauth.Provider{Name: skauth.ProviderGitHub, Status: true},
+	}))
+
+	s.mockClient.On("AuthCodeURL", skauth.AuthCodeURLParams{
+		EnvID:        env.ID,
+		ProviderName: skauth.ProviderGitHub,
+		Referrer:     "https://app.example.com",
+		Secret:       "test-secret-padded-to-32-chars!!",
+	}).Return("https://github.com/login/oauth/authorize", nil)
+
+	res, err := hosting.ServeAuth(s.oauthRequest(
+		s.hostFor(env.ID),
+		"/_stormkit/auth/github?redirect=https://app.example.com",
+		nil,
+	))
+
+	s.Require().NoError(err)
+	s.Require().NotNil(res)
+	s.Equal(http.StatusFound, res.Status)
+	s.Require().NotNil(res.Redirect)
+	s.Equal("https://github.com/login/oauth/authorize", *res.Redirect)
+}
+
 func (s *WithSKAuthOAuthSuite) Test_Initiate_DisallowedRedirect_Returns403() {
 	env := s.setupEnv([]string{"https://app.example.com"}, true)
 

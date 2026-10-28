@@ -224,6 +224,20 @@ describe("~/pages/apps/[id]/environments/[env-id]/skauth/SkAuth.tsx", () => {
         expect(wrapper.getByText("Magic Link")).toBeTruthy();
         expect(wrapper.getByText("Google")).toBeTruthy();
         expect(wrapper.getByText("X / Twitter (OAuth 2.0)")).toBeTruthy();
+        expect(wrapper.getByText("GitHub")).toBeTruthy();
+      });
+    });
+
+    it("should open the GitHub drawer with its redirect URL", async () => {
+      await waitFor(() => {
+        expect(wrapper.getByText("GitHub")).toBeTruthy();
+      });
+
+      fireEvent.click(wrapper.getByText("GitHub"));
+
+      await waitFor(() => {
+        expect(wrapper.getByText("GitHub OAuth Settings")).toBeTruthy();
+        expect(wrapper.getByText(/register a new OAuth App/)).toBeTruthy();
       });
     });
 

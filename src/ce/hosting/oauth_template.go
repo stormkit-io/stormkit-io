@@ -103,7 +103,7 @@ func (o *oauthServer) signInData() map[string]any {
 		}
 
 		switch prv.Name {
-		case skauth.ProviderGoogle, skauth.ProviderX:
+		case skauth.ProviderGoogle, skauth.ProviderX, skauth.ProviderGitHub:
 			data[prv.Name] = "/_stormkit/auth/" + prv.Name + "?return_to=" + returnTo
 		case skauth.ProviderMagicLink:
 			data["magic_link"] = "/_stormkit/auth/magic?return_to=" + returnTo

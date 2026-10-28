@@ -141,7 +141,7 @@ the template's source does not leak.
 | `.continue_url` | Completes the authorization. **POST** a form to it; a link will not work. Unset when signed out. |
 | `.cancel_url` | Returns a denial to the client. A plain link. |
 | `.login_url` | Your **Login URL** with a `return_to` back here, when one is configured and the visitor is signed out. |
-| `.sign_in.google`, `.sign_in.x` | Starts sign-in with that provider and comes back here. Set only when the provider is enabled. |
+| `.sign_in.google`, `.sign_in.x`, `.sign_in.github` | Starts sign-in with that provider and comes back here. Set only when the provider is enabled. |
 | `.sign_in.magic_link` | **POST** a form with an `email` field to it to send a magic link that comes back here. Set only when magic links are enabled. |
 | `.sign_in.link_sent` | The visitor just asked for a magic link. |
 | `.sign_in.error` | Why the last sign-in attempt failed: an invalid email, an expired or used link, or a cancelled provider sign-in. |

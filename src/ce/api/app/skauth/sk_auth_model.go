@@ -21,12 +21,14 @@ const oauthStateTTL = 15 * time.Minute
 
 const ProviderGoogle = "google"
 const ProviderX = "x"
+const ProviderGitHub = "github"
 const ProviderEmail = "email"
 const ProviderMagicLink = "magiclink"
 
 var Providers = []string{
 	ProviderGoogle,
 	ProviderX,
+	ProviderGitHub,
 	ProviderEmail,
 	ProviderMagicLink,
 }
@@ -140,7 +142,7 @@ var DefaultClient Client
 // throwaway client.
 func (p *Provider) Supported() bool {
 	switch p.Name {
-	case ProviderGoogle, ProviderX, ProviderEmail, ProviderMagicLink:
+	case ProviderGoogle, ProviderX, ProviderGitHub, ProviderEmail, ProviderMagicLink:
 		return true
 	default:
 		return false
@@ -170,6 +172,8 @@ func (p *Provider) Client(params ClientParams) Client {
 		return NewGoogleClient(p.Data.ClientID, p.Data.ClientSecret, params.RedirectURL)
 	case ProviderX:
 		return NewXClient(p.Data.ClientID, p.Data.ClientSecret, params.RedirectURL, params.Secret)
+	case ProviderGitHub:
+		return NewGitHubClient(p.Data.ClientID, p.Data.ClientSecret, params.RedirectURL)
 	case ProviderEmail:
 		return NewEmailClient()
 	case ProviderMagicLink:

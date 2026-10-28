@@ -885,12 +885,12 @@ func mcpAllTools() []mcpToolDef {
 			},
 			mcpToolDef{
 				Name:        "configure_auth_provider",
-				Description: "Enable or update a single Stormkit Auth sign-in provider for an environment. Self-hosted only. Requires the database integration to be enabled first. Supported providers are magiclink, email, google and x. Use magiclink or email for email sign-in (magiclink needs fromAddress and a configured mailer); google and x need clientId and clientSecret. Client secrets are write-only and are never returned.",
+				Description: "Enable or update a single Stormkit Auth sign-in provider for an environment. Self-hosted only. Requires the database integration to be enabled first. Supported providers are magiclink, email, google, x and github. Use magiclink or email for email sign-in (magiclink needs fromAddress and a configured mailer); google, x and github need clientId and clientSecret. Client secrets are write-only and are never returned.",
 				InputSchema: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
 						"envId":        map[string]any{"type": "string", "description": "Environment ID."},
-						"providerName": map[string]any{"type": "string", "description": "Provider to configure.", "enum": []string{"magiclink", "email", "google", "x"}},
+						"providerName": map[string]any{"type": "string", "description": "Provider to configure.", "enum": []string{"magiclink", "email", "google", "x", "github"}},
 						"status":       map[string]any{"type": "boolean", "description": "Whether the provider is enabled. Omit to keep the current value; a provider created for the first time defaults to enabled."},
 						"fromAddress":  map[string]any{"type": "string", "description": "Sender address for magic-link emails. Required for the magiclink provider. Omit it to keep the stored address."},
 						"subject":      map[string]any{"type": "string", "description": "Subject of magic-link emails (magiclink only, max 200 characters). Omit it to keep the stored subject; an empty string restores the default \"Your magic link\"."},

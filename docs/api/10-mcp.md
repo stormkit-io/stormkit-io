@@ -171,7 +171,7 @@ Every tool carries MCP annotations (`readOnlyHint`, `destructiveHint`, `openWorl
 | ------------------------- | ---------------------------------------------------------------------------------- |
 | `get_auth_config`         | Read the Stormkit Auth configuration of an environment. Secrets are never returned. |
 | `configure_auth`          | Update session, allowed origins and OAuth-server settings. Partial update.          |
-| `configure_auth_provider` | Enable or update a single sign-in provider: `magiclink`, `email`, `google` or `x`. |
+| `configure_auth_provider` | Enable or update a single sign-in provider: `magiclink`, `email`, `google`, `x` or `github`. |
 
 ## Secrets
 

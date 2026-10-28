@@ -127,6 +127,44 @@ func (s *WithSKAuthOAuthSuite) Test_Callback_Success() {
 	s.Equal(buildconf.SessionCookieName, res.Cookies[0].Name)
 }
 
+// Test_Callback_GitHub_Success verifies that GitHub is accepted as an OAuth
+// provider on the callback, like Google and X.
+func (s *WithSKAuthOAuthSuite) Test_Callback_GitHub_Success() {
+	host := s.setupCallbackEnv(false)
+
+	s.Require().NoError(skauth.NewStore().SaveProvider(context.Background(), skauth.SaveProviderArgs{
+		EnvID:    host.Config.EnvID,
+		AppID:    s.app.ID,
+		Provider: &skauth.Provider{Name: skauth.ProviderGitHub, Status: true},
+	}))
+
+	token := &oauth2.Token{}
+
+	s.mockClient.On("Exchange", mock.Anything, mock.Anything).Return(token, nil).Once()
+	s.mockClient.On("UserInfo", mock.Anything, token).Return(&skauth.UserInfo{
+		AccountID:     "583231",
+		Email:         "octocat@stormkit.io",
+		EmailVerified: true,
+		FirstName:     "The Octocat",
+	}, nil).Once()
+
+	state := s.stateToken(skauth.ProviderGitHub, "https://app.example.com/login")
+
+	res, err := hosting.ServeAuth(s.oauthRequest(
+		host,
+		fmt.Sprintf("/_stormkit/auth/callback?state=%s&code=test-code", state),
+		nil,
+	))
+
+	s.Require().NoError(err)
+	s.Require().NotNil(res)
+	s.Equal(http.StatusFound, res.Status)
+	s.Require().NotNil(res.Redirect)
+	s.Equal("https://app.example.com/dashboard", *res.Redirect)
+	s.Require().Len(res.Cookies, 1)
+	s.Equal(buildconf.SessionCookieName, res.Cookies[0].Name)
+}
+
 // Test_Callback_UnverifiedEmail_RedirectsWithError checks that a provider which
 // returns an unverified email address is refused before any account is created
 // or linked, closing the account-takeover-by-email-linking vector.

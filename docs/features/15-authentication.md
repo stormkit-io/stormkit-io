@@ -1,6 +1,6 @@
 ---
 title: Add end-user authentication with Stormkit Auth
-description: Configure Stormkit Auth to add sign-in to your application — email and password, magic links, and Google or X (Twitter) OAuth — with cookie sessions for browsers and bearer tokens for native apps.
+description: Configure Stormkit Auth to add sign-in to your application — email and password, magic links, and Google, X (Twitter) or GitHub OAuth — with cookie sessions for browsers and bearer tokens for native apps.
 ---
 
 # Authentication
@@ -9,7 +9,7 @@ description: Configure Stormkit Auth to add sign-in to your application — emai
 
 **Stormkit Auth** adds end-user authentication to the application you host on
 Stormkit. Your visitors can register and sign in with **email and password**, a
-**magic link**, or an OAuth provider (**Google**, **X / Twitter**), and your
+**magic link**, or an OAuth provider (**Google**, **X / Twitter**, **GitHub**), and your
 app receives a signed session it can use to identify the user on every request.
 
 This is different from the [Auth Wall](/docs/features/auth-wall), which gates
@@ -27,7 +27,7 @@ You configure it under **Environment** > **Authentication**.
 > - The **Magic Link** and **email / password** providers send email (sign-in
 >   links and verification messages), so the environment's
 >   **[Mailer](/docs/features/mailer)** must be configured for them to actually
->   deliver. The OAuth providers (Google, X) don't need the Mailer.
+>   deliver. The OAuth providers (Google, X, GitHub) don't need the Mailer.
 
 ## How it works
 
@@ -92,8 +92,8 @@ At `/_stormkit/auth/refresh` this is auto-detected — a client that authenticat
 with a bearer token and sent no cookie gets a new bearer token without the
 header.
 
-**2. Browser sign-in flows — a custom-scheme redirect plus PKCE.** Google / X
-OAuth and Magic Link finish inside a browser, so there is no response body to
+**2. Browser sign-in flows — a custom-scheme redirect plus PKCE.** Google / X /
+GitHub OAuth and Magic Link finish inside a browser, so there is no response body to
 read. Instead, register your app's deep link as an **allowed origin** (scheme +
 host, no path — e.g. `myapp://auth`) and pass it as the `redirect` target.
 
@@ -227,7 +227,7 @@ Passwordless sign-in via a one-time link sent by email.
 > recorded and visible under **Environment** > **Mailer** > **Sent Emails** —
 > but it is not actually delivered, so this is only useful for local testing.
 
-#### Google / X (Twitter) OAuth
+#### Google / X (Twitter) / GitHub OAuth
 
 OAuth 2.0 providers require a **Client ID** and **Client Secret** from the
 provider's developer console.
@@ -245,6 +245,14 @@ in from.
   [X Developer Portal](https://developer.x.com/en/portal/dashboard), enable
   *Request email from users*, choose *Web App, Automated App or Bot*, and set the
   Redirect URL to the Callback URL shown in the drawer.
+- **GitHub:** register a new *OAuth App* under
+  [Developer settings](https://github.com/settings/applications/new) (or your
+  organization's Developer settings), set the *Authorization callback URL* to
+  the Callback URL shown in the drawer, and generate a client secret. GitHub
+  allows one callback URL per OAuth App, so signing in from several domains
+  needs one OAuth App per domain. Stormkit uses the account's primary verified
+  email, or another verified one if the primary isn't verified; GitHub's
+  private relay addresses (`@users.noreply.github.com`) are ignored.
 
 Start the OAuth flow by redirecting the user to the **Authorization URL** on your
 own domain, e.g. `https://app.example.com/_stormkit/auth/google`. Optionally
@@ -432,7 +440,7 @@ with the same key requirements and the same self-hosted-only availability.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `providerName` | string | `google`, `x`, `email` or `magiclink`. Separators are ignored, so `magic-link` also works. |
+| `providerName` | string | `google`, `x`, `github`, `email` or `magiclink`. Separators are ignored, so `magic-link` also works. |
 | `status` | boolean | Enable or disable the provider. Omitted keeps the stored value; a new provider defaults to enabled. |
 | `clientId` | string | OAuth client id. Required for OAuth providers. |
 | `clientSecret` | string | OAuth client secret. Write-only; omit it or send the placeholder to keep the stored one. |

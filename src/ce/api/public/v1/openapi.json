@@ -3359,7 +3359,7 @@
       "post": {
         "operationId": "setAuthProvider",
         "summary": "Configure a sign-in provider",
-        "description": "Enable or update a single sign-in provider. `magiclink` needs `fromAddress` and a configured mailer; `google` and `x` need `clientId` and `clientSecret`. Client secrets are write-only. Requires the database integration. Available on self-hosted instances.",
+        "description": "Enable or update a single sign-in provider. `magiclink` needs `fromAddress` and a configured mailer; `google`, `x` and `github` need `clientId` and `clientSecret`. Client secrets are write-only. Requires the database integration. Available on self-hosted instances.",
         "tags": [
           "Auth"
         ],
@@ -3380,7 +3380,8 @@
                       "magiclink",
                       "email",
                       "google",
-                      "x"
+                      "x",
+                      "github"
                     ],
                     "description": "Provider to configure."
                   },
@@ -4588,7 +4589,8 @@
               "magiclink",
               "email",
               "google",
-              "x"
+              "x",
+              "github"
             ],
             "description": "Provider name."
           },

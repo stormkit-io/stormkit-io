@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import XIcon from "@mui/icons-material/X";
 import GoogleIcon from "@mui/icons-material/Google";
+import GitHubIcon from "@mui/icons-material/GitHub";
 import EmailIcon from "@mui/icons-material/Email";
 import LinkIcon from "@mui/icons-material/Link";
 import MuiLink from "@mui/material/Link";
@@ -65,7 +66,7 @@ export interface Field {
   multiline?: boolean;
 }
 
-type AuthProviderID = "email" | "magiclink" | "google" | "x";
+type AuthProviderID = "email" | "magiclink" | "google" | "x" | "github";
 
 export interface AuthProvider {
   id: AuthProviderID;
@@ -216,6 +217,38 @@ const allProviders: AuthProvider[] = [
       "Toggle 'Request email from users' on.",
       "Select 'Web App, Automated App or Bot'",
       "Set the Redirect URL as specified above.",
+      "Copy the Client ID and Client Secret into the fields above.",
+      "Save the settings and test the connection.",
+    ],
+  },
+  {
+    id: "github",
+    icon: GitHubIcon,
+    name: "GitHub",
+    drawerTitle: "GitHub OAuth Settings",
+    drawerDesc: "Sign in with a GitHub OAuth App.",
+    hasRedirectUrl: true,
+    hasAuthUrl: true,
+    fields: [
+      { name: "clientId", label: "Client ID", value: "" },
+      { name: "clientSecret", label: "Client Secret", value: "" },
+    ],
+    steps: [
+      <>
+        Go to{" "}
+        <MuiLink
+          type="button"
+          href="https://github.com/settings/applications/new"
+          target="_blank"
+          rel="noreferrer noopener"
+        >
+          https://github.com/settings/applications/new
+        </MuiLink>{" "}
+        and register a new OAuth App. To create it under an organization, use
+        the organization's Developer settings instead.
+      </>,
+      "Set the Authorization callback URL to the Redirect URL above.",
+      "Generate a new client secret.",
       "Copy the Client ID and Client Secret into the fields above.",
       "Save the settings and test the connection.",
     ],
