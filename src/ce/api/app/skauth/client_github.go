@@ -13,22 +13,34 @@ import (
 	"golang.org/x/oauth2/github"
 )
 
+// GitHubAPIBase is the GitHub REST API root. Tests point it at a fake server.
 var GitHubAPIBase = "https://api.github.com"
 
-// Step 1: https://github.com/settings/developers (or the organization's settings)
-// Step 2: Create a new OAuth App
-// Step 3: Authorization callback URL: http://sample.stormkit:8888/_stormkit/auth/callback
-// Step 4: Generate a client secret
-// Step 5: Obtain client ID and client secret
+// GitHubClient signs users in with GitHub. It works with an OAuth App, which
+// allows one callback URL, or with a GitHub App, which allows up to ten and
+// needs the read-only "Email addresses" account permission.
+//
+// Step 1: https://github.com/settings/applications/new (or the organization's settings)
+// Step 2: Authorization callback URL: https://sample.stormkit:8888/_stormkit/auth/callback
+// Step 3: Generate a client secret
+// Step 4: Obtain client ID and client secret
 type GitHubClient struct {
 	oauth2Config *oauth2.Config
 }
 
-func NewGitHubClient(clientID, secretKey, redirectURL string) Client {
+// GitHubClientParams configures a GitHub client.
+type GitHubClientParams struct {
+	ClientID     string
+	ClientSecret string
+	RedirectURL  string
+}
+
+// NewGitHubClient returns a client that reads the profile and verified emails.
+func NewGitHubClient(p GitHubClientParams) Client {
 	config := &oauth2.Config{
-		ClientID:     clientID,
-		ClientSecret: secretKey,
-		RedirectURL:  redirectURL,
+		ClientID:     p.ClientID,
+		ClientSecret: p.ClientSecret,
+		RedirectURL:  p.RedirectURL,
 		Endpoint:     github.Endpoint,
 		Scopes: []string{
 			"read:user",
@@ -41,6 +53,7 @@ func NewGitHubClient(clientID, secretKey, redirectURL string) Client {
 	}
 }
 
+// GitHubUserInfo is the part of GitHub's /user response that is used.
 type GitHubUserInfo struct {
 	ID        int64  `json:"id"`
 	Login     string `json:"login"`
@@ -49,12 +62,14 @@ type GitHubUserInfo struct {
 	HTMLURL   string `json:"html_url"`
 }
 
+// GitHubEmail is one entry of GitHub's /user/emails response.
 type GitHubEmail struct {
 	Email    string `json:"email"`
 	Primary  bool   `json:"primary"`
 	Verified bool   `json:"verified"`
 }
 
+// UserInfo returns the signed-in GitHub user with their verified email.
 func (g *GitHubClient) UserInfo(ctx context.Context, token *oauth2.Token) (*UserInfo, error) {
 	client := oauth2.NewClient(ctx, g.oauth2Config.TokenSource(ctx, token))
 
@@ -68,7 +83,7 @@ func (g *GitHubClient) UserInfo(ctx context.Context, token *oauth2.Token) (*User
 	// unverified, so the address comes from the emails endpoint instead.
 	var emails []GitHubEmail
 
-	if err := g.get(githubGetParams{ctx: ctx, client: client, path: "/user/emails", out: &emails}); err != nil {
+	if err := g.get(githubGetParams{ctx: ctx, client: client, path: "/user/emails?per_page=100", out: &emails}); err != nil {
 		return nil, err
 	}
 
@@ -141,17 +156,22 @@ func (g *GitHubClient) get(p githubGetParams) error {
 
 	defer resp.Body.Close()
 
+	// A GitHub App without the "Email addresses" permission answers 403/404
+	// here, which is the most likely misconfiguration.
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("github: GET %s returned %d", p.path, resp.StatusCode)
+		return fmt.Errorf("github: GET %s returned %d (a GitHub App needs the read-only \"Email addresses\" account permission)", p.path, resp.StatusCode)
 	}
 
 	return json.NewDecoder(resp.Body).Decode(p.out)
 }
 
+// Exchange trades the authorization code for an access token.
 func (g *GitHubClient) Exchange(ctx context.Context, req *shttp.RequestContext) (*oauth2.Token, error) {
 	return g.oauth2Config.Exchange(ctx, req.FormValue("code"))
 }
 
+// AuthCodeURL returns GitHub's consent page with a state signed by the
+// environment's auth secret.
 func (g *GitHubClient) AuthCodeURL(params AuthCodeURLParams) (string, error) {
 	state, err := user.JWT(user.JWTParams{Purpose: user.PurposeSkAuthOAuthState, Claims: params.Claims(), Secret: params.Secret})
 

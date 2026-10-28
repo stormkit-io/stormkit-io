@@ -248,11 +248,14 @@ in from.
 - **GitHub:** register a new *OAuth App* under
   [Developer settings](https://github.com/settings/applications/new) (or your
   organization's Developer settings), set the *Authorization callback URL* to
-  the Callback URL shown in the drawer, and generate a client secret. GitHub
-  allows one callback URL per OAuth App, so signing in from several domains
-  needs one OAuth App per domain. Stormkit uses the account's primary verified
-  email, or another verified one if the primary isn't verified; GitHub's
-  private relay addresses (`@users.noreply.github.com`) are ignored.
+  the Callback URL shown in the drawer, and generate a client secret. An OAuth
+  App accepts **one** callback URL, so if you sign in from several domains,
+  create a [GitHub App](https://github.com/settings/apps/new) instead: it
+  accepts up to ten callback URLs. Give it the read-only *Email addresses*
+  account permission and use its Client ID and a client secret. Stormkit uses
+  the account's primary verified email, or another verified one if the primary
+  isn't verified; GitHub's private relay addresses
+  (`@users.noreply.github.com`) are ignored.
 
 Start the OAuth flow by redirecting the user to the **Authorization URL** on your
 own domain, e.g. `https://app.example.com/_stormkit/auth/google`. Optionally

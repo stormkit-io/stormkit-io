@@ -248,6 +248,7 @@ const allProviders: AuthProvider[] = [
         the organization's Developer settings instead.
       </>,
       "Set the Authorization callback URL to the Redirect URL above.",
+      "An OAuth App accepts one callback URL. To sign in from several domains, create a GitHub App instead (up to ten callback URLs) and give it the read-only 'Email addresses' account permission.",
       "Generate a new client secret.",
       "Copy the Client ID and Client Secret into the fields above.",
       "Save the settings and test the connection.",

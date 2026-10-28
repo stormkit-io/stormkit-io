@@ -173,7 +173,11 @@ func (p *Provider) Client(params ClientParams) Client {
 	case ProviderX:
 		return NewXClient(p.Data.ClientID, p.Data.ClientSecret, params.RedirectURL, params.Secret)
 	case ProviderGitHub:
-		return NewGitHubClient(p.Data.ClientID, p.Data.ClientSecret, params.RedirectURL)
+		return NewGitHubClient(GitHubClientParams{
+			ClientID:     p.Data.ClientID,
+			ClientSecret: p.Data.ClientSecret,
+			RedirectURL:  params.RedirectURL,
+		})
 	case ProviderEmail:
 		return NewEmailClient()
 	case ProviderMagicLink:

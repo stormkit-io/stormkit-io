@@ -2,6 +2,7 @@ package hosting_test
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -163,6 +164,12 @@ func (s *WithSKAuthOAuthSuite) Test_Callback_GitHub_Success() {
 	s.Equal("https://app.example.com/dashboard", *res.Redirect)
 	s.Require().Len(res.Cookies, 1)
 	s.Equal(buildconf.SessionCookieName, res.Cookies[0].Name)
+
+	// GitHub OAuth App tokens never expire; they are stored without an expiry.
+	var expiry sql.NullTime
+	err = s.conn.QueryRow("SELECT expiry FROM stormkit_auth_providers WHERE provider_name = 'github' AND account_id = '583231'").Scan(&expiry)
+	s.Require().NoError(err)
+	s.False(expiry.Valid)
 }
 
 // Test_Callback_UnverifiedEmail_RedirectsWithError checks that a provider which
