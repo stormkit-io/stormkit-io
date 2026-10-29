@@ -13,11 +13,13 @@ import {
   mockSendTestEmail,
   mockSetMailerConfig,
 } from "~/testing/nocks/nock_mailer";
+import { RootContext } from "~/pages/Root.context";
 import TabMailer from "./Mailer";
 
 interface WrapperProps {
   config?: MockMailerConfig;
   defaultAvailable?: boolean;
+  edition?: "cloud" | "self-hosted";
   app?: App;
   setRefreshToken?: () => void;
 }
@@ -42,7 +44,12 @@ describe("~/pages/apps/[id]/environments/[env-id]/mailer/Mailer.tsx", () => {
     });
   };
 
-  const createWrapper = ({ app, config, defaultAvailable }: WrapperProps) => {
+  const createWrapper = ({
+    app,
+    config,
+    defaultAvailable,
+    edition = "self-hosted",
+  }: WrapperProps) => {
     currentApp = app || mockApp();
     currentApp.id = "1"; // Same as api key id
     currentEnv = mockEnvironments({ app: currentApp })[0];
@@ -50,17 +57,26 @@ describe("~/pages/apps/[id]/environments/[env-id]/mailer/Mailer.tsx", () => {
     setupFetchScope(config, defaultAvailable);
 
     wrapper = render(
-      <AppContext.Provider
+      <RootContext.Provider
         value={{
-          app: currentApp,
-          environments: [currentEnv],
+          mode: "dark",
+          setMode: vi.fn(),
           setRefreshToken: vi.fn(),
+          details: { stormkit: { apiCommit: "", apiVersion: "", edition } },
         }}
       >
-        <EnvironmentContext.Provider value={{ environment: currentEnv }}>
-          <TabMailer />
-        </EnvironmentContext.Provider>
-      </AppContext.Provider>,
+        <AppContext.Provider
+          value={{
+            app: currentApp,
+            environments: [currentEnv],
+            setRefreshToken: vi.fn(),
+          }}
+        >
+          <EnvironmentContext.Provider value={{ environment: currentEnv }}>
+            <TabMailer />
+          </EnvironmentContext.Provider>
+        </AppContext.Provider>
+      </RootContext.Provider>,
     );
   };
 
@@ -349,7 +365,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/mailer/Mailer.tsx", () => {
     );
 
     expect(
-      wrapper.getByText(/sent through the SMTP account the instance admin/),
+      wrapper.getByText(/sent through the SMTP account configured under Admin/),
     ).toBeTruthy();
 
     setupFetchScope(
@@ -389,7 +405,19 @@ describe("~/pages/apps/[id]/environments/[env-id]/mailer/Mailer.tsx", () => {
     });
 
     expect(
-      wrapper.getByText(/sent through the SMTP account the instance admin/),
+      wrapper.getByText(/sent through the SMTP account configured under Admin/),
     ).toBeTruthy();
+  });
+  it("should not offer the default mailer on Stormkit Cloud", async () => {
+    createWrapper({ defaultAvailable: true, edition: "cloud" });
+
+    await waitFor(() => {
+      expect(fetchScope.isDone()).toBe(true);
+      expect(wrapper.getByLabelText("SMTP Host")).toBeTruthy();
+    });
+
+    expect(() =>
+      wrapper.getByLabelText("Use the instance's default mailer"),
+    ).toThrow();
   });
 });

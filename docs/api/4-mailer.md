@@ -101,12 +101,12 @@ server or account. Send a new `password` in the same request when you change
 either; otherwise the request is rejected with `Password is a required field.`
 and nothing is written.
 
-Send `useDefault: true` to use the instance's default mailer, set up by the
-instance admin, instead. The environment's own SMTP settings are dropped,
-emails go out from the instance's sender address, and `MAILER_URL` is no
-longer injected into deployments. The request fails with a 400 when the
-instance has no default mailer. Send `useDefault: false` with a full set of
-SMTP settings to switch back.
+On self-hosted instances, send `useDefault: true` to use the instance's
+default mailer, set up by the instance admin, instead. The environment's own
+SMTP settings are dropped, and emails that set no sender go out from the
+instance's From address. The request fails with a 400 when the instance has
+no default mailer. Send `useDefault: false` with a full set of SMTP settings to
+switch back.
 
 ```typescript
 interface Request {

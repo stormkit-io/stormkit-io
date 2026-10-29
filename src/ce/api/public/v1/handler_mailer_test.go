@@ -12,6 +12,7 @@ import (
 	publicapiv1 "github.com/stormkit-io/stormkit-io/src/ce/api/public/v1"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user/usertest"
 	"github.com/stormkit-io/stormkit-io/src/ee/api/audit"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -32,10 +33,15 @@ func (s *HandlerMailerSuite) BeforeTest(suiteName, _ string) {
 	s.Factory = factory.New(s.conn)
 	s.usr = s.MockUser(nil)
 	s.app = s.MockApp(s.usr, nil)
+
+	// Other suites in this package can leave the Cloud edition on, and the
+	// instance mailer is self-hosted only.
+	config.SetIsSelfHosted(true)
 }
 
 func (s *HandlerMailerSuite) AfterTest(_, _ string) {
 	s.conn.CloseTx()
+	config.SetIsSelfHosted(false)
 	buildconf.SendMailFunc = buildconf.SendMailWithDeadline
 	admin.ResetCache(context.Background())
 }
@@ -573,6 +579,17 @@ func (s *HandlerMailerSuite) Test_ConfigSet_BackToCustom() {
 	s.Equal("new-secret", stored.MailerConf.Password)
 }
 
+// Test_ConfigSet_UseDefault_Cloud verifies that environments on Stormkit Cloud
+// cannot use the default mailer, a self-hosted feature.
+func (s *HandlerMailerSuite) Test_ConfigSet_UseDefault_Cloud() {
+	s.configureInstanceMailer()
+	config.SetIsStormkitCloud(true)
+
+	response := s.postConfig(s.configuredEnv(), map[string]any{"useDefault": true})
+
+	s.Equal(http.StatusBadRequest, response.Code)
+}
+
 func (s *HandlerMailerSuite) Test_ConfigGet_DefaultAvailable() {
 	env := s.configuredEnv()
 	url := fmt.Sprintf("/v1/mailer/config?appId=%d&envId=%d", s.app.ID, env.ID)
@@ -589,7 +606,7 @@ func (s *HandlerMailerSuite) Test_ConfigGet_DefaultAvailable() {
 }
 
 // Test_Send_UseDefault verifies that an environment on the instance mailer
-// sends through it, from the instance's sender whatever it asks for.
+// sends through it, from the instance's From address when it sets none.
 func (s *HandlerMailerSuite) Test_Send_UseDefault() {
 	s.configureInstanceMailer()
 
@@ -613,7 +630,6 @@ func (s *HandlerMailerSuite) Test_Send_UseDefault() {
 			"appId":   s.app.ID.String(),
 			"envId":   env.ID.String(),
 			"to":      "someone@acme.com",
-			"from":    "ceo@instance.test",
 			"subject": "Test",
 			"body":    "Hello",
 		},

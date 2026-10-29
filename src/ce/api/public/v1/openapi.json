@@ -2821,7 +2821,7 @@
       "post": {
         "operationId": "setMailerConfig",
         "summary": "Update the SMTP configuration",
-        "description": "Update the SMTP configuration of an environment. Only the fields you send are changed. `password` is write-only: omit it to keep the stored one. Changing `smtpHost` or `username` clears the stored password, so those calls must carry a new one. Send `useDefault: true` to use the instance's default mailer instead: the environment's own settings are dropped and emails go out from the instance's sender address.",
+        "description": "Update the SMTP configuration of an environment. Only the fields you send are changed. `password` is write-only: omit it to keep the stored one. Changing `smtpHost` or `username` clears the stored password, so those calls must carry a new one. On self-hosted instances, send `useDefault: true` to use the instance's default mailer instead: the environment's own settings are dropped and emails that set no sender go out from the instance's From address.",
         "tags": [
           "Mailer"
         ],

@@ -16,7 +16,7 @@ type AdminMailerSetRequest struct {
 	Port     string `json:"port"`
 	Username string `json:"username"`
 	Password string `json:"password"` // empty or the placeholder keeps the stored one
-	From     string `json:"from"`     // e.g. Acme <noreply@acme.com>
+	From     string `json:"from"`     // sender of emails that set none, e.g. Acme <noreply@acme.com>
 }
 
 // handlerAdminMailerSet creates or replaces the instance's default mailer.

@@ -149,8 +149,9 @@ type InstanceConfig struct {
 	MailerConfig       *MailerConfig          `json:"mailer,omitempty"`
 }
 
-// MailerConfig is the instance's default SMTP account. Environments that opt
-// in send their emails through it, always from From.
+// MailerConfig is the instance's default SMTP account, a self-hosted feature.
+// Environments that opt in send their emails through it; From is the sender
+// of emails that do not set one.
 type MailerConfig struct {
 	Host     string `json:"host"`
 	Port     string `json:"port,omitempty"`

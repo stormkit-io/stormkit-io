@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
@@ -123,21 +124,35 @@ type MailerConf struct {
 	// configured by the instance admin, instead of SMTP settings of its own.
 	UseDefault bool `json:"useDefault,omitempty"`
 
-	// Sender, when set, is the From address of every email, whatever the
-	// caller asks for. The instance mailer sets it: a shared SMTP account can
-	// usually send only from the addresses it was verified for.
-	Sender string `json:"-"`
+	// DefaultFrom is the From address of emails that do not set one. The
+	// instance mailer sets it to the address the admin configured.
+	DefaultFrom string `json:"-"`
 }
 
-// Bytes uses the json marshaler to return the byte representation. It marshals
-// a storage type that sheds MarshalJSON, so persistence keeps writing the
-// encrypted credential rather than the placeholder rendered for clients.
-func (mc *MailerConf) Bytes() ([]byte, error) {
-	type mailerConfStorage MailerConf
+// mailerConfStorage is how a MailerConf is persisted. Every value is a string
+// because versions before UseDefault decode the column into a string map, and
+// a boolean would make them fail to load the environment after a rollback.
+type mailerConfStorage struct {
+	Host       string `json:"host"`
+	Port       string `json:"port"`
+	Username   string `json:"username"`
+	Password   string `json:"password"`
+	UseDefault string `json:"useDefault,omitempty"`
+}
 
-	cnf := mailerConfStorage(*mc)
-	cnf.Username = utils.EncryptToString(cnf.Username)
-	cnf.Password = utils.EncryptToString(cnf.Password)
+// Bytes returns the representation persisted in the database, with the
+// encrypted credentials rather than the placeholder rendered for clients.
+func (mc *MailerConf) Bytes() ([]byte, error) {
+	cnf := mailerConfStorage{
+		Host:     mc.Host,
+		Port:     mc.Port,
+		Username: utils.EncryptToString(mc.Username),
+		Password: utils.EncryptToString(mc.Password),
+	}
+
+	if mc.UseDefault {
+		cnf.UseDefault = "true"
+	}
 
 	return json.Marshal(cnf)
 }
@@ -195,13 +210,7 @@ func (mc *MailerConf) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
-	stored := struct {
-		Host       string `json:"host"`
-		Port       string `json:"port"`
-		Username   string `json:"username"`
-		Password   string `json:"password"`
-		UseDefault bool   `json:"useDefault"`
-	}{}
+	stored := mailerConfStorage{}
 
 	if err := json.Unmarshal(data, &stored); err != nil {
 		return err
@@ -215,7 +224,7 @@ func (mc *MailerConf) UnmarshalJSON(data []byte) error {
 	mc.Password = utils.DecryptToString(stored.Password)
 	mc.Host = stored.Host
 	mc.Port = stored.Port
-	mc.UseDefault = stored.UseDefault
+	mc.UseDefault = stored.UseDefault == "true"
 
 	return nil
 }
@@ -260,9 +269,9 @@ func (mc *MailerConf) Send(p SendEmailParams) error {
 }
 
 // From returns the From header of an email the caller wants sent from
-// requested: the forced Sender, the requested address, or the username.
+// requested: the requested address, the default one, or the username.
 func (mc *MailerConf) From(requested string) string {
-	return utils.GetString(mc.Sender, requested, mc.Username)
+	return utils.GetString(requested, mc.DefaultFrom, mc.Username)
 }
 
 // Mailer returns the SMTP settings env sends emails with: its own, the
@@ -280,8 +289,13 @@ func (env *Env) Mailer() *MailerConf {
 }
 
 // InstanceMailer returns the instance's default mailer, or nil when the admin
-// has not configured one.
+// has not configured one. It is a self-hosted feature, so it is always nil on
+// Stormkit Cloud.
 func InstanceMailer() *MailerConf {
+	if config.IsStormkitCloud() {
+		return nil
+	}
+
 	cnf := admin.MustConfig().MailerConfig
 
 	if !cnf.IsConfigured() {
@@ -289,11 +303,11 @@ func InstanceMailer() *MailerConf {
 	}
 
 	return &MailerConf{
-		Host:     cnf.Host,
-		Port:     cnf.Port,
-		Username: cnf.Username,
-		Password: cnf.Password,
-		Sender:   cnf.From,
+		Host:        cnf.Host,
+		Port:        cnf.Port,
+		Username:    cnf.Username,
+		Password:    cnf.Password,
+		DefaultFrom: cnf.From,
 	}
 }
 

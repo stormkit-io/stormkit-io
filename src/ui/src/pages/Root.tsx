@@ -20,7 +20,7 @@ export default function Root({ Router }: Props) {
   const { details, loading, error } = useFetchInstanceDetails(refreshToken);
 
   const [mode, setMode] = useState<"dark" | "light">(
-    (localStorage.getItem(LS_KEY) as "dark") || "dark"
+    (localStorage.getItem(LS_KEY) as "dark") || "dark",
   );
 
   const theme = useMemo(() => {
@@ -53,10 +53,13 @@ export default function Root({ Router }: Props) {
               <Routes>
                 {routes
                   .map(route => {
-                    if (
-                      route.cloudOnly &&
-                      details?.stormkit?.edition !== "cloud"
-                    ) {
+                    const isCloud = details?.stormkit?.edition === "cloud";
+
+                    if (route.cloudOnly && !isCloud) {
+                      return null;
+                    }
+
+                    if (route.selfHostedOnly && isCloud) {
                       return null;
                     }
 

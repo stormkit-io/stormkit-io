@@ -75,7 +75,7 @@ export default function Mailer() {
     >
       <CardHeader
         title="Default mailer"
-        subtitle="The SMTP account environments can use instead of their own. Emails sent through it always come from the address below, and its credentials are never given to app code."
+        subtitle="The SMTP account environments can use instead of their own settings."
       />
       {/* Remount the fields once the stored mailer is loaded or saved. */}
       <Box key={JSON.stringify(mailer)} sx={{ px: 4 }}>
@@ -127,7 +127,7 @@ export default function Mailer() {
           name="from"
           defaultValue={mailer?.from || ""}
           placeholder="Acme <noreply@acme.com>"
-          helperText="The sender of every email sent through the default mailer. Your SMTP provider must allow sending from it."
+          helperText="The sender of emails that do not set one. Your SMTP provider must allow sending from it."
           variant="filled"
           autoComplete="off"
           fullWidth

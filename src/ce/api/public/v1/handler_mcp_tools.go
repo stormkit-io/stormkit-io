@@ -825,7 +825,7 @@ func mcpAllTools() []mcpToolDef {
 		},
 		{
 			Name:        "configure_mailer",
-			Description: "Set the SMTP configuration used to send transactional email for an environment, including Stormkit Auth magic links. Only the fields you provide are changed; omitted fields keep their current value. Changing smtpHost or username clears the stored password, so such a call must carry a new one - the placeholder a read returns is not accepted. Host, username and password must all be set before email can be sent, unless useDefault is true. Set useDefault to true to send through the instance's default mailer, configured by the instance admin, instead; emails then go out from the instance's sender address, and the environment's own settings are dropped. The password is write-only and is never returned.",
+			Description: "Set the SMTP configuration used to send transactional email for an environment, including Stormkit Auth magic links. Only the fields you provide are changed; omitted fields keep their current value. Changing smtpHost or username clears the stored password, so such a call must carry a new one - the placeholder a read returns is not accepted. Host, username and password must all be set before email can be sent, unless useDefault is true. On self-hosted instances, set useDefault to true to send through the instance's default mailer, configured by the instance admin, instead; the environment's own settings are then dropped. The password is write-only and is never returned.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

@@ -14,6 +14,7 @@ import api from "~/utils/api/Api";
 import Help, { HelpTable } from "~/components/Help";
 import { AppContext } from "~/pages/apps/[id]/App.context";
 import { EnvironmentContext } from "~/pages/apps/[id]/environments/Environment.context";
+import { RootContext } from "~/pages/Root.context";
 import { useFetchMailerConfig } from "./actions";
 import SendTestEmailModal from "./SendTestEmailModal";
 
@@ -30,6 +31,9 @@ export default function TabMailer() {
     refreshToken,
   });
   const [useDefault, setUseDefault] = useState(false);
+  const { details } = useContext(RootContext);
+  // The instance's default mailer is a self-hosted feature.
+  const isCloud = details?.stormkit?.edition === "cloud";
 
   useEffect(() => {
     setUseDefault(Boolean(config?.useDefault));
@@ -114,9 +118,7 @@ export default function TabMailer() {
                   <Typography sx={{ mt: 2 }}>
                     Note that if an environment already has a custom{" "}
                     <Box component="code">MAILER_URL</Box> configured, it won't
-                    be overwritten. It is not set when the environment uses the
-                    instance's default mailer: send emails through the mailer
-                    API instead.
+                    be overwritten.
                   </Typography>
                 </Box>
                 <Box sx={{ my: 4 }}>
@@ -164,33 +166,35 @@ export default function TabMailer() {
         }
       />
 
-      <RadioGroup
-        name="mailerMode"
-        value={useDefault ? "default" : "custom"}
-        onChange={e => setUseDefault(e.target.value === "default")}
-        sx={{ mb: 4 }}
-      >
-        <FormControlLabel
-          value="default"
-          control={<Radio />}
-          disabled={!defaultAvailable && !useDefault}
-          label={
-            defaultAvailable
-              ? "Use the instance's default mailer"
-              : "Use the instance's default mailer (not configured by the instance admin)"
-          }
-        />
-        <FormControlLabel
-          value="custom"
-          control={<Radio />}
-          label="Use custom SMTP settings"
-        />
-      </RadioGroup>
+      {!isCloud && (
+        <RadioGroup
+          name="mailerMode"
+          value={useDefault ? "default" : "custom"}
+          onChange={e => setUseDefault(e.target.value === "default")}
+          sx={{ mb: 4 }}
+        >
+          <FormControlLabel
+            value="default"
+            control={<Radio />}
+            disabled={!defaultAvailable && !config?.useDefault}
+            label={
+              defaultAvailable
+                ? "Use the instance's default mailer"
+                : "Use the instance's default mailer (not configured by the instance admin)"
+            }
+          />
+          <FormControlLabel
+            value="custom"
+            control={<Radio />}
+            label="Use custom SMTP settings"
+          />
+        </RadioGroup>
+      )}
 
       {useDefault && (
         <Typography sx={{ mb: 4 }} color="text.secondary">
           {defaultAvailable
-            ? "Emails are sent through the SMTP account the instance admin configured, from the sender address they set."
+            ? `Emails are sent through the SMTP account configured under Admin > Mailer. Emails without a sender of their own come from its From address.${config?.host ? " Saving removes this environment's own SMTP settings." : ""}`
             : "The instance admin removed the default mailer. Emails are recorded but not sent until they configure it again, or until you switch to custom settings."}
         </Typography>
       )}

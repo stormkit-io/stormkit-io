@@ -8,9 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
@@ -329,9 +331,22 @@ func (s *DeploymentModelSuite) Test_PopulateFromEnv_MailerOnlyWithNoVars() {
 	s.Equal("smtp://test-user:test-pwd@smtp.gmail.com:587", dep.BuildConfig.Vars["MAILER_URL"])
 }
 
-// Test_PopulateFromEnv_InstanceMailerNotInjected verifies that the instance
-// mailer's credentials are never handed to app code.
-func (s *DeploymentModelSuite) Test_PopulateFromEnv_InstanceMailerNotInjected() {
+// Test_PopulateFromEnv_InstanceMailer verifies that an environment on the
+// instance's default mailer gets the default's connection string.
+func (s *DeploymentModelSuite) Test_PopulateFromEnv_InstanceMailer() {
+	admin.SetConfig(&admin.InstanceConfig{MailerConfig: &admin.MailerConfig{
+		Host:     "smtp.instance.test",
+		Port:     "2525",
+		Username: "instance-user",
+		Password: "instance-secret",
+		From:     "noreply@instance.test",
+	}})
+
+	defer admin.ResetCache(context.Background())
+
+	config.SetIsSelfHosted(true)
+	defer config.SetIsSelfHosted(false)
+
 	dep := &deploy.Deployment{}
 	env := &buildconf.Env{
 		ID:         16,
@@ -343,7 +358,7 @@ func (s *DeploymentModelSuite) Test_PopulateFromEnv_InstanceMailerNotInjected() 
 
 	dep.PopulateFromEnv(env)
 
-	s.Empty(dep.BuildConfig.Vars["MAILER_URL"])
+	s.Equal("smtp://instance-user:instance-secret@smtp.instance.test:2525", dep.BuildConfig.Vars["MAILER_URL"])
 }
 
 func (s *DeploymentModelSuite) Test_PopulateFromEnv() {

@@ -7,6 +7,7 @@ import { LS_PROVIDER } from "~/utils/api/Api";
 
 type ExtendedRouterProps = RouteProps & {
   cloudOnly?: boolean;
+  selfHostedOnly?: boolean;
 };
 
 function RedirectApps() {
@@ -160,6 +161,7 @@ const routes: Array<ExtendedRouterProps> = [
   {
     path: "/admin/mailer",
     element: Async(() => import("~/pages/admin/Mailer"), adminLayout),
+    selfHostedOnly: true,
   },
   {
     path: "/admin/auth",

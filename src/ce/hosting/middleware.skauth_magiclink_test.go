@@ -22,6 +22,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/ce/hosting"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/database"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
@@ -224,8 +225,11 @@ func (s *WithSKAuthMagicLinkSuite) Test_Request_Success() {
 }
 
 // Test_Request_InstanceMailer verifies that an environment on the instance
-// mailer sends magic links through it, from the instance's sender.
+// mailer sends magic links through it, from the instance's From address when
+// the provider sets no sender.
 func (s *WithSKAuthMagicLinkSuite) Test_Request_InstanceMailer() {
+	config.SetIsSelfHosted(true)
+	defer config.SetIsSelfHosted(false)
 	defer admin.ResetCache(context.Background())
 	defer func() { buildconf.SendMailFunc = buildconf.SendMailWithDeadline }()
 
