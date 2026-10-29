@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.10.29.1...v2026.10.29.2
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.10.29.1...v2026.10.29.2)
+
+### 🚀 Enhancements
+
+- Add an instance default mailer ([#665](https://github.com/stormkit-io/stormkit-io/pull/665))
+
+### 🏡 Chore
+
+- Update changelog for v2026.10.29.1 ([#664](https://github.com/stormkit-io/stormkit-io/pull/664))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.10.25.1...v2026.10.29.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.10.25.1...v2026.10.29.1)
