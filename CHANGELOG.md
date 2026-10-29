@@ -1,5 +1,34 @@
 # Changelog
 
+## v2026.10.25.1...v2026.10.29.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.10.25.1...v2026.10.29.1)
+
+### 🚀 Enhancements
+
+- Add hetzner provisioner for cloud instances ([#655](https://github.com/stormkit-io/stormkit-io/pull/655))
+- Add trusted login for self-hosted instances ([#656](https://github.com/stormkit-io/stormkit-io/pull/656))
+- Add trusted login callback page ([#658](https://github.com/stormkit-io/stormkit-io/pull/658))
+- Add github sign-in to stormkit auth ([#662](https://github.com/stormkit-io/stormkit-io/pull/662))
+- Add gitlab sign-in to stormkit auth ([#663](https://github.com/stormkit-io/stormkit-io/pull/663))
+
+### 🩹 Fixes
+
+- Purge volume files by their own mount type ([#654](https://github.com/stormkit-io/stormkit-io/pull/654))
+- Keep auth wall assets out of shared caches ([#660](https://github.com/stormkit-io/stormkit-io/pull/660))
+
+### 🏡 Chore
+
+- Update changelog for v2026.10.25.1 ([#653](https://github.com/stormkit-io/stormkit-io/pull/653))
+
+### ✅ Tests
+
+- Fix race in leader renounce ttl check ([#657](https://github.com/stormkit-io/stormkit-io/pull/657))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.10.23.1...v2026.10.25.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.10.23.1...v2026.10.25.1)
