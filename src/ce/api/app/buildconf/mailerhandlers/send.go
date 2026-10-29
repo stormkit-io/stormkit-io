@@ -2,6 +2,7 @@ package mailerhandlers
 
 import (
 	"context"
+	"net/mail"
 	"strings"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
@@ -37,6 +38,12 @@ func SendAndRecord(ctx context.Context, p SendAndRecordParams) (delivered bool, 
 		return false, &shttperr.ValidationError{Errors: map[string]string{"subject": "Subject is a required field."}}
 	}
 
+	if replyTo := strings.TrimSpace(data.ReplyTo); replyTo != "" {
+		if _, err := mail.ParseAddress(replyTo); err != nil {
+			return false, &shttperr.ValidationError{Errors: map[string]string{"replyTo": "Reply-To must be a valid email address."}}
+		}
+	}
+
 	from := data.From
 	var sendErr error
 
@@ -48,6 +55,7 @@ func SendAndRecord(ctx context.Context, p SendAndRecordParams) (delivered bool, 
 			From:    data.From,
 			Subject: data.Subject,
 			Body:    data.Body,
+			ReplyTo: data.ReplyTo,
 		})
 
 		delivered = sendErr == nil

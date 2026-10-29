@@ -243,6 +243,64 @@ func (s *HandlerMailerSuite) Test_Send_ReportsUndelivered() {
 	s.Len(emails, 1, "the email is still recorded")
 }
 
+func (s *HandlerMailerSuite) Test_Send_ReplyTo() {
+	env := s.configuredEnv()
+
+	var sentMsg []byte
+
+	buildconf.SendMailFunc = func(_ string, _ smtp.Auth, _ string, _ []string, msg []byte) error {
+		sentMsg = msg
+		return nil
+	}
+
+	response := shttptest.RequestWithHeaders(
+		s.handler(),
+		shttp.MethodPost,
+		"/v1/mail",
+		map[string]string{
+			"appId":   s.app.ID.String(),
+			"envId":   env.ID.String(),
+			"to":      "someone@acme.com",
+			"subject": "Test",
+			"body":    "Hello",
+			"replyTo": "Jane Doe <jane@example.org>",
+		},
+		s.auth(),
+	)
+
+	s.Equal(http.StatusOK, response.Code)
+	s.Contains(string(sentMsg), "Reply-To: Jane Doe <jane@example.org>\n")
+}
+
+func (s *HandlerMailerSuite) Test_Send_InvalidReplyTo() {
+	env := s.configuredEnv()
+	called := false
+
+	buildconf.SendMailFunc = func(_ string, _ smtp.Auth, _ string, _ []string, _ []byte) error {
+		called = true
+		return nil
+	}
+
+	response := shttptest.RequestWithHeaders(
+		s.handler(),
+		shttp.MethodPost,
+		"/v1/mail",
+		map[string]string{
+			"appId":   s.app.ID.String(),
+			"envId":   env.ID.String(),
+			"to":      "someone@acme.com",
+			"subject": "Test",
+			"body":    "Hello",
+			"replyTo": "not an address",
+		},
+		s.auth(),
+	)
+
+	s.Equal(http.StatusBadRequest, response.Code)
+	s.JSONEq(`{"errors":{"replyTo":"Reply-To must be a valid email address."}}`, response.String())
+	s.False(called)
+}
+
 func (s *HandlerMailerSuite) Test_Send_RequiresSubject() {
 	env := s.configuredEnv()
 

@@ -24,6 +24,7 @@ interface Request {
   from: string
   subject: string
   body: string
+  replyTo?: string // e.g. the visitor who filled in a contact form
 }
 
 interface Response {

@@ -151,6 +151,54 @@ func (s *MailerModelSuite) Test_Send_EnvelopeUsesParamsFromAddress() {
 	s.Equal("noreply@acme.com", capturedFrom)
 }
 
+func (s *MailerModelSuite) Test_Send_ReplyTo() {
+	mailer := &buildconf.MailerConf{
+		Host:     "smtp.example.com",
+		Username: "smtp-user@example.com",
+		Password: "secret",
+	}
+
+	var capturedMsg []byte
+
+	buildconf.SendMailFunc = func(_ string, _ smtp.Auth, _ string, _ []string, msg []byte) error {
+		capturedMsg = msg
+		return nil
+	}
+
+	s.NoError(mailer.Send(buildconf.SendEmailParams{
+		To:      "user@example.com",
+		Subject: "Hello",
+		Body:    "Body",
+		ReplyTo: "Jane <jane@example.org>\r\nBcc: evil@example.org",
+	}))
+
+	s.Contains(string(capturedMsg), "Reply-To: Jane <jane@example.org>Bcc: evil@example.org\n", "line breaks are stripped so no header can be injected")
+	s.NotContains(string(capturedMsg), "\nBcc:")
+}
+
+func (s *MailerModelSuite) Test_Send_NoReplyTo() {
+	mailer := &buildconf.MailerConf{
+		Host:     "smtp.example.com",
+		Username: "smtp-user@example.com",
+		Password: "secret",
+	}
+
+	var capturedMsg []byte
+
+	buildconf.SendMailFunc = func(_ string, _ smtp.Auth, _ string, _ []string, msg []byte) error {
+		capturedMsg = msg
+		return nil
+	}
+
+	s.NoError(mailer.Send(buildconf.SendEmailParams{
+		To:      "user@example.com",
+		Subject: "Hello",
+		Body:    "Body",
+	}))
+
+	s.NotContains(string(capturedMsg), "Reply-To:")
+}
+
 func (s *MailerModelSuite) Test_Mailer_Custom() {
 	custom := &buildconf.MailerConf{Host: "smtp.acme.test", Username: "u", Password: "p"}
 	s.instanceMailer(s.defaultMailer())

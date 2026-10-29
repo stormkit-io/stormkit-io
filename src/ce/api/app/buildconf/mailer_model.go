@@ -105,6 +105,7 @@ type SendEmailParams struct {
 	From    string // falls back to mc.Username when empty
 	Subject string
 	Body    string
+	ReplyTo string // optional Reply-To header
 }
 
 // PasswordPlaceholder stands in for the stored SMTP password whenever a mailer
@@ -244,8 +245,14 @@ func (mc *MailerConf) Send(p SendEmailParams) error {
 	fromHeader := SanitizeHeader(mc.From(p.From))
 	port := utils.GetString(mc.Port, "587")
 	mime := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
+	headers := fmt.Sprintf("From: %s\n", fromHeader)
+
+	if replyTo := SanitizeHeader(p.ReplyTo); replyTo != "" {
+		headers += fmt.Sprintf("Reply-To: %s\n", replyTo)
+	}
+
 	msg := []byte(
-		fmt.Sprintf("From: %s\n", fromHeader) +
+		headers +
 			fmt.Sprintf("Subject: %s\n", SanitizeHeader(p.Subject)) +
 			mime +
 			fmt.Sprintf("<html><body>%s</body></html>", p.Body),

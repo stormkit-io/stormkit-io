@@ -6,4 +6,5 @@ type RequestData struct {
 	From    string `json:"from"`
 	Body    string `json:"body"`
 	Subject string `json:"subject"`
+	ReplyTo string `json:"replyTo"`
 }

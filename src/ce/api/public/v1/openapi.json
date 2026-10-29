@@ -2724,6 +2724,10 @@
                   "body": {
                     "type": "string",
                     "description": "Email body, rendered as HTML."
+                  },
+                  "replyTo": {
+                    "type": "string",
+                    "description": "Reply-To address, e.g. the visitor who filled in a contact form. Optional; may include a display name."
                   }
                 },
                 "required": [
