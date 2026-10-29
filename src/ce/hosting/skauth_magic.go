@@ -417,8 +417,8 @@ func sendMagicLinkEmail(req *shttp.RequestContext, env *buildconf.Env, prv *skau
 		return err
 	}
 
-	if env.MailerConf != nil {
-		return env.MailerConf.Send(params)
+	if mailer := env.Mailer(); mailer != nil {
+		return mailer.Send(params)
 	}
 
 	return nil

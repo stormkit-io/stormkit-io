@@ -36,6 +36,14 @@ func handlerMailerConfigSet(req *RequestContext) *shttp.Response {
 		return shttp.Error(err)
 	}
 
+	// Only refuse a switch to the instance mailer: an environment already on it
+	// keeps working once the admin sets one up again.
+	if config.UseDefault && !old.UseDefault && buildconf.InstanceMailer() == nil {
+		return shttp.BadRequest(map[string]any{
+			"error": "This instance has no default mailer. Ask the instance admin to configure one, or use custom SMTP settings.",
+		})
+	}
+
 	if err := buildconf.MailerStore().UpsertConfig(req.Context(), config); err != nil {
 		return shttp.Error(err)
 	}
@@ -45,14 +53,16 @@ func handlerMailerConfigSet(req *RequestContext) *shttp.Response {
 		// changing the host is enough to redirect an app's sign-in email.
 		diff := &audit.Diff{
 			Old: audit.DiffFields{
-				MailerHost:     old.Host,
-				MailerPort:     old.Port,
-				MailerUsername: old.Username,
+				MailerHost:       old.Host,
+				MailerPort:       old.Port,
+				MailerUsername:   old.Username,
+				MailerUseDefault: &old.UseDefault,
 			},
 			New: audit.DiffFields{
-				MailerHost:     config.Host,
-				MailerPort:     config.Port,
-				MailerUsername: config.Username,
+				MailerHost:       config.Host,
+				MailerPort:       config.Port,
+				MailerUsername:   config.Username,
+				MailerUseDefault: &config.UseDefault,
 			},
 		}
 
@@ -78,6 +88,9 @@ func handlerMailerConfigSet(req *RequestContext) *shttp.Response {
 
 	return &shttp.Response{
 		Status: http.StatusOK,
-		Data:   map[string]any{"config": config.JSON()},
+		Data: map[string]any{
+			"config":           config.JSON(),
+			"defaultAvailable": buildconf.InstanceMailer() != nil,
+		},
 	}
 }

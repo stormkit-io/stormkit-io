@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
@@ -117,6 +118,15 @@ type MailerConf struct {
 	Port     string   `json:"port"`
 	Username string   `json:"username"`
 	Password string   `json:"password"`
+
+	// UseDefault makes the environment send through the instance's mailer,
+	// configured by the instance admin, instead of SMTP settings of its own.
+	UseDefault bool `json:"useDefault,omitempty"`
+
+	// Sender, when set, is the From address of every email, whatever the
+	// caller asks for. The instance mailer sets it: a shared SMTP account can
+	// usually send only from the addresses it was verified for.
+	Sender string `json:"-"`
 }
 
 // Bytes uses the json marshaler to return the byte representation. It marshals
@@ -154,10 +164,11 @@ func (mc *MailerConf) JSON() map[string]any {
 	}
 
 	return map[string]any{
-		"host":     mc.Host,
-		"port":     mc.Port,
-		"username": mc.Username,
-		"password": password,
+		"host":       mc.Host,
+		"port":       mc.Port,
+		"username":   mc.Username,
+		"password":   password,
+		"useDefault": mc.UseDefault,
 	}
 }
 
@@ -184,9 +195,15 @@ func (mc *MailerConf) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
-	hash := map[string]string{}
+	stored := struct {
+		Host       string `json:"host"`
+		Port       string `json:"port"`
+		Username   string `json:"username"`
+		Password   string `json:"password"`
+		UseDefault bool   `json:"useDefault"`
+	}{}
 
-	if err := json.Unmarshal(data, &hash); err != nil {
+	if err := json.Unmarshal(data, &stored); err != nil {
 		return err
 	}
 
@@ -194,10 +211,11 @@ func (mc *MailerConf) UnmarshalJSON(data []byte) error {
 		mc = &MailerConf{}
 	}
 
-	mc.Username = utils.DecryptToString(hash["username"])
-	mc.Password = utils.DecryptToString(hash["password"])
-	mc.Host = hash["host"]
-	mc.Port = hash["port"]
+	mc.Username = utils.DecryptToString(stored.Username)
+	mc.Password = utils.DecryptToString(stored.Password)
+	mc.Host = stored.Host
+	mc.Port = stored.Port
+	mc.UseDefault = stored.UseDefault
 
 	return nil
 }
@@ -214,7 +232,7 @@ func SanitizeHeader(v string) string {
 // forms like `Acme <foo@bar.com>` are rejected by many SMTP servers with
 // a 501.
 func (mc *MailerConf) Send(p SendEmailParams) error {
-	fromHeader := SanitizeHeader(utils.GetString(p.From, mc.Username))
+	fromHeader := SanitizeHeader(mc.From(p.From))
 	port := utils.GetString(mc.Port, "587")
 	mime := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
 	msg := []byte(
@@ -239,6 +257,44 @@ func (mc *MailerConf) Send(p SendEmailParams) error {
 	}
 
 	return SendMailFunc(mc.Host+":"+port, auth, envelope, to, msg)
+}
+
+// From returns the From header of an email the caller wants sent from
+// requested: the forced Sender, the requested address, or the username.
+func (mc *MailerConf) From(requested string) string {
+	return utils.GetString(mc.Sender, requested, mc.Username)
+}
+
+// Mailer returns the SMTP settings env sends emails with: its own, the
+// instance mailer when it opted into that one, or nil when it has neither.
+func (env *Env) Mailer() *MailerConf {
+	if env == nil || env.MailerConf == nil {
+		return nil
+	}
+
+	if !env.MailerConf.UseDefault {
+		return env.MailerConf
+	}
+
+	return InstanceMailer()
+}
+
+// InstanceMailer returns the instance's default mailer, or nil when the admin
+// has not configured one.
+func InstanceMailer() *MailerConf {
+	cnf := admin.MustConfig().MailerConfig
+
+	if !cnf.IsConfigured() {
+		return nil
+	}
+
+	return &MailerConf{
+		Host:     cnf.Host,
+		Port:     cnf.Port,
+		Username: cnf.Username,
+		Password: cnf.Password,
+		Sender:   cnf.From,
+	}
 }
 
 type Email struct {

@@ -13,6 +13,21 @@ With just a few configuration settings, you can connect Stormkit Mailer to your 
 
 - Navigate to the Environments tab and select the environment (e.g., production or staging) where you want to set up email functionality.
 - Go to Config > Mailer Configuration.
+- Choose **Use the instance's default mailer** or **Use custom SMTP settings**.
+
+### Instance default mailer
+
+On a self-hosted instance, the instance admin can set up one SMTP account for the whole instance under **Admin** > **Mailer**: SMTP host, port, username, password and a **From** address. Each environment then chooses whether to use it or its own settings.
+
+An environment that uses the default mailer:
+
+- Sends every email from the instance's **From** address, whatever address the app asks for, since a shared SMTP account can usually only send from the addresses it was verified for.
+- Does not get a `MAILER_URL` environment variable, so the instance's SMTP credentials never reach app code. Send emails through the [Mailer API](/docs/api/mailer) instead.
+- Records its emails without sending them if the admin removes the default mailer, until it is configured again or the environment switches to custom settings.
+
+Use **Send test email** on the admin page to check the settings; the SMTP server's error is shown if it refuses the email.
+
+### Custom SMTP settings
 
 In the Mailer Configuration panel, you will find the following fields. Fill them out according to your SMTP provider’s details:
 
@@ -25,7 +40,7 @@ In the Mailer Configuration panel, you will find the following fields. Fill them
 
 ## Environment Variables
 
-When configured, Stormkit will inject the following environment variable at build time and make it available at runtime:
+When custom SMTP settings are configured, Stormkit will inject the following environment variable at build time and make it available at runtime:
 
 | Variable     | Description                                                     |
 | ------------ | --------------------------------------------------------------- |

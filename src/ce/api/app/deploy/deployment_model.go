@@ -164,8 +164,10 @@ func New(a *app.App) *Deployment {
 }
 
 // includeMailerVars includes the mailer variables into the deployment build config.
+// The instance mailer's credentials are never handed to app code: environments
+// that use it send through the mailer API instead.
 func (d *Deployment) includeMailerVars(mailer *buildconf.MailerConf) {
-	if mailer == nil {
+	if mailer == nil || mailer.UseDefault {
 		return
 	}
 

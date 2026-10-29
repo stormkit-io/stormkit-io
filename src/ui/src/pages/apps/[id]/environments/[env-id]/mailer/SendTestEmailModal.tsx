@@ -67,7 +67,7 @@ export default function SendTestEmailModal({
         // a failure would report a delivered email as unsent.
         if (delivered === false) {
           return setError(
-            "This environment has no SMTP configuration, so the email was recorded but never sent. Save a mailer configuration first."
+            "This environment has no SMTP configuration, so the email was recorded but never sent. Save a mailer configuration first.",
           );
         }
 

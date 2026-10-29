@@ -308,9 +308,11 @@ export default function AuditMessage({ audit }: Props) {
     case "UPDATE:MAILER":
       return (
         <AuditRow audit={audit} forceDiff>
-          {audit.diff.new.mailerPasswordChanged
-            ? "Updated mailer configuration (SMTP password changed)"
-            : "Updated mailer configuration"}{" "}
+          {audit.diff.new.mailerUseDefault && !audit.diff.old?.mailerUseDefault
+            ? "Switched mailer to the instance's default mailer"
+            : audit.diff.new.mailerPasswordChanged
+              ? "Updated mailer configuration (SMTP password changed)"
+              : "Updated mailer configuration"}{" "}
           in <EnvLink audit={audit} /> environment
         </AuditRow>
       );

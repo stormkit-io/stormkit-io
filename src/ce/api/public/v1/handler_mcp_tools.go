@@ -825,15 +825,16 @@ func mcpAllTools() []mcpToolDef {
 		},
 		{
 			Name:        "configure_mailer",
-			Description: "Set the SMTP configuration used to send transactional email for an environment, including Stormkit Auth magic links. Only the fields you provide are changed; omitted fields keep their current value. Changing smtpHost or username clears the stored password, so such a call must carry a new one - the placeholder a read returns is not accepted. Host, username and password must all be set before email can be sent. The password is write-only and is never returned.",
+			Description: "Set the SMTP configuration used to send transactional email for an environment, including Stormkit Auth magic links. Only the fields you provide are changed; omitted fields keep their current value. Changing smtpHost or username clears the stored password, so such a call must carry a new one - the placeholder a read returns is not accepted. Host, username and password must all be set before email can be sent, unless useDefault is true. Set useDefault to true to send through the instance's default mailer, configured by the instance admin, instead; emails then go out from the instance's sender address, and the environment's own settings are dropped. The password is write-only and is never returned.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"envId":    map[string]any{"type": "string", "description": "Environment ID."},
-					"smtpHost": map[string]any{"type": "string", "description": "SMTP server hostname (e.g. smtp.gmail.com)."},
-					"smtpPort": map[string]any{"type": "string", "description": "SMTP server port. Defaults to 587 when empty."},
-					"username": map[string]any{"type": "string", "description": "SMTP username, usually the sending email address."},
-					"password": map[string]any{"type": "string", "description": "SMTP password. Write-only: omit it to keep the stored password, except when changing smtpHost or username, which requires a new one."},
+					"envId":      map[string]any{"type": "string", "description": "Environment ID."},
+					"smtpHost":   map[string]any{"type": "string", "description": "SMTP server hostname (e.g. smtp.gmail.com)."},
+					"smtpPort":   map[string]any{"type": "string", "description": "SMTP server port. Defaults to 587 when empty."},
+					"username":   map[string]any{"type": "string", "description": "SMTP username, usually the sending email address."},
+					"password":   map[string]any{"type": "string", "description": "SMTP password. Write-only: omit it to keep the stored password, except when changing smtpHost or username, which requires a new one."},
+					"useDefault": map[string]any{"type": "boolean", "description": "true to use the instance's default mailer, false to use the SMTP settings given here. get_mailer_config reports whether the instance has a default mailer (defaultAvailable)."},
 				},
 				"required":             []string{"envId"},
 				"additionalProperties": false,
@@ -1863,6 +1864,10 @@ func mcpConfigureMailer(req *RequestContextMCP, id any, args map[string]any) *sh
 		SMTPPort: stringPtrArg(args, "smtpPort"),
 		Username: stringPtrArg(args, "username"),
 		Password: stringPtrArg(args, "password"),
+	}
+
+	if useDefault, ok := args["useDefault"].(bool); ok {
+		body.UseDefault = &useDefault
 	}
 
 	if resp := req.setBody(id, body); resp != nil {

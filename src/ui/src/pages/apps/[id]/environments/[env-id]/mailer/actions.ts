@@ -7,6 +7,8 @@ interface MailerConfig {
   username: string;
   // Never the real password: a placeholder marking that one is stored.
   password: string;
+  // Whether the environment sends through the instance's default mailer.
+  useDefault?: boolean;
 }
 
 export interface Email {
@@ -37,6 +39,7 @@ export const useFetchMailerConfig = ({
   refreshToken,
 }: FetchMailerConfigProps) => {
   const [config, setConfig] = useState<MailerConfig>();
+  const [defaultAvailable, setDefaultAvailable] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
 
@@ -45,11 +48,12 @@ export const useFetchMailerConfig = ({
     setError(undefined);
 
     api
-      .fetch<{ config: MailerConfig }>(
+      .fetch<{ config: MailerConfig; defaultAvailable?: boolean }>(
         `/v1/mailer/config?appId=${appId}&envId=${envId}`,
       )
-      .then(({ config }) => {
+      .then(({ config, defaultAvailable }) => {
         setConfig(config);
+        setDefaultAvailable(Boolean(defaultAvailable));
       })
       .catch(() => {
         setError("Something went wrong while fetching mailer config.");
@@ -59,7 +63,7 @@ export const useFetchMailerConfig = ({
       });
   }, [refreshToken, appId, envId]);
 
-  return { config, loading, error };
+  return { config, defaultAvailable, loading, error };
 };
 
 export const useFetchEmails = ({

@@ -67,7 +67,9 @@ interface Response {
     port: string
     username: string
     password: string // always the placeholder
+    useDefault: boolean // true when the environment uses the instance's default mailer
   } | null
+  defaultAvailable: boolean // whether the instance has a default mailer
 }
 ```
 
@@ -99,12 +101,20 @@ server or account. Send a new `password` in the same request when you change
 either; otherwise the request is rejected with `Password is a required field.`
 and nothing is written.
 
+Send `useDefault: true` to use the instance's default mailer, set up by the
+instance admin, instead. The environment's own SMTP settings are dropped,
+emails go out from the instance's sender address, and `MAILER_URL` is no
+longer injected into deployments. The request fails with a 400 when the
+instance has no default mailer. Send `useDefault: false` with a full set of
+SMTP settings to switch back.
+
 ```typescript
 interface Request {
   smtpHost?: string
   smtpPort?: string // defaults to 587
   username?: string
   password?: string
+  useDefault?: boolean
 }
 
 interface Response {
@@ -113,7 +123,9 @@ interface Response {
     port: string
     username: string
     password: string // always the placeholder
+    useDefault: boolean
   }
+  defaultAvailable: boolean
 }
 ```
 

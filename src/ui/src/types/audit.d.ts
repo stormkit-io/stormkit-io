@@ -31,6 +31,7 @@ declare interface DiffFields {
   mailerPort?: string;
   mailerUsername?: string;
   mailerPasswordChanged?: boolean;
+  mailerUseDefault?: boolean;
   authProviderName?: string;
   authProviderStatus?: boolean;
   authProviderFromAddress?: string;

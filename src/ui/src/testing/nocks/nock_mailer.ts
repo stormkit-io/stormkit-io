@@ -7,6 +7,7 @@ export interface MockMailerConfig {
   port: string;
   username: string;
   password: string;
+  useDefault?: boolean;
 }
 
 interface MockFetchMailerConfigProps {
@@ -14,7 +15,7 @@ interface MockFetchMailerConfigProps {
   envId?: string;
   teamId?: string;
   status?: number;
-  response?: { config: MockMailerConfig };
+  response?: { config: MockMailerConfig; defaultAvailable?: boolean };
 }
 
 export const mockFetchMailerConfig = ({
@@ -35,8 +36,9 @@ interface MockSetMailerConfigProps {
   smtpPort?: string;
   username?: string;
   password?: string;
+  useDefault?: boolean;
   status?: number;
-  response?: { ok: boolean };
+  response?: { ok: boolean } | { error: string };
 }
 
 export const mockSetMailerConfig = ({
@@ -46,19 +48,15 @@ export const mockSetMailerConfig = ({
   smtpPort,
   username,
   password,
+  useDefault = false,
   status = 200,
   response = { ok: true },
 }: MockSetMailerConfigProps) => {
-  return nock(endpoint)
-    .post(`/v1/mailer/config`, {
-      appId,
-      envId,
-      smtpHost,
-      smtpPort,
-      username,
-      password,
-    })
-    .reply(status, response);
+  const body = useDefault
+    ? { appId, envId, useDefault }
+    : { appId, envId, smtpHost, smtpPort, username, password, useDefault };
+
+  return nock(endpoint).post(`/v1/mailer/config`, body).reply(status, response);
 };
 
 export interface MockEmail {
@@ -114,7 +112,7 @@ export const mockSendTestEmail = ({
         to,
         body: "Test email body",
         subject: "Test email subject",
-      })
+      }),
     )
     .reply(200, { ok: true, delivered });
 };

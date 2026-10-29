@@ -136,7 +136,7 @@ func (m *skAuthMiddleware) login() *shttp.Response {
 		return shttp.BadRequest(map[string]any{"errors": []string{"invalid email or password"}})
 	}
 
-	if ctx.env.MailerConf != nil && authUser.VerifiedAt.IsZero() {
+	if ctx.env.Mailer() != nil && authUser.VerifiedAt.IsZero() {
 		return &shttp.Response{
 			Status: http.StatusForbidden,
 			Data:   map[string]any{"errors": []string{"please verify your email address before logging in"}},
@@ -192,7 +192,7 @@ func (m *skAuthMiddleware) register() *shttp.Response {
 		ProviderName: skauth.ProviderEmail,
 	}
 
-	if ctx.env.MailerConf != nil {
+	if ctx.env.Mailer() != nil {
 		verificationToken, err := generateEmailVerificationToken(ctx.env)
 
 		if err != nil {
@@ -214,7 +214,7 @@ func (m *skAuthMiddleware) register() *shttp.Response {
 		return shttp.Error(err, fmt.Sprintf("failed to register user: %s", err.Error()))
 	}
 
-	if ctx.env.MailerConf != nil {
+	if ctx.env.Mailer() != nil {
 		if err := sendVerificationEmail(req, ctx.env, ctx.email, oauth.VerificationToken); err != nil {
 			return shttp.Error(err, fmt.Sprintf("failed to send verification email: %s", err.Error()))
 		}
@@ -359,7 +359,13 @@ func sendVerificationEmail(req *shttp.RequestContext, env *buildconf.Env, email,
 	u := req.URL()
 	verifyLink := fmt.Sprintf("%s://%s/_stormkit/auth/verify?token=%s", u.Scheme, u.Host, token)
 
-	return env.MailerConf.Send(buildconf.SendEmailParams{
+	mailer := env.Mailer()
+
+	if mailer == nil {
+		return nil
+	}
+
+	return mailer.Send(buildconf.SendEmailParams{
 		To:      email,
 		Subject: "Verify your email address",
 		Body:    fmt.Sprintf(`<p>Click the link below to verify your email address:</p><p><a href="%s">%s</a></p>`, verifyLink, verifyLink),

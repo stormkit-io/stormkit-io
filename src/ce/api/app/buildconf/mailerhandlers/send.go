@@ -6,7 +6,6 @@ import (
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp/shttperr"
-	"github.com/stormkit-io/stormkit-io/src/lib/utils"
 )
 
 // SendAndRecordParams carries the environment to send from and the message.
@@ -41,10 +40,10 @@ func SendAndRecord(ctx context.Context, p SendAndRecordParams) (delivered bool, 
 	from := data.From
 	var sendErr error
 
-	if env.MailerConf != nil {
-		from = utils.GetString(data.From, env.MailerConf.Username)
+	if mailer := env.Mailer(); mailer != nil {
+		from = mailer.From(data.From)
 
-		sendErr = env.MailerConf.Send(buildconf.SendEmailParams{
+		sendErr = mailer.Send(buildconf.SendEmailParams{
 			To:      data.To,
 			From:    data.From,
 			Subject: data.Subject,

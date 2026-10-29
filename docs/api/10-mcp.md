@@ -154,7 +154,7 @@ Every tool carries MCP annotations (`readOnlyHint`, `destructiveHint`, `openWorl
 | Tool                | Description                                                                       |
 | ------------------- | --------------------------------------------------------------------------------- |
 | `get_mailer_config` | Read the SMTP settings of an environment. The password is never returned.          |
-| `configure_mailer`  | Set the SMTP settings. Partial: only the fields you pass change, except that changing `smtpHost` or `username` also requires a new `password`. |
+| `configure_mailer`  | Set the SMTP settings. Partial: only the fields you pass change, except that changing `smtpHost` or `username` also requires a new `password`. `useDefault: true` switches to the instance's default mailer. |
 | `send_test_email`   | Send an email through the configured SMTP server to verify the setup.              |
 | `list_emails`       | Return the last 100 emails recorded for an environment. No bodies; recipients masked.|
 

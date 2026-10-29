@@ -94,6 +94,7 @@ type DiffFields struct {
 	MailerPort               string                 `json:"mailerPort,omitempty"`
 	MailerUsername           string                 `json:"mailerUsername,omitempty"`
 	MailerPasswordChanged    *bool                  `json:"mailerPasswordChanged,omitempty"`
+	MailerUseDefault         *bool                  `json:"mailerUseDefault,omitempty"`
 	AuthProviderName         string                 `json:"authProviderName,omitempty"`
 	AuthProviderStatus       *bool                  `json:"authProviderStatus,omitempty"`
 	AuthProviderFromAddress  string                 `json:"authProviderFromAddress,omitempty"`

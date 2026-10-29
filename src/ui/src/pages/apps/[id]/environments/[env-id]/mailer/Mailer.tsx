@@ -1,7 +1,10 @@
-import { useState, useContext } from "react";
+import { useEffect, useState, useContext } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
+import Radio from "@mui/material/Radio";
+import RadioGroup from "@mui/material/RadioGroup";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import Typography from "@mui/material/Typography";
 import Link from "@mui/material/Link";
 import Card from "~/components/Card";
@@ -21,11 +24,16 @@ export default function TabMailer() {
   const [formError, setFormError] = useState<string>();
   const [isTestModalOpen, setIsTestModalOpen] = useState<boolean>(false);
   const [success, setSuccess] = useState<string>();
-  const { loading, error, config } = useFetchMailerConfig({
+  const { loading, error, config, defaultAvailable } = useFetchMailerConfig({
     appId: app.id,
     envId: env.id!,
     refreshToken,
   });
+  const [useDefault, setUseDefault] = useState(false);
+
+  useEffect(() => {
+    setUseDefault(Boolean(config?.useDefault));
+  }, [config]);
 
   const handleUpdateConfig: React.FormEventHandler = e => {
     e.preventDefault();
@@ -35,11 +43,18 @@ export default function TabMailer() {
       string
     >;
 
+    // The mode is sent as useDefault below, not as a form field.
+    delete data.mailerMode;
+
     setFormError(undefined);
     setSuccess(undefined);
 
+    const body = useDefault
+      ? { useDefault: true }
+      : { ...data, useDefault: false };
+
     api
-      .post("/v1/mailer/config", { appId: app.id, envId: env.id!, ...data })
+      .post("/v1/mailer/config", { appId: app.id, envId: env.id!, ...body })
       .then(() => {
         setSuccess("Mailer configuration saved successfully.");
         setRefreshToken(Date.now());
@@ -99,7 +114,9 @@ export default function TabMailer() {
                   <Typography sx={{ mt: 2 }}>
                     Note that if an environment already has a custom{" "}
                     <Box component="code">MAILER_URL</Box> configured, it won't
-                    be overwritten.
+                    be overwritten. It is not set when the environment uses the
+                    instance's default mailer: send emails through the mailer
+                    API instead.
                   </Typography>
                 </Box>
                 <Box sx={{ my: 4 }}>
@@ -147,7 +164,38 @@ export default function TabMailer() {
         }
       />
 
-      <Box sx={{ mb: 4 }}>
+      <RadioGroup
+        name="mailerMode"
+        value={useDefault ? "default" : "custom"}
+        onChange={e => setUseDefault(e.target.value === "default")}
+        sx={{ mb: 4 }}
+      >
+        <FormControlLabel
+          value="default"
+          control={<Radio />}
+          disabled={!defaultAvailable && !useDefault}
+          label={
+            defaultAvailable
+              ? "Use the instance's default mailer"
+              : "Use the instance's default mailer (not configured by the instance admin)"
+          }
+        />
+        <FormControlLabel
+          value="custom"
+          control={<Radio />}
+          label="Use custom SMTP settings"
+        />
+      </RadioGroup>
+
+      {useDefault && (
+        <Typography sx={{ mb: 4 }} color="text.secondary">
+          {defaultAvailable
+            ? "Emails are sent through the SMTP account the instance admin configured, from the sender address they set."
+            : "The instance admin removed the default mailer. Emails are recorded but not sent until they configure it again, or until you switch to custom settings."}
+        </Typography>
+      )}
+
+      <Box sx={{ mb: 4, display: useDefault ? "none" : "block" }}>
         <TextField
           label="SMTP Host"
           name="smtpHost"
@@ -158,7 +206,7 @@ export default function TabMailer() {
         />
       </Box>
 
-      <Box sx={{ mb: 4 }}>
+      <Box sx={{ mb: 4, display: useDefault ? "none" : "block" }}>
         <TextField
           label="SMTP Port"
           name="smtpPort"
@@ -169,7 +217,7 @@ export default function TabMailer() {
         />
       </Box>
 
-      <Box sx={{ mb: 4 }}>
+      <Box sx={{ mb: 4, display: useDefault ? "none" : "block" }}>
         <TextField
           label="Username"
           name="username"
@@ -180,7 +228,7 @@ export default function TabMailer() {
         />
       </Box>
 
-      <Box sx={{ mb: 4 }}>
+      <Box sx={{ mb: 4, display: useDefault ? "none" : "block" }}>
         <TextField
           type="password"
           label="Password"

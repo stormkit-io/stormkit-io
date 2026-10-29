@@ -16,6 +16,10 @@ type ConfigUpdateRequest struct {
 	Password *string `json:"password"`
 	SMTPHost *string `json:"smtpHost"`
 	SMTPPort *string `json:"smtpPort"`
+
+	// UseDefault switches the environment to the instance's mailer (true) or
+	// back to SMTP settings of its own (false).
+	UseDefault *bool `json:"useDefault"`
 }
 
 // ApplyConfigUpdate validates data and merges its provided fields into conf in
@@ -31,7 +35,20 @@ type ConfigUpdateRequest struct {
 // account, so changing the host or the username drops the stored password.
 // Otherwise a caller who is never allowed to read it could repoint the config
 // at a server it controls and have Send hand the credential over.
+//
+// Switching to the instance mailer drops the environment's own settings, so no
+// unused credential is left behind. Whether the instance has a mailer is for
+// the caller to check.
 func ApplyConfigUpdate(conf *buildconf.MailerConf, data ConfigUpdateRequest) error {
+	if data.UseDefault != nil {
+		conf.UseDefault = *data.UseDefault
+	}
+
+	if conf.UseDefault {
+		*conf = buildconf.MailerConf{EnvID: conf.EnvID, UseDefault: true}
+		return nil
+	}
+
 	previousHost := conf.Host
 	previousUsername := conf.Username
 

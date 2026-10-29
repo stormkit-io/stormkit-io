@@ -2800,6 +2800,10 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "defaultAvailable": {
+                      "type": "boolean",
+                      "description": "Whether the instance has a default mailer the environment can use with `useDefault`."
                     }
                   }
                 }
@@ -2817,7 +2821,7 @@
       "post": {
         "operationId": "setMailerConfig",
         "summary": "Update the SMTP configuration",
-        "description": "Update the SMTP configuration of an environment. Only the fields you send are changed. `password` is write-only: omit it to keep the stored one. Changing `smtpHost` or `username` clears the stored password, so those calls must carry a new one.",
+        "description": "Update the SMTP configuration of an environment. Only the fields you send are changed. `password` is write-only: omit it to keep the stored one. Changing `smtpHost` or `username` clears the stored password, so those calls must carry a new one. Send `useDefault: true` to use the instance's default mailer instead: the environment's own settings are dropped and emails go out from the instance's sender address.",
         "tags": [
           "Mailer"
         ],
@@ -2847,6 +2851,10 @@
                   "password": {
                     "type": "string",
                     "description": "SMTP password. Write-only and never returned."
+                  },
+                  "useDefault": {
+                    "type": "boolean",
+                    "description": "`true` to send through the instance's default mailer, `false` to use the SMTP settings sent here. Switching to the default fails with 400 when the instance has none."
                   }
                 },
                 "additionalProperties": false
@@ -2864,6 +2872,10 @@
                   "properties": {
                     "config": {
                       "$ref": "#/components/schemas/MailerConfig"
+                    },
+                    "defaultAvailable": {
+                      "type": "boolean",
+                      "description": "Whether the instance has a default mailer the environment can use with `useDefault`."
                     }
                   }
                 }
@@ -4407,6 +4419,10 @@
           "password": {
             "type": "string",
             "description": "Always the placeholder `****-****-****-****` when a password is stored."
+          },
+          "useDefault": {
+            "type": "boolean",
+            "description": "Whether the environment sends through the instance's default mailer. The other fields are then empty."
           }
         }
       },

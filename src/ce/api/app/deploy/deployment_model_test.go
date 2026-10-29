@@ -329,6 +329,23 @@ func (s *DeploymentModelSuite) Test_PopulateFromEnv_MailerOnlyWithNoVars() {
 	s.Equal("smtp://test-user:test-pwd@smtp.gmail.com:587", dep.BuildConfig.Vars["MAILER_URL"])
 }
 
+// Test_PopulateFromEnv_InstanceMailerNotInjected verifies that the instance
+// mailer's credentials are never handed to app code.
+func (s *DeploymentModelSuite) Test_PopulateFromEnv_InstanceMailerNotInjected() {
+	dep := &deploy.Deployment{}
+	env := &buildconf.Env{
+		ID:         16,
+		Name:       "production",
+		Branch:     "main",
+		Data:       &buildconf.BuildConf{},
+		MailerConf: &buildconf.MailerConf{UseDefault: true},
+	}
+
+	dep.PopulateFromEnv(env)
+
+	s.Empty(dep.BuildConfig.Vars["MAILER_URL"])
+}
+
 func (s *DeploymentModelSuite) Test_PopulateFromEnv() {
 	dep := &deploy.Deployment{}
 	env := &buildconf.Env{

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/smtp"
 	"net/url"
 	"strings"
 	"testing"
@@ -15,6 +16,7 @@ import (
 
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/skauth"
@@ -219,6 +221,43 @@ func (s *WithSKAuthMagicLinkSuite) Test_Request_Success() {
 	s.Equal("user@example.com", emails[0].To)
 	s.Contains(emails[0].Body, "_stormkit/auth/magic?token=")
 	s.Equal("Your magic link", emails[0].Subject)
+}
+
+// Test_Request_InstanceMailer verifies that an environment on the instance
+// mailer sends magic links through it, from the instance's sender.
+func (s *WithSKAuthMagicLinkSuite) Test_Request_InstanceMailer() {
+	defer admin.ResetCache(context.Background())
+	defer func() { buildconf.SendMailFunc = buildconf.SendMailWithDeadline }()
+
+	cnf := admin.MustConfig().Clone()
+	cnf.MailerConfig = &admin.MailerConfig{
+		Host:     "smtp.instance.test",
+		Username: "instance-user",
+		Password: "instance-secret",
+		From:     "Stormkit <noreply@instance.test>",
+	}
+
+	s.Require().NoError(admin.Store().UpsertConfig(context.Background(), cnf))
+
+	env, err := s.setupEnv()
+	s.Require().NoError(err)
+	s.Require().NoError(buildconf.MailerStore().UpsertConfig(context.Background(), &buildconf.MailerConf{EnvID: env.ID, UseDefault: true}))
+
+	var sentAddr, sentFrom string
+	var sentTo []string
+
+	buildconf.SendMailFunc = func(addr string, _ smtp.Auth, from string, to []string, _ []byte) error {
+		sentAddr, sentFrom, sentTo = addr, from, to
+		return nil
+	}
+
+	res, err := hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), "/_stormkit/auth/magic?email=user@example.com"))
+
+	s.NoError(err)
+	s.Equal(http.StatusCreated, res.Status)
+	s.Equal("smtp.instance.test:587", sentAddr)
+	s.Equal("noreply@instance.test", sentFrom)
+	s.Equal([]string{"user@example.com"}, sentTo)
 }
 
 // Test_Request_CustomSubjectAndBody verifies the stored subject and body

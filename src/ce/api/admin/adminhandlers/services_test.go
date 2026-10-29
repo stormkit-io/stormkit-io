@@ -20,10 +20,12 @@ func (s *ServicesSuite) Test_Services_SelfHosted() {
 	s.NotNil(services)
 
 	handlers := []string{
+		"DELETE:/admin/mailer",
 		"GET:/admin/access-logs",
 		"GET:/admin/domains",
 		"GET:/admin/git/details",
 		"GET:/admin/git/github/callback",
+		"GET:/admin/mailer",
 		"GET:/admin/system/mise",
 		"GET:/admin/system/proxies",
 		"GET:/admin/system/runtimes",
@@ -36,6 +38,8 @@ func (s *ServicesSuite) Test_Services_SelfHosted() {
 		"POST:/admin/jobs/remove-old-artifacts",
 		"POST:/admin/jobs/sync-analytics",
 		"POST:/admin/license",
+		"POST:/admin/mailer",
+		"POST:/admin/mailer/test",
 		"POST:/admin/system/mise",
 		"POST:/admin/system/runtimes",
 		"POST:/admin/users/manage",
@@ -55,11 +59,13 @@ func (s *ServicesSuite) Test_Services_Cloud() {
 
 	handlers := []string{
 		"DELETE:/admin/cloud/app",
+		"DELETE:/admin/mailer",
 		"GET:/admin/access-logs",
 		"GET:/admin/cloud/app",
 		"GET:/admin/domains",
 		"GET:/admin/git/details",
 		"GET:/admin/git/github/callback",
+		"GET:/admin/mailer",
 		"GET:/admin/system/mise",
 		"GET:/admin/system/proxies",
 		"GET:/admin/system/runtimes",
@@ -73,6 +79,8 @@ func (s *ServicesSuite) Test_Services_Cloud() {
 		"POST:/admin/jobs/remove-old-artifacts",
 		"POST:/admin/jobs/sync-analytics",
 		"POST:/admin/license",
+		"POST:/admin/mailer",
+		"POST:/admin/mailer/test",
 		"POST:/admin/system/mise",
 		"POST:/admin/system/runtimes",
 		"POST:/admin/users/manage",

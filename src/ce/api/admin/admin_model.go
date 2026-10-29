@@ -146,6 +146,47 @@ type InstanceConfig struct {
 	AuthConfig         *AuthConfig            `json:"auth,omitempty"`
 	DomainConfig       *DomainConfig          `json:"domains,omitempty"`
 	AnalyticsScript    *AnalyticsScriptConfig `json:"analyticsScript,omitempty"`
+	MailerConfig       *MailerConfig          `json:"mailer,omitempty"`
+}
+
+// MailerConfig is the instance's default SMTP account. Environments that opt
+// in send their emails through it, always from From.
+type MailerConfig struct {
+	Host     string `json:"host"`
+	Port     string `json:"port,omitempty"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	From     string `json:"from"`
+}
+
+// IsConfigured reports whether the instance mailer can send emails.
+func (mc *MailerConfig) IsConfigured() bool {
+	return mc != nil && mc.Host != "" && mc.Username != "" && mc.Password != "" && mc.From != ""
+}
+
+// MailerPasswordPlaceholder stands in for the stored SMTP password in
+// responses. Sending it back keeps the stored password.
+const MailerPasswordPlaceholder = "****-****-****-****"
+
+// JSON renders the mailer for API responses, without the password.
+func (mc *MailerConfig) JSON() map[string]any {
+	if mc == nil {
+		return nil
+	}
+
+	password := ""
+
+	if mc.Password != "" {
+		password = MailerPasswordPlaceholder
+	}
+
+	return map[string]any{
+		"host":     mc.Host,
+		"port":     mc.Port,
+		"username": mc.Username,
+		"password": password,
+		"from":     mc.From,
+	}
 }
 
 // AnalyticsScriptConfig holds an admin-supplied override for the client-side
@@ -193,6 +234,11 @@ func (c *InstanceConfig) Scan(val any) error {
 		c.LicenseConfig.Key = utils.DecryptToString(c.LicenseConfig.Key)
 	}
 
+	if c.MailerConfig != nil {
+		c.MailerConfig.Username = utils.DecryptToString(c.MailerConfig.Username)
+		c.MailerConfig.Password = utils.DecryptToString(c.MailerConfig.Password)
+	}
+
 	if c.AuthConfig != nil {
 		c.AuthConfig.Github.ClientSecret = utils.DecryptToString(c.AuthConfig.Github.ClientSecret)
 		c.AuthConfig.Github.PrivateKey = utils.DecryptToString(c.AuthConfig.Github.PrivateKey)
@@ -218,6 +264,15 @@ func (c InstanceConfig) Value() (driver.Value, error) {
 
 	if c.LicenseConfig != nil && c.LicenseConfig.Key != "" {
 		c.LicenseConfig.Key = utils.EncryptToString(c.LicenseConfig.Key)
+	}
+
+	// Value has a value receiver, but MailerConfig is a pointer shared with the
+	// cached config, so the encrypted copy must not be written through it.
+	if c.MailerConfig != nil {
+		mailer := *c.MailerConfig
+		mailer.Username = utils.EncryptToString(mailer.Username)
+		mailer.Password = utils.EncryptToString(mailer.Password)
+		c.MailerConfig = &mailer
 	}
 
 	if c.AuthConfig != nil {
@@ -280,6 +335,11 @@ func (vc InstanceConfig) Clone() InstanceConfig {
 	if vc.WorkerserverConfig != nil {
 		v := *vc.WorkerserverConfig
 		out.WorkerserverConfig = &v
+	}
+
+	if vc.MailerConfig != nil {
+		v := *vc.MailerConfig
+		out.MailerConfig = &v
 	}
 
 	if vc.SystemConfig != nil {

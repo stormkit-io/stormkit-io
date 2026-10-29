@@ -40,6 +40,12 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodGet, "", user.WithAdmin(handlerAdminDomainsGet)).
 		Handler(shttp.MethodPost, "", user.WithAdmin(handlerAdminDomainsSet))
 
+	s.NewEndpoint("/admin/mailer").
+		Handler(shttp.MethodGet, "", user.WithAdmin(handlerAdminMailerGet)).
+		Handler(shttp.MethodPost, "", user.WithAdmin(handlerAdminMailerSet)).
+		Handler(shttp.MethodDelete, "", user.WithAdmin(handlerAdminMailerDelete)).
+		Handler(shttp.MethodPost, "/test", user.WithAdmin(handlerAdminMailerTestSend))
+
 	s.NewEndpoint("/admin/users").
 		Handler(shttp.MethodGet, "/sign-up-mode", user.WithAdmin(handlerUserManagementGet)).
 		Handler(shttp.MethodPost, "/sign-up-mode", user.WithAdmin(handlerUserManagementSet)).
