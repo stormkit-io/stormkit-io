@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/authwall"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/authwall/authwallhandlers"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -59,6 +61,18 @@ func (s *HandlerTeamLoginsSuite) Test_Success() {
 	s.Equal(bob.LoginID.String(), second["id"])
 	s.Equal([]any{s.tf.app.ID.String(), s.tf.otherApp.ID.String()}, second["appIds"])
 	s.NotContains(second, "password")
+	s.Equal(false, body["magicLinkAvailable"])
+}
+
+// Test_MagicLinkAvailable verifies that the list tells whether sign-in links
+// can be sent.
+func (s *HandlerTeamLoginsSuite) Test_MagicLinkAvailable() {
+	defer authwallhandlers.StubMagicLinkEmail(true, func(authwall.SendMagicLinkParams) {})()
+
+	response := s.tf.request(s.tf.owner, shttp.MethodGet, s.path(), nil)
+
+	s.Equal(http.StatusOK, response.Code)
+	s.Equal(true, response.Map()["magicLinkAvailable"])
 }
 
 // Test_Success_DeletedApp verifies that a deleted app is no longer listed

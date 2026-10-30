@@ -20,12 +20,16 @@ describe("~/pages/team/auth-wall/AuthWallLoginModal.tsx", () => {
     { id: "2", displayName: "docs", environments: [] },
   ];
 
-  const createWrapper = (login?: TeamAuthWallLogin) => {
+  const createWrapper = (
+    login?: TeamAuthWallLogin,
+    { magicLinkAvailable = true } = {},
+  ) => {
     wrapper = render(
       <AuthWallLoginModal
         team={team}
         apps={apps}
         login={login}
+        magicLinkAvailable={magicLinkAvailable}
         onClose={onClose}
         onSuccess={onSuccess}
       />,
@@ -254,5 +258,42 @@ describe("~/pages/team/auth-wall/AuthWallLoginModal.tsx", () => {
       expect(scope.isDone()).toBe(true);
       expect(onSuccess).toHaveBeenCalled();
     });
+  });
+
+  it("does not offer magic links without a mailer", () => {
+    createWrapper(undefined, { magicLinkAvailable: false });
+
+    const checkbox = wrapper.getByLabelText(
+      "Allow signing in with a link sent by email",
+    ) as HTMLInputElement;
+
+    expect(checkbox.disabled).toBe(true);
+    expect(
+      wrapper.getByText(
+        "Configure a mailer under Admin > Mailer to use magic links.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("lets a login keep or drop magic links without a mailer", () => {
+    createWrapper(
+      {
+        id: "7",
+        email: "jane@example.org",
+        metadata: "",
+        magicLink: true,
+        hasPassword: true,
+        allApps: true,
+        appIds: [],
+      },
+      { magicLinkAvailable: false },
+    );
+
+    const checkbox = wrapper.getByLabelText(
+      "Allow signing in with a link sent by email",
+    ) as HTMLInputElement;
+
+    expect(checkbox.disabled).toBe(false);
+    expect(checkbox.checked).toBe(true);
   });
 });

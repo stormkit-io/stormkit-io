@@ -58,7 +58,7 @@ A login that allows magic links can sign in without a password. On the login pag
 - To allow magic links, check **Allow signing in with a link sent by email** when adding or editing a login. To make the login link-only, leave the password empty when adding it, or check **Remove the password** when editing it.
 - The page always says a link was sent, so it doesn't reveal which emails have a login. Only logins that allow magic links and open the app get one.
 - A link stops working once it's used, once it expires, or when the login is removed, stops allowing magic links or loses access to the app.
-- Links are sent with the instance's system email. On self-hosted installations, configure SMTP or the instance's default mailer (**Admin** > **Mailer**). Until one is configured, the login page doesn't offer magic links.
+- Links are sent with the instance's system email. On self-hosted installations, configure SMTP or the instance's default mailer (**Admin** > **Mailer**). Until one is configured, magic links can't be turned on for a login and the login page doesn't offer them. Logins that already allow them keep the setting, and the **Logins** tab warns about logins that sign in with magic links only, since they can't sign in until a mailer is configured or they get a password.
 
 The **Continue** step is there because some email providers open links to scan them before you do. Without it, the scan would use the link up.
 

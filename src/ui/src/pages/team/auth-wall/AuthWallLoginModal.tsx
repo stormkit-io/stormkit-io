@@ -5,6 +5,7 @@ import Button from "@mui/material/Button";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
 import Modal from "~/components/Modal";
 import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
@@ -18,6 +19,8 @@ interface Props {
 
   // login is the login to edit. When missing, a new login is created.
   login?: TeamAuthWallLogin;
+
+  magicLinkAvailable?: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -26,6 +29,7 @@ export default function AuthWallLoginModal({
   team,
   apps,
   login,
+  magicLinkAvailable = true,
   onClose,
   onSuccess,
 }: Props) {
@@ -36,6 +40,8 @@ export default function AuthWallLoginModal({
   const [magicLink, setMagicLink] = useState(login?.magicLink ?? false);
   const [removePassword, setRemovePassword] = useState(false);
   const hasPassword = login?.hasPassword !== false;
+
+  const canEnableMagicLink = magicLinkAvailable || !!login?.magicLink;
 
   const submitHandler: FormEventHandler = e => {
     e.preventDefault();
@@ -144,6 +150,7 @@ export default function AuthWallLoginModal({
           <Box sx={{ mb: 4 }}>
             <FormControlLabel
               label="Allow signing in with a link sent by email"
+              disabled={!canEnableMagicLink}
               control={
                 <Checkbox
                   color="secondary"
@@ -158,6 +165,15 @@ export default function AuthWallLoginModal({
                 />
               }
             />
+            {!canEnableMagicLink && (
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ ml: 4, mb: 1 }}
+              >
+                Configure a mailer under Admin &gt; Mailer to use magic links.
+              </Typography>
+            )}
             {login && hasPassword && magicLink && (
               <FormControlLabel
                 label="Remove the password, so the login signs in with links only"
