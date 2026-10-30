@@ -61,6 +61,14 @@ Stormkit removes these headers from incoming requests, so a visitor can't set th
 
 The metadata is captured when the visitor logs in: a change reaches your app on the visitor's next login. Admins can see it, so don't put secrets in it.
 
+## Periodic triggers
+
+[Periodic triggers](/docs/features/periodic-triggers) pass the wall of their own environment without a login. When a trigger calls one of the environment's Stormkit URLs or verified custom domains over HTTPS, Stormkit signs the request, and the wall lets it through. Signed requests don't follow redirects, so point the trigger at the final URL.
+
+Your app receives the trigger's ID in the `X-Auth-Wall-Trigger` header. As with the login headers, Stormkit removes it from incoming requests, so a visitor can't set it.
+
+Triggers that call any other host, another environment of the same app, or a plain HTTP URL are not signed and still hit the wall.
+
 ## Best Practices
 
 - **Limit access**: Give each login only the apps it needs, and use **All apps** sparingly.
@@ -73,6 +81,8 @@ The metadata is captured when the visitor logs in: a change reaches your app on 
 - **A visitor cannot access the deployment**:
   - Check that the login has access to the app, or to all apps.
   - Verify that the visitor is logging in with the correct credentials.
+- **A periodic trigger gets the login page**:
+  - Check that the trigger's URL starts with `https://` and is a Stormkit URL or a verified custom domain of the trigger's own environment.
 - **The deployment is still public**:
   - Check the environment's mode. With **Deployment previews only**, custom domains remain public.
 - **A removed visitor can still access the deployment**:

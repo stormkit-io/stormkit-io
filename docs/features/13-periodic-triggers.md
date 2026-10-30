@@ -88,6 +88,15 @@ available; host/system variables are never exposed to a trigger.
 
 </section>
 
+## Auth Wall
+
+A trigger passes the [Auth Wall](/docs/features/auth-wall) of its own
+environment without a login, as long as its URL is an `https://` URL on one of
+the environment's Stormkit URLs or verified custom domains. Your app receives
+the trigger's ID in the `X-Auth-Wall-Trigger` header. These requests don't
+follow redirects, so use the final URL. Requests to any other host are sent as
+is.
+
 ## Debugging
 
 Stormkit saves the request and response for each periodic task. You can view the last 25 logs for each trigger by expanding the dot menu `(...)` and clicking on the `Past triggers` menu item.

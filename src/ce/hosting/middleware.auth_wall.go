@@ -21,6 +21,10 @@ var stormkitErrors = map[string]string{
 const (
 	HeaderAuthWallEmail    = "X-Auth-Wall-Email"
 	HeaderAuthWallMetadata = "X-Auth-Wall-Metadata"
+
+	// HeaderAuthWallTrigger carries the ID of the periodic trigger that sent
+	// the request, when the request came through the wall as one.
+	HeaderAuthWallTrigger = "X-Auth-Wall-Trigger"
 )
 
 // WithAuthWall shows the login form to visitors of a protected environment
@@ -29,12 +33,23 @@ func WithAuthWall(req *RequestContext) (*shttp.Response, error) {
 	// Only the wall sets these, so a visitor cannot pose as a login.
 	req.Header.Del(HeaderAuthWallEmail)
 	req.Header.Del(HeaderAuthWallMetadata)
+	req.Header.Del(HeaderAuthWallTrigger)
+
+	// The trigger's token never reaches the app, which could otherwise replay
+	// it while it is still valid.
+	triggerToken := req.Header.Get(authwall.HeaderTriggerToken)
+	req.Header.Del(authwall.HeaderTriggerToken)
 
 	if !req.Host.IsAuthWallProtected() {
 		return nil, nil
 	}
 
 	tokens := authwall.Token{EnvID: req.Host.Config.EnvID}
+
+	if triggerID := tokens.ParseTrigger(triggerToken); triggerID != 0 {
+		req.Header.Set(HeaderAuthWallTrigger, triggerID.String())
+		return nil, nil
+	}
 
 	// Already logged in for this environment
 	if cookie, err := req.Cookie(SESSION_COOKIE_NAME); cookie != nil && err == nil {

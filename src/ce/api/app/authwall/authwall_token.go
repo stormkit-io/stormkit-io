@@ -20,7 +20,15 @@ const (
 
 	// sessionMaxMins is how long a visitor stays logged in.
 	sessionMaxMins = 24 * 60
+
+	// triggerMaxMins is how long a trigger's token opens the wall. A token is
+	// issued for every run, so it only has to outlive the request.
+	triggerMaxMins = 5
 )
+
+// HeaderTriggerToken carries the token that lets a periodic trigger's request
+// through the wall of the trigger's environment.
+const HeaderTriggerToken = "X-Stormkit-Trigger-Token"
 
 // Token issues and verifies the tokens of an environment's Auth Wall. Every
 // token carries its purpose and environment, so the login form's token is not
@@ -69,6 +77,31 @@ func (t Token) Session(s Session) (string, error) {
 			"login": utils.EncryptToString(string(login)),
 		},
 	})
+}
+
+// Trigger returns the token a run of the given trigger sends to pass the wall.
+func (t Token) Trigger(triggerID types.ID) (string, error) {
+	return user.JWT(user.JWTParams{
+		Purpose: user.PurposeAuthWallTrigger,
+		Claims: jwt.MapClaims{
+			"envId":     t.EnvID.String(),
+			"triggerId": triggerID.String(),
+		},
+	})
+}
+
+// ParseTrigger verifies a trigger token of this environment and returns the
+// trigger it was issued for, or 0 when the token is not one.
+func (t Token) ParseTrigger(token string) types.ID {
+	claims := t.verify(verifyParams{token: token, purpose: user.PurposeAuthWallTrigger, maxMins: triggerMaxMins})
+
+	if claims == nil {
+		return 0
+	}
+
+	triggerID, _ := claims["triggerId"].(string)
+
+	return utils.StringToID(triggerID)
 }
 
 // Form is a verified login form token of an environment.
