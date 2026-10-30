@@ -96,6 +96,7 @@ func (s *JobTriggerFunctionsSuite) generateMockMessage() []byte {
 
 		messages = append(messages, jobs.FunctionTriggerMessage{
 			ID:          tf.ID,
+			EnvID:       tf.EnvID,
 			URL:         tf.Options.URL,
 			Payload:     tf.Options.Payload,
 			Headers:     tf.Options.Headers,

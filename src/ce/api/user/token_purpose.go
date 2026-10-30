@@ -30,6 +30,10 @@ const (
 
 	// PurposeAuthWallSession is an Auth Wall visitor session.
 	PurposeAuthWallSession Purpose = "auth-wall-session"
+
+	// PurposeAuthWallTrigger lets a periodic trigger's request through an
+	// Auth Wall.
+	PurposeAuthWallTrigger Purpose = "auth-wall-trigger"
 )
 
 // Tokens signed with an environment's Stormkit Auth secret.
@@ -62,6 +66,7 @@ var AllPurposes = []Purpose{
 	PurposeVolumeDownload,
 	PurposeAuthWallForm,
 	PurposeAuthWallSession,
+	PurposeAuthWallTrigger,
 	PurposeSkAuthSession,
 	PurposeSkAuthAccessToken,
 	PurposeSkAuthMagicLink,

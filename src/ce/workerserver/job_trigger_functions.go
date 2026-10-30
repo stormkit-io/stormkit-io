@@ -23,6 +23,7 @@ const triggerRetryWindow = 5 * time.Minute
 
 type FunctionTriggerMessage struct {
 	ID      types.ID      `json:"id,string"`
+	EnvID   types.ID      `json:"envId"`
 	Payload []byte        `json:"payload"`
 	Headers shttp.Headers `json:"headers"`
 	Method  string        `json:"method"`
@@ -84,6 +85,7 @@ func InvokeDueFunctionTriggers(ctx context.Context) error {
 			Headers:     opts.Headers,
 			Method:      opts.Method,
 			ID:          tf.ID,
+			EnvID:       tf.EnvID,
 			NextRunAt:   utils.UnixFrom(nextRunAt),
 			ScheduledAt: tf.NextRunAt,
 		})
@@ -115,7 +117,9 @@ func HandleFunctionTrigger(ctx context.Context, t *asynq.Task) error {
 
 	for _, tf := range tfs {
 		log, err := functiontrigger.Run(functiontrigger.RunParams{
+			Context:   ctx,
 			TriggerID: tf.ID,
+			EnvID:     tf.EnvID,
 			Method:    tf.Method,
 			URL:       tf.URL,
 			Headers:   tf.Headers,

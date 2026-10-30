@@ -42,7 +42,9 @@ func handlerFunctionTriggerInvoke(req *RequestContext) *shttp.Response {
 	}
 
 	log, _ := functiontrigger.Run(functiontrigger.RunParams{
+		Context:   req.Context(),
 		TriggerID: trigger.ID,
+		EnvID:     trigger.EnvID,
 		Method:    opts.Method,
 		URL:       opts.URL,
 		Headers:   opts.Headers,
