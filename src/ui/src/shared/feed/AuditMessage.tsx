@@ -261,6 +261,20 @@ export default function AuditMessage({ audit }: Props) {
       );
 
     case "UPDATE:AUTHWALL":
+      // Only the public paths changed when the mode stayed the same.
+      if (
+        (audit.diff.new.authWallPublicPaths ||
+          audit.diff.old?.authWallPublicPaths) &&
+        audit.diff.old?.authWallStatus === audit.diff.new.authWallStatus
+      ) {
+        return (
+          <AuditRow audit={audit} forceDiff>
+            Updated auth wall public paths in <EnvLink audit={audit} />{" "}
+            environment
+          </AuditRow>
+        );
+      }
+
       return (
         <AuditRow audit={audit} forceDiff>
           {audit.diff.new.authWallStatus === "off" ? "Disabled" : "Enabled"}{" "}

@@ -75,8 +75,12 @@ type Config struct {
 
 	CustomHeaders []deploy.CustomHeader `json:"-"` // Parsed user-configured header rules; matched against request path at response time.
 	SKAuth        *buildconf.SKAuthConf `json:"-"`
-	AuthWall      string                `json:"authWall,omitempty"`     // Whether to display an auth wall or not. Possible values: dev | all
-	IsEnterprise  bool                  `json:"isEnterprise,omitempty"` // Whether the app is running in enterprise mode
+	AuthWall      string                `json:"authWall,omitempty"` // Whether to display an auth wall or not. Possible values: dev | all
+
+	// AuthWallPublicPaths skip the auth wall. See authwall.IsPublicPath.
+	AuthWallPublicPaths []string `json:"authWallPublicPaths,omitempty"`
+
+	IsEnterprise bool `json:"isEnterprise,omitempty"` // Whether the app is running in enterprise mode
 
 	// AnalyticsExcluded mirrors the domain's opt-out. Requests served through
 	// this host are still access-logged, but never reach visitor analytics.

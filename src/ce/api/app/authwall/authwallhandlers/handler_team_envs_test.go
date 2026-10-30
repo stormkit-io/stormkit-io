@@ -36,7 +36,7 @@ func (s *HandlerTeamEnvsSuite) AfterTest(_, _ string) {
 // Test_Success verifies that every member sees the team's apps with the mode
 // of each environment's wall, and nothing of other teams.
 func (s *HandlerTeamEnvsSuite) Test_Success() {
-	s.Require().NoError(authwall.Store().SetAuthWallConfig(context.Background(), s.tf.env.ID, &authwall.Config{Status: authwall.StatusDev}))
+	s.Require().NoError(authwall.Store().SetAuthWallConfig(context.Background(), s.tf.env.ID, &authwall.Config{Status: authwall.StatusDev, PublicPaths: []string{"/api/webhooks/*"}}))
 	newTeamFixture(&s.Suite, s.Factory)
 
 	response := s.tf.request(s.tf.developer, shttp.MethodGet, fmt.Sprintf("/team/auth-wall/envs?teamId=%s", s.tf.team.ID), nil)
@@ -49,7 +49,12 @@ func (s *HandlerTeamEnvsSuite) Test_Success() {
 	app := apps[0].(map[string]any)
 	s.Equal(s.tf.app.ID.String(), app["id"])
 	s.Equal([]any{
-		map[string]any{"id": s.tf.env.ID.String(), "name": s.tf.env.Name, "authWall": "dev"},
+		map[string]any{
+			"id":          s.tf.env.ID.String(),
+			"name":        s.tf.env.Name,
+			"authWall":    "dev",
+			"publicPaths": []any{"/api/webhooks/*"},
+		},
 	}, app["environments"])
 }
 

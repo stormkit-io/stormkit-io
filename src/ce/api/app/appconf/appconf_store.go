@@ -429,6 +429,7 @@ func rowsToConfigs(rows *sql.Rows, err error) ([]*Config, error) {
 
 		if authwall.Status != "" {
 			cnf.AuthWall = authwall.Status
+			cnf.AuthWallPublicPaths = authwall.PublicPaths
 		}
 
 		if authConf != nil {

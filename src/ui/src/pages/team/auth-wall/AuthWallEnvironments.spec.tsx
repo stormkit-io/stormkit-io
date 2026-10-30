@@ -3,7 +3,10 @@ import type { TeamAuthWallApp } from "./actions";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, fireEvent, waitFor } from "@testing-library/react";
 import mockTeams from "~/testing/data/mock_teams";
-import { mockUpdateEnvAuthWall } from "~/testing/nocks/nock_team_auth_wall";
+import {
+  mockUpdateEnvAuthWall,
+  mockUpdateEnvPublicPaths,
+} from "~/testing/nocks/nock_team_auth_wall";
 import AuthWallEnvironments from "./AuthWallEnvironments";
 
 describe("~/pages/team/auth-wall/AuthWallEnvironments.tsx", () => {
@@ -18,13 +21,25 @@ describe("~/pages/team/auth-wall/AuthWallEnvironments.tsx", () => {
       displayName: "storefront",
       environments: [
         { id: "11", name: "production", authWall: "" },
-        { id: "12", name: "staging", authWall: "dev" },
+        {
+          id: "12",
+          name: "staging",
+          authWall: "dev",
+          publicPaths: ["/api/webhooks/*"],
+        },
       ],
     },
     {
       id: "2",
       displayName: "docs",
-      environments: [{ id: "21", name: "production", authWall: "all" }],
+      environments: [
+        {
+          id: "21",
+          name: "production",
+          authWall: "all",
+          publicPaths: ["/robots.txt", "/api/webhooks/*"],
+        },
+      ],
     },
   ];
 
@@ -153,5 +168,77 @@ describe("~/pages/team/auth-wall/AuthWallEnvironments.tsx", () => {
       (wrapper.getByLabelText("Select storefront staging") as HTMLInputElement)
         .checked,
     ).toBe(true);
+  });
+
+  it("shows the public paths of each environment", () => {
+    createWrapper();
+
+    expect(wrapper.getByText("/api/webhooks/*")).toBeTruthy();
+    expect(wrapper.getByText("2 paths")).toBeTruthy();
+    expect(wrapper.getByText("None")).toBeTruthy();
+  });
+
+  it("edits the public paths of an environment without selecting it", async () => {
+    const scope = mockUpdateEnvPublicPaths({
+      teamId: team.id,
+      envId: "12",
+      publicPaths: ["/api/webhooks/*", "/robots.txt"],
+    });
+
+    createWrapper();
+
+    fireEvent.click(
+      wrapper.getByLabelText("Edit public paths of storefront staging"),
+    );
+
+    expect(() => wrapper.getByText("1 environment selected")).toThrow();
+
+    const input = wrapper.getByLabelText("Public paths") as HTMLTextAreaElement;
+    expect(input.value).toBe("/api/webhooks/*");
+
+    fireEvent.change(input, {
+      target: { value: "/api/webhooks/*\n\n  /robots.txt  " },
+    });
+
+    fireEvent.click(wrapper.getByText("Save"));
+
+    await waitFor(() => {
+      expect(scope.isDone()).toBe(true);
+      expect(
+        wrapper.getByText("Public paths of storefront / staging saved."),
+      ).toBeTruthy();
+    });
+
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows why public paths could not be saved", async () => {
+    mockUpdateEnvPublicPaths({
+      teamId: team.id,
+      envId: "11",
+      publicPaths: ["/api*"],
+      status: 400,
+      response: { error: 'Public path "/api*" can only use * at the end.' },
+    });
+
+    createWrapper();
+
+    fireEvent.click(
+      wrapper.getByLabelText("Edit public paths of storefront production"),
+    );
+
+    fireEvent.change(wrapper.getByLabelText("Public paths"), {
+      target: { value: "/api*" },
+    });
+
+    fireEvent.click(wrapper.getByText("Save"));
+
+    await waitFor(() => {
+      expect(
+        wrapper.getByText('Public path "/api*" can only use * at the end.'),
+      ).toBeTruthy();
+    });
+
+    expect(onUpdate).not.toHaveBeenCalled();
   });
 });

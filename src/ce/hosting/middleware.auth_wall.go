@@ -79,6 +79,12 @@ func WithAuthWall(req *RequestContext) (*shttp.Response, error) {
 		}
 	}
 
+	// Public paths are open to everyone. They are checked after the session,
+	// so a logged-in visitor's login still reaches the app on them.
+	if authwall.IsPublicPath(req.Host.Config.AuthWallPublicPaths, req.URL().Path) {
+		return nil, nil
+	}
+
 	// The page URL, without the parameters of a previous login attempt, is
 	// where the visitor returns after submitting the form. The query is only
 	// rewritten when needed, so the page's own parameters keep their order.

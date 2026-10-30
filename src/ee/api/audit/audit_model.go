@@ -81,6 +81,7 @@ type DiffFields struct {
 	SnippetLocation          string                 `json:"snippetLocation,omitempty"`
 	Snippets                 []string               `json:"snippets,omitempty"`
 	AuthWallStatus           string                 `json:"authWallStatus,omitempty"`
+	AuthWallPublicPaths      []string               `json:"authWallPublicPaths,omitempty"`
 	AuthWallCreateLoginEmail string                 `json:"authWallCreateLoginEmail,omitempty"`
 	AuthWallCreateLoginID    string                 `json:"authWallCreateLoginId,omitempty"`
 	AuthWallDeleteLoginIDs   string                 `json:"authWallDeleteLoginIds,omitempty"`

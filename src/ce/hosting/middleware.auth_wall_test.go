@@ -97,3 +97,52 @@ func (s *AuthWallMiddlewareSuite) Test_SessionWithoutMetadata() {
 	s.Nil(res)
 	s.Empty(req.Header.Get(hosting.HeaderAuthWallEmail))
 }
+
+// publicRequest builds a request to path on a protected host whose wall
+// leaves /api/webhooks/* public.
+func (s *AuthWallMiddlewareSuite) publicRequest(path string, header http.Header) *hosting.RequestContext {
+	req := s.request("all", header)
+	req.Host.Config.AuthWallPublicPaths = []string{"/api/webhooks/*"}
+	req.Request.URL.Path = path
+
+	return req
+}
+
+// Test_PublicPath_SkipsWall verifies that public paths are served without a
+// login, and that the app still cannot be handed a forged login on them.
+func (s *AuthWallMiddlewareSuite) Test_PublicPath_SkipsWall() {
+	req := s.publicRequest("/api/webhooks/stripe", s.forgedHeader())
+	res, err := hosting.WithAuthWall(req)
+
+	s.NoError(err)
+	s.Nil(res)
+	s.Empty(req.Header.Get(hosting.HeaderAuthWallEmail))
+}
+
+// Test_PublicPath_KeepsLogin verifies that a logged-in visitor's login still
+// reaches the app on a public path.
+func (s *AuthWallMiddlewareSuite) Test_PublicPath_KeepsLogin() {
+	token, err := authwall.Token{EnvID: types.ID(5)}.Session(authwall.Session{Email: "client@example.org"})
+	s.Require().NoError(err)
+
+	h := make(http.Header)
+	h.Set("Cookie", hosting.SESSION_COOKIE_NAME+"="+token)
+
+	req := s.publicRequest("/api/webhooks/stripe", h)
+	res, err := hosting.WithAuthWall(req)
+
+	s.NoError(err)
+	s.Nil(res)
+	s.Equal("client@example.org", req.Header.Get(hosting.HeaderAuthWallEmail))
+}
+
+// Test_PublicPath_OtherPathsProtected verifies that paths outside the public
+// ones, including ones that climb out of them, still require a login.
+func (s *AuthWallMiddlewareSuite) Test_PublicPath_OtherPathsProtected() {
+	for _, path := range []string{"/", "/api/webhooks", "/api/webhooks/../admin"} {
+		res, err := hosting.WithAuthWall(s.publicRequest(path, make(http.Header)))
+
+		s.NoError(err)
+		s.NotNil(res, path)
+	}
+}

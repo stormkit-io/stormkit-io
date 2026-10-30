@@ -9,13 +9,15 @@ import (
 )
 
 type teamEnvUpdateRequest struct {
-	TeamID   types.ID `json:"teamId"`
-	EnvID    types.ID `json:"envId"`
-	AuthWall string   `json:"authWall"`
+	TeamID      types.ID  `json:"teamId"`
+	EnvID       types.ID  `json:"envId"`
+	AuthWall    *string   `json:"authWall,omitempty"`
+	PublicPaths *[]string `json:"publicPaths,omitempty"`
 }
 
-// handlerTeamEnvUpdate sets the mode of the wall of an environment of the
-// team's apps. Every member of the team can.
+// handlerTeamEnvUpdate sets the mode and public paths of the wall of an
+// environment of the team's apps. Fields left out are kept. Every member of
+// the team can.
 func handlerTeamEnvUpdate(req *user.RequestContext) *shttp.Response {
 	data := &teamEnvUpdateRequest{}
 
@@ -42,6 +44,12 @@ func handlerTeamEnvUpdate(req *user.RequestContext) *shttp.Response {
 		return shttp.NotFound()
 	}
 
+	if data.AuthWall == nil && data.PublicPaths == nil {
+		return shttp.BadRequest(map[string]any{
+			"error": "Nothing to update. Send authWall, publicPaths or both.",
+		})
+	}
+
 	update := envStatus{ctx: req.Context()}
 
 	if req.License().IsEnterprise() {
@@ -50,7 +58,9 @@ func handlerTeamEnvUpdate(req *user.RequestContext) *shttp.Response {
 			WithAppID(envs[0].AppID)
 	}
 
-	if res := update.set(data.EnvID, data.AuthWall); res != nil {
+	change := envChange{Status: data.AuthWall, PublicPaths: data.PublicPaths}
+
+	if res := update.update(data.EnvID, change); res != nil {
 		return res
 	}
 

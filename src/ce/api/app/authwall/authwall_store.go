@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"strings"
 
@@ -113,7 +114,8 @@ var stmt = struct {
 	selectTeamEnvs: `
 		SELECT
 			a.app_id, COALESCE(a.display_name, ''), e.env_id, e.env_name,
-			COALESCE(e.auth_wall_conf->>'status', '')
+			COALESCE(e.auth_wall_conf->>'status', ''),
+			COALESCE(e.auth_wall_conf->'publicPaths', '[]'::jsonb)
 		FROM
 			apps a
 		JOIN
@@ -470,8 +472,13 @@ func (s *store) TeamEnvs(ctx context.Context, p TeamEnvsParams) ([]TeamEnv, erro
 
 	for rows.Next() {
 		env := TeamEnv{}
+		publicPaths := []byte{}
 
-		if err := rows.Scan(&env.AppID, &env.AppName, &env.EnvID, &env.EnvName, &env.Status); err != nil {
+		if err := rows.Scan(&env.AppID, &env.AppName, &env.EnvID, &env.EnvName, &env.Status, &publicPaths); err != nil {
+			return nil, err
+		}
+
+		if err := json.Unmarshal(publicPaths, &env.PublicPaths); err != nil {
 			return nil, err
 		}
 

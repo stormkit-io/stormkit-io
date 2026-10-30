@@ -37,9 +37,10 @@ func handlerTeamEnvs(req *user.RequestContext) *shttp.Response {
 
 		last := apps[len(apps)-1]
 		last["environments"] = append(last["environments"].([]map[string]any), map[string]any{
-			"id":       env.EnvID.String(),
-			"name":     env.EnvName,
-			"authWall": env.Status,
+			"id":          env.EnvID.String(),
+			"name":        env.EnvName,
+			"authWall":    env.Status,
+			"publicPaths": env.PublicPaths,
 		})
 	}
 

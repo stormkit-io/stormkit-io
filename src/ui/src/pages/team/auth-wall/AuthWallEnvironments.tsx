@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Checkbox from "@mui/material/Checkbox";
+import IconButton from "@mui/material/IconButton";
 import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
@@ -13,9 +14,11 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
 import LensIcon from "@mui/icons-material/Lens";
+import EditIcon from "@mui/icons-material/Edit";
 import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
 import { updateEnvAuthWall } from "./actions";
+import AuthWallPublicPathsModal from "./AuthWallPublicPathsModal";
 
 interface Props {
   team: Team;
@@ -45,6 +48,20 @@ const subtitle = "Select environments to choose whether they require a login.";
 const environmentsLabel = (count: number) =>
   count === 1 ? "1 environment" : `${count} environments`;
 
+const publicPathsLabel = (paths?: string[]) => {
+  if (!paths?.length) {
+    return "None";
+  }
+
+  return paths.length === 1 ? paths[0] : `${paths.length} paths`;
+};
+
+interface EditedEnv {
+  id: string;
+  name: string;
+  publicPaths: string[];
+}
+
 export default function AuthWallEnvironments({
   team,
   apps,
@@ -61,6 +78,7 @@ export default function AuthWallEnvironments({
   const [selected, setSelected] = useState<string[]>([]);
   const [bulkMode, setBulkMode] = useState<AuthWallMode>("all");
   const [applying, setApplying] = useState(false);
+  const [editedEnv, setEditedEnv] = useState<EditedEnv>();
 
   useEffect(() => {
     const initial: Record<string, AuthWallMode> = {};
@@ -235,6 +253,7 @@ export default function AuthWallEnvironments({
                 <TableCell>App</TableCell>
                 <TableCell>Environment</TableCell>
                 <TableCell sx={{ width: 280 }}>Auth Wall</TableCell>
+                <TableCell sx={{ width: 220 }}>Public paths</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -289,6 +308,36 @@ export default function AuthWallEnvironments({
                         {modeLabels[modes[env.id] ?? env.authWall]}
                       </Box>
                     </TableCell>
+                    <TableCell>
+                      <Box
+                        component="span"
+                        sx={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 1,
+                          color: env.publicPaths?.length
+                            ? "text.primary"
+                            : "text.secondary",
+                        }}
+                      >
+                        {publicPathsLabel(env.publicPaths)}
+                        <IconButton
+                          size="small"
+                          aria-label={`Edit public paths of ${app.displayName} ${env.name}`}
+                          onClick={e => {
+                            // The row toggles the selection.
+                            e.stopPropagation();
+                            setEditedEnv({
+                              id: env.id,
+                              name: `${app.displayName} / ${env.name}`,
+                              publicPaths: env.publicPaths || [],
+                            });
+                          }}
+                        >
+                          <EditIcon sx={{ fontSize: 16 }} />
+                        </IconButton>
+                      </Box>
+                    </TableCell>
                   </TableRow>
                 )),
               )}
@@ -296,6 +345,20 @@ export default function AuthWallEnvironments({
           </Table>
         )}
       </Box>
+      {editedEnv && (
+        <AuthWallPublicPathsModal
+          team={team}
+          envId={editedEnv.id}
+          name={editedEnv.name}
+          publicPaths={editedEnv.publicPaths}
+          onClose={() => setEditedEnv(undefined)}
+          onSuccess={() => {
+            resetMessages();
+            setSuccess(`Public paths of ${editedEnv.name} saved.`);
+            onUpdate();
+          }}
+        />
+      )}
     </Card>
   );
 }

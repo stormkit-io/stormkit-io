@@ -131,7 +131,8 @@ func (s *appconfSuite) TearDownSuite() {
 
 func (s *appconfSuite) Test_ByDeploymentID() {
 	s.NoError(authwall.Store().SetAuthWallConfig(context.Background(), s.env.ID, &authwall.Config{
-		Status: "all",
+		Status:      "all",
+		PublicPaths: []string{"/api/webhooks/*"},
 	}))
 
 	configs, err := appconf.NewStore().Configs(s.ctx, appconf.ConfigFilters{
@@ -145,6 +146,7 @@ func (s *appconfSuite) Test_ByDeploymentID() {
 	s.Equal(s.depl.AppID, configs[0].AppID)
 	s.Equal(types.ID(0), configs[0].DomainID)
 	s.Equal("all", configs[0].AuthWall)
+	s.Equal([]string{"/api/webhooks/*"}, configs[0].AuthWallPublicPaths)
 	s.Equal("node index.js", configs[0].ServerCmd)
 	s.Equal("aws:arn:aws:lambda:eu-central-1:account-id:function:lambda-name", configs[0].FunctionLocation)
 	s.Equal("aws:s3-bucket-name/s3-key-prefix", configs[0].StorageLocation)

@@ -122,6 +122,8 @@ describe("~/shared/feed/AuditMessage.tsx", () => {
     ${"UPDATE:SNIPPET"}    | ${"Updated 1 snippet in production environment"}                        | ${null}
     ${"DELETE:SNIPPET"}    | ${"Deleted 2 snippets in production environment"}                       | ${null}
     ${"UPDATE:AUTHWALL"}   | ${"Enabled auth wall in production environment"}                        | ${null}
+    ${"UPDATE:AUTHWALL"}   | ${"Updated auth wall public paths in production environment"}           | ${{ old: { authWallStatus: "all" }, new: { authWallStatus: "all", authWallPublicPaths: ["/api/webhooks/*"] } }}
+    ${"UPDATE:AUTHWALL"}   | ${"Updated auth wall public paths in production environment"}           | ${{ old: { authWallStatus: "all", authWallPublicPaths: ["/api/webhooks/*"] }, new: { authWallStatus: "all" } }}
     ${"CREATE:AUTHWALL"}   | ${"Created new auth login for production environment"}                  | ${null}
     ${"DELETE:AUTHWALL"}   | ${"Deleted auth login from production environment"}                     | ${null}
     ${"CREATE:SCHEMA"}     | ${"Created schema for production environment"}                          | ${null}

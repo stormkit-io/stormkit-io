@@ -19,6 +19,7 @@ declare interface DiffFields {
   snippetLocation?: "head" | "body";
   snippets?: string[]; // Name of created snippets.
   authWallStatus?: string;
+  authWallPublicPaths?: string[];
   authWallCreateLoginEmail?: string;
   authWallCreateLoginID?: string;
   authWallDeleteLoginIDs?: string;

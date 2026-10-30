@@ -25,6 +25,21 @@ To change the mode, select one or more environments (click a row or its checkbox
 
 Every member of the team can change the mode of an environment.
 
+## Public paths
+
+Public paths skip the wall and are open to everyone, logged in or not. Use them for callers that can't log in, such as webhooks from Stripe or GitHub, OAuth callbacks, or `robots.txt`.
+
+To edit them, click the pencil icon in the environment's **Public paths** column and enter one path per line:
+
+- `/robots.txt` matches that path exactly.
+- `/api/webhooks/*` matches everything below `/api/webhooks/`, but not `/api/webhooks` itself.
+
+Paths are case-sensitive and can't contain query strings, `.` or `..` segments, or `*` anywhere but at the end after a slash. An environment can have up to 50 public paths. Requests whose path contains `.` or `..` segments always go through the wall.
+
+Changing the mode keeps the environment's public paths. Every member of the team can edit them.
+
+> Anyone can call a public path, so your app must check who is calling it, for example by verifying the webhook's signature.
+
 ## Logins
 
 The **Logins** tab lists the people who can pass the walls of the team's apps. Only team owners and admins can see and manage it; other members see only the **Environments** tab.

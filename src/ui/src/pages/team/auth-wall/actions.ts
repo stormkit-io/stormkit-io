@@ -17,6 +17,7 @@ export interface TeamAuthWallEnv {
   id: string;
   name: string;
   authWall: AuthWallMode;
+  publicPaths?: string[];
 }
 
 export interface TeamAuthWallApp {
@@ -206,7 +207,10 @@ export const deleteTeamLogins = ({
 interface UpdateEnvAuthWallProps {
   teamId: string;
   envId: string;
-  authWall: AuthWallMode;
+
+  // Fields left out are kept as they are.
+  authWall?: AuthWallMode;
+  publicPaths?: string[];
 }
 
 export const updateEnvAuthWall = (props: UpdateEnvAuthWallProps) => {

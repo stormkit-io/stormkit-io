@@ -93,3 +93,22 @@ export const mockUpdateEnvAuthWall = ({
   nock(endpoint)
     .put("/team/auth-wall/envs", { teamId, envId, authWall })
     .reply(status, { ok: true });
+
+interface MockUpdateEnvPublicPathsProps {
+  teamId: string;
+  envId: string;
+  publicPaths: string[];
+  status?: number;
+  response?: Record<string, unknown>;
+}
+
+export const mockUpdateEnvPublicPaths = ({
+  teamId,
+  envId,
+  publicPaths,
+  status = 200,
+  response = { ok: true },
+}: MockUpdateEnvPublicPathsProps) =>
+  nock(endpoint)
+    .put("/team/auth-wall/envs", { teamId, envId, publicPaths })
+    .reply(status, response);
