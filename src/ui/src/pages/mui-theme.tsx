@@ -276,6 +276,20 @@ export default (mode: "dark" | "light") => {
           },
         },
       },
+      // Without a palette mode, MUI paints a disabled switch with its
+      // light-mode colors: a near-white thumb that looks switched on.
+      MuiSwitch: {
+        styleOverrides: {
+          switchBase: {
+            "&.Mui-disabled": {
+              color: isDark ? grey[800] : grey[100],
+            },
+            "&.Mui-disabled + .MuiSwitch-track": {
+              opacity: isDark ? 0.2 : 0.12,
+            },
+          },
+        },
+      },
       MuiSnackbarContent: {
         styleOverrides: {},
       },
@@ -331,6 +345,9 @@ export default (mode: "dark" | "light") => {
             text: {
               primary: "#ffffff",
               secondary: grey[500],
+              // The palette has no mode, so MUI would fall back to its
+              // light-mode disabled color, which is near-black here.
+              disabled: grey[600],
             },
             background: {
               default: "#0f092b",
