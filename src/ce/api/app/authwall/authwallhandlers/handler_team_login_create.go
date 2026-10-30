@@ -19,6 +19,9 @@ type teamLoginCreateRequest struct {
 	Metadata string     `json:"metadata"`
 	AllApps  bool       `json:"allApps"`
 	AppIDs   []types.ID `json:"appIds"`
+	// MagicLink lets the login sign in with an emailed link. The password
+	// may then be left empty.
+	MagicLink bool `json:"magicLink"`
 }
 
 // handlerTeamLoginCreate creates an Auth Wall login in the team.
@@ -42,7 +45,11 @@ func handlerTeamLoginCreate(req *user.RequestContext) *shttp.Response {
 	}
 
 	input := loginInput{teamID: t.ID}
-	password, msg := input.password(data.Password)
+	password, msg := "", input.signInMethods(data.Password != "", data.MagicLink)
+
+	if msg == "" && data.Password != "" {
+		password, msg = input.password(data.Password)
+	}
 
 	if msg == "" {
 		msg = authwall.ValidateMetadata(data.Metadata)
@@ -71,6 +78,8 @@ func handlerTeamLoginCreate(req *user.RequestContext) *shttp.Response {
 		LoginEmail:    data.Email,
 		LoginPassword: password,
 		Metadata:      data.Metadata,
+		MagicLink:     data.MagicLink,
+		HasPassword:   password != "",
 		AllApps:       data.AllApps,
 		AppIDs:        appIDs,
 	}
@@ -96,6 +105,7 @@ func handlerTeamLoginCreate(req *user.RequestContext) *shttp.Response {
 					AuthWallCreateLoginEmail: aw.LoginEmail,
 					AuthWallCreateLoginID:    aw.LoginID.String(),
 					AuthWallLoginApps:        input.appsDiff(aw),
+					AuthWallLoginMagicLink:   &aw.MagicLink,
 				},
 			}).
 			WithTeamID(t.ID).

@@ -26,11 +26,17 @@ type AuthWall struct {
 	LoginPassword string
 	// Metadata is passed to the app in the X-Auth-Wall-Metadata header after
 	// the visitor logs in.
-	Metadata  string
-	AllApps   bool
-	AppIDs    []types.ID
-	LastLogin utils.Unix
-	CreatedAt utils.Unix
+	Metadata string
+	// MagicLink lets the login sign in with a link emailed to it. A login
+	// with a magic link may have no password.
+	MagicLink bool
+	// HasPassword is whether the login can sign in with a password. It is
+	// only filled in when listing logins.
+	HasPassword bool
+	AllApps     bool
+	AppIDs      []types.ID
+	LastLogin   utils.Unix
+	CreatedAt   utils.Unix
 }
 
 // TeamEnv is an environment of a team's app, with the mode of its wall.

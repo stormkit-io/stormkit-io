@@ -36,6 +36,16 @@ func (l loginInput) password(password string) (string, string) {
 	return password, ""
 }
 
+// signInMethods returns why a login cannot sign in, or an empty string when
+// it has a password, a magic link, or both.
+func (l loginInput) signInMethods(hasPassword, magicLink bool) string {
+	if !hasPassword && !magicLink {
+		return "Set a password, allow magic links, or both."
+	}
+
+	return ""
+}
+
 // apps returns the unique apps a login opens, or why the selection is not
 // accepted. A login that opens all apps has none listed.
 func (l loginInput) apps(ctx context.Context, allApps bool, appIDs []types.ID) ([]types.ID, string, error) {
@@ -94,12 +104,14 @@ func (l loginInput) json(aw *authwall.AuthWall) map[string]any {
 	}
 
 	return map[string]any{
-		"id":        aw.LoginID.String(),
-		"email":     aw.LoginEmail,
-		"metadata":  aw.Metadata,
-		"allApps":   aw.AllApps,
-		"appIds":    appIDs,
-		"lastLogin": aw.LastLogin.Unix(),
-		"createdAt": aw.CreatedAt.Unix(),
+		"id":          aw.LoginID.String(),
+		"email":       aw.LoginEmail,
+		"metadata":    aw.Metadata,
+		"magicLink":   aw.MagicLink,
+		"hasPassword": aw.HasPassword,
+		"allApps":     aw.AllApps,
+		"appIds":      appIDs,
+		"lastLogin":   aw.LastLogin.Unix(),
+		"createdAt":   aw.CreatedAt.Unix(),
 	}
 }

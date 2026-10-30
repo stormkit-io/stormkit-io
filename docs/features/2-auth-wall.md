@@ -31,7 +31,8 @@ The **Logins** tab lists the people who can pass the walls of the team's apps. O
 
 A login has:
 
-- **Email** and **password**: what the visitor enters on the login page. An email can be used once per team.
+- **Email**: an email can be used once per team.
+- **Password** and/or **magic link**: how the visitor signs in. A login needs at least one. A login that allows magic links doesn't need a password. See [Magic links](#magic-links).
 - **Apps**: the apps the login opens, or **All apps**, which includes apps created later. A login opens every environment of its apps where the wall is on.
 - **Metadata** (optional): a string of up to 1 KB, passed to your app after the visitor logs in. See [Using the login in your app](#using-the-login-in-your-app).
 
@@ -49,6 +50,17 @@ Click the pencil icon next to a login to change its password, metadata or apps. 
 2. Click **Remove selected**.
 
 A removed login can't log in again. Visitors who are already logged in keep access until their session expires, at most 24 hours later. The same applies when you take away a login's access to an app.
+
+## Magic links
+
+A login that allows magic links can sign in without a password. On the login page, the visitor enters their email and clicks **Email me a sign-in link**. Stormkit emails a link that works once, within 15 minutes. Opening it shows a **Continue** button, and continuing signs the visitor in for up to 24 hours, the same as a password login.
+
+- To allow magic links, check **Allow signing in with a link sent by email** when adding or editing a login. To make the login link-only, leave the password empty when adding it, or check **Remove the password** when editing it.
+- The page always says a link was sent, so it doesn't reveal which emails have a login. Only logins that allow magic links and open the app get one.
+- A link stops working once it's used, once it expires, or when the login is removed, stops allowing magic links or loses access to the app.
+- Links are sent with the instance's system email. On self-hosted installations, configure SMTP or the instance's default mailer (**Admin** > **Mailer**). Until one is configured, the login page doesn't offer magic links.
+
+The **Continue** step is there because some email providers open links to scan them before you do. Without it, the scan would use the link up.
 
 ## Using the login in your app
 

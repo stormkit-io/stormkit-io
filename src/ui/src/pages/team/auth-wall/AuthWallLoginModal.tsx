@@ -33,6 +33,9 @@ export default function AuthWallLoginModal({
   const [error, setError] = useState("");
   const [allApps, setAllApps] = useState(login?.allApps ?? false);
   const [appIds, setAppIds] = useState<string[]>(login?.appIds ?? []);
+  const [magicLink, setMagicLink] = useState(login?.magicLink ?? false);
+  const [removePassword, setRemovePassword] = useState(false);
+  const hasPassword = login?.hasPassword !== false;
 
   const submitHandler: FormEventHandler = e => {
     e.preventDefault();
@@ -43,8 +46,16 @@ export default function AuthWallLoginModal({
       string
     >;
 
-    if (!login && (!data.email || !data.password)) {
-      return setError("Email and password are required fields.");
+    if (!login && !data.email) {
+      return setError("Email is a required field.");
+    }
+
+    const keepsPassword = login
+      ? (hasPassword && !removePassword) || !!data.password
+      : !!data.password;
+
+    if (!keepsPassword && !magicLink) {
+      return setError("Set a password, allow magic links, or both.");
     }
 
     if (!allApps && appIds.length === 0) {
@@ -58,15 +69,21 @@ export default function AuthWallLoginModal({
           teamId: team.id,
           id: login.id,
           metadata: data.metadata,
+          magicLink,
           allApps,
           appIds: allApps ? [] : appIds,
-          ...(data.password ? { password: data.password } : {}),
+          ...(removePassword
+            ? { removePassword: true }
+            : data.password
+              ? { password: data.password }
+              : {}),
         })
       : createTeamLogin({
           teamId: team.id,
           email: data.email,
           password: data.password,
           metadata: data.metadata,
+          magicLink,
           allApps,
           appIds: allApps ? [] : appIds,
         });
@@ -114,13 +131,46 @@ export default function AuthWallLoginModal({
             defaultValue=""
             fullWidth
             name="password"
+            disabled={removePassword}
             helperText={
-              login
+              login && hasPassword
                 ? "Leave empty to keep the current password."
-                : "8 to 72 characters."
+                : magicLink
+                  ? "Optional with magic links. 8 to 72 characters."
+                  : "8 to 72 characters."
             }
-            sx={{ mb: 4 }}
+            sx={{ mb: 2 }}
           />
+          <Box sx={{ mb: 4 }}>
+            <FormControlLabel
+              label="Allow signing in with a link sent by email"
+              control={
+                <Checkbox
+                  color="secondary"
+                  checked={magicLink}
+                  onChange={e => {
+                    setMagicLink(e.target.checked);
+
+                    if (!e.target.checked) {
+                      setRemovePassword(false);
+                    }
+                  }}
+                />
+              }
+            />
+            {login && hasPassword && magicLink && (
+              <FormControlLabel
+                label="Remove the password, so the login signs in with links only"
+                control={
+                  <Checkbox
+                    color="secondary"
+                    checked={removePassword}
+                    onChange={e => setRemovePassword(e.target.checked)}
+                  />
+                }
+              />
+            )}
+          </Box>
           <TextField
             label="Metadata"
             variant="filled"

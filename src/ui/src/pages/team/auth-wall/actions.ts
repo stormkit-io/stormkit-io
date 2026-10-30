@@ -7,6 +7,8 @@ export interface TeamAuthWallLogin {
   id: string;
   email: string;
   metadata: string;
+  magicLink?: boolean;
+  hasPassword?: boolean;
   allApps: boolean;
   appIds: string[];
   lastLogin?: number;
@@ -162,6 +164,7 @@ interface CreateTeamLoginProps {
   email: string;
   password: string;
   metadata: string;
+  magicLink: boolean;
   allApps: boolean;
   appIds: string[];
 }
@@ -177,7 +180,9 @@ interface UpdateTeamLoginProps {
   teamId: string;
   id: string;
   password?: string;
+  removePassword?: boolean;
   metadata?: string;
+  magicLink?: boolean;
   allApps?: boolean;
   appIds?: string[];
 }

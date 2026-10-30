@@ -88,6 +88,7 @@ type DiffFields struct {
 	AuthWallLoginApps        string                 `json:"authWallLoginApps,omitempty"` // "all", or comma separated app IDs
 	AuthWallLoginMetadata    string                 `json:"authWallLoginMetadata,omitempty"`
 	AuthWallPasswordChanged  *bool                  `json:"authWallPasswordChanged,omitempty"`
+	AuthWallLoginMagicLink   *bool                  `json:"authWallLoginMagicLink,omitempty"`
 	SchemaName               string                 `json:"schemaName,omitempty"`
 	DeploymentID             string                 `json:"deploymentId,omitempty"`
 	MailerHost               string                 `json:"mailerHost,omitempty"`

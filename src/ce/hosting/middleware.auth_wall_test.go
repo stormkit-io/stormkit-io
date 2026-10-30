@@ -8,6 +8,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/authwall"
 	"github.com/stormkit-io/stormkit-io/src/ce/hosting"
+	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 	"github.com/stretchr/testify/suite"
@@ -164,4 +165,22 @@ func (s *AuthWallMiddlewareSuite) Test_TriggerToken_StrippedWithoutWall() {
 		s.Empty(req.Header.Get(authwall.HeaderTriggerToken), mode)
 		s.Empty(req.Header.Get(hosting.HeaderAuthWallTrigger), mode)
 	}
+}
+
+// Test_LoginPage_MagicLink verifies that the login form offers sign-in links
+// only when the instance can email them.
+func (s *AuthWallMiddlewareSuite) Test_LoginPage_MagicLink() {
+	original := config.Get().SMTP
+	defer config.SetSMTP(original)
+
+	config.SetSMTP(nil)
+	res, err := hosting.WithAuthWall(s.request("all", make(http.Header)))
+	s.NoError(err)
+	s.NotContains(string(res.Data.([]byte)), "Email me a sign-in link")
+
+	config.SetSMTP(&config.SMTPConfig{Host: "smtp.example.org", Username: "user", Password: "pass"})
+	res, err = hosting.WithAuthWall(s.request("all", make(http.Header)))
+	s.NoError(err)
+	s.Contains(string(res.Data.([]byte)), "Email me a sign-in link")
+	s.Contains(string(res.Data.([]byte)), "/auth-wall/magic")
 }

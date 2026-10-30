@@ -1,10 +1,12 @@
 package authwallhandlers_test
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
+	"github.com/stormkit-io/stormkit-io/src/ce/api/app/authwall"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
 	"github.com/stormkit-io/stormkit-io/src/lib/shttp"
@@ -40,7 +42,9 @@ func (s *HandlerTeamLoginCreateSuite) create(usr *factory.MockUser, body map[str
 		body["email"] = "client@example.org"
 	}
 
-	body["password"] = "client-password"
+	if _, ok := body["password"]; !ok {
+		body["password"] = "client-password"
+	}
 
 	return s.tf.request(usr, shttp.MethodPost, "/team/auth-wall/logins", body)
 }
@@ -78,6 +82,48 @@ func (s *HandlerTeamLoginCreateSuite) Test_Success_AllApps() {
 
 // Test_BadRequest_Apps verifies that a login must open at least one app, and
 // only apps of its team.
+// Test_Success_MagicLinkOnly verifies that a login can be created without a
+// password when it signs in with magic links.
+func (s *HandlerTeamLoginCreateSuite) Test_Success_MagicLinkOnly() {
+	response := s.create(s.tf.owner, map[string]any{
+		"password":  "",
+		"magicLink": true,
+		"appIds":    []string{s.tf.app.ID.String()},
+	})
+
+	s.Equal(http.StatusCreated, response.Code)
+
+	login := response.Map()["login"].(map[string]any)
+	s.Equal(true, login["magicLink"])
+	s.Equal(false, login["hasPassword"])
+
+	aw, err := authwall.Store().MagicLinkLogin(context.Background(), authwall.MagicLinkLoginParams{
+		EnvID: s.tf.env.ID,
+		Email: "client@example.org",
+	})
+
+	s.Require().NoError(err)
+	s.NotNil(aw)
+	s.False(s.tf.opens(s.tf.env.ID, "client@example.org", ""))
+
+	entry := s.tf.lastAudit()
+	s.Require().NotNil(entry)
+	s.Require().NotNil(entry.Diff.New.AuthWallLoginMagicLink)
+	s.True(*entry.Diff.New.AuthWallLoginMagicLink)
+}
+
+// Test_BadRequest_NoSignInMethod verifies that a login needs a password, a
+// magic link, or both.
+func (s *HandlerTeamLoginCreateSuite) Test_BadRequest_NoSignInMethod() {
+	response := s.create(s.tf.owner, map[string]any{
+		"password": "",
+		"appIds":   []string{s.tf.app.ID.String()},
+	})
+
+	s.Equal(http.StatusBadRequest, response.Code)
+	s.Equal("Set a password, allow magic links, or both.", response.Map()["error"])
+}
+
 func (s *HandlerTeamLoginCreateSuite) Test_BadRequest_Apps() {
 	foreignApp := s.MockApp(s.MockUser())
 

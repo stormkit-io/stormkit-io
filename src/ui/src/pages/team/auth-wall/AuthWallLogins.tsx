@@ -46,6 +46,12 @@ export default function AuthWallLogins({ team, apps, appsError }: Props) {
       ? "All apps"
       : login.appIds.map(id => appNames[id] || id).join(", ");
 
+  // Logins listed before magic links existed have a password only.
+  const describeSignIn = (login: TeamAuthWallLogin) =>
+    [login.hasPassword !== false && "Password", login.magicLink && "Magic link"]
+      .filter(Boolean)
+      .join(", ");
+
   const toggle = (id: string) => {
     setChecked(
       checked.includes(id) ? checked.filter(c => c !== id) : [...checked, id],
@@ -92,6 +98,7 @@ export default function AuthWallLogins({ team, apps, appsError }: Props) {
               >
                 <Typography sx={{ flex: 1 }}>Email</Typography>
                 <Typography sx={{ flex: 1 }}>Apps</Typography>
+                <Typography sx={{ width: 180 }}>Sign-in</Typography>
                 <Typography sx={{ width: 180 }}>Last login</Typography>
                 <Box sx={{ width: 40 }} />
               </Box>
@@ -115,6 +122,9 @@ export default function AuthWallLogins({ team, apps, appsError }: Props) {
                   }
                 />
                 <Typography sx={{ flex: 1 }}>{describeApps(login)}</Typography>
+                <Typography sx={{ width: 180 }}>
+                  {describeSignIn(login)}
+                </Typography>
                 <Typography sx={{ width: 180 }}>
                   {login.lastLogin ? formatDate(login.lastLogin) : "Never"}
                 </Typography>

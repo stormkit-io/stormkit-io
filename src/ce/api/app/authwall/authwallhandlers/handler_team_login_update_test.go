@@ -1,6 +1,7 @@
 package authwallhandlers_test
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -113,6 +114,44 @@ func (s *HandlerTeamLoginUpdateSuite) Test_Success_PasswordAndMetadata() {
 	s.Require().NotNil(entry)
 	s.True(*entry.Diff.New.AuthWallPasswordChanged)
 	s.Equal("vip", entry.Diff.New.AuthWallLoginMetadata)
+}
+
+// Test_Success_MagicLinkOnly verifies that removing the password of a login
+// that allows magic links leaves it signing in with links only.
+func (s *HandlerTeamLoginUpdateSuite) Test_Success_MagicLinkOnly() {
+	response := s.update(s.tf.owner, map[string]any{"magicLink": true, "removePassword": true})
+
+	s.Equal(http.StatusOK, response.Code)
+
+	login := response.Map()["login"].(map[string]any)
+	s.Equal(true, login["magicLink"])
+	s.Equal(false, login["hasPassword"])
+	s.False(s.tf.opens(s.tf.env.ID, "client@example.org", "123pass-word"))
+
+	logins, err := authwall.Store().TeamLogins(context.Background(), authwall.TeamLoginsParams{TeamID: s.tf.team.ID, Limit: 10})
+	s.Require().NoError(err)
+	s.Require().Len(logins, 1)
+	s.True(logins[0].MagicLink)
+	s.False(logins[0].HasPassword)
+
+	entry := s.tf.lastAudit()
+	s.Require().NotNil(entry)
+	s.False(*entry.Diff.Old.AuthWallLoginMagicLink)
+	s.True(*entry.Diff.New.AuthWallLoginMagicLink)
+	s.True(*entry.Diff.New.AuthWallPasswordChanged)
+
+	// Setting a password again brings password logins back.
+	s.Equal(http.StatusOK, s.update(s.tf.owner, map[string]any{"password": "new-password"}).Code)
+	s.True(s.tf.opens(s.tf.env.ID, "client@example.org", "new-password"))
+}
+
+// Test_BadRequest_NoSignInMethod verifies that a login cannot be left with no
+// way to sign in.
+func (s *HandlerTeamLoginUpdateSuite) Test_BadRequest_NoSignInMethod() {
+	response := s.update(s.tf.owner, map[string]any{"removePassword": true})
+
+	s.Equal(http.StatusBadRequest, response.Code)
+	s.True(s.tf.opens(s.tf.env.ID, "client@example.org", "123pass-word"))
 }
 
 func (s *HandlerTeamLoginUpdateSuite) Test_BadRequest() {

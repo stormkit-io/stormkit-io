@@ -15,6 +15,8 @@ var stormkitErrors = map[string]string{
 	"invalid_credentials":     "Credentials are invalid. Contact your administrator for help.",
 	"invalid_token":           "Token expired. Please submit the form again.",
 	"token_generation_failed": "Token generation failed. Please try again.",
+	"invalid_email":           "Enter a valid email to get a sign-in link.",
+	"magic_link_unavailable":  "Sign-in links are not available. Log in with your password.",
 }
 
 // Headers that carry the Auth Wall login to the app.
@@ -111,11 +113,12 @@ func WithAuthWall(req *RequestContext) (*shttp.Response, error) {
 		PageTitle:   "Stormkit - Password protected deployment",
 		PageContent: html.Templates["login"],
 		ContentData: map[string]any{
-			"api_host": admin.MustConfig().ApiURL(""),
-			"env_id":   req.Host.Config.EnvID.String(),
-			"token":    token,
-			"error":    stormkitErrors[req.Query().Get("stormkit_error")],
-			"title":    "Password protected deployment",
+			"api_host":   admin.MustConfig().ApiURL(""),
+			"env_id":     req.Host.Config.EnvID.String(),
+			"token":      token,
+			"error":      stormkitErrors[req.Query().Get("stormkit_error")],
+			"title":      "Password protected deployment",
+			"magic_link": authwall.MagicLinkEmail{}.Available(),
 		},
 	})
 
