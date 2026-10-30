@@ -50,8 +50,9 @@ func handlerTeamLogins(req *user.RequestContext) *shttp.Response {
 	return &shttp.Response{
 		Status: http.StatusOK,
 		Data: map[string]any{
-			"logins":      data,
-			"hasNextPage": hasNextPage,
+			"logins":             data,
+			"hasNextPage":        hasNextPage,
+			"magicLinkAvailable": magicLinkAvailable(),
 		},
 	}
 }

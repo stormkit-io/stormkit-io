@@ -30,6 +30,7 @@ interface MockFetchTeamLoginsProps {
   from?: number;
   logins?: TeamAuthWallLogin[];
   hasNextPage?: boolean;
+  magicLinkAvailable?: boolean;
   status?: number;
 }
 
@@ -38,11 +39,12 @@ export const mockFetchTeamLogins = ({
   from = 0,
   logins = [],
   hasNextPage = false,
+  magicLinkAvailable = true,
   status = 200,
 }: MockFetchTeamLoginsProps) =>
   nock(endpoint)
     .get(`/team/auth-wall/logins?teamId=${teamId}&from=${from}`)
-    .reply(status, { logins, hasNextPage });
+    .reply(status, { logins, hasNextPage, magicLinkAvailable });
 
 interface MockCreateTeamLoginProps {
   body: Record<string, unknown>;

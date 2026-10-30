@@ -171,4 +171,38 @@ describe("~/pages/team/auth-wall/AuthWallLogins.tsx", () => {
       (wrapper.getByLabelText("New login") as HTMLButtonElement).disabled,
     ).toBe(true);
   });
+
+  it("warns about link-only logins when there is no mailer", async () => {
+    mockFetchTeamLogins({
+      teamId: team.id,
+      magicLinkAvailable: false,
+      logins: [
+        login({ id: "1", hasPassword: false, magicLink: true }),
+        login({ id: "2", email: "joe@example.org", hasPassword: true }),
+      ],
+    });
+
+    createWrapper();
+
+    await waitFor(() => {
+      expect(
+        wrapper.getByText(/1 login signs in with magic links only/),
+      ).toBeTruthy();
+    });
+  });
+
+  it("does not warn when the instance can send links", async () => {
+    mockFetchTeamLogins({
+      teamId: team.id,
+      logins: [login({ id: "1", hasPassword: false, magicLink: true })],
+    });
+
+    createWrapper();
+
+    await waitFor(() => {
+      expect(wrapper.getByText("jane@example.org")).toBeTruthy();
+    });
+
+    expect(() => wrapper.getByText(/signs in with magic links only/)).toThrow();
+  });
 });

@@ -103,6 +103,7 @@ export const useFetchTeamLogins = ({
   const [error, setError] = useState<string>();
   const [logins, setLogins] = useState<TeamAuthWallLogin[]>([]);
   const [hasNextPage, setHasNextPage] = useState(false);
+  const [magicLinkAvailable, setMagicLinkAvailable] = useState(true);
   const [from, setFrom] = useState(0);
 
   useEffect(() => {
@@ -121,9 +122,11 @@ export const useFetchTeamLogins = ({
     setError(undefined);
 
     api
-      .fetch<{ logins: TeamAuthWallLogin[]; hasNextPage: boolean }>(
-        `/team/auth-wall/logins?teamId=${teamId}&from=${from}`,
-      )
+      .fetch<{
+        logins: TeamAuthWallLogin[];
+        hasNextPage: boolean;
+        magicLinkAvailable?: boolean;
+      }>(`/team/auth-wall/logins?teamId=${teamId}&from=${from}`)
       .then(data => {
         if (cancelled) {
           return;
@@ -133,6 +136,7 @@ export const useFetchTeamLogins = ({
           from === 0 ? data.logins : [...prev, ...data.logins],
         );
         setHasNextPage(data.hasNextPage);
+        setMagicLinkAvailable(data.magicLinkAvailable !== false);
       })
       .catch(() => {
         if (!cancelled) {
@@ -155,6 +159,7 @@ export const useFetchTeamLogins = ({
     error,
     logins,
     hasNextPage,
+    magicLinkAvailable,
     loadMore: () => setFrom(logins.length),
   };
 };

@@ -1,5 +1,6 @@
 import type { TeamAuthWallApp, TeamAuthWallLogin } from "./actions";
 import { useMemo, useState } from "react";
+import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Checkbox from "@mui/material/Checkbox";
@@ -31,10 +32,16 @@ export default function AuthWallLogins({ team, apps, appsError }: Props) {
   const [checked, setChecked] = useState<string[]>([]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [modal, setModal] = useState<{ login?: TeamAuthWallLogin }>();
-  const { loading, error, logins, hasNextPage, loadMore } = useFetchTeamLogins({
-    teamId: team.id,
-    refreshToken,
-  });
+  const { loading, error, logins, hasNextPage, magicLinkAvailable, loadMore } =
+    useFetchTeamLogins({
+      teamId: team.id,
+      refreshToken,
+    });
+
+  const lockedOut = magicLinkAvailable
+    ? 0
+    : logins.filter(login => login.magicLink && login.hasPassword === false)
+        .length;
 
   const appNames = useMemo(
     () => Object.fromEntries(apps.map(app => [app.id, app.displayName])),
@@ -89,6 +96,16 @@ export default function AuthWallLogins({ team, apps, appsError }: Props) {
             expires (at most 24 hours).
           </Typography>
         </CardHeader>
+        {lockedOut > 0 && (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            {lockedOut === 1
+              ? "1 login signs in with magic links only"
+              : `${lockedOut} logins sign in with magic links only`}
+            , but this instance has no mailer, so{" "}
+            {lockedOut === 1 ? "it can't" : "they can't"} sign in. Configure a
+            mailer under Admin &gt; Mailer, or set a password.
+          </Alert>
+        )}
         <Box>
           {logins.length > 0 && (
             <CardRow sx={{ backgroundColor: "container.paper" }}>
@@ -163,6 +180,7 @@ export default function AuthWallLogins({ team, apps, appsError }: Props) {
           team={team}
           apps={apps}
           login={modal.login}
+          magicLinkAvailable={magicLinkAvailable}
           onSuccess={() => setRefreshToken(Date.now())}
           onClose={() => setModal(undefined)}
         />
