@@ -276,6 +276,32 @@ export default (mode: "dark" | "light") => {
           },
         },
       },
+      // Like disabled inputs, a disabled checkbox keeps a grayish label instead
+      // of MUI's near-black disabled color, and the box itself is dimmed so it
+      // is the part that reads as unavailable.
+      MuiFormControlLabel: {
+        styleOverrides: {
+          root: {
+            "&.Mui-disabled": {
+              cursor: "not-allowed",
+            },
+          },
+          label: {
+            "&.Mui-disabled": {
+              color: grey[600],
+            },
+          },
+        },
+      },
+      MuiCheckbox: {
+        styleOverrides: {
+          root: {
+            "&.Mui-disabled": {
+              color: isDark ? grey[800] : grey[400],
+            },
+          },
+        },
+      },
       MuiSnackbarContent: {
         styleOverrides: {},
       },
