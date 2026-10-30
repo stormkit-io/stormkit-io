@@ -18,10 +18,15 @@ type teamLoginUpdateRequest struct {
 	Metadata *string     `json:"metadata,omitempty"`
 	AllApps  *bool       `json:"allApps,omitempty"`
 	AppIDs   *[]types.ID `json:"appIds,omitempty"`
+
+	MagicLink *bool `json:"magicLink,omitempty"`
+	// RemovePassword removes the login's password, so it signs in with a
+	// magic link only.
+	RemovePassword bool `json:"removePassword,omitempty"`
 }
 
-// handlerTeamLoginUpdate changes the password, metadata or app access of a
-// team's Auth Wall login. Visitors already logged in keep their session, with
+// handlerTeamLoginUpdate changes the password, magic link, metadata or app
+// access of a team's Auth Wall login. Visitors already logged in keep their session, with
 // the metadata it was issued with, until it expires.
 func handlerTeamLoginUpdate(req *user.RequestContext) *shttp.Response {
 	data := &teamLoginUpdateRequest{}
@@ -52,8 +57,18 @@ func handlerTeamLoginUpdate(req *user.RequestContext) *shttp.Response {
 	password := ""
 	msg := ""
 
-	if data.Password != nil {
+	if data.Password != nil && !data.RemovePassword {
 		password, msg = input.password(*data.Password)
+	}
+
+	if data.MagicLink != nil {
+		updated.MagicLink = *data.MagicLink
+	}
+
+	updated.HasPassword = password != "" || (current.HasPassword && !data.RemovePassword)
+
+	if msg == "" {
+		msg = input.signInMethods(updated.HasPassword, updated.MagicLink)
 	}
 
 	if data.Metadata != nil && msg == "" {
@@ -97,9 +112,10 @@ func handlerTeamLoginUpdate(req *user.RequestContext) *shttp.Response {
 	}
 
 	found, err := store.UpdateLogin(req.Context(), authwall.UpdateLoginParams{
-		Login:       &updated,
-		Password:    password,
-		ReplaceApps: replaceApps,
+		Login:          &updated,
+		Password:       password,
+		RemovePassword: data.RemovePassword,
+		ReplaceApps:    replaceApps,
 	})
 
 	if err != nil {
@@ -113,18 +129,20 @@ func handlerTeamLoginUpdate(req *user.RequestContext) *shttp.Response {
 	if req.License().IsEnterprise() {
 		diff := &audit.Diff{
 			Old: audit.DiffFields{
-				AuthWallLoginEmail:    current.LoginEmail,
-				AuthWallLoginApps:     input.appsDiff(current),
-				AuthWallLoginMetadata: current.Metadata,
+				AuthWallLoginEmail:     current.LoginEmail,
+				AuthWallLoginApps:      input.appsDiff(current),
+				AuthWallLoginMetadata:  current.Metadata,
+				AuthWallLoginMagicLink: &current.MagicLink,
 			},
 			New: audit.DiffFields{
-				AuthWallLoginEmail:    updated.LoginEmail,
-				AuthWallLoginApps:     input.appsDiff(&updated),
-				AuthWallLoginMetadata: updated.Metadata,
+				AuthWallLoginEmail:     updated.LoginEmail,
+				AuthWallLoginApps:      input.appsDiff(&updated),
+				AuthWallLoginMetadata:  updated.Metadata,
+				AuthWallLoginMagicLink: &updated.MagicLink,
 			},
 		}
 
-		if password != "" {
+		if password != "" || (data.RemovePassword && current.HasPassword) {
 			changed := true
 			diff.New.AuthWallPasswordChanged = &changed
 		}

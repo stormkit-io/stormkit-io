@@ -60,8 +60,16 @@ describe("~/pages/team/auth-wall/AuthWallLogins.tsx", () => {
           email: "jane@example.org",
           appIds: ["1", "2"],
           lastLogin: 1743904881,
+          hasPassword: true,
+          magicLink: true,
         }),
-        login({ id: "2", email: "joe@example.org", allApps: true }),
+        login({
+          id: "2",
+          email: "joe@example.org",
+          allApps: true,
+          hasPassword: false,
+          magicLink: true,
+        }),
       ],
     });
 
@@ -73,6 +81,8 @@ describe("~/pages/team/auth-wall/AuthWallLogins.tsx", () => {
 
     expect(wrapper.getByText("storefront, docs")).toBeTruthy();
     expect(wrapper.getByText("All apps")).toBeTruthy();
+    expect(wrapper.getByText("Password, Magic link")).toBeTruthy();
+    expect(wrapper.getByText("Magic link")).toBeTruthy();
     expect(wrapper.getByText("21.09.2022 - 21:30")).toBeTruthy();
     expect(wrapper.getByText("Never")).toBeTruthy();
   });

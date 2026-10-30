@@ -18,7 +18,10 @@ func Services(r *shttp.Router) *shttp.Service {
 		Handler(shttp.MethodPost, "/config", app.WithApp(handlerAuthConfigSet, opts))
 
 	s.NewEndpoint("/auth-wall").
-		Handler(shttp.MethodPost, "/login", shttp.WithRateLimit(handlerAuth, nil))
+		Handler(shttp.MethodPost, "/login", shttp.WithRateLimit(handlerAuth, nil)).
+		Handler(shttp.MethodPost, "/magic", shttp.WithRateLimit(handlerAuthMagic, nil)).
+		Handler(shttp.MethodGet, "/magic", handlerAuthMagicContinue).
+		Handler(shttp.MethodPost, "/magic/verify", shttp.WithRateLimit(handlerAuthMagicVerify, nil))
 
 	s.NewEndpoint("/team/auth-wall").
 		Middleware(user.WithEE).

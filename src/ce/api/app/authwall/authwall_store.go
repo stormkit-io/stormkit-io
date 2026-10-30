@@ -52,10 +52,12 @@ var stmt = struct {
 	updatePassword    string
 	updateLastLogin   string
 	setAuthWallConfig string
+	selectEnvName     string
 }{
 	selectTeamLogins: `
 		SELECT
 			aw.login_id, aw.team_id, aw.login_email, aw.login_metadata,
+			aw.login_magic_link, aw.login_password <> '',
 			aw.all_apps, aw.last_login_at, aw.created_at,
 			COALESCE(ARRAY_AGG(ap.app_id ORDER BY ap.app_id) FILTER (WHERE ap.app_id IS NOT NULL), '{}')
 		FROM
@@ -80,9 +82,10 @@ var stmt = struct {
 	updateLogin: `
 		WITH login AS (
 			UPDATE auth_wall SET
-				login_password = COALESCE(NULLIF($3, ''), login_password),
+				login_password = CASE WHEN $8 THEN '' ELSE COALESCE(NULLIF($3, ''), login_password) END,
 				login_metadata = $4,
-				all_apps = $6
+				all_apps = $6,
+				login_magic_link = $9
 			WHERE
 				login_id = $1 AND team_id = $2
 			RETURNING login_id
@@ -130,9 +133,9 @@ var stmt = struct {
 	createLogin: `
 		WITH login AS (
 			INSERT INTO auth_wall
-				(team_id, login_email, login_password, login_metadata, all_apps, created_at)
+				(team_id, login_email, login_password, login_metadata, all_apps, login_magic_link, created_at)
 			VALUES
-				($1, $2, $3, $4, $5, NOW())
+				($1, $2, $3, $4, $5, $7, NOW())
 			RETURNING
 				login_id
 		), access AS (
@@ -145,7 +148,7 @@ var stmt = struct {
 	selectLogin: `
 		WITH ea AS (` + envApp + `)
 		SELECT
-			aw.login_id, aw.login_email, aw.login_password, aw.login_metadata
+			aw.login_id, aw.login_email, aw.login_password, aw.login_metadata, aw.login_magic_link
 		FROM
 			auth_wall aw, ea
 		WHERE
@@ -162,6 +165,17 @@ var stmt = struct {
 
 	setAuthWallConfig: `
 		UPDATE apps_build_conf SET auth_wall_conf = $1 WHERE env_id = $2;
+	`,
+
+	selectEnvName: `
+		SELECT
+			COALESCE(a.display_name, ''), e.env_name
+		FROM
+			apps_build_conf e
+		JOIN
+			apps a ON a.app_id = e.app_id
+		WHERE
+			e.env_id = $1;
 	`,
 }
 
@@ -180,12 +194,16 @@ func Store() *store {
 
 // CreateLogin creates a login in aw.TeamID that opens the apps in aw.AppIDs,
 // or every app of the team when aw.AllApps is set. The password is stored as a
-// bcrypt hash.
+// bcrypt hash; an empty one leaves the login without a password.
 func (s *store) CreateLogin(ctx context.Context, aw *AuthWall) error {
-	hash, err := bcrypt.GenerateFromPassword([]byte(aw.LoginPassword), bcrypt.DefaultCost)
+	hash := []byte{}
 
-	if err != nil {
-		return err
+	if aw.LoginPassword != "" {
+		var err error
+
+		if hash, err = bcrypt.GenerateFromPassword([]byte(aw.LoginPassword), bcrypt.DefaultCost); err != nil {
+			return err
+		}
 	}
 
 	appIDs := aw.AppIDs
@@ -201,6 +219,7 @@ func (s *store) CreateLogin(ctx context.Context, aw *AuthWall) error {
 		aw.Metadata,
 		aw.AllApps,
 		pq.Array(appIDs),
+		aw.MagicLink,
 	}
 
 	row, err := s.QueryRow(ctx, stmt.createLogin, params...)
@@ -236,20 +255,60 @@ func (s *store) Login(ctx context.Context, p LoginParams) (*AuthWall, error) {
 		return nil, nil
 	}
 
-	aw := &AuthWall{}
-	err = row.Scan(&aw.LoginID, &aw.LoginEmail, &aw.LoginPassword, &aw.Metadata)
-
-	if errors.Is(err, sql.ErrNoRows) {
-		_ = bcrypt.CompareHashAndPassword(dummyHash, []byte(p.Password))
-		return nil, nil
-	}
+	aw, err := s.scanLogin(row)
 
 	if err != nil {
 		return nil, err
 	}
 
+	// A login without a password signs in with a magic link only.
+	if aw == nil || aw.LoginPassword == "" {
+		_ = bcrypt.CompareHashAndPassword(dummyHash, []byte(p.Password))
+		return nil, nil
+	}
+
 	if !s.verifyPassword(ctx, aw, p.Password) {
 		return nil, nil
+	}
+
+	return aw, nil
+}
+
+// MagicLinkLoginParams are the parameters of MagicLinkLogin.
+type MagicLinkLoginParams struct {
+	EnvID types.ID
+	Email string
+}
+
+// MagicLinkLogin returns the login with the email when it may sign in with a
+// magic link and opens the wall of the environment, and nil otherwise.
+func (s *store) MagicLinkLogin(ctx context.Context, p MagicLinkLoginParams) (*AuthWall, error) {
+	row, err := s.QueryRow(ctx, stmt.selectLogin, p.EnvID, p.Email)
+
+	if err != nil || row == nil {
+		return nil, err
+	}
+
+	aw, err := s.scanLogin(row)
+
+	if err != nil || aw == nil || !aw.MagicLink {
+		return nil, err
+	}
+
+	return aw, nil
+}
+
+// scanLogin reads a row of selectLogin, or returns nil when there is none.
+func (s *store) scanLogin(row *sql.Row) (*AuthWall, error) {
+	aw := &AuthWall{}
+	err := row.Scan(&aw.LoginID, &aw.LoginEmail, &aw.LoginPassword, &aw.Metadata, &aw.MagicLink)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, err
 	}
 
 	return aw, nil
@@ -309,6 +368,7 @@ func (s *store) TeamLogins(ctx context.Context, p TeamLoginsParams) ([]AuthWall,
 
 		err := rows.Scan(
 			&aw.LoginID, &aw.TeamID, &aw.LoginEmail, &aw.Metadata,
+			&aw.MagicLink, &aw.HasPassword,
 			&aw.AllApps, &aw.LastLogin, &aw.CreatedAt, &appIDs,
 		)
 
@@ -348,6 +408,9 @@ type UpdateLoginParams struct {
 
 	// Password is the new password. Empty keeps the current one.
 	Password string
+	// RemovePassword removes the login's password, so it signs in with a
+	// magic link only. It wins over Password.
+	RemovePassword bool
 
 	// ReplaceApps replaces the apps the login opens with Login.AppIDs.
 	ReplaceApps bool
@@ -378,6 +441,7 @@ func (s *store) UpdateLogin(ctx context.Context, p UpdateLoginParams) (bool, err
 		ctx, stmt.updateLogin,
 		p.Login.LoginID, p.Login.TeamID, hash, p.Login.Metadata,
 		p.ReplaceApps, p.Login.AllApps, pq.Array(appIDs),
+		p.RemovePassword, p.Login.MagicLink,
 	)
 
 	if err != nil || row == nil {
@@ -479,6 +543,27 @@ func (s *store) TeamEnvs(ctx context.Context, p TeamEnvsParams) ([]TeamEnv, erro
 	}
 
 	return envs, rows.Err()
+}
+
+// EnvName returns the environment's app and environment names, such as
+// "storefront / production", or an empty string when there is no such
+// environment.
+func (s *store) EnvName(ctx context.Context, envID types.ID) (string, error) {
+	row, err := s.QueryRow(ctx, stmt.selectEnvName, envID)
+
+	if err != nil || row == nil {
+		return "", err
+	}
+
+	var app, env string
+
+	if err := row.Scan(&app, &env); errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	} else if err != nil {
+		return "", err
+	}
+
+	return app + " / " + env, nil
 }
 
 // UpdateLastLogin updates the last login time.

@@ -107,6 +107,11 @@ const htmlTemplate = `<!DOCTYPE html>
 			.submit-button:hover {
 				filter: brightness(1.25);
 			}
+			.submit-button.secondary {
+				margin-top: 1rem;
+				background-color: transparent;
+				border-color: #78193b;
+			}
 			.code {
 				padding: 1rem;
 				margin-bottom: 1rem;
@@ -223,6 +228,11 @@ var Templates = map[string]string{
 			<div class="form-submit">
 				<button class="submit-button" type="submit">Login</button>
 			</div>
+			{{ if .magic_link }}
+			<div class="form-submit">
+				<button class="submit-button secondary" type="submit" formaction="{{ .api_host }}/auth-wall/magic" formnovalidate>Email me a sign-in link</button>
+			</div>
+			{{ end }}
 			{{ if not .token }}
 			<div class="form-group">Token generation failed. Please retry and contact us if the problem persists.</div>
 			{{ end }}
@@ -231,6 +241,31 @@ var Templates = map[string]string{
 			{{ end }}
 		</div>
 	</form>`,
+
+	"magic_link_sent": `
+	<div class="container text-center">
+		<h1>Check your inbox</h1>
+		<h3>If {{ .email }} can access this deployment, we sent it a sign-in link.<br />The link works once, within {{ .minutes }} minutes.</h3>
+		<footer>
+			<a href="{{ .return_to }}" class="secondary">Back to the login page</a>
+		</footer>
+	</div>`,
+
+	"magic_link_continue": `
+	<form method="POST" action="{{ .api_host }}/auth-wall/magic/verify" class="container text-center">
+		<input type="hidden" name="id" value="{{ .id }}" />
+		<h1>Sign in to {{ .host }}</h1>
+		<h3>Continue to sign in as {{ .email }}.</h3>
+		<div class="form-submit">
+			<button class="submit-button" type="submit">Continue</button>
+		</div>
+	</form>`,
+
+	"magic_link_invalid": `
+	<div class="container text-center">
+		<h1>This link no longer works</h1>
+		<h3>Sign-in links work once, within {{ .minutes }} minutes. Go back to the deployment to get a new one.</h3>
+	</div>`,
 
 	"404": `
 	<div class="container">

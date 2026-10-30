@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/mail"
 	"net/smtp"
+	"strings"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
@@ -35,10 +36,12 @@ func SendEmail(p SendEmailParams) error {
 		envelope = addr.Address
 	}
 
+	// A line break in the subject would start a header of its own.
+	subject := strings.NewReplacer("\r", "", "\n", "").Replace(p.Subject)
 	mime := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
 	msg := []byte(
 		fmt.Sprintf("From: %s\n", from) +
-			fmt.Sprintf("Subject: %s\n", p.Subject) +
+			fmt.Sprintf("Subject: %s\n", subject) +
 			mime +
 			fmt.Sprintf("<html><body>%s</body></html>", p.Body),
 	)

@@ -673,7 +673,8 @@ CREATE TABLE skitapi.auth_wall (
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     team_id bigint NOT NULL,
     login_metadata text DEFAULT ''::text NOT NULL,
-    all_apps boolean DEFAULT false NOT NULL
+    all_apps boolean DEFAULT false NOT NULL,
+    login_magic_link boolean DEFAULT false NOT NULL
 );
 
 

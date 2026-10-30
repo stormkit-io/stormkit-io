@@ -56,6 +56,7 @@ describe("~/pages/team/auth-wall/AuthWallLoginModal.tsx", () => {
         email: "jane@example.org",
         password: "jane-password",
         metadata: "acme",
+        magicLink: false,
         allApps: false,
         appIds: ["2"],
       },
@@ -95,6 +96,7 @@ describe("~/pages/team/auth-wall/AuthWallLoginModal.tsx", () => {
         email: "jane@example.org",
         password: "jane-password",
         metadata: "",
+        magicLink: false,
         allApps: true,
         appIds: [],
       },
@@ -130,6 +132,7 @@ describe("~/pages/team/auth-wall/AuthWallLoginModal.tsx", () => {
         teamId: team.id,
         id: "7",
         metadata: "vip",
+        magicLink: false,
         allApps: true,
         appIds: [],
       },
@@ -151,6 +154,100 @@ describe("~/pages/team/auth-wall/AuthWallLoginModal.tsx", () => {
     fireEvent.click(
       wrapper.getByLabelText("All apps, including apps created later"),
     );
+    fireEvent.click(wrapper.getByText("Save"));
+
+    await waitFor(() => {
+      expect(scope.isDone()).toBe(true);
+      expect(onSuccess).toHaveBeenCalled();
+    });
+  });
+
+  it("creates a login that signs in with magic links only", async () => {
+    const scope = mockCreateTeamLogin({
+      body: {
+        teamId: team.id,
+        email: "jane@example.org",
+        password: "",
+        metadata: "",
+        magicLink: true,
+        allApps: true,
+        appIds: [],
+      },
+    });
+
+    createWrapper();
+    type("Email address", "jane@example.org");
+    fireEvent.click(
+      wrapper.getByLabelText("Allow signing in with a link sent by email"),
+    );
+    fireEvent.click(
+      wrapper.getByLabelText("All apps, including apps created later"),
+    );
+    fireEvent.click(wrapper.getByText("Create"));
+
+    await waitFor(() => {
+      expect(scope.isDone()).toBe(true);
+      expect(onSuccess).toHaveBeenCalled();
+    });
+  });
+
+  it("requires a password or magic links", async () => {
+    createWrapper();
+    type("Email address", "jane@example.org");
+    fireEvent.click(
+      wrapper.getByLabelText("All apps, including apps created later"),
+    );
+    fireEvent.click(wrapper.getByText("Create"));
+
+    await waitFor(() => {
+      expect(
+        wrapper.getByText("Set a password, allow magic links, or both."),
+      ).toBeTruthy();
+    });
+  });
+
+  it("removes the password of a login that allows magic links", async () => {
+    const scope = mockUpdateTeamLogin({
+      body: {
+        teamId: team.id,
+        id: "7",
+        metadata: "",
+        magicLink: true,
+        allApps: false,
+        appIds: ["1"],
+        removePassword: true,
+      },
+    });
+
+    createWrapper({
+      id: "7",
+      email: "jane@example.org",
+      metadata: "",
+      hasPassword: true,
+      magicLink: false,
+      allApps: false,
+      appIds: ["1"],
+    });
+
+    expect(() =>
+      wrapper.getByLabelText(
+        "Remove the password, so the login signs in with links only",
+      ),
+    ).toThrow();
+
+    fireEvent.click(
+      wrapper.getByLabelText("Allow signing in with a link sent by email"),
+    );
+    fireEvent.click(
+      wrapper.getByLabelText(
+        "Remove the password, so the login signs in with links only",
+      ),
+    );
+
+    expect(
+      (wrapper.getByLabelText("Password") as HTMLInputElement).disabled,
+    ).toBe(true);
+
     fireEvent.click(wrapper.getByText("Save"));
 
     await waitFor(() => {
