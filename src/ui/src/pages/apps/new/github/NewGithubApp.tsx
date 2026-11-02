@@ -115,9 +115,12 @@ export default function NewGithubApp() {
             !faLoading &&
             !needsAuth && (
               <ConnectMoreRepos
-                setInstallationId={setInstallationId}
-                setRefreshToken={setRefreshToken}
                 openPopupURL={openPopupURL}
+                onClose={() => {
+                  setPage(1);
+                  setInstallationId(undefined);
+                  setRefreshToken(Date.now());
+                }}
               />
             )
           }

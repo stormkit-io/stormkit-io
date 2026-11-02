@@ -2,8 +2,8 @@ import type { TeamAuthWallApp, TeamAuthWallLogin } from "./actions";
 import { FormEventHandler, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
+import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import Modal from "~/components/Modal";
@@ -11,6 +11,7 @@ import Card from "~/components/Card";
 import CardHeader from "~/components/CardHeader";
 import CardFooter from "~/components/CardFooter";
 import MultiSelect from "~/components/MultiSelect";
+import PasswordField from "~/components/PasswordField";
 import { createTeamLogin, updateTeamLogin } from "./actions";
 
 interface Props {
@@ -38,8 +39,8 @@ export default function AuthWallLoginModal({
   const [allApps, setAllApps] = useState(login?.allApps ?? false);
   const [appIds, setAppIds] = useState<string[]>(login?.appIds ?? []);
   const [magicLink, setMagicLink] = useState(login?.magicLink ?? false);
-  const [removePassword, setRemovePassword] = useState(false);
-  const hasPassword = login?.hasPassword !== false;
+  const hasPassword = !!login && login.hasPassword !== false;
+  const [password, setPassword] = useState(login ? hasPassword : true);
 
   const canEnableMagicLink = magicLinkAvailable || !!login?.magicLink;
 
@@ -56,12 +57,12 @@ export default function AuthWallLoginModal({
       return setError("Email is a required field.");
     }
 
-    const keepsPassword = login
-      ? (hasPassword && !removePassword) || !!data.password
-      : !!data.password;
+    if (!password && !magicLink) {
+      return setError("Turn on a password, magic links, or both.");
+    }
 
-    if (!keepsPassword && !magicLink) {
-      return setError("Set a password, allow magic links, or both.");
+    if (password && !hasPassword && !data.password) {
+      return setError("Enter a password, or turn passwords off.");
     }
 
     if (!allApps && appIds.length === 0) {
@@ -78,16 +79,16 @@ export default function AuthWallLoginModal({
           magicLink,
           allApps,
           appIds: allApps ? [] : appIds,
-          ...(removePassword
+          ...(!password && hasPassword
             ? { removePassword: true }
-            : data.password
+            : password && data.password
               ? { password: data.password }
               : {}),
         })
       : createTeamLogin({
           teamId: team.id,
           email: data.email,
-          password: data.password,
+          password: password ? data.password : "",
           metadata: data.metadata,
           magicLink,
           allApps,
@@ -110,7 +111,7 @@ export default function AuthWallLoginModal({
   };
 
   return (
-    <Modal open maxWidth="600px" onClose={onClose}>
+    <Modal open maxWidth="640px" onClose={onClose}>
       <Card component="form" error={error} onSubmit={submitHandler}>
         <CardHeader
           title={login ? "Edit login" : "New login"}
@@ -129,64 +130,56 @@ export default function AuthWallLoginModal({
             placeholder="jane@doe.org"
             sx={{ mb: 4 }}
           />
-          <TextField
-            label="Password"
-            type="password"
-            variant="filled"
-            autoComplete="new-password"
-            defaultValue=""
-            fullWidth
-            name="password"
-            disabled={removePassword}
-            helperText={
-              login && hasPassword
-                ? "Leave empty to keep the current password."
-                : magicLink
-                  ? "Optional with magic links. 8 to 72 characters."
+          <SwitchOption
+            label="Sign in with a password"
+            description="The visitor enters their email and a password on the login page."
+            checked={password}
+            onChange={setPassword}
+          >
+            <PasswordField
+              label="Password"
+              variant="filled"
+              autoComplete="new-password"
+              defaultValue=""
+              name="password"
+              helperText={
+                hasPassword
+                  ? "Leave empty to keep the current password."
                   : "8 to 72 characters."
-            }
-            sx={{ mb: 2 }}
-          />
-          <Box sx={{ mb: 4 }}>
-            <FormControlLabel
-              label="Allow signing in with a link sent by email"
-              disabled={!canEnableMagicLink}
-              control={
-                <Checkbox
-                  color="secondary"
-                  checked={magicLink}
-                  onChange={e => {
-                    setMagicLink(e.target.checked);
-
-                    if (!e.target.checked) {
-                      setRemovePassword(false);
-                    }
-                  }}
-                />
               }
             />
-            {!canEnableMagicLink && (
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                sx={{ ml: 4, mb: 1 }}
-              >
-                Configure a mailer under Admin &gt; Mailer to use magic links.
-              </Typography>
-            )}
-            {login && hasPassword && magicLink && (
-              <FormControlLabel
-                label="Remove the password, so the login signs in with links only"
-                control={
-                  <Checkbox
-                    color="secondary"
-                    checked={removePassword}
-                    onChange={e => setRemovePassword(e.target.checked)}
-                  />
-                }
+          </SwitchOption>
+          <SwitchOption
+            label="Sign in with a link sent by email"
+            description={
+              canEnableMagicLink
+                ? "The visitor gets a one-time sign-in link by email. Links expire after 15 minutes."
+                : "Configure a mailer under Admin > Mailer to use magic links."
+            }
+            disabled={!canEnableMagicLink}
+            checked={magicLink}
+            onChange={setMagicLink}
+          />
+          <SwitchOption
+            label="All apps, including apps created later"
+            description="Turn off to choose the apps this login opens."
+            checked={allApps}
+            onChange={setAllApps}
+          />
+          {!allApps && (
+            <Box sx={{ mb: 4 }}>
+              <MultiSelect
+                label="Apps"
+                placeholder="Select apps"
+                items={apps.map(app => ({
+                  value: app.id,
+                  text: app.displayName,
+                }))}
+                selected={appIds}
+                onSelect={setAppIds}
               />
-            )}
-          </Box>
+            </Box>
+          )}
           <TextField
             label="Metadata"
             variant="filled"
@@ -199,45 +192,62 @@ export default function AuthWallLoginModal({
             slotProps={{ htmlInput: { maxLength: 1024 } }}
             sx={{ mb: 4 }}
           />
-          <Box sx={{ mb: 4 }}>
-            <FormControlLabel
-              sx={{ mb: allApps ? 0 : 2 }}
-              label="All apps, including apps created later"
-              control={
-                <Checkbox
-                  color="secondary"
-                  checked={allApps}
-                  onChange={e => setAllApps(e.target.checked)}
-                />
-              }
-            />
-            {!allApps && (
-              <MultiSelect
-                label="Apps"
-                placeholder="Select apps"
-                items={apps.map(app => ({
-                  value: app.id,
-                  text: app.displayName,
-                }))}
-                selected={appIds}
-                onSelect={setAppIds}
-              />
-            )}
-          </Box>
         </Box>
         <CardFooter>
-          <Box sx={{ textAlign: "right" }}>
-            <Button
-              type="submit"
-              variant="contained"
-              color="secondary"
-              loading={isLoading}
-            >
-              {login ? "Save" : "Create"}
-            </Button>
-          </Box>
+          <Button type="button" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            variant="contained"
+            color="secondary"
+            loading={isLoading}
+            sx={{ ml: 2 }}
+          >
+            {login ? "Save" : "Create"}
+          </Button>
         </CardFooter>
       </Card>
     </Modal>
+  );
+}
+
+interface SwitchOptionProps {
+  label: string;
+  description: string;
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (checked: boolean) => void;
+
+  // children are shown below the option while it is on.
+  children?: React.ReactNode;
+}
+
+function SwitchOption({
+  label,
+  description,
+  checked,
+  disabled,
+  onChange,
+  children,
+}: SwitchOptionProps) {
+  return (
+    <Box sx={{ bgcolor: "container.paper", p: 1.75, pt: 1, mb: 4 }}>
+      <FormControlLabel
+        sx={{ pl: 0, ml: 0 }}
+        label={label}
+        disabled={disabled}
+        control={
+          <Switch
+            color="secondary"
+            checked={checked}
+            onChange={e => onChange(e.target.checked)}
+          />
+        }
+        labelPlacement="start"
+      />
+      <Typography sx={{ color: "text.secondary" }}>{description}</Typography>
+      {checked && children && <Box sx={{ mt: 2 }}>{children}</Box>}
+    </Box>
   );
 }

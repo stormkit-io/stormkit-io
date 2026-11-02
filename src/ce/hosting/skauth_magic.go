@@ -1,9 +1,11 @@
 package hosting
 
 import (
+	"errors"
 	"fmt"
 	"html"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -147,7 +149,25 @@ func (m *skAuthMiddleware) sendMagicLink(body *magicLinkRequestBody, returnTo st
 		return shttp.Error(err, fmt.Sprintf("failed to upsert magic link user: %s", err.Error()))
 	}
 
-	if err := sendMagicLinkEmail(req, env, prv, email, token); err != nil {
+	err = sendMagicLinkEmail(sendMagicLinkEmailParams{
+		Req:      req,
+		Env:      env,
+		Provider: prv,
+		Email:    email,
+		Token:    token,
+		Redirect: redirect,
+	})
+
+	if errors.Is(err, errNoMailer) {
+		return &shttp.Response{
+			Status: http.StatusServiceUnavailable,
+			Data: map[string][]string{
+				"errors": {"The sign-in email could not be sent. Please try again later."},
+			},
+		}
+	}
+
+	if err != nil {
 		return shttp.Error(err, fmt.Sprintf("failed to send magic link email: %s", err.Error()))
 	}
 
@@ -362,11 +382,31 @@ func generateMagicLinkToken(p generateMagicLinkTokenParams) (string, error) {
 
 const defaultMagicLinkSubject = "Your magic link"
 
-// defaultMagicLinkBody is used when the provider has no custom body. Both
-// verbs are filled with HTML-escaped values: the host, then the sign-in URL.
-const defaultMagicLinkBody = `<p>Use the button below to sign in to %s. The link expires in 15 minutes.</p>` +
-	`<p><a href="%s" style="display:inline-block;padding:10px 20px;background:#111827;color:#ffffff;border-radius:6px;text-decoration:none;font-weight:600">Sign in</a></p>` +
-	`<p>If you did not request this email, you can safely ignore it.</p>`
+// errNoMailer reports that a magic link was stored but not sent, because the
+// environment has no mailer to send it with.
+var errNoMailer = errors.New("no mailer configured")
+
+// defaultMagicLinkBody is used when the provider has no custom body. %[1]s is
+// the HTML-escaped site name and %[2]s the HTML-escaped sign-in URL. Layout is
+// table-based with inline styles, since that is all email clients render
+// reliably.
+const defaultMagicLinkBody = `<div style="margin:0;padding:32px 16px;background-color:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">` +
+	`<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Your sign-in link for %[1]s. It expires in 15 minutes.</div>` +
+	`<table role="presentation" width="100%%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center">` +
+	`<table role="presentation" width="100%%" cellpadding="0" cellspacing="0" border="0" style="max-width:480px;background-color:#ffffff;border:1px solid #e4e4e7;border-radius:12px;">` +
+	`<tr><td style="padding:40px 40px 32px;">` +
+	`<h1 style="margin:0 0 12px;font-size:22px;line-height:30px;font-weight:600;color:#18181b;">Sign in to %[1]s</h1>` +
+	`<p style="margin:0 0 28px;font-size:15px;line-height:24px;color:#52525b;">Click the button below to sign in. The link expires in 15 minutes.</p>` +
+	`<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-radius:8px;background-color:#18181b;">` +
+	`<a href="%[2]s" style="display:inline-block;padding:12px 28px;font-size:15px;line-height:20px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">Sign in</a>` +
+	`</td></tr></table>` +
+	`<p style="margin:32px 0 6px;font-size:13px;line-height:20px;color:#71717a;">Or paste this link into your browser:</p>` +
+	`<p style="margin:0;font-size:13px;line-height:20px;word-break:break-all;"><a href="%[2]s" style="color:#52525b;text-decoration:underline;">%[2]s</a></p>` +
+	`</td></tr>` +
+	`<tr><td style="padding:20px 40px;border-top:1px solid #f4f4f5;font-size:12px;line-height:18px;color:#a1a1aa;">If you did not request this email, you can safely ignore it.</td></tr>` +
+	`</table>` +
+	`</td></tr></table>` +
+	`</div>`
 
 type magicLinkEmail struct {
 	Provider *skauth.Provider
@@ -392,34 +432,61 @@ func (m magicLinkEmail) body() string {
 	return fmt.Sprintf(defaultMagicLinkBody, html.EscapeString(m.Host), link)
 }
 
-func sendMagicLinkEmail(req *shttp.RequestContext, env *buildconf.Env, prv *skauth.Provider, email, token string) error {
-	u := req.URL()
+// siteName returns the host the user signs in to: the web origin the link
+// sends them back to, or the host the link is served from when there is no
+// web origin, such as a same-host or native-app sign-in.
+func siteName(redirect, host string) string {
+	if u, err := url.Parse(redirect); err == nil && (u.Scheme == "https" || u.Scheme == "http") && u.Host != "" {
+		return u.Host
+	}
+
+	return host
+}
+
+type sendMagicLinkEmailParams struct {
+	Req      *shttp.RequestContext
+	Env      *buildconf.Env
+	Provider *skauth.Provider
+	Email    string
+	Token    string
+
+	// Redirect is the origin the link sends the user back to, if any.
+	Redirect string
+}
+
+// sendMagicLinkEmail stores the email, so the app owner can see it under
+// Mailer, then sends it. It returns errNoMailer when there is nothing to send
+// it with.
+func sendMagicLinkEmail(p sendMagicLinkEmailParams) error {
+	u := p.Req.URL()
 
 	msg := magicLinkEmail{
-		Provider: prv,
-		Host:     u.Host,
-		Link:     fmt.Sprintf("%s://%s/_stormkit/auth/magic?token=%s", u.Scheme, u.Host, token),
+		Provider: p.Provider,
+		Host:     siteName(p.Redirect, u.Host),
+		Link:     fmt.Sprintf("%s://%s/_stormkit/auth/magic?token=%s", u.Scheme, u.Host, p.Token),
 	}
 
 	params := buildconf.SendEmailParams{
-		To:      email,
-		From:    prv.Data.FromAddress,
+		To:      p.Email,
+		From:    p.Provider.Data.FromAddress,
 		Subject: msg.subject(),
 		Body:    msg.body(),
 	}
 
-	if err := buildconf.MailerStore().InsertEmail(req.Context(), buildconf.Email{
-		EnvID:   env.ID,
-		To:      email,
+	if err := buildconf.MailerStore().InsertEmail(p.Req.Context(), buildconf.Email{
+		EnvID:   p.Env.ID,
+		To:      p.Email,
 		Subject: params.Subject,
 		Body:    params.Body,
 	}); err != nil {
 		return err
 	}
 
-	if mailer := env.Mailer(); mailer != nil {
-		return mailer.Send(params)
+	mailer := p.Env.Mailer()
+
+	if mailer == nil {
+		return errNoMailer
 	}
 
-	return nil
+	return mailer.Send(params)
 }

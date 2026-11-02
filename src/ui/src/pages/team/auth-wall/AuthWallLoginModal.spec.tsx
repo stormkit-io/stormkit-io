@@ -181,8 +181,11 @@ describe("~/pages/team/auth-wall/AuthWallLoginModal.tsx", () => {
 
     createWrapper();
     type("Email address", "jane@example.org");
+    fireEvent.click(wrapper.getByLabelText("Sign in with a password"));
+    expect(() => wrapper.getByLabelText("Password")).toThrow();
+
     fireEvent.click(
-      wrapper.getByLabelText("Allow signing in with a link sent by email"),
+      wrapper.getByLabelText("Sign in with a link sent by email"),
     );
     fireEvent.click(
       wrapper.getByLabelText("All apps, including apps created later"),
@@ -198,6 +201,7 @@ describe("~/pages/team/auth-wall/AuthWallLoginModal.tsx", () => {
   it("requires a password or magic links", async () => {
     createWrapper();
     type("Email address", "jane@example.org");
+    fireEvent.click(wrapper.getByLabelText("Sign in with a password"));
     fireEvent.click(
       wrapper.getByLabelText("All apps, including apps created later"),
     );
@@ -205,12 +209,27 @@ describe("~/pages/team/auth-wall/AuthWallLoginModal.tsx", () => {
 
     await waitFor(() => {
       expect(
-        wrapper.getByText("Set a password, allow magic links, or both."),
+        wrapper.getByText("Turn on a password, magic links, or both."),
       ).toBeTruthy();
     });
   });
 
-  it("removes the password of a login that allows magic links", async () => {
+  it("requires a password when passwords are on", async () => {
+    createWrapper();
+    type("Email address", "jane@example.org");
+    fireEvent.click(
+      wrapper.getByLabelText("All apps, including apps created later"),
+    );
+    fireEvent.click(wrapper.getByText("Create"));
+
+    await waitFor(() => {
+      expect(
+        wrapper.getByText("Enter a password, or turn passwords off."),
+      ).toBeTruthy();
+    });
+  });
+
+  it("removes the password when passwords are turned off", async () => {
     const scope = mockUpdateTeamLogin({
       body: {
         teamId: team.id,
@@ -233,25 +252,16 @@ describe("~/pages/team/auth-wall/AuthWallLoginModal.tsx", () => {
       appIds: ["1"],
     });
 
-    expect(() =>
-      wrapper.getByLabelText(
-        "Remove the password, so the login signs in with links only",
-      ),
-    ).toThrow();
+    const passwordSwitch = wrapper.getByLabelText(
+      "Sign in with a password",
+    ) as HTMLInputElement;
+
+    expect(passwordSwitch.checked).toBe(true);
 
     fireEvent.click(
-      wrapper.getByLabelText("Allow signing in with a link sent by email"),
+      wrapper.getByLabelText("Sign in with a link sent by email"),
     );
-    fireEvent.click(
-      wrapper.getByLabelText(
-        "Remove the password, so the login signs in with links only",
-      ),
-    );
-
-    expect(
-      (wrapper.getByLabelText("Password") as HTMLInputElement).disabled,
-    ).toBe(true);
-
+    fireEvent.click(passwordSwitch);
     fireEvent.click(wrapper.getByText("Save"));
 
     await waitFor(() => {
@@ -260,14 +270,48 @@ describe("~/pages/team/auth-wall/AuthWallLoginModal.tsx", () => {
     });
   });
 
+  it("sets a password on a login that signs in with links only", async () => {
+    const scope = mockUpdateTeamLogin({
+      body: {
+        teamId: team.id,
+        id: "7",
+        metadata: "",
+        magicLink: true,
+        allApps: true,
+        appIds: [],
+        password: "new-password",
+      },
+    });
+
+    createWrapper({
+      id: "7",
+      email: "jane@example.org",
+      metadata: "",
+      hasPassword: false,
+      magicLink: true,
+      allApps: true,
+      appIds: [],
+    });
+
+    expect(() => wrapper.getByLabelText("Password")).toThrow();
+
+    fireEvent.click(wrapper.getByLabelText("Sign in with a password"));
+    type("Password", "new-password");
+    fireEvent.click(wrapper.getByText("Save"));
+
+    await waitFor(() => {
+      expect(scope.isDone()).toBe(true);
+    });
+  });
+
   it("does not offer magic links without a mailer", () => {
     createWrapper(undefined, { magicLinkAvailable: false });
 
-    const checkbox = wrapper.getByLabelText(
-      "Allow signing in with a link sent by email",
+    const magicLink = wrapper.getByLabelText(
+      "Sign in with a link sent by email",
     ) as HTMLInputElement;
 
-    expect(checkbox.disabled).toBe(true);
+    expect(magicLink.disabled).toBe(true);
     expect(
       wrapper.getByText(
         "Configure a mailer under Admin > Mailer to use magic links.",
@@ -289,11 +333,11 @@ describe("~/pages/team/auth-wall/AuthWallLoginModal.tsx", () => {
       { magicLinkAvailable: false },
     );
 
-    const checkbox = wrapper.getByLabelText(
-      "Allow signing in with a link sent by email",
+    const magicLink = wrapper.getByLabelText(
+      "Sign in with a link sent by email",
     ) as HTMLInputElement;
 
-    expect(checkbox.disabled).toBe(false);
-    expect(checkbox.checked).toBe(true);
+    expect(magicLink.disabled).toBe(false);
+    expect(magicLink.checked).toBe(true);
   });
 });

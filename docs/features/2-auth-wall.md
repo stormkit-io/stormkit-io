@@ -55,7 +55,7 @@ A removed login can't log in again. Visitors who are already logged in keep acce
 
 A login that allows magic links can sign in without a password. On the login page, the visitor enters their email and clicks **Email me a sign-in link**. Stormkit emails a link that works once, within 15 minutes. Opening it shows a **Continue** button, and continuing signs the visitor in for up to 24 hours, the same as a password login.
 
-- To allow magic links, check **Allow signing in with a link sent by email** when adding or editing a login. To make the login link-only, leave the password empty when adding it, or check **Remove the password** when editing it.
+- To allow magic links, turn on **Sign in with a link sent by email** when adding or editing a login. To make the login link-only, turn off **Sign in with a password**. Turning it off on an existing login removes its password. A login needs at least one of the two.
 - The page always says a link was sent, so it doesn't reveal which emails have a login. Only logins that allow magic links and open the app get one.
 - A link stops working once it's used, once it expires, or when the login is removed, stops allowing magic links or loses access to the app.
 - Links are sent with the instance's system email. On self-hosted installations, configure SMTP or the instance's default mailer (**Admin** > **Mailer**). Until one is configured, magic links can't be turned on for a login and the login page doesn't offer them. Logins that already allow them keep the setting, and the **Logins** tab warns about logins that sign in with magic links only, since they can't sign in until a mailer is configured or they get a password.
