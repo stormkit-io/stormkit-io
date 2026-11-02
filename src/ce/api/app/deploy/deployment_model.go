@@ -551,6 +551,19 @@ func (d *Deployment) PrepareLogs(rawLogs string, isStatusChecks bool) []*Log {
 	var currentBatch *Log
 	var lastStep *Log
 
+	// The step message is built once per step rather than concatenated per
+	// line: concatenating copies the whole message on every line, which made
+	// rendering a long build step allocate gigabytes.
+	var batchMessage strings.Builder
+
+	flushBatch := func() {
+		if currentBatch != nil {
+			currentBatch.Message = batchMessage.String()
+		}
+
+		batchMessage.Reset()
+	}
+
 	lastStepTimestamp := d.CreatedAt.Unix()
 	buildingFinished := len(lines) == 0 && d.ExitCode.Valid
 	buildingFinishedIdx := -1
@@ -596,6 +609,8 @@ func (d *Deployment) PrepareLogs(rawLogs string, isStatusChecks bool) []*Log {
 		// and detect anything that starts with [sk-step]. It means we're
 		// reading a title.
 		if isHeader {
+			flushBatch()
+
 			log.Status = true
 			log.Title = line[10:]
 			currentBatch = log
@@ -612,8 +627,11 @@ func (d *Deployment) PrepareLogs(rawLogs string, isStatusChecks bool) []*Log {
 			line = strings.ReplaceAll(line, "/home/runner/work/deployer-service/deployer-service/repo/", "/stormkit/app")
 		}
 
-		currentBatch.Message = currentBatch.Message + line + "\n"
+		batchMessage.WriteString(line)
+		batchMessage.WriteString("\n")
 	}
+
+	flushBatch()
 
 	if !isStatusChecks {
 		isSuccess := d.ExitCode.ValueOrZero() == ExitCodeSuccess && d.ExitCode.Valid
