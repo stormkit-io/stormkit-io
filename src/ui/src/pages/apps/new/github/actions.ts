@@ -41,10 +41,10 @@ export const useFetchRepos = ({
       .then(res => {
         setHasNextPage(res.hasNextPage);
 
-        if (search) {
+        if (search || page === 1) {
           setRepos(res.repos);
         } else {
-          setRepos([...repos, ...res.repos]);
+          setRepos(prev => [...prev, ...res.repos]);
         }
       })
       .catch(() => {

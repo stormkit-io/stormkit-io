@@ -3,16 +3,11 @@ import Box from "@mui/material/Box";
 import openPopup from "~/utils/helpers/popup";
 
 interface Props {
-  setInstallationId: (id?: string) => void;
-  setRefreshToken: (token: number) => void;
+  onClose: () => void;
   openPopupURL: string;
 }
 
-export default function ConnectMoreRepos({
-  setInstallationId,
-  setRefreshToken,
-  openPopupURL,
-}: Props) {
+export default function ConnectMoreRepos({ onClose, openPopupURL }: Props) {
   return (
     <Button
       color="secondary"
@@ -22,10 +17,7 @@ export default function ConnectMoreRepos({
           url: openPopupURL,
           title: "Add repository",
           width: 1000,
-          onClose: () => {
-            setInstallationId(undefined);
-            setRefreshToken(Date.now());
-          },
+          onClose,
         });
       }}
     >
