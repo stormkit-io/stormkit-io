@@ -43,22 +43,38 @@ func (s *WithSKAuthMagicLinkSuite) BeforeTest(suiteName, _ string) {
 	s.conn = databasetest.InitTx(suiteName)
 	s.Factory = factory.New(s.conn)
 	s.app = s.MockApp(s.MockUser(nil), nil)
+	buildconf.SendMailFunc = func(string, smtp.Auth, string, []string, []byte) error {
+		return nil
+	}
 }
 
 func (s *WithSKAuthMagicLinkSuite) AfterTest(_, _ string) {
 	s.conn.CloseTx()
+	buildconf.SendMailFunc = buildconf.SendMailWithDeadline
 }
 
 func (s *WithSKAuthMagicLinkSuite) setupEnv() (*factory.MockEnv, error) {
-	return s.setupEnvWithOrigins(nil)
+	return s.setupEnvWith(setupEnvParams{})
 }
 
 func (s *WithSKAuthMagicLinkSuite) setupEnvWithOrigins(allowed []string) (*factory.MockEnv, error) {
-	env := s.MockEnv(s.app, map[string]any{
+	return s.setupEnvWith(setupEnvParams{AllowedOrigins: allowed})
+}
+
+type setupEnvParams struct {
+	AllowedOrigins []string
+	NoMailer       bool
+}
+
+// setupEnvWith returns an environment with Stormkit Auth, a magic link
+// provider and, unless NoMailer is set, a mailer whose sends BeforeTest stubs
+// out.
+func (s *WithSKAuthMagicLinkSuite) setupEnvWith(p setupEnvParams) (*factory.MockEnv, error) {
+	fields := map[string]any{
 		"AuthConf": &buildconf.SKAuthConf{
 			Secret:         "test-secret-padded-to-32-chars!!",
 			Status:         true,
-			AllowedOrigins: allowed,
+			AllowedOrigins: p.AllowedOrigins,
 		},
 		"SchemaConf": &buildconf.SchemaConf{
 			SchemaName:        s.conn.Cfg.Schema,
@@ -71,7 +87,18 @@ func (s *WithSKAuthMagicLinkSuite) setupEnvWithOrigins(allowed []string) (*facto
 			AppPassword:       s.conn.Cfg.Password,
 			DriverName:        s.conn.Cfg.DriverName,
 		},
-	})
+	}
+
+	if !p.NoMailer {
+		fields["MailerConf"] = &buildconf.MailerConf{
+			Host:     "smtp.example.com",
+			Port:     "587",
+			Username: "test@example.com",
+			Password: "secret",
+		}
+	}
+
+	env := s.MockEnv(s.app, fields)
 
 	store, err := env.SchemaConf.Store(buildconf.SchemaAccessTypeMigrations)
 
@@ -456,6 +483,31 @@ func (s *WithSKAuthMagicLinkSuite) Test_Request_AllowedOrigin_Accepted() {
 
 	s.NoError(err)
 	s.Equal(http.StatusCreated, res.Status)
+
+	emails, err := buildconf.MailerStore().Emails(context.Background(), env.ID)
+	s.Require().NoError(err)
+	s.Require().Len(emails, 1)
+	s.Contains(emails[0].Body, "Sign in to app.example.com")
+}
+
+// Test_Request_NoMailer verifies that without a mailer the request fails with
+// a message saying so, and the email is still stored for the Mailer page.
+func (s *WithSKAuthMagicLinkSuite) Test_Request_NoMailer() {
+	env, err := s.setupEnvWith(setupEnvParams{NoMailer: true})
+	s.Require().NoError(err)
+
+	res, err := hosting.ServeAuth(s.magicRequest(s.hostFor(env.ID), "/_stormkit/auth/magic?email=user@example.com"))
+
+	s.NoError(err)
+	s.Equal(http.StatusServiceUnavailable, res.Status)
+	s.Equal(map[string][]string{
+		"errors": {"The sign-in email could not be sent. Please try again later."},
+	}, res.Data)
+
+	emails, err := buildconf.MailerStore().Emails(context.Background(), env.ID)
+	s.Require().NoError(err)
+	s.Require().Len(emails, 1)
+	s.Equal("user@example.com", emails[0].To)
 }
 
 func (s *WithSKAuthMagicLinkSuite) Test_Request_DisallowedOrigin_Returns403() {
