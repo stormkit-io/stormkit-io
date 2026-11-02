@@ -5,22 +5,19 @@ import ConnectMoreRepos from "./ConnectMoreRepos";
 
 describe("~/pages/apps/new/github/ConnectMoreRepos.tsx", () => {
   let wrapper: RenderResult;
-  let setRefreshToken: Mock;
-  let setInstallationId: Mock;
+  let onClose: Mock;
 
   const createWrapper = () => {
     wrapper = render(
       <ConnectMoreRepos
-        setInstallationId={setInstallationId}
-        setRefreshToken={setRefreshToken}
+        onClose={onClose}
         openPopupURL="my-url"
       />
     );
   };
 
   beforeEach(() => {
-    setRefreshToken = vi.fn();
-    setInstallationId = vi.fn();
+    onClose = vi.fn();
 
     Object.defineProperty(window, "location", {
       value: {

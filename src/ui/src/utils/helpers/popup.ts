@@ -53,6 +53,7 @@ const openPopup = ({
         }
       }, 1000);
 
+      clearInterval(timer);
       window.removeEventListener<"message">("message", listener);
     }
   };

@@ -151,6 +151,59 @@ describe("~/pages/apps/new/github/NewGithubApp.tsx", () => {
       });
     });
 
+    it("closing the connect more popup should refetch without duplicating repos", async () => {
+      window.open = vi.fn().mockReturnValue({ closed: true });
+
+      const scope1 = mockFetchInstallations({
+        response: {
+          accounts: [
+            {
+              id: installationId,
+              login: "jdoe",
+              avatarUrl: "https://example.com/jdoe",
+            },
+          ],
+        },
+      });
+
+      const scope2 = mockFetchRepositories({
+        installationId,
+        page: 1,
+        search: "",
+        response: {
+          hasNextPage: false,
+          repos: [
+            {
+              name: "simple-project",
+              fullName: "jdoe/simple-project",
+            },
+            {
+              name: "new-project",
+              fullName: "jdoe/new-project",
+            },
+          ],
+        },
+      });
+
+      fireEvent.click(
+        wrapper.getByRole("button", { name: /Connect more repositories/ })
+      );
+
+      await waitFor(
+        () => {
+          expect(scope1.isDone()).toBe(true);
+          expect(scope2.isDone()).toBe(true);
+        },
+        { timeout: 3000 }
+      );
+
+      await waitFor(() => {
+        expect(wrapper.getByText("new-project")).toBeTruthy();
+      });
+
+      expect(wrapper.getAllByText("simple-project")).toHaveLength(1);
+    });
+
     it("selecting a different account should trigger a refetch", async () => {
       const scope = mockFetchRepositories({
         installationId: installationId2,
