@@ -1,5 +1,23 @@
 # Changelog
 
+## v2026.10.30.3...v2026.11.02.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.10.30.3...v2026.11.02.1)
+
+### 🩹 Fixes
+
+- Report a missing mailer for magic links ([#678](https://github.com/stormkit-io/stormkit-io/pull/678))
+- Stop duplicating repos after popup close ([#679](https://github.com/stormkit-io/stormkit-io/pull/679))
+- Improve disabled checkbox contrast ([#675](https://github.com/stormkit-io/stormkit-io/pull/675))
+
+### 🏡 Chore
+
+- Update changelog for v2026.10.30.3 ([#677](https://github.com/stormkit-io/stormkit-io/pull/677))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.10.30.2...v2026.10.30.3
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.10.30.2...v2026.10.30.3)
