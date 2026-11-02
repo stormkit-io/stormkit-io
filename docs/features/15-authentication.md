@@ -27,7 +27,10 @@ You configure it under **Environment** > **Authentication**.
 > - The **Magic Link** and **email / password** providers send email (sign-in
 >   links and verification messages), so the environment's
 >   **[Mailer](/docs/features/mailer)** must be configured for them to actually
->   deliver. The OAuth providers (Google, X, GitHub, GitLab) don't need the Mailer.
+>   deliver. Without one, a magic link request fails with `503` and a generic
+>   "could not be sent" message for the visitor; the email still appears under
+>   **Mailer**, so you can check what would have been sent. The OAuth providers (Google, X,
+>   GitHub, GitLab) don't need the Mailer.
 
 ## How it works
 
