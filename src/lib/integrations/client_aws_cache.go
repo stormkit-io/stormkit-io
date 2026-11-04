@@ -49,7 +49,7 @@ func (a *AWSClient) UploadCacheArtifact(ctx context.Context, args CacheArtifactA
 		Key:                  utils.Ptr(a.cacheKey(args)),
 		Body:                 f,
 		ContentType:          utils.Ptr(cacheContentType),
-		ServerSideEncryption: s3types.ServerSideEncryptionAes256,
+		ServerSideEncryption: a.encryption,
 		ACL:                  s3types.ObjectCannedACLPrivate,
 	})
 

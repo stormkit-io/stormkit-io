@@ -144,6 +144,7 @@ func (u *Uploader) Upload(args UploadArgs) (*integrations.UploadResult, error) {
 			AccessKey: u.conf.AccessKey,
 			SecretKey: u.conf.SecretKey,
 			Region:    utils.GetString(args.Region, u.conf.Region),
+			Endpoint:  u.conf.Endpoint,
 		}).
 		Upload(integrations.UploadArgs{
 			MigrationsZip: args.MigrationsZip,

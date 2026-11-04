@@ -122,6 +122,7 @@ type ClientArgs struct {
 	SessionToken string
 	Profile      string
 	Region       string
+	Endpoint     string // Storage endpoint of S3-compatible providers such as HCloud
 	Middlewares  []func(stack *middleware.Stack) error
 }
 
@@ -145,7 +146,11 @@ func Client(args ...ClientArgs) ClientInterface {
 	var initErr error
 
 	clientOnce.Do(func() {
-		if cfg.AWS != nil || opts.Provider == config.ProviderAWS {
+		// HCloud comes first: it is opted into on top of an existing provider
+		// and still serves the deployments stored there.
+		if cfg.HCloud != nil || opts.Provider == config.ProviderHCloud {
+			CachedClient, initErr = HCloud(opts)
+		} else if cfg.AWS != nil || opts.Provider == config.ProviderAWS {
 			CachedClient, initErr = AWS(opts, nil)
 		} else if cfg.Alibaba != nil || opts.Provider == config.ProviderAlibaba {
 			CachedClient, initErr = Alibaba(opts)
