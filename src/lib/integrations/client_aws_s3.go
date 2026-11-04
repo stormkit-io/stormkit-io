@@ -225,7 +225,7 @@ func (a *AWSClient) UploadFile(file File, s3args any) error {
 		Key:                  &filePath,
 		ContentType:          &file.ContentType,
 		ContentLength:        &file.Size,
-		ServerSideEncryption: s3types.ServerSideEncryptionAes256,
+		ServerSideEncryption: a.encryption,
 		// This is a required to allow reading the file through our CDN,
 		// but it may create problems with custom storages.
 		// Therefore, we may want to make this variable.

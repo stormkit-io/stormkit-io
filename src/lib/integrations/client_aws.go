@@ -15,12 +15,20 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 )
 
 type AWSOptions struct {
 	s3Only  bool
 	awsConf *aws.Config
+
+	// noEncryptionHeader leaves out the SSE-S3 header for S3-compatible
+	// stores that encrypt at rest on their own or reject the header.
+	noEncryptionHeader bool
+
+	// pathStyle puts the bucket in the path instead of the host name.
+	pathStyle bool
 }
 
 type AWSClient struct {
@@ -32,11 +40,13 @@ type AWSClient struct {
 	zipManager     *ZipManager
 	zipOnce        sync.Once
 	providerPrefix string
+	encryption     s3types.ServerSideEncryption
 }
 
 var CachedAWSClient *AWSClient
 var awsmux sync.Mutex
 
+// AWS returns the process-wide AWS client, creating it on the first call.
 func AWS(args ClientArgs, opts *AWSOptions) (*AWSClient, error) {
 	awsmux.Lock()
 	defer awsmux.Unlock()
@@ -45,6 +55,20 @@ func AWS(args ClientArgs, opts *AWSOptions) (*AWSClient, error) {
 		return CachedAWSClient, nil
 	}
 
+	client, err := newAWSClient(args, opts)
+
+	if err != nil {
+		return nil, err
+	}
+
+	CachedAWSClient = client
+
+	return CachedAWSClient, nil
+}
+
+// newAWSClient creates an AWS client that is not shared. S3-compatible
+// providers that must not take over the cached AWS client use it.
+func newAWSClient(args ClientArgs, opts *AWSOptions) (*AWSClient, error) {
 	conf := config.Get()
 
 	if opts == nil {
@@ -103,23 +127,29 @@ func AWS(args ClientArgs, opts *AWSOptions) (*AWSClient, error) {
 		awsConfig.APIOptions = append(awsConfig.APIOptions, args.Middlewares...)
 	}
 
-	CachedAWSClient = &AWSClient{
+	client := &AWSClient{
 		S3Client: s3.NewFromConfig(awsConfig, func(o *s3.Options) {
 			o.DisableLogOutputChecksumValidationSkipped = true
 			o.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenRequired
+			o.UsePathStyle = opts.pathStyle
 		}),
 		providerPrefix: "aws",
+		encryption:     s3types.ServerSideEncryptionAes256,
+	}
+
+	if opts.noEncryptionHeader {
+		client.encryption = ""
 	}
 
 	if !opts.s3Only {
-		CachedAWSClient.lambdaClient = lambda.NewFromConfig(awsConfig)
-		CachedAWSClient.route53Client = route53.NewFromConfig(awsConfig)
+		client.lambdaClient = lambda.NewFromConfig(awsConfig)
+		client.route53Client = route53.NewFromConfig(awsConfig)
 	}
 
-	CachedAWSClient.uploader = manager.NewUploader(CachedAWSClient.S3Client)
-	CachedAWSClient.downloader = manager.NewDownloader(CachedAWSClient.S3Client)
+	client.uploader = manager.NewUploader(client.S3Client)
+	client.downloader = manager.NewDownloader(client.S3Client)
 
-	return CachedAWSClient, nil
+	return client, nil
 }
 
 func (c *AWSClient) Name() string {

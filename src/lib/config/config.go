@@ -35,6 +35,7 @@ const (
 	ProviderAWS     = "aws"
 	ProviderAlibaba = "alibaba"
 	ProviderFilesys = "filesys"
+	ProviderHCloud  = "hcloud"
 
 	// Deployer services
 	DeployerServiceLocal = "local"
@@ -87,14 +88,35 @@ type AlibabaConfig struct {
 	Region        string
 }
 
+// HCloudConfig configures Hetzner Object Storage as the store for deployment
+// artifacts. Functions still run on the hosting servers; the bucket lets every
+// server of a multi-server instance serve every deployment.
+type HCloudConfig struct {
+	AccessKey     string
+	SecretKey     string
+	StorageBucket string
+	Region        string // Location of the bucket, such as fsn1, nbg1 or hel1
+	Endpoint      string // Overrides the endpoint derived from Region
+}
+
+// StorageEndpoint returns the S3 endpoint of the bucket.
+func (c *HCloudConfig) StorageEndpoint() string {
+	if c.Endpoint != "" {
+		return c.Endpoint
+	}
+
+	return "https://" + c.Region + ".your-objectstorage.com"
+}
+
 type RunnerConfig struct {
 	AccessKey     string `json:"accessKey,omitempty"`
 	SecretKey     string `json:"secretKey,omitempty"`
-	Provider      string `json:"provider,omitempty"` // One of AWS | Alibaba
+	Provider      string `json:"provider,omitempty"` // One of AWS | Alibaba | HCloud | Filesys
 	BucketName    string `json:"bucketName,omitempty"`
 	Region        string `json:"region,omitempty"`
 	LambdaRole    string `json:"lambdaRole,omitempty"`
 	AccountID     string `json:"accountId,omitempty"`
+	Endpoint      string `json:"endpoint,omitempty"`
 	ErrorsChannel string `json:"errorsChannel,omitempty"`
 	Concurrency   int    `json:"-"`
 	MaxGoRoutines int    `json:"maxGoRoutines,omitempty"`
@@ -215,6 +237,7 @@ var Limits = map[string]limits{
 type Config struct {
 	AWS               *AwsConfig
 	Alibaba           *AlibabaConfig
+	HCloud            *HCloudConfig
 	Database          *DatabaseConfig
 	Deployer          *DeployerConfig
 	Stripe            *StripeConfig
@@ -410,11 +433,30 @@ func New() *Config {
 		}
 	}
 
+	if bucketName := os.Getenv("HCLOUD_OSS_BUCKET_NAME"); bucketName != "" {
+		config.HCloud = &HCloudConfig{
+			StorageBucket: bucketName,
+			Region:        os.Getenv("HCLOUD_OSS_REGION"),
+			Endpoint:      os.Getenv("HCLOUD_OSS_ENDPOINT"),
+			AccessKey:     os.Getenv("HCLOUD_OSS_ACCESS_KEY_ID"),
+			SecretKey:     os.Getenv("HCLOUD_OSS_SECRET_ACCESS_KEY"),
+		}
+	}
+
 	if config.Reporting.DiscordErrorChannel != "" {
 		config.Runner.ErrorsChannel = config.Reporting.DiscordErrorChannel
 	}
 
-	if config.AWS != nil {
+	// HCloud wins over another provider: new deployments go to it, while the
+	// ones stored before stay where they are.
+	if config.HCloud != nil {
+		config.Runner.Provider = ProviderHCloud
+		config.Runner.BucketName = config.HCloud.StorageBucket
+		config.Runner.Region = config.HCloud.Region
+		config.Runner.Endpoint = config.HCloud.Endpoint
+		config.Runner.AccessKey = config.HCloud.AccessKey
+		config.Runner.SecretKey = config.HCloud.SecretKey
+	} else if config.AWS != nil {
 		config.Runner.Provider = ProviderAWS
 		config.Runner.BucketName = config.AWS.StorageBucket
 		config.Runner.Region = config.AWS.Region

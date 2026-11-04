@@ -92,6 +92,7 @@ func (c *cacheManager) store() integrations.CacheStore {
 		AccessKey: c.opts.Uploader.AccessKey,
 		SecretKey: c.opts.Uploader.SecretKey,
 		Region:    c.opts.Uploader.Region,
+		Endpoint:  c.opts.Uploader.Endpoint,
 	})
 
 	if store, ok := client.(integrations.CacheStore); ok {
