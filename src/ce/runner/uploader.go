@@ -36,6 +36,7 @@ type UploadArgs struct {
 	BucketName    string
 	Region        string
 	Runtime       string
+	Uploads       *integrations.SignedUploads
 }
 
 func NewUploader(opts *config.RunnerConfig) RunnerUploaderInterface {
@@ -63,9 +64,9 @@ type bundleSizeLimit struct {
 // the deployment logs.
 func (u *Uploader) checkDeploymentSize(args UploadArgs) error {
 	limits := []bundleSizeLimit{
-		{name: "client", zipFile: args.ClientZip, maxSize: 50<<20 + 1024},  // 50MB
-		{name: "server", zipFile: args.ServerZip, maxSize: 100<<20 + 1024}, // 100MB
-		{name: "api", zipFile: args.ApiZip, maxSize: 100<<20 + 1024},       // 100MB
+		{name: "client", zipFile: args.ClientZip, maxSize: integrations.CloudArtifactSizeLimits["sk-client.zip"]},
+		{name: "server", zipFile: args.ServerZip, maxSize: integrations.CloudArtifactSizeLimits["sk-server.zip"]},
+		{name: "api", zipFile: args.ApiZip, maxSize: integrations.CloudArtifactSizeLimits["sk-api.zip"]},
 	}
 
 	for _, limit := range limits {
@@ -136,6 +137,17 @@ func (u *Uploader) Upload(args UploadArgs) (*integrations.UploadResult, error) {
 		if err := u.checkDeploymentSize(args); err != nil {
 			return nil, err
 		}
+	}
+
+	if args.Uploads != nil {
+		return args.Uploads.Upload(integrations.UploadArgs{
+			MigrationsZip: args.MigrationsZip,
+			ClientZip:     args.ClientZip,
+			ServerZip:     args.ServerZip,
+			ServerHandler: args.ServerHandler,
+			APIZip:        args.ApiZip,
+			APIHandler:    args.ApiHandler,
+		})
 	}
 
 	return integrations.

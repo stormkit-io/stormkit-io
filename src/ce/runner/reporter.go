@@ -1,6 +1,8 @@
 package runner
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -38,6 +40,36 @@ func NewReporter(baseURL string) *ReporterModel {
 }
 
 func (r *ReporterModel) request(payload map[string]any) error {
+	_, err := r.send(payload)
+	return err
+}
+
+// SignUploads asks the API for the forms that upload the deployment.
+func (r *ReporterModel) SignUploads() (*integrations.SignedUploads, error) {
+	if r.baseURL == "" {
+		return nil, errors.New("no deployment callback to ask for upload links")
+	}
+
+	body, err := r.send(map[string]any{
+		"deployId":    DeploymentIDEnc,
+		"signUploads": true,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	uploads := &integrations.SignedUploads{}
+
+	if err := json.Unmarshal(body, uploads); err != nil {
+		return nil, fmt.Errorf("cannot read upload links: %w", err)
+	}
+
+	return uploads, nil
+}
+
+// send posts payload to the deployment callback and returns the response body.
+func (r *ReporterModel) send(payload map[string]any) ([]byte, error) {
 	res, err := shttp.NewRequestV2(shttp.MethodPost, r.CallbackURL).
 		WithExponentialBackoff(time.Second*30, 5).
 		Headers(r.headers()).
@@ -56,7 +88,7 @@ func (r *ReporterModel) request(payload map[string]any) error {
 	}
 
 	if res == nil {
-		return fmt.Errorf("no response received from deployment callback: %w", err)
+		return nil, fmt.Errorf("no response received from deployment callback: %w", err)
 	}
 
 	if res.StatusCode == http.StatusConflict {
@@ -75,7 +107,7 @@ func (r *ReporterModel) request(payload map[string]any) error {
 		os.Exit(128)
 	}
 
-	return err
+	return body, err
 }
 
 // Logs returns the accumulated build logs in the structured NDJSON format.

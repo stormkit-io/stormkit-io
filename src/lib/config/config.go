@@ -43,6 +43,10 @@ const (
 	// MaxRepoSizeEnvVar overrides the largest repository a deployment accepts,
 	// in megabytes.
 	MaxRepoSizeEnvVar = "STORMKIT_MAX_REPO_SIZE_MB"
+
+	// MaxArtifactSizeEnvVar overrides the largest deployment zip a build can
+	// upload through signed links, in megabytes.
+	MaxArtifactSizeEnvVar = "STORMKIT_MAX_ARTIFACT_SIZE_MB"
 )
 
 // Allowed environments
@@ -645,6 +649,18 @@ func IsProduction() bool {
 // when the instance is left on the default.
 func MaxRepoSizeMB() int64 {
 	mb, err := strconv.ParseInt(os.Getenv(MaxRepoSizeEnvVar), 10, 64)
+
+	if err != nil || mb <= 0 {
+		return 0
+	}
+
+	return mb
+}
+
+// MaxArtifactSizeMB returns the configured deployment zip size cap in
+// megabytes, or 0 when the instance is left on the default.
+func MaxArtifactSizeMB() int64 {
+	mb, err := strconv.ParseInt(os.Getenv(MaxArtifactSizeEnvVar), 10, 64)
 
 	if err != nil || mb <= 0 {
 		return 0

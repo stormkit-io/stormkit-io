@@ -14,6 +14,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
+	"github.com/stormkit-io/stormkit-io/src/lib/integrations"
 	"github.com/stormkit-io/stormkit-io/src/lib/tasks"
 	"github.com/stretchr/testify/suite"
 	"gopkg.in/guregu/null.v3"
@@ -261,6 +262,86 @@ func (s *DeploySuite) Test_Deployment_BuildCache_NoDirs() {
 	message := s.deployAndReadMessage(app.App, depl.Deployment)
 
 	s.Empty(message.Build.CacheDirs)
+}
+
+// Test_Deployment_Lambda_KeepsCredentials verifies that builds publishing
+// functions to Lambda keep their credentials, since links cannot do that.
+func (s *DeploySuite) Test_Deployment_Lambda_KeepsCredentials() {
+	runner := *config.Get().Runner
+	config.Get().Runner.AccessKey = "access-key"
+	config.Get().Runner.SecretKey = "secret-key"
+
+	client, err := integrations.AWS(integrations.ClientArgs{AccessKey: "a", SecretKey: "b", Region: "eu-central-1"}, nil)
+	s.Require().NoError(err)
+
+	integrations.SetDefaultClient(client)
+
+	defer func() {
+		*config.Get().Runner = runner
+		integrations.SetDefaultClient(nil)
+		integrations.CachedAWSClient = nil
+	}()
+
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+	depl := s.MockDeployment(env)
+
+	message := s.deployAndReadMessage(app.App, depl.Deployment)
+
+	s.False(message.Config.SignedUploads)
+	s.Equal("access-key", message.Config.AccessKey)
+}
+
+// Test_Deployment_HCloud_SignedUploads verifies that with HCloud storage the
+// build gets none of the bucket's keys and no links either: the runner asks
+// for those once it needs them. The build cache needs the keys, so it is off.
+func (s *DeploySuite) Test_Deployment_HCloud_SignedUploads() {
+	config.SetIsSelfHosted(true)
+
+	runner := *config.Get().Runner
+
+	config.Get().HCloud = &config.HCloudConfig{
+		AccessKey:     "access-key",
+		SecretKey:     "secret-key",
+		StorageBucket: "artifacts",
+		Region:        "fsn1",
+	}
+
+	config.Get().Runner.Provider = config.ProviderHCloud
+	config.Get().Runner.AccessKey = "access-key"
+	config.Get().Runner.SecretKey = "secret-key"
+
+	client, err := integrations.HCloud(integrations.ClientArgs{})
+	s.Require().NoError(err)
+
+	integrations.SetDefaultClient(client)
+
+	defer func() {
+		config.SetIsSelfHosted(false)
+		config.Get().HCloud = nil
+		*config.Get().Runner = runner
+		integrations.SetDefaultClient(nil)
+		integrations.CachedHCloudClient = nil
+	}()
+
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+
+	depl := s.MockDeployment(env, map[string]any{
+		"BuildConfig": &buildconf.BuildConf{CacheDirs: []string{"node_modules"}},
+	})
+
+	message := s.deployAndReadMessage(app.App, depl.Deployment)
+
+	s.Empty(message.Config.AccessKey)
+	s.Empty(message.Config.SecretKey)
+	s.True(message.Config.SignedUploads)
+	s.Empty(message.Build.CacheDirs)
+
+	// The keys stay on the server for its own uploads.
+	s.Equal("access-key", config.Get().Runner.AccessKey)
 }
 
 func (s *DeploySuite) Test_Deployment_NoMoreBuildMinutes() {

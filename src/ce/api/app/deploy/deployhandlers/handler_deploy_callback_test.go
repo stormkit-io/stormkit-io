@@ -2,6 +2,8 @@ package deployhandlers_test
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -244,6 +246,227 @@ func (s *HandlerDeployCallbackSuite) Test_ExitCode_Success() {
 
 	s.NoError(err)
 	s.Len(depls, 1)
+}
+
+// useHCloud makes HCloud the storage of the test and returns its cleanup.
+// Signing and verifying uploads never reach the storage.
+func (s *HandlerDeployCallbackSuite) useHCloud() func() {
+	config.Get().HCloud = &config.HCloudConfig{
+		AccessKey:     "access-key",
+		SecretKey:     "secret-key",
+		StorageBucket: "artifacts",
+		Region:        "fsn1",
+		Endpoint:      "http://127.0.0.1:1",
+	}
+
+	client, err := integrations.HCloud(integrations.ClientArgs{})
+	s.Require().NoError(err)
+
+	integrations.CachedClient = client
+
+	return func() {
+		config.Get().HCloud = nil
+		integrations.CachedHCloudClient = nil
+	}
+}
+
+// exitWithResult reports a successful build of depl with the given result.
+func (s *HandlerDeployCallbackSuite) exitWithResult(usr *factory.MockUser, depl *factory.MockDeployment, result integrations.UploadResult, extra ...map[string]any) shttptest.Response {
+	payload := map[string]any{
+		"deployId":        utils.EncryptID(depl.ID),
+		"manifest":        &deploy.BuildManifest{},
+		"result":          result,
+		"outcome":         "success",
+		"hasStatusChecks": false,
+	}
+
+	for _, e := range extra {
+		for k, v := range e {
+			payload[k] = v
+		}
+	}
+
+	return shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(deployhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/app/deploy/callback",
+		payload,
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+}
+
+// Test_ExitCode_HCloud_Stored verifies that a build's own uploads are stored
+// as the deployment's locations.
+func (s *HandlerDeployCallbackSuite) Test_ExitCode_HCloud_Stored() {
+	defer s.useHCloud()()
+
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+	depl := s.MockDeployment(env)
+	key := fmt.Sprintf("hcloud:artifacts/%d/%d/", app.ID, depl.ID)
+
+	response := s.exitWithResult(usr, depl, integrations.UploadResult{
+		Client: integrations.UploadOverview{Location: key + "sk-client.zip"},
+		Server: integrations.UploadOverview{Location: key + "sk-server.zip/server.mjs:handler"},
+	})
+
+	s.Equal(http.StatusOK, response.Code)
+
+	d, err := deploy.NewStore().DeploymentByID(context.Background(), depl.ID)
+	s.Require().NoError(err)
+
+	s.Equal(int64(0), d.ExitCode.ValueOrZero())
+	s.Equal(key+"sk-client.zip", d.UploadResult.ClientLocation)
+	s.Equal(key+"sk-server.zip/server.mjs:handler", d.UploadResult.ServerLocation)
+}
+
+// Test_ExitCode_HCloud_ForeignLocations verifies that locations other than the
+// deployment's own uploads are not stored.
+func (s *HandlerDeployCallbackSuite) Test_ExitCode_HCloud_ForeignLocations() {
+	defer s.useHCloud()()
+
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+
+	locations := []func(depl *factory.MockDeployment) string{
+		func(depl *factory.MockDeployment) string {
+			return fmt.Sprintf("hcloud:artifacts/%d/%d0/sk-client.zip", app.ID, depl.ID)
+		},
+		func(depl *factory.MockDeployment) string {
+			return fmt.Sprintf("hcloud:artifacts/%d/%d/sk-client.zip", app.ID+1, depl.ID)
+		},
+		func(depl *factory.MockDeployment) string {
+			return fmt.Sprintf("hcloud:other-bucket/%d/%d/sk-client.zip", app.ID, depl.ID)
+		},
+		func(depl *factory.MockDeployment) string {
+			return fmt.Sprintf("hcloud:artifacts/%d/%d/other.zip", app.ID, depl.ID)
+		},
+		func(*factory.MockDeployment) string {
+			return "local:/shared/deployments/deployment-1/client"
+		},
+	}
+
+	for _, location := range locations {
+		depl := s.MockDeployment(env)
+		reported := location(depl)
+
+		response := s.exitWithResult(usr, depl, integrations.UploadResult{
+			Client:     integrations.UploadOverview{Location: reported},
+			Migrations: integrations.UploadOverview{Location: reported},
+		})
+
+		s.Equal(http.StatusOK, response.Code, reported)
+
+		d, err := deploy.NewStore().DeploymentByID(context.Background(), depl.ID)
+		s.Require().NoError(err)
+
+		s.Equal(int64(1), d.ExitCode.ValueOrZero(), reported)
+		s.Contains(d.Error.ValueOrZero(), "does not belong to this deployment", reported)
+		s.Empty(d.UploadResult.ClientLocation, reported)
+		s.Empty(d.UploadResult.MigrationsLocation, reported)
+	}
+}
+
+// signUploads asks for the upload forms of depl.
+func (s *HandlerDeployCallbackSuite) signUploads(usr *factory.MockUser, depl *factory.MockDeployment) shttptest.Response {
+	return shttptest.RequestWithHeaders(
+		shttp.NewRouter().RegisterService(deployhandlers.Services).Router().Handler(),
+		shttp.MethodPost,
+		"/app/deploy/callback",
+		map[string]any{
+			"deployId":    utils.EncryptID(depl.ID),
+			"signUploads": true,
+		},
+		map[string]string{
+			"Authorization": usertest.Authorization(usr.ID),
+		},
+	)
+}
+
+// Test_SignUploads_Running verifies that a running deployment gets upload
+// forms for its own keys.
+func (s *HandlerDeployCallbackSuite) Test_SignUploads_Running() {
+	defer s.useHCloud()()
+
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+	depl := s.MockDeployment(env)
+
+	response := s.signUploads(usr, depl)
+	s.Require().Equal(http.StatusOK, response.Code)
+
+	uploads := integrations.SignedUploads{}
+	s.Require().NoError(json.Unmarshal([]byte(response.String()), &uploads))
+
+	s.Len(uploads.Artifacts, 4)
+	s.Equal(fmt.Sprintf("%d/%d/sk-client.zip", app.ID, depl.ID), uploads.Artifacts["sk-client.zip"].Fields["key"])
+}
+
+// Test_SignUploads_AfterExit verifies that once an attempt reported its exit,
+// no more links are signed for it, even while its status checks run.
+func (s *HandlerDeployCallbackSuite) Test_SignUploads_AfterExit() {
+	defer s.useHCloud()()
+
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+
+	for _, depl := range []*factory.MockDeployment{
+		s.MockDeployment(env, map[string]any{"ExitCode": null.IntFrom(0)}),
+		s.MockDeployment(env, map[string]any{"ExitCode": null.IntFrom(1)}),
+		s.MockDeployment(env, map[string]any{
+			"ExitCode":    null.IntFrom(0),
+			"BuildConfig": &buildconf.BuildConf{StatusChecks: []buildconf.StatusCheck{{Name: "e2e", Cmd: "npm run e2e"}}},
+		}),
+	} {
+		s.Equal(http.StatusConflict, s.signUploads(usr, depl).Code)
+	}
+}
+
+// Test_SignUploads_NotSigningStorage verifies that storage holding its own keys
+// signs nothing.
+func (s *HandlerDeployCallbackSuite) Test_SignUploads_NotSigningStorage() {
+	integrations.CachedClient = integrations.Filesys()
+	defer func() { integrations.CachedClient = nil }()
+
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+	depl := s.MockDeployment(env)
+
+	response := s.signUploads(usr, depl)
+
+	s.Equal(http.StatusBadRequest, response.Code)
+}
+
+// Test_ExitCode_HCloud_KeepsUploadError verifies that the error the runner
+// reported stays visible when its result is rejected.
+func (s *HandlerDeployCallbackSuite) Test_ExitCode_HCloud_KeepsUploadError() {
+	usr := s.MockUser()
+	app := s.MockApp(usr)
+	env := s.MockEnv(app)
+	depl := s.MockDeployment(env)
+
+	defer s.useHCloud()()
+
+	response := s.exitWithResult(usr, depl, integrations.UploadResult{
+		Client: integrations.UploadOverview{
+			Location: fmt.Sprintf("hcloud:artifacts/%d/%d/other.zip", app.ID, depl.ID),
+		},
+	}, map[string]any{"outcome": "failure", "error": "cannot upload sk-server.zip: connection reset"})
+
+	s.Equal(http.StatusOK, response.Code)
+
+	d, err := deploy.NewStore().DeploymentByID(context.Background(), depl.ID)
+	s.Require().NoError(err)
+
+	s.Contains(d.Error.ValueOrZero(), "cannot upload sk-server.zip: connection reset")
+	s.Contains(d.Error.ValueOrZero(), "does not belong to this deployment")
 }
 
 func (s *HandlerDeployCallbackSuite) Test_ExitCode_Success_With_StatusChecks() {
