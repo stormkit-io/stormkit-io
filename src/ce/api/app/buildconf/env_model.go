@@ -409,7 +409,6 @@ type BuildConf struct {
 	Vars            map[string]string    `json:"vars,omitempty"`            // The environment variables that will be injected to the application.
 	StatusChecks    []StatusCheck        `json:"statusChecks,omitempty"`    // StatusChecks is an array of commands that will be executed after the deployment is complete.
 	PriorityPattern string               `json:"priorityPattern,omitempty"` // PriorityPattern is a regex matched against the commit message to auto-prioritize deployments.
-	CacheDirs       []string             `json:"cacheDirs,omitempty"`       // CacheDirs is a list of directories (relative to the working directory) restored before install and snapshotted after a successful build.
 
 	// SkipUnchangedBuildRoot opts an environment into monorepo path filtering. When enabled, a push
 	// only triggers an auto deployment if it changes a file inside WorkDir, inside one of WatchPaths,
@@ -540,62 +539,11 @@ func Validate(env *Env) []string {
 	}
 
 	if env.Data != nil {
-		errors = append(errors, ValidateCacheDirs(env.Data.CacheDirs)...)
 		errors = append(errors, ValidateWatchPaths(env.Data.WatchPaths)...)
 	}
 
 	if len(errors) == 0 {
 		return nil
-	}
-
-	return errors
-}
-
-// NormalizeCacheDirs trims each entry and drops empty ones, so callers can
-// accept a raw list (e.g. a textarea split by newlines) before validation.
-func NormalizeCacheDirs(dirs []string) []string {
-	normalized := make([]string, 0, len(dirs))
-
-	for _, dir := range dirs {
-		if dir = strings.TrimSpace(dir); dir != "" {
-			normalized = append(normalized, dir)
-		}
-	}
-
-	return normalized
-}
-
-// ValidateCacheDirs ensures every cache directory is a relative path that
-// stays inside the build working directory. The runner extracts cache
-// archives with these paths, so anything escaping the workdir is rejected.
-func ValidateCacheDirs(dirs []string) []string {
-	errors := []string{}
-
-	for _, dir := range dirs {
-		dir = strings.TrimSpace(dir)
-
-		if dir == "" {
-			errors = append(errors, "Cache directories cannot be empty")
-			continue
-		}
-
-		if strings.HasPrefix(dir, "/") || strings.HasPrefix(dir, "~") {
-			errors = append(errors, fmt.Sprintf("Cache directory %q must be relative to the working directory", dir))
-			continue
-		}
-
-		// A leading dash would be interpreted as a flag when the directory is
-		// passed to tar during snapshot/restore.
-		if strings.HasPrefix(dir, "-") {
-			errors = append(errors, fmt.Sprintf("Cache directory %q cannot start with a dash", dir))
-			continue
-		}
-
-		cleaned := path.Clean(dir)
-
-		if cleaned == "." || cleaned == ".." || strings.HasPrefix(cleaned, "../") {
-			errors = append(errors, fmt.Sprintf("Cache directory %q must point inside the working directory", dir))
-		}
 	}
 
 	return errors

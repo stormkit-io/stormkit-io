@@ -80,16 +80,6 @@ export const prepareBuildObject = (values: FormValues): BuildConfig => {
     } catch {}
   }
 
-  // One directory per line; an empty textarea clears the list.
-  let cacheDirs: string[] | undefined;
-
-  if (values["build.cacheDirs"] !== undefined) {
-    cacheDirs = values["build.cacheDirs"]
-      .split("\n")
-      .map(dir => dir.trim())
-      .filter(Boolean);
-  }
-
   // One path per line; an empty textarea clears the list.
   let watchPaths: string[] | undefined;
 
@@ -124,7 +114,6 @@ export const prepareBuildObject = (values: FormValues): BuildConfig => {
     priorityPattern: values["build.priorityPattern"]?.trim() || "",
     statusChecks,
     redirects,
-    cacheDirs,
     watchPaths,
     skipUnchangedBuildRoot,
     vars,
@@ -238,7 +227,6 @@ export interface EnvUpdatePayload {
   statusChecks?: StatusCheck[];
   redirects?: Redirect[];
   envVars?: Record<string, string>;
-  cacheDirs?: string[];
   skipUnchangedBuildRoot?: boolean;
   watchPaths?: string[];
 }
@@ -258,7 +246,6 @@ export interface FormValues {
   "build.installCmd"?: string;
   "build.distFolder"?: string;
   "build.workDir"?: string;
-  "build.cacheDirs"?: string;
   "build.watchPaths"?: string;
   "build.skipUnchangedBuildRoot"?: "on" | "off";
   "build.headers"?: string;

@@ -347,20 +347,6 @@ func (c *HCloudClient) DeleteArtifacts(ctx context.Context, args DeleteArtifacts
 	return nil
 }
 
-// UploadCacheArtifact implements CacheStore.
-func (c *HCloudClient) UploadCacheArtifact(ctx context.Context, args CacheArtifactArgs) error {
-	args.BucketName = utils.GetString(args.BucketName, c.bucket)
-
-	return c.s3.UploadCacheArtifact(ctx, args)
-}
-
-// DownloadCacheArtifact implements CacheStore.
-func (c *HCloudClient) DownloadCacheArtifact(ctx context.Context, args CacheArtifactArgs) (bool, error) {
-	args.BucketName = utils.GetString(args.BucketName, c.bucket)
-
-	return c.s3.DownloadCacheArtifact(ctx, args)
-}
-
 type hcloudLocation struct {
 	bucket string
 	key    string // Object key of the zip

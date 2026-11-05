@@ -40,7 +40,6 @@ type EnvUpdateRequest struct {
 	StatusChecks       []buildconf.StatusCheck `json:"statusChecks,omitempty"`
 	PriorityPattern    *string                 `json:"priorityPattern,omitempty"`
 	EnvVars            *map[string]string      `json:"envVars,omitempty"`
-	CacheDirs          *[]string               `json:"cacheDirs,omitempty"`
 
 	SkipUnchangedBuildRoot *bool     `json:"skipUnchangedBuildRoot,omitempty"`
 	WatchPaths             *[]string `json:"watchPaths,omitempty"`
@@ -178,10 +177,6 @@ func handlerEnvUpdate(req *RequestContext) *shttp.Response {
 
 	if data.EnvVars != nil {
 		env.Data.Vars = mergeEnvVars(env.Data.Vars, *data.EnvVars)
-	}
-
-	if data.CacheDirs != nil {
-		env.Data.CacheDirs = buildconf.NormalizeCacheDirs(*data.CacheDirs)
 	}
 
 	if data.SkipUnchangedBuildRoot != nil {
