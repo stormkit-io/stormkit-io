@@ -564,11 +564,6 @@ func mcpAllTools() []mcpToolDef {
 							"required": []string{"name", "cmd"},
 						},
 					},
-					"cacheDirs": map[string]any{
-						"type":        "array",
-						"description": "Directories (relative to the build working directory) restored before install and snapshotted after a successful build. Best for compiler caches like .next/cache or .turbo. Requires a premium or ultimate subscription on Stormkit Cloud; always enabled on self-hosted.",
-						"items":       map[string]any{"type": "string"},
-					},
 					"skipUnchangedBuildRoot": map[string]any{
 						"type":        "boolean",
 						"description": "Monorepo path filtering. When true, a push only auto-deploys this environment if it changes a file inside workDir, inside one of watchPaths, or at the repository root. Off unless enabled. Has no effect when the build root is the repository root, and applies to GitHub and GitLab push events only.",
@@ -640,11 +635,6 @@ func mcpAllTools() []mcpToolDef {
 								"description": map[string]any{"type": "string"},
 							},
 						},
-					},
-					"cacheDirs": map[string]any{
-						"type":        "array",
-						"description": "Directories (relative to the build working directory) restored before install and snapshotted after a successful build. Best for compiler caches like .next/cache or .turbo. Pass an empty array to disable caching. Requires a premium or ultimate subscription on Stormkit Cloud; always enabled on self-hosted.",
-						"items":       map[string]any{"type": "string"},
 					},
 					"skipUnchangedBuildRoot": map[string]any{
 						"type":        "boolean",
@@ -1364,7 +1354,6 @@ func mcpCreateEnvironment(req *RequestContextMCP, id any, args map[string]any) *
 	}
 
 	body.StatusChecks = parseStatusChecksArg(args)
-	body.CacheDirs, _ = stringArrayArg(args, "cacheDirs")
 	body.WatchPaths, _ = stringArrayArg(args, "watchPaths")
 
 	if raw, ok := args["skipUnchangedBuildRoot"].(bool); ok {
@@ -1538,10 +1527,6 @@ func mcpUpdateEnvironment(req *RequestContextMCP, id any, args map[string]any) *
 	}
 
 	update.StatusChecks = parseStatusChecksArg(args)
-
-	if dirs, ok := stringArrayArg(args, "cacheDirs"); ok {
-		update.CacheDirs = &dirs
-	}
 
 	if paths, ok := stringArrayArg(args, "watchPaths"); ok {
 		update.WatchPaths = &paths

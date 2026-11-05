@@ -521,23 +521,6 @@ func (s *HCloudSuite) Test_DeleteArtifacts_KeepsOtherDeploymentsCached() {
 	s.Equal("Hello world", string(file.Content))
 }
 
-func (s *HCloudSuite) Test_CacheArtifacts() {
-	archive := path.Join(s.tmpdir, "cache.tar.gz")
-	s.Require().NoError(os.WriteFile(archive, []byte("cache"), 0664))
-
-	args := integrations.CacheArtifactArgs{AppID: 3, EnvID: 5, Dir: "node_modules", LocalPath: archive}
-	s.NoError(s.client().UploadCacheArtifact(context.Background(), args))
-
-	args.LocalPath = path.Join(s.tmpdir, "restored.tar.gz")
-	found, err := s.client().DownloadCacheArtifact(context.Background(), args)
-	s.NoError(err)
-	s.True(found)
-
-	content, err := os.ReadFile(args.LocalPath)
-	s.NoError(err)
-	s.Equal("cache", string(content))
-}
-
 func (s *HCloudSuite) Test_MissingCredentials() {
 	config.Get().HCloud.AccessKey = ""
 

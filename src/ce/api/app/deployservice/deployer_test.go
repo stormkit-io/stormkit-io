@@ -10,7 +10,6 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deployservice"
-	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/database/databasetest"
 	"github.com/stormkit-io/stormkit-io/src/lib/factory"
@@ -183,87 +182,6 @@ func (s *DeploySuite) Test_Deployment_GitCredentials_OtherRepo() {
 	s.Equal("https://github.com/attacker/test-repo.git", message.Client.Repo)
 }
 
-func (s *DeploySuite) Test_Deployment_BuildCache_SelfHosted() {
-	config.SetIsSelfHosted(true)
-
-	defer config.SetIsSelfHosted(false)
-
-	usr := s.MockUser()
-	app := s.MockApp(usr)
-	env := s.MockEnv(app)
-
-	depl := s.MockDeployment(env, map[string]any{
-		"BuildConfig": &buildconf.BuildConf{
-			CacheDirs: []string{".next/cache", "node_modules"},
-		},
-	})
-
-	message := s.deployAndReadMessage(app.App, depl.Deployment)
-
-	s.Equal([]string{".next/cache", "node_modules"}, message.Build.CacheDirs)
-}
-
-func (s *DeploySuite) Test_Deployment_BuildCache_Cloud_PremiumTier() {
-	config.SetIsStormkitCloud(true)
-
-	defer config.SetIsStormkitCloud(false)
-
-	usr := s.MockUser() // Mock users are premium by default.
-	app := s.MockApp(usr)
-	env := s.MockEnv(app)
-
-	depl := s.MockDeployment(env, map[string]any{
-		"BuildConfig": &buildconf.BuildConf{
-			CacheDirs: []string{".next/cache"},
-		},
-	})
-
-	message := s.deployAndReadMessage(app.App, depl.Deployment)
-
-	s.Equal([]string{".next/cache"}, message.Build.CacheDirs)
-}
-
-func (s *DeploySuite) Test_Deployment_BuildCache_Cloud_FreeTier() {
-	config.SetIsStormkitCloud(true)
-
-	defer config.SetIsStormkitCloud(false)
-
-	usr := s.MockUser(map[string]any{
-		"Metadata": user.UserMeta{
-			SeatsPurchased: 1,
-			PackageName:    config.PackageFree,
-		},
-	})
-	app := s.MockApp(usr)
-	env := s.MockEnv(app)
-
-	depl := s.MockDeployment(env, map[string]any{
-		"BuildConfig": &buildconf.BuildConf{
-			CacheDirs: []string{".next/cache"},
-		},
-	})
-
-	message := s.deployAndReadMessage(app.App, depl.Deployment)
-
-	// Free tier users on the cloud get no cache directories, which disables
-	// caching in the runner.
-	s.Empty(message.Build.CacheDirs)
-}
-
-func (s *DeploySuite) Test_Deployment_BuildCache_NoDirs() {
-	usr := s.MockUser()
-	app := s.MockApp(usr)
-	env := s.MockEnv(app)
-
-	depl := s.MockDeployment(env, map[string]any{
-		"BuildConfig": &buildconf.BuildConf{},
-	})
-
-	message := s.deployAndReadMessage(app.App, depl.Deployment)
-
-	s.Empty(message.Build.CacheDirs)
-}
-
 // Test_Deployment_Lambda_KeepsCredentials verifies that builds publishing
 // functions to Lambda keep their credentials, since links cannot do that.
 func (s *DeploySuite) Test_Deployment_Lambda_KeepsCredentials() {
@@ -295,7 +213,7 @@ func (s *DeploySuite) Test_Deployment_Lambda_KeepsCredentials() {
 
 // Test_Deployment_HCloud_SignedUploads verifies that with HCloud storage the
 // build gets none of the bucket's keys and no links either: the runner asks
-// for those once it needs them. The build cache needs the keys, so it is off.
+// for those once it needs them.
 func (s *DeploySuite) Test_Deployment_HCloud_SignedUploads() {
 	config.SetIsSelfHosted(true)
 
@@ -329,16 +247,13 @@ func (s *DeploySuite) Test_Deployment_HCloud_SignedUploads() {
 	app := s.MockApp(usr)
 	env := s.MockEnv(app)
 
-	depl := s.MockDeployment(env, map[string]any{
-		"BuildConfig": &buildconf.BuildConf{CacheDirs: []string{"node_modules"}},
-	})
+	depl := s.MockDeployment(env)
 
 	message := s.deployAndReadMessage(app.App, depl.Deployment)
 
 	s.Empty(message.Config.AccessKey)
 	s.Empty(message.Config.SecretKey)
 	s.True(message.Config.SignedUploads)
-	s.Empty(message.Build.CacheDirs)
 
 	// The keys stay on the server for its own uploads.
 	s.Equal("access-key", config.Get().Runner.AccessKey)

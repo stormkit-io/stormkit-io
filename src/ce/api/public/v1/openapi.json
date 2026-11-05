@@ -3982,13 +3982,6 @@
               ]
             }
           },
-          "cacheDirs": {
-            "type": "array",
-            "description": "Directories restored before install and snapshotted after a successful build, e.g. `.next/cache`. Pass an empty array to disable caching.",
-            "items": {
-              "type": "string"
-            }
-          },
           "skipUnchangedBuildRoot": {
             "type": "boolean",
             "description": "Monorepo path filtering. When true, a push only auto-deploys this environment if it changes a file inside `workDir`, inside one of `watchPaths`, or at the repository root. Off unless enabled. GitHub and GitLab push events only."
