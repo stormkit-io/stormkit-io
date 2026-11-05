@@ -4,6 +4,8 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -32,9 +34,10 @@ import (
 // fakeObjectStorage is the part of the S3 API the HCloud client uses, served
 // with path-style addressing.
 type fakeObjectStorage struct {
-	mu      sync.Mutex
-	objects map[string][]byte      // <bucket>/<key>
-	headers map[string]http.Header // request headers of each PUT
+	mu       sync.Mutex
+	objects  map[string][]byte      // <bucket>/<key>
+	headers  map[string]http.Header // request headers of each PUT
+	failures int                    // requests left to answer with 503
 }
 
 func newFakeObjectStorage() *fakeObjectStorage {
@@ -51,12 +54,21 @@ func (f *fakeObjectStorage) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	bucket, key, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/")
 	query := r.URL.Query()
 
+	if f.failures > 0 {
+		f.failures--
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
+	}
+
 	switch {
 	case r.Method == http.MethodPut:
 		body, _ := io.ReadAll(r.Body)
 		f.objects[bucket+"/"+key] = body
 		f.headers[bucket+"/"+key] = r.Header.Clone()
 		w.Header().Set("ETag", `"etag"`)
+
+	case r.Method == http.MethodPost && strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data"):
+		f.post(w, r, bucket)
 
 	case r.Method == http.MethodPost && query.Has("delete"):
 		req := struct {
@@ -131,6 +143,54 @@ func (f *fakeObjectStorage) has(key string) bool {
 	_, ok := f.objects[key]
 
 	return ok
+}
+
+// post stores the file of a signed form, enforcing the content-length-range of
+// its policy the way storage does. The signature is not checked.
+func (f *fakeObjectStorage) post(w http.ResponseWriter, r *http.Request, bucket string) {
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	file, _, err := r.FormFile("file")
+
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	body, _ := io.ReadAll(file)
+	decoded, _ := base64.StdEncoding.DecodeString(r.FormValue("policy"))
+
+	policy := struct {
+		Conditions []json.RawMessage `json:"conditions"`
+	}{}
+
+	_ = json.Unmarshal(decoded, &policy)
+
+	for _, raw := range policy.Conditions {
+		var rng []any
+
+		if json.Unmarshal(raw, &rng) == nil && len(rng) == 3 && rng[0] == "content-length-range" {
+			if float64(len(body)) > rng[2].(float64) {
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprint(w, `<Error><Code>EntityTooLarge</Code></Error>`)
+				return
+			}
+		}
+	}
+
+	f.objects[bucket+"/"+r.FormValue("key")] = body
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// failNext makes the next n requests fail with 503.
+func (f *fakeObjectStorage) failNext(n int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.failures = n
 }
 
 // remove deletes an object behind the client's back.

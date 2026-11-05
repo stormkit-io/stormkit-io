@@ -48,6 +48,10 @@ type deployCallbackRequest struct {
 	// Final call
 	Lock bool `json:"lock"`
 
+	// SignUploads asks for the forms the runner uploads through, for storage
+	// that signs them instead of handing out its keys.
+	SignUploads bool `json:"signUploads"`
+
 	deployment *deploy.Deployment
 }
 
@@ -105,6 +109,8 @@ func handlerDeployCallback(req *shttp.RequestContext) *shttp.Response {
 	}
 
 	switch {
+	case data.SignUploads:
+		return SignUploads(req, data)
 	case data.Lock:
 		return LockDeployment(req, data)
 	case data.Commit.ID.ValueOrZero() != "" || data.RunID != "":
@@ -164,6 +170,35 @@ func UpdateCommit(req *shttp.RequestContext, data deployCallbackRequest) *shttp.
 	return shttp.OK()
 }
 
+// SignUploads returns the upload forms the runner asked for. Only an attempt
+// that has not reported its exit gets them, and they are signed when the runner
+// needs them, so they expire shortly after the build instead of outliving it.
+func SignUploads(req *shttp.RequestContext, data deployCallbackRequest) *shttp.Response {
+	if data.deployment.ExitCode.Valid {
+		return &shttp.Response{Status: http.StatusConflict}
+	}
+
+	signer, ok := integrations.Client().(integrations.UploadSigner)
+
+	if !ok || !signer.SignsUploads() {
+		return shttp.BadRequest(map[string]any{"error": "The storage of this instance does not sign uploads"})
+	}
+
+	uploads, err := signer.SignUploads(req.Context(), integrations.SignUploadsParams{
+		AppID:        data.deployment.AppID,
+		DeploymentID: data.deployment.ID,
+	})
+
+	if err != nil {
+		return shttp.Error(err)
+	}
+
+	return &shttp.Response{
+		Status: http.StatusOK,
+		Data:   uploads,
+	}
+}
+
 // UpdateExit updates the deployment exit code and handles post-deployment tasks.
 func UpdateExit(req *shttp.RequestContext, data deployCallbackRequest) *shttp.Response {
 	// TODO: Retry job perhaps?
@@ -182,6 +217,21 @@ func UpdateExit(req *shttp.RequestContext, data deployCallbackRequest) *shttp.Re
 	case OutcomeCancelled, OutcomeSkipped:
 		data.deployment.ExitCode = null.NewInt(-1, true)
 	default:
+		data.deployment.ExitCode = null.NewInt(1, true)
+	}
+
+	if err := (uploadVerifier{deployment: data.deployment}).verify(data.Result); err != nil {
+		slog.Errorf("deployment %d: discarding upload result: %s", data.deployment.ID, err.Error())
+
+		// Keep the error the runner reported, it names the actual cause.
+		msg := "Error: the upload result does not belong to this deployment."
+
+		if prev := data.deployment.Error.ValueOrZero(); prev != "" {
+			msg = prev + "\n" + msg
+		}
+
+		data.Result = integrations.UploadResult{}
+		data.deployment.Error = null.StringFrom(msg)
 		data.deployment.ExitCode = null.NewInt(1, true)
 	}
 
@@ -266,6 +316,28 @@ func UpdateExit(req *shttp.RequestContext, data deployCallbackRequest) *shttp.Re
 	}
 
 	return shttp.OK()
+}
+
+// uploadVerifier checks that the artifacts a build uploaded through signed
+// links belong to its own deployment.
+type uploadVerifier struct {
+	deployment *deploy.Deployment
+}
+
+// verify does nothing for storage that does not sign links.
+func (u uploadVerifier) verify(result integrations.UploadResult) error {
+	signer, ok := integrations.Client().(integrations.UploadSigner)
+
+	if !ok {
+		return nil
+	}
+
+	return signer.VerifyUploads(integrations.VerifyUploadsParams{
+		AppID:        u.deployment.AppID,
+		EnvID:        u.deployment.EnvID,
+		DeploymentID: u.deployment.ID,
+		Result:       &result,
+	})
 }
 
 type RunMigrationsArgs struct {

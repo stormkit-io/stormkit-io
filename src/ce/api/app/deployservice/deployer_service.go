@@ -120,6 +120,11 @@ type RunnerSettings struct {
 	config.RunnerConfig
 
 	AutoInstall bool `json:"autoInstall"`
+
+	// SignedUploads replaces the storage credentials for providers that sign
+	// upload forms: the runner asks the deploy callback for forms scoped to
+	// its own deployment right before it uploads.
+	SignedUploads bool `json:"signedUploads,omitempty"`
 }
 
 // NewDeploy returns a new Deployment object.

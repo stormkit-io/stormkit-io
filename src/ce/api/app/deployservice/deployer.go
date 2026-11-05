@@ -12,6 +12,7 @@ import (
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/deploy"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/user"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
+	"github.com/stormkit-io/stormkit-io/src/lib/integrations"
 	"github.com/stormkit-io/stormkit-io/src/lib/slog"
 	"github.com/stormkit-io/stormkit-io/src/lib/tasks"
 	"github.com/stormkit-io/stormkit-io/src/lib/utils"
@@ -173,6 +174,17 @@ func (dd *DefaultDeployer) Deploy(ctx context.Context, a *app.App, d *deploy.Dep
 			RunnerConfig: *config.Get().Runner,
 			AutoInstall:  admin.MustConfig().IsAutoInstallEnabled(),
 		},
+	}
+
+	// Storage that signs upload forms never hands its keys to the build: the
+	// runner asks the deploy callback for forms scoped to this deployment
+	// once it has something to upload. The build cache needs the keys, so it
+	// is skipped.
+	if signer, ok := integrations.Client().(integrations.UploadSigner); ok && signer.SignsUploads() {
+		payload.Config.AccessKey = ""
+		payload.Config.SecretKey = ""
+		payload.Config.SignedUploads = true
+		payload.Build.CacheDirs = nil
 	}
 
 	queue := tasks.QueueDeployService

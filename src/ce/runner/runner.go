@@ -204,6 +204,7 @@ type RunnerOpts struct {
 	Repo           RepoOpts
 	Build          BuildOpts
 	Uploader       *config.RunnerConfig
+	SignedUploads  bool // The API signs upload links; the storage credentials are blank
 	AutoInstall    bool
 	Reporter       *ReporterModel
 }
@@ -288,8 +289,9 @@ func Start(payload, rootDir string) error {
 			EnvVars:          msg.Build.Vars,
 			CacheDirs:        msg.Build.CacheDirs,
 		},
-		Uploader:    &msg.Config.RunnerConfig,
-		AutoInstall: msg.Config.AutoInstall,
+		Uploader:      &msg.Config.RunnerConfig,
+		SignedUploads: msg.Config.SignedUploads,
+		AutoInstall:   msg.Config.AutoInstall,
 	}
 
 	if opts.Build.EnvVars == nil {
@@ -426,6 +428,16 @@ func Run(opts RunnerOpts) *RunResult {
 		return &RunResult{opts: opts, err: err}
 	}
 
+	// The links are signed only now, after the build commands ran, so the
+	// build never holds them and they expire shortly after the upload.
+	var uploads *integrations.SignedUploads
+
+	if opts.SignedUploads {
+		if uploads, err = opts.Reporter.SignUploads(); err != nil {
+			return &RunResult{opts: opts, err: fmt.Errorf("cannot get upload links: %w", err)}
+		}
+	}
+
 	cache.Snapshot(ctx)
 
 	opts.Reporter.AddStep("[system] building finished")
@@ -456,6 +468,7 @@ func Run(opts RunnerOpts) *RunResult {
 			DeploymentID:  utils.StringToID(opts.Build.DeploymentID),
 			AppID:         utils.StringToID(opts.Build.AppID),
 			EnvID:         utils.StringToID(opts.Build.EnvID),
+			Uploads:       uploads,
 		})
 
 		if err != nil {
