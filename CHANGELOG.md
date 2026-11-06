@@ -1,5 +1,23 @@
 # Changelog
 
+## v2026.11.02.2...v2026.11.05.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.11.02.2...v2026.11.05.1)
+
+### 🚀 Enhancements
+
+- Store deployments in hetzner object storage ([#684](https://github.com/stormkit-io/stormkit-io/pull/684))
+- Signed upload links for deployment storage ([#685](https://github.com/stormkit-io/stormkit-io/pull/685))
+
+### 🏡 Chore
+
+- Update changelog for v2026.11.02.2 ([#682](https://github.com/stormkit-io/stormkit-io/pull/682))
+- Remove the build cache feature ([#686](https://github.com/stormkit-io/stormkit-io/pull/686))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.11.02.1...v2026.11.02.2
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.11.02.1...v2026.11.02.2)
