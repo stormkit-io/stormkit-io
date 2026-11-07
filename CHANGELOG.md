@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.11.05.1...v2026.11.07.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.11.05.1...v2026.11.07.1)
+
+### 🚀 Enhancements
+
+- Add a trusted login url to agent installs ([#688](https://github.com/stormkit-io/stormkit-io/pull/688))
+
+### 🏡 Chore
+
+- Update changelog for v2026.11.05.1 ([#687](https://github.com/stormkit-io/stormkit-io/pull/687))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.11.02.2...v2026.11.05.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.11.02.2...v2026.11.05.1)
