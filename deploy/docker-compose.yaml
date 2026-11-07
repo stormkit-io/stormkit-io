@@ -181,6 +181,10 @@ services:
       - STORMKIT_ADMIN_PASSWORD=${STORMKIT_ADMIN_PASSWORD:-}
       - STORMKIT_AGENT_API_KEY=${STORMKIT_AGENT_API_KEY:-}
 
+      # Where this instance redeems one-time login codes issued by Stormkit Cloud
+      # (set by `install.sh --trusted-login-url`). Leave empty to turn it off.
+      - STORMKIT_TRUSTED_LOGIN_URL=${STORMKIT_TRUSTED_LOGIN_URL:-}
+
       ####################################################################################
       #                                                                                  #
       # Configure these variables when `STORMKIT_DEPLOYER_SERVICE` is other than `local` #

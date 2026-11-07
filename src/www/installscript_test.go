@@ -1,4 +1,4 @@
-package provisioners_test
+package www_test
 
 import (
 	"os/exec"
@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-// InstallScriptSuite covers the install.sh flags the provisioner relies on.
+// InstallScriptSuite covers the install.sh flags Stormkit Cloud relies on.
 // Only argument checks that exit before anything is installed are exercised.
 type InstallScriptSuite struct {
 	suite.Suite
@@ -55,6 +55,22 @@ func (s *InstallScriptSuite) Test_APIKey_RejectsBadFormat() {
 
 		s.Equal(1, code, key)
 		s.Contains(out, "Invalid --api-key", key)
+	}
+}
+
+func (s *InstallScriptSuite) Test_TrustedLoginURL_RequiresAgent() {
+	out, code := s.run("--trusted-login-url", "https://console.stormkit.io/redeem")
+
+	s.Equal(1, code)
+	s.Contains(out, "--trusted-login-url requires --agent")
+}
+
+func (s *InstallScriptSuite) Test_TrustedLoginURL_RejectsBadFormat() {
+	for _, u := range []string{"http://console.stormkit.io", "https://console.stormkit.io/?x=1", "https://console.stormkit.io/\"; rm -rf /", "https://a.io/$(id)"} {
+		out, code := s.run("--agent", "--trusted-login-url="+u)
+
+		s.Equal(1, code, u)
+		s.Contains(out, "Invalid --trusted-login-url", u)
 	}
 }
 
