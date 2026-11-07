@@ -15,7 +15,9 @@ command_exists() {
 # Optional: --domain <domain> to skip the auto-generated domain,
 # --email <email> to override the default agent@<domain> admin email, and
 # --api-key <SK_...> to use a caller-generated key instead of minting one here
-# (a provisioner that must keep the key without reading it back off the box).
+# (a provisioner that must keep the key without reading it back off the box),
+# and --trusted-login-url <https://...> to let the instance accept one-time
+# login codes redeemed at that URL.
 #
 # On an instance that already has users, bootstrap is a no-op and no key is
 # provisioned. Do NOT pass --email matching an existing user of an instance
@@ -25,6 +27,7 @@ AGENT_MODE="0"
 CUSTOM_DOMAIN_ARG=""
 ADMIN_EMAIL_ARG=""
 API_KEY_ARG=""
+TRUSTED_LOGIN_URL_ARG=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -35,6 +38,8 @@ while [ $# -gt 0 ]; do
     --email=*) ADMIN_EMAIL_ARG="${1#*=}" ;;
     --api-key) API_KEY_ARG="$2"; shift ;;
     --api-key=*) API_KEY_ARG="${1#*=}" ;;
+    --trusted-login-url) TRUSTED_LOGIN_URL_ARG="$2"; shift ;;
+    --trusted-login-url=*) TRUSTED_LOGIN_URL_ARG="${1#*=}" ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
   shift
@@ -50,6 +55,19 @@ if [ -n "$API_KEY_ARG" ]; then
   # are inert there. 32+ chars after the prefix keeps it unguessable.
   if ! echo "$API_KEY_ARG" | grep -qE '^SK_[A-Za-z0-9]{32,}$'; then
     echo "Invalid --api-key: expected SK_ followed by at least 32 letters or digits" >&2
+    exit 1
+  fi
+fi
+
+if [ -n "$TRUSTED_LOGIN_URL_ARG" ]; then
+  if [ "$AGENT_MODE" != "1" ]; then
+    echo "--trusted-login-url requires --agent" >&2
+    exit 1
+  fi
+
+  # Written into .env, so only allow characters that are inert there.
+  if ! echo "$TRUSTED_LOGIN_URL_ARG" | grep -qE '^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~-]+)*/?$'; then
+    echo "Invalid --trusted-login-url: expected an https URL without query or fragment" >&2
     exit 1
   fi
 fi
@@ -381,6 +399,14 @@ setup_agent_env() {
   update_env_var_in_env_file STORMKIT_ADMIN_EMAIL "$ADMIN_EMAIL"
   update_env_var_in_env_file STORMKIT_ADMIN_PASSWORD "$ADMIN_PASSWORD"
   update_env_var_in_env_file STORMKIT_AGENT_API_KEY "$AGENT_API_KEY"
+
+  # The URL contains slashes, which the sed in update_env_var_in_env_file
+  # uses as its delimiter, so replace the line directly.
+  if [ -n "$TRUSTED_LOGIN_URL_ARG" ]; then
+    grep -v "^STORMKIT_TRUSTED_LOGIN_URL=" .env > .env.tmp || true
+    mv .env.tmp .env
+    echo "STORMKIT_TRUSTED_LOGIN_URL=$TRUSTED_LOGIN_URL_ARG" >> .env
+  fi
 }
 
 # For now keep this file here - we need to improve the docker swarm setup
