@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/caddyserver/certmagic"
-	"github.com/libdns/route53"
 	proxyproto "github.com/pires/go-proxyproto"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
@@ -108,13 +107,7 @@ func Magic(opts MagicOpts) {
 				DisableTLSALPNChallenge: true,
 				Logger:                  logger,
 				DNS01Solver: &certmagic.DNS01Solver{
-					DNSManager: certmagic.DNSManager{
-						DNSProvider: &route53.Provider{
-							AccessKeyId:     os.Getenv("STORMKIT_ACME_ACCESS_KEY"),
-							SecretAccessKey: os.Getenv("STORMKIT_ACME_SECRET_KEY"),
-							HostedZoneID:    os.Getenv("STORMKIT_DEV_ZONE_ID"),
-						},
-					},
+					DNSManager: ACMEDNSManager(),
 				},
 			}),
 		}
