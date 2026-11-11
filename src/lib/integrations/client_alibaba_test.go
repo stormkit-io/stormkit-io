@@ -185,6 +185,53 @@ func (s *AlibabaSuite) Test_Upload_DisablesAWSChunkedEncoding() {
 	s.True(sawPutObject, "expected PutObject to be intercepted")
 }
 
+// Test_Upload_UsesConfiguredEndpoint verifies ALIBABA_OSS_ENDPOINT routes
+// bucket requests to that host instead of the public regional endpoint.
+func (s *AlibabaSuite) Test_Upload_UsesConfiguredEndpoint() {
+	previous := config.Get().Alibaba.Endpoint
+	config.Get().Alibaba.Endpoint = "oss-me-central-1-internal.aliyuncs.com"
+
+	defer func() { config.Get().Alibaba.Endpoint = previous }()
+
+	var host string
+
+	client, err := integrations.Alibaba(integrations.ClientArgs{
+		Middlewares: []func(stack *middleware.Stack) error{
+			func(stack *middleware.Stack) error {
+				return stack.Finalize.Add(
+					middleware.FinalizeMiddlewareFunc("CaptureHost", func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
+						if req, ok := fi.Request.(*smithyhttp.Request); ok {
+							host = req.URL.Host
+						}
+
+						return middleware.FinalizeOutput{
+							Result: &s3.PutObjectOutput{},
+						}, middleware.Metadata{}, nil
+					}),
+					middleware.Before,
+				)
+			},
+		},
+	})
+
+	s.Require().NoError(err)
+
+	clientZip := path.Join(s.tmpdir, "sk-client.zip")
+
+	s.Require().NoError(os.WriteFile(clientZip, make([]byte, 150), 0664))
+
+	_, err = client.Upload(integrations.UploadArgs{
+		AppID:        types.ID(1),
+		EnvID:        types.ID(2),
+		DeploymentID: types.ID(3),
+		ClientZip:    clientZip,
+		BucketName:   "test-bucket",
+	})
+
+	s.NoError(err)
+	s.Contains(host, "oss-me-central-1-internal.aliyuncs.com")
+}
+
 func TestAlibabaClient(t *testing.T) {
 	suite.Run(t, &AlibabaSuite{})
 }

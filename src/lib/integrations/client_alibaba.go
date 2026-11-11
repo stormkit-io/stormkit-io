@@ -100,7 +100,7 @@ func Alibaba(args ClientArgs) (*AlibabaClient, error) {
 	customResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...any) (aws.Endpoint, error) {
 		return aws.Endpoint{
 			PartitionID:   "oss",
-			URL:           fmt.Sprintf("https://oss-%s.aliyuncs.com", conf.Alibaba.Region),
+			URL:           conf.Alibaba.OSSEndpoint(),
 			SigningRegion: conf.Alibaba.Region,
 		}, nil
 	})
