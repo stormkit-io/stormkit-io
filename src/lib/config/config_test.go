@@ -99,6 +99,37 @@ func (s *PackageSuite) Test_TrustedProxies() {
 	s.Equal([]string{"104.16.0.0/13", "192.0.2.10/32", "2400:cb00::/32"}, got)
 }
 
+func (s *PackageSuite) Test_AlibabaOSSEndpoint_DefaultsToPublicRegionEndpoint() {
+	conf := &config.AlibabaConfig{Region: "me-central-1"}
+
+	s.Equal("https://oss-me-central-1.aliyuncs.com", conf.OSSEndpoint())
+}
+
+// Test_AlibabaOSSEndpoint_Override verifies a configured endpoint wins and a
+// bare host name is served over HTTPS.
+func (s *PackageSuite) Test_AlibabaOSSEndpoint_Override() {
+	cases := map[string]string{
+		"oss-me-central-1-internal.aliyuncs.com":         "https://oss-me-central-1-internal.aliyuncs.com",
+		" oss-me-central-1-internal.aliyuncs.com/ ":      "https://oss-me-central-1-internal.aliyuncs.com",
+		"https://oss-me-central-1-internal.aliyuncs.com": "https://oss-me-central-1-internal.aliyuncs.com",
+		"http://oss-me-central-1-internal.aliyuncs.com":  "http://oss-me-central-1-internal.aliyuncs.com",
+	}
+
+	for endpoint, expected := range cases {
+		conf := &config.AlibabaConfig{Region: "me-central-1", Endpoint: endpoint}
+
+		s.Equal(expected, conf.OSSEndpoint(), endpoint)
+	}
+}
+
+func (s *PackageSuite) Test_AlibabaOSSEndpoint_FromEnv() {
+	s.T().Setenv("ALIBABA_OSS_BUCKET_NAME", "bucket")
+	s.T().Setenv("ALIBABA_REGION", "me-central-1")
+	s.T().Setenv("ALIBABA_OSS_ENDPOINT", "oss-me-central-1-internal.aliyuncs.com")
+
+	s.Equal("https://oss-me-central-1-internal.aliyuncs.com", config.New().Alibaba.OSSEndpoint())
+}
+
 func TestPackages(t *testing.T) {
 	suite.Run(t, &PackageSuite{})
 }

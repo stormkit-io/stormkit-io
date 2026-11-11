@@ -90,6 +90,23 @@ type AlibabaConfig struct {
 	SecretKey     string
 	StorageBucket string
 	Region        string
+	Endpoint      string
+}
+
+// OSSEndpoint returns the URL of the OSS endpoint. A configured endpoint
+// without a scheme is served over HTTPS.
+func (a *AlibabaConfig) OSSEndpoint() string {
+	endpoint := strings.TrimSuffix(strings.TrimSpace(a.Endpoint), "/")
+
+	if endpoint == "" {
+		return "https://oss-" + a.Region + ".aliyuncs.com"
+	}
+
+	if !strings.Contains(endpoint, "://") {
+		return "https://" + endpoint
+	}
+
+	return endpoint
 }
 
 // HCloudConfig configures Hetzner Object Storage as the store for deployment
@@ -434,6 +451,7 @@ func New() *Config {
 			AccountID:     os.Getenv("ALIBABA_ACCOUNT_ID"), // Log on to Function Compute and see the account id
 			AccessKey:     os.Getenv("ALIBABA_ACCESS_KEY_ID"),
 			SecretKey:     os.Getenv("ALIBABA_ACCESS_KEY_SECRET"),
+			Endpoint:      os.Getenv("ALIBABA_OSS_ENDPOINT"),
 		}
 	}
 
