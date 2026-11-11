@@ -38,6 +38,7 @@ require (
 	github.com/hibiken/asynq v0.25.1
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
+	github.com/libdns/hetzner/v2 v2.0.1
 	github.com/libdns/route53 v1.6.0
 	github.com/pires/go-proxyproto v0.12.0
 	github.com/pkg/errors v0.9.1
@@ -99,6 +100,7 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.8 // indirect
+	github.com/hetznercloud/hcloud-go/v2 v2.27.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jonboulle/clockwork v0.5.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
