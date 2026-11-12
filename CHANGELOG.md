@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.11.11.1...v2026.11.12.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.11.11.1...v2026.11.12.1)
+
+### 🩹 Fixes
+
+- Wait for every hetzner nameserver ([#693](https://github.com/stormkit-io/stormkit-io/pull/693))
+
+### 🏡 Chore
+
+- Update changelog for v2026.11.11.1 ([#692](https://github.com/stormkit-io/stormkit-io/pull/692))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.11.07.1...v2026.11.11.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.11.07.1...v2026.11.11.1)
