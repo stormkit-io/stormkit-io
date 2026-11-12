@@ -811,6 +811,150 @@ func (s *ProcessManagerSuite) Test_BuildServerCommand_RootsTheEnvironment() {
 	s.DirExists(nixstore.ProfilesDir)
 }
 
+// idleArgs returns the invocation of a long-running deployment in a shared
+// environment, so tests can publish one deployment over another.
+func (s *ProcessManagerSuite) idleArgs(name string, deploymentID types.ID, published bool, maxIdle string) integrations.InvokeArgs {
+	vars := map[string]string{
+		"PID_LOG":           s.pidLog(fmt.Sprintf("pids-%s.log", name)),
+		"STORMKIT_MAX_IDLE": maxIdle,
+	}
+
+	return integrations.InvokeArgs{
+		URL:          &url.URL{},
+		ARN:          fmt.Sprintf("local:%s:%s", path.Join(s.tmpdir, "index-pid-log.js"), name),
+		Method:       shttp.MethodGet,
+		Command:      "node index-pid-log.js",
+		HostName:     "example.org",
+		EnvID:        659,
+		DeploymentID: deploymentID,
+		IsPublished:  published,
+		EnvVariables: vars,
+	}
+}
+
+// killService stops the service registered for the ARN and waits for its process to exit.
+func (s *ProcessManagerSuite) killService(arn string) {
+	service := s.pm.GetService(arn)
+	s.Require().NotNil(service)
+
+	pid := service.Pid()
+	service.Kill()
+	s.waitUntilGone([]int{pid})
+}
+
+// Test_MaxIdleZero_KeepsOnlyPublishedWarm verifies that STORMKIT_MAX_IDLE=0
+// keeps the published deployment warm, and that a deployment replaced by a
+// newer publish falls back to the default idle timeout without further traffic.
+func (s *ProcessManagerSuite) Test_MaxIdleZero_KeepsOnlyPublishedWarm() {
+	first := s.idleArgs("max_idle_first", 6591, true, "0")
+	second := s.idleArgs("max_idle_second", 6592, true, "0")
+
+	_, err := s.invokeWithRetry(first, s.tmpdir)
+	s.Require().NoError(err)
+
+	firstService := s.pm.GetService(first.ARN)
+	s.Require().NotNil(firstService)
+	s.Equal(time.Duration(0), firstService.IdleTimeout())
+	s.False(firstService.HasIdleTimer())
+
+	_, err = s.invokeWithRetry(second, s.tmpdir)
+	s.Require().NoError(err)
+
+	secondService := s.pm.GetService(second.ARN)
+	s.Require().NotNil(secondService)
+	s.Equal(time.Duration(0), secondService.IdleTimeout())
+	s.False(secondService.HasIdleTimer())
+	s.Equal(10*time.Minute, firstService.IdleTimeout())
+	s.True(firstService.HasIdleTimer(), "the replaced deployment must wind down without further requests")
+
+	// Rolling back to the first deployment keeps it warm again.
+	_, err = s.invokeWithRetry(first, s.tmpdir)
+	s.Require().NoError(err)
+
+	s.Equal(time.Duration(0), firstService.IdleTimeout())
+	s.False(firstService.HasIdleTimer())
+	s.Equal(10*time.Minute, secondService.IdleTimeout())
+	s.True(secondService.HasIdleTimer())
+
+	s.killService(first.ARN)
+	s.killService(second.ARN)
+}
+
+// Test_MaxIdleZero_PreviewUsesDefault verifies that a deployment that is not
+// published is never kept warm.
+func (s *ProcessManagerSuite) Test_MaxIdleZero_PreviewUsesDefault() {
+	args := s.idleArgs("max_idle_preview", 6593, false, "0")
+
+	_, err := s.invokeWithRetry(args, s.tmpdir)
+	s.Require().NoError(err)
+
+	service := s.pm.GetService(args.ARN)
+	s.Require().NotNil(service)
+	s.Equal(10*time.Minute, service.IdleTimeout())
+	s.True(service.HasIdleTimer())
+
+	s.killService(args.ARN)
+}
+
+func (s *ProcessManagerSuite) Test_MaxIdle_InvalidValueUsesDefault() {
+	for _, value := range []string{"abc", "-5", ""} {
+		args := s.idleArgs("max_idle_invalid_"+value, 6594, true, value)
+
+		_, err := s.invokeWithRetry(args, s.tmpdir)
+		s.Require().NoError(err)
+
+		service := s.pm.GetService(args.ARN)
+		s.Require().NotNil(service)
+		s.Equal(10*time.Minute, service.IdleTimeout(), "value %q", value)
+
+		s.killService(args.ARN)
+	}
+}
+
+func (s *ProcessManagerSuite) Test_MaxIdle_CustomValue() {
+	args := s.idleArgs("max_idle_custom", 6595, false, "3")
+
+	_, err := s.invokeWithRetry(args, s.tmpdir)
+	s.Require().NoError(err)
+
+	service := s.pm.GetService(args.ARN)
+	s.Require().NotNil(service)
+	s.Equal(3*time.Minute, service.IdleTimeout())
+
+	s.killService(args.ARN)
+}
+
+// Test_ReapOrphans_StopsServiceWhoseFolderWasRemoved verifies that deleting a
+// deployment's artifacts stops its runtime, even when it is kept warm.
+func (s *ProcessManagerSuite) Test_ReapOrphans_StopsServiceWhoseFolderWasRemoved() {
+	workDir := path.Join(s.tmpdir, "deleted-deployment")
+	s.Require().NoError(os.MkdirAll(workDir, 0775))
+
+	script, err := os.ReadFile(path.Join(s.tmpdir, "index-pid-log.js"))
+	s.Require().NoError(err)
+	s.Require().NoError(os.WriteFile(path.Join(workDir, "index-pid-log.js"), script, 0664))
+
+	args := s.idleArgs("deleted_folder", 6596, true, "0")
+	args.ARN = fmt.Sprintf("local:%s:deleted_folder", path.Join(workDir, "index-pid-log.js"))
+
+	_, err = s.invokeWithRetry(args, workDir)
+	s.Require().NoError(err)
+
+	service := s.pm.GetService(args.ARN)
+	s.Require().NotNil(service)
+
+	pid := service.Pid()
+	s.Require().Greater(pid, 0)
+
+	s.pm.ReapOrphans(0)
+	s.True(s.processExists(pid), "a service whose folder exists must not be reaped")
+
+	s.Require().NoError(os.RemoveAll(workDir))
+	s.GreaterOrEqual(s.pm.ReapOrphans(0), 1)
+	s.waitUntilGone([]int{pid})
+	s.Nil(s.pm.GetService(args.ARN))
+}
+
 func TestProcessManager(t *testing.T) {
 	suite.Run(t, &ProcessManagerSuite{})
 }
