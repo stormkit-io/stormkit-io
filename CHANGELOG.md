@@ -1,5 +1,21 @@
 # Changelog
 
+## v2026.11.12.1...v2026.11.12.2
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.11.12.1...v2026.11.12.2)
+
+### 🩹 Fixes
+
+- Keep only the published runtime warm ([#695](https://github.com/stormkit-io/stormkit-io/pull/695))
+
+### 🏡 Chore
+
+- Update changelog for v2026.11.12.1 ([#694](https://github.com/stormkit-io/stormkit-io/pull/694))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.11.11.1...v2026.11.12.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.11.11.1...v2026.11.12.1)
