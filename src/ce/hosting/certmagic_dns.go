@@ -7,11 +7,16 @@ import (
 	"github.com/caddyserver/certmagic"
 	"github.com/libdns/hetzner/v2"
 	"github.com/libdns/route53"
+	"github.com/miekg/dns"
 )
 
 // hetznerChallengeTTL keeps challenge records short-lived, so a retry after a
 // failed attempt isn't answered from a resolver's cache of the old one.
 const hetznerChallengeTTL = 60 * time.Second
+
+// hetznerPropagationTimeout bounds how long a challenge waits for Hetzner to
+// publish its record on every nameserver before trying anyway.
+const hetznerPropagationTimeout = 5 * time.Minute
 
 // ACMEDNSManager returns the DNS settings that solve DNS-01 challenges for
 // the Stormkit Cloud wildcard certificate. Hetzner Cloud DNS is used when
@@ -20,8 +25,13 @@ const hetznerChallengeTTL = 60 * time.Second
 func ACMEDNSManager() certmagic.DNSManager {
 	if token := os.Getenv("STORMKIT_ACME_HETZNER_TOKEN"); token != "" {
 		return certmagic.DNSManager{
-			DNSProvider: hetzner.New(token),
-			TTL:         hetznerChallengeTTL,
+			DNSProvider: &allNameserversProvider{
+				DNSProvider: hetzner.New(token),
+				querier:     authoritativeDNS{client: &dns.Client{Timeout: 5 * time.Second}},
+				interval:    2 * time.Second,
+				timeout:     hetznerPropagationTimeout,
+			},
+			TTL: hetznerChallengeTTL,
 		}
 	}
 

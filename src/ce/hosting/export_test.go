@@ -3,6 +3,7 @@ package hosting
 import (
 	"context"
 
+	"github.com/caddyserver/certmagic"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/accesslog"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/admin"
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/appconf"
@@ -178,4 +179,14 @@ func InvalidateAppCache(hostName string) {
 // domains. Empty disables local dialling.
 func SetLocalProxyAddr(addr string) {
 	localProxyAddr = addr
+}
+
+// UnwrapDNSProvider returns the provider inside a propagation-checking
+// wrapper, and whether there was one.
+func UnwrapDNSProvider(p certmagic.DNSProvider) (certmagic.DNSProvider, bool) {
+	if wrapped, ok := p.(*allNameserversProvider); ok {
+		return wrapped.DNSProvider, true
+	}
+
+	return p, false
 }
