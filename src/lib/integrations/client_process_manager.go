@@ -3,13 +3,16 @@ package integrations
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"path"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -59,9 +62,10 @@ type Service struct {
 	args        *InvokeArgs
 	filePointer int64
 	port        int
+	workDir     string
 
-	isCustomPort bool // Whether the service is using a custom port from environment variables
-	maxIdle      int  // The max idle time in minutes
+	isCustomPort bool          // Whether the service is using a custom port from environment variables
+	maxIdle      time.Duration // The configured idle timeout; 0 keeps the service warm while it is published
 
 	// mu guards every field below it. The process is spawned from a
 	// goroutine while Kill can be called from the idle timer, from a
@@ -75,6 +79,93 @@ type Service struct {
 	started      bool      // Whether the service has been started
 	reaped       bool      // Whether cmd.Wait has returned for this process
 	isNixWrapped bool      // Whether the server command is wrapped with nix develop
+	published    bool      // Whether the service serves its environment's published deployment
+}
+
+// defaultMaxIdle is how long a service may go without a request before it is
+// stopped, unless STORMKIT_MAX_IDLE says otherwise.
+const defaultMaxIdle = 10 * time.Minute
+
+// parseMaxIdle reads STORMKIT_MAX_IDLE, in minutes. 0 disables idle shutdown;
+// a negative or unparseable value falls back to the default rather than
+// silently disabling it.
+func parseMaxIdle(vars map[string]string) time.Duration {
+	value, ok := vars["STORMKIT_MAX_IDLE"]
+
+	if !ok {
+		return defaultMaxIdle
+	}
+
+	minutes, err := strconv.Atoi(strings.TrimSpace(value))
+
+	if err != nil || minutes < 0 {
+		return defaultMaxIdle
+	}
+
+	return time.Duration(minutes) * time.Minute
+}
+
+// idleTimeout returns how long the service may go without a request before it
+// is stopped, or 0 when it is kept warm. Only the published deployment is kept
+// warm: runtimes are per deployment, so keeping every one of them warm would
+// leave previews and replaced deployments running until the host restarts.
+// Callers must hold mu.
+func (s *Service) idleTimeout() time.Duration {
+	if s.maxIdle == 0 && !s.published {
+		return defaultMaxIdle
+	}
+
+	return s.maxIdle
+}
+
+// resetIdleTimer arms or restarts the idle timer, or stops it when the service
+// is kept warm. Callers must hold mu.
+func (s *Service) resetIdleTimer() {
+	if s.killed {
+		return
+	}
+
+	timeout := s.idleTimeout()
+
+	if timeout == 0 {
+		if s.timer != nil {
+			s.timer.Stop()
+			s.timer = nil
+		}
+
+		return
+	}
+
+	if s.timer != nil {
+		s.timer.Reset(timeout)
+		return
+	}
+
+	s.timer = time.AfterFunc(timeout, func() {
+		slog.Debug(slog.LogOpts{
+			Msg:     "service has been idle for too long, killing it",
+			Level:   slog.DL2,
+			Payload: []zap.Field{zap.String("arn", s.arn)},
+		})
+
+		s.Kill()
+	})
+}
+
+// setPublished records whether the service serves its environment's published
+// deployment, and reports whether that changed.
+func (s *Service) setPublished(published bool) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.published == published {
+		return false
+	}
+
+	s.published = published
+	s.resetIdleTimer()
+
+	return true
 }
 
 func (s *Service) Pid() int {
@@ -324,10 +415,13 @@ func (pm *ProcessManager) reapOrphansPeriodically() {
 // server that ignores SIGTERM keeps its port for as long as the host lives,
 // which is the failure this whole mechanism exists to prevent.
 //
-// Nothing should end up here: it is the backstop for a service escaping its
-// registration, and for a deployment whose folder is deleted underneath a
-// server that is still running. Each reap is logged as an error because it
-// means one of those happened.
+// It also kills every service whose deployment folder no longer exists, idle
+// setting or not: once the artifacts are deleted the deployment cannot be
+// served correctly, and nothing else would stop a runtime that is kept warm.
+//
+// An orphan should never exist: it is the backstop for a service escaping its
+// registration, and each one is logged as an error because it means that
+// happened.
 func (pm *ProcessManager) ReapOrphans(grace time.Duration) int {
 	pm.spawnedMux.Lock()
 	candidates := make([]*Service, 0, len(pm.spawned))
@@ -361,6 +455,18 @@ func (pm *ProcessManager) ReapOrphans(grace time.Duration) int {
 
 		if spawning || killed {
 			continue
+		}
+
+		if s.workDir != "" {
+			if _, err := os.Stat(s.workDir); errors.Is(err, fs.ErrNotExist) {
+				slog.Infof("stopping service whose deployment folder was removed, arn: %s, pid: %d", s.arn, pid)
+
+				s.Kill()
+
+				reaped++
+
+				continue
+			}
 		}
 
 		pm.servicesMux.Lock()
@@ -486,11 +592,6 @@ func (pm *ProcessManager) Start(ctx context.Context, args *InvokeArgs, workDir s
 	}
 
 	vars := prepareEnvironmentVariables(args, port)
-	maxIdleInMinutes := 10
-
-	if maxIdle, ok := args.EnvVariables["STORMKIT_MAX_IDLE"]; ok {
-		maxIdleInMinutes = utils.StringToInt(maxIdle)
-	}
 
 	service := &Service{
 		port:         port,
@@ -499,7 +600,8 @@ func (pm *ProcessManager) Start(ctx context.Context, args *InvokeArgs, workDir s
 		file:         outfile,
 		ctx:          ctx,
 		args:         args,
-		maxIdle:      maxIdleInMinutes,
+		workDir:      workDir,
+		maxIdle:      parseMaxIdle(args.EnvVariables),
 		isCustomPort: args.EnvVariables["PORT"] != "",
 	}
 
@@ -783,6 +885,10 @@ func (pm *ProcessManager) Invoke(args InvokeArgs, workDir string) (*InvokeResult
 		}
 	}
 
+	if service.setPublished(args.IsPublished) && args.IsPublished {
+		pm.demoteReplaced(service)
+	}
+
 	if service != nil && !service.IsStarted() {
 		slog.Debug(slog.LogOpts{
 			Msg:     "service is not ready yet",
@@ -884,29 +990,33 @@ func (pm *ProcessManager) GetService(ARN string) *Service {
 		return nil
 	}
 
-	if service.maxIdle > 0 {
-		killAfterInactivity := time.Minute * time.Duration(service.maxIdle)
-
-		// Kill stops the timer under the same lock.
-		service.mu.Lock()
-		defer service.mu.Unlock()
-
-		if service.timer == nil {
-			service.timer = time.AfterFunc(killAfterInactivity, func() {
-				slog.Debug(slog.LogOpts{
-					Msg:     "service has been idle for too long, killing it",
-					Level:   slog.DL2,
-					Payload: []zap.Field{zap.String("arn", service.arn)},
-				})
-
-				service.Kill()
-			})
-		} else {
-			service.timer.Reset(killAfterInactivity)
-		}
-	}
+	// Kill stops the timer under the same lock.
+	service.mu.Lock()
+	service.resetIdleTimer()
+	service.mu.Unlock()
 
 	return service
+}
+
+// demoteReplaced stops keeping warm every other deployment of the environment
+// the given service now serves as published. A replaced deployment no longer
+// receives traffic, so this is the only point at which its idle timer can be
+// armed.
+func (pm *ProcessManager) demoteReplaced(published *Service) {
+	pm.servicesMux.Lock()
+	services := make([]*Service, 0, len(pm.services))
+
+	for _, s := range pm.services {
+		services = append(services, s)
+	}
+
+	pm.servicesMux.Unlock()
+
+	for _, s := range services {
+		if s.args.EnvID == published.args.EnvID && s.args.DeploymentID != published.args.DeploymentID {
+			s.setPublished(false)
+		}
+	}
 }
 
 // waitForPort polls via TCP dial until the port is accepting connections or the timeout elapses.

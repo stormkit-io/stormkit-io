@@ -34,7 +34,10 @@ Reach for a Start command whenever your backend:
 The process is reaped after 10 minutes without a request. Published environments are kept
 warm by the domain ping, so this is invisible in practice; preview deployments, which are
 not pinged, pay a cold start after an idle spell. Set `STORMKIT_MAX_IDLE` (in minutes) as
-an environment variable to widen the window.
+an environment variable to widen the window. `STORMKIT_MAX_IDLE=0` keeps the published
+deployment running indefinitely; every other deployment, including the one a new publish
+replaces, keeps the 10-minute default. A server whose deployment artifacts are deleted is
+stopped regardless of this setting.
 
 Requests reach your server through Stormkit's proxy, which applies
 `STORMKIT_HTTP_PROXY_TIMEOUT`
