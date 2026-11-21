@@ -427,8 +427,20 @@ func Run(opts RunnerOpts) *RunResult {
 	// build never holds them and they expire shortly after the upload.
 	var uploads *integrations.SignedUploads
 
+	runtime := GetRuntimeStringForLambdas(opts.Repo.Runtime, miseOutput)
+
 	if opts.SignedUploads {
-		if uploads, err = opts.Reporter.SignUploads(); err != nil {
+		functions := integrations.FunctionHandlers{Runtime: runtime}
+
+		if artifacts.serverZip != "" {
+			functions.Server = artifacts.FunctionHandler
+		}
+
+		if artifacts.apiZip != "" {
+			functions.API = artifacts.ApiHandler
+		}
+
+		if uploads, err = opts.Reporter.SignUploads(functions); err != nil {
 			return &RunResult{opts: opts, err: fmt.Errorf("cannot get upload links: %w", err)}
 		}
 	}
@@ -457,7 +469,7 @@ func Run(opts RunnerOpts) *RunResult {
 			ServerHandler: artifacts.FunctionHandler,
 			ApiHandler:    artifacts.ApiHandler,
 			EnvVars:       opts.Build.EnvVars,
-			Runtime:       GetRuntimeStringForLambdas(opts.Repo.Runtime, miseOutput),
+			Runtime:       runtime,
 			DeploymentID:  utils.StringToID(opts.Build.DeploymentID),
 			AppID:         utils.StringToID(opts.Build.AppID),
 			EnvID:         utils.StringToID(opts.Build.EnvID),

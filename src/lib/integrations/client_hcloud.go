@@ -42,12 +42,18 @@ var hcloudLocationPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9
 // and functions append the handler: .../sk-server.zip/server.mjs:handler.
 // Deployments made before the switch keep their local: or aws: locations and
 // are still read, run and deleted where they were stored.
+//
+// On Stormkit Cloud, functions are published to Lambda instead and keep aws:
+// locations, while the rest of the deployment is stored in the bucket.
 type HCloudClient struct {
 	s3      *AWSClient
 	local   *FilesysClient
 	bucket  string
 	root    string
 	fetches singleflight.Group
+
+	instance    *AWSClient // Publishes and deletes functions on Lambda
+	instanceMux sync.Mutex
 }
 
 var CachedHCloudClient *HCloudClient
@@ -291,18 +297,22 @@ func (c *HCloudClient) Invoke(args InvokeArgs) (*InvokeResult, error) {
 // server's disk. Copies extracted on other servers stay until they are
 // cleaned up there.
 func (c *HCloudClient) DeleteArtifacts(ctx context.Context, args DeleteArtifactsArgs) error {
-	// A deployment's artifacts all live with one provider.
+	// Functions published to Lambda are deleted on their own. A failure
+	// there does not keep the rest of the deployment from being deleted.
+	lambdaErr := c.deleteLambdaFunctions(ctx, &args)
+
+	// Deployments made before the switch live with one provider.
 	location := utils.GetString(args.StorageLocation, args.FunctionLocation, args.APILocation)
 
 	if legacy, err := c.legacy(location); err != nil || legacy != nil {
 		if err != nil {
-			return err
+			return errors.Join(lambdaErr, err)
 		}
 
-		return legacy.DeleteArtifacts(ctx, args)
+		return errors.Join(lambdaErr, legacy.DeleteArtifacts(ctx, args))
 	}
 
-	deleted := map[string]bool{}
+	folders := map[string]bool{}
 
 	for _, location := range []string{args.StorageLocation, args.FunctionLocation, args.APILocation} {
 		if location == "" {
@@ -312,39 +322,49 @@ func (c *HCloudClient) DeleteArtifacts(ctx context.Context, args DeleteArtifacts
 		loc, err := c.parse(location)
 
 		if err != nil {
-			return err
+			return errors.Join(lambdaErr, err)
 		}
 
 		// <app-id>/<deployment-id>/<zip>
 		pieces := strings.Split(loc.key, "/")
 
 		if len(pieces) < 3 {
-			return fmt.Errorf("invalid hcloud location: %s", location)
+			return errors.Join(lambdaErr, fmt.Errorf("invalid hcloud location: %s", location))
 		}
 
-		prefix := path.Join(loc.bucket, pieces[0], pieces[1])
+		folders[path.Join(loc.bucket, pieces[0], pieces[1])] = true
+	}
 
-		if deleted[prefix] {
-			continue
-		}
+	// A deployment whose only locations are functions on Lambda may still
+	// have files in the bucket, such as its migrations.
+	if len(folders) == 0 && c.bucket != "" && args.AppID != 0 && args.DeploymentID != 0 {
+		folders[path.Join(c.bucket, args.AppID.String(), args.DeploymentID.String())] = true
+	}
 
-		deleted[prefix] = true
-
-		if err := c.s3.deleteS3Folder(ctx, loc.bucket, path.Join(pieces[0], pieces[1])); err != nil {
-			return err
-		}
-
-		dir := path.Join(c.root, prefix)
-
-		// The separator keeps deployment 7 from matching 70 and 700.
-		c.local.files.dropPrefix(dir + "/")
-
-		if err := os.RemoveAll(dir); err != nil {
-			return err
+	for folder := range folders {
+		if err := c.deleteFolder(ctx, folder); err != nil {
+			return errors.Join(lambdaErr, err)
 		}
 	}
 
-	return nil
+	return lambdaErr
+}
+
+// deleteFolder removes <bucket>/<app-id>/<deployment-id> from the bucket and
+// from this server's disk.
+func (c *HCloudClient) deleteFolder(ctx context.Context, folder string) error {
+	bucket, key, _ := strings.Cut(folder, "/")
+
+	if err := c.s3.deleteS3Folder(ctx, bucket, key); err != nil {
+		return err
+	}
+
+	dir := path.Join(c.root, folder)
+
+	// The separator keeps deployment 7 from matching 70 and 700.
+	c.local.files.dropPrefix(dir + "/")
+
+	return os.RemoveAll(dir)
 }
 
 type hcloudLocation struct {

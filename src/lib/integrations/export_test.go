@@ -1,6 +1,10 @@
 package integrations
 
-import "time"
+import (
+	"time"
+
+	"github.com/aws/smithy-go/middleware"
+)
 
 // SetSignedRetryDelay shortens the wait between retries of signed requests and
 // returns a function that restores it.
@@ -26,4 +30,13 @@ func (s *Service) HasIdleTimer() bool {
 	defer s.mu.Unlock()
 
 	return s.timer != nil
+}
+
+// SetLambdaMiddlewares adds middlewares to the clients that publish functions
+// to Lambda next to HCloud and returns a function that removes them.
+func SetLambdaMiddlewares(m ...func(stack *middleware.Stack) error) func() {
+	prev := lambdaMiddlewares
+	lambdaMiddlewares = m
+
+	return func() { lambdaMiddlewares = prev }
 }

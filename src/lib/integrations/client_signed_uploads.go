@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go/middleware"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
 )
@@ -47,6 +48,10 @@ var CloudArtifactSizeLimits = map[string]int64{
 }
 
 var signedUploadClient = &http.Client{Timeout: 15 * time.Minute}
+
+// lambdaMiddlewares are added to the clients that publish functions to Lambda
+// next to HCloud. Tests use them to answer the AWS calls.
+var lambdaMiddlewares []func(stack *middleware.Stack) error
 
 // UploadSigner is implemented by storage clients that can give a build signed
 // links instead of storage credentials.
@@ -96,12 +101,22 @@ type SignedArtifact struct {
 // one object only.
 type SignedUploads struct {
 	Artifacts map[string]SignedArtifact `json:"artifacts"` // Zip name, such as sk-client.zip, to its form
+
+	// Functions publish the server and API functions to Lambda instead of
+	// uploading them through links, when the instance runs them there.
+	Functions *FunctionCredentials `json:"functions,omitempty"`
 }
 
 // SignUploadsParams names the deployment to sign forms for.
 type SignUploadsParams struct {
 	AppID        types.ID
+	EnvID        types.ID
 	DeploymentID types.ID
+
+	// Functions name the functions the build publishes to Lambda, and
+	// EnvVars are set on them when they are created.
+	Functions *FunctionHandlers
+	EnvVars   map[string]string
 }
 
 // SignsUploads implements UploadSigner. Builds that publish functions to
@@ -133,13 +148,30 @@ func (c *HCloudClient) SignsUploads() bool {
 	return true
 }
 
-// SignUploads implements UploadSigner.
+// SignUploads implements UploadSigner. When functions run on Lambda, the
+// uploads also carry credentials that can only publish this deployment's.
 func (c *HCloudClient) SignUploads(ctx context.Context, p SignUploadsParams) (*SignedUploads, error) {
-	return c.s3.signUploads(ctx, signUploadsParams{bucket: c.bucket, deployment: p})
+	uploads, err := c.s3.signUploads(ctx, signUploadsParams{bucket: c.bucket, deployment: p})
+
+	if err != nil || !c.publishesToLambda() {
+		return uploads, err
+	}
+
+	if uploads.Functions, err = c.functionCredentials(ctx, p); err != nil {
+		return nil, err
+	}
+
+	return uploads, nil
 }
 
 // VerifyUploads implements UploadSigner.
 func (c *HCloudClient) VerifyUploads(p VerifyUploadsParams) error {
+	p, err := c.verifyFunctions(p)
+
+	if err != nil {
+		return err
+	}
+
 	return c.s3.verifyUploads(verifyUploadsParams{bucket: c.bucket, deployment: p})
 }
 
@@ -265,11 +297,11 @@ func (u *SignedUploads) Upload(args UploadArgs) (*UploadResult, error) {
 		return nil, err
 	}
 
-	if result.Server, err = u.upload(signedUploadParams{zip: args.ServerZip, handler: args.ServerHandler}); err != nil {
+	if result.Server, err = u.uploadFunction(signedFunctionParams{zip: args.ServerZip, handler: args.ServerHandler, funcType: FuncTypeRenderer, args: args}); err != nil {
 		return nil, err
 	}
 
-	if result.API, err = u.upload(signedUploadParams{zip: args.APIZip, handler: args.APIHandler}); err != nil {
+	if result.API, err = u.uploadFunction(signedFunctionParams{zip: args.APIZip, handler: args.APIHandler, funcType: FuncTypeAPI, args: args}); err != nil {
 		return nil, err
 	}
 
@@ -278,6 +310,59 @@ func (u *SignedUploads) Upload(args UploadArgs) (*UploadResult, error) {
 	}
 
 	return result, nil
+}
+
+type signedFunctionParams struct {
+	zip      string
+	handler  string
+	funcType string
+	args     UploadArgs
+}
+
+// uploadFunction publishes a function zip to Lambda when the uploads carry
+// credentials for it, and uploads it through its link otherwise.
+func (u *SignedUploads) uploadFunction(p signedFunctionParams) (UploadOverview, error) {
+	if u.Functions == nil || p.zip == "" {
+		return u.upload(signedUploadParams{zip: p.zip, handler: p.handler})
+	}
+
+	lambda, err := u.lambda()
+
+	if err != nil {
+		return UploadOverview{}, err
+	}
+
+	args := p.args
+	args.BucketName = u.Functions.Bucket
+	args.funcType = p.funcType
+	args.handler = p.handler
+	args.zip = p.zip
+
+	return lambda.uploadToLambda(args)
+}
+
+// lambda returns a client that publishes with the uploads' credentials. The
+// runner has no AWS configuration of its own, so it is taken from them.
+func (u *SignedUploads) lambda() (*AWSClient, error) {
+	creds := u.Functions
+	conf := config.Get()
+
+	if conf.AWS == nil {
+		conf.AWS = &config.AwsConfig{
+			Region:         creds.Region,
+			AccountID:      creds.AccountID,
+			StorageBucket:  creds.Bucket,
+			LambdaRoleName: creds.LambdaRole,
+		}
+	}
+
+	return newAWSClient(ClientArgs{
+		AccessKey:    creds.AccessKey,
+		SecretKey:    creds.SecretKey,
+		SessionToken: creds.SessionToken,
+		Region:       creds.Region,
+		Middlewares:  lambdaMiddlewares,
+	}, nil)
 }
 
 type signedUploadParams struct {

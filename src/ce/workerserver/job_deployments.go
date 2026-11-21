@@ -50,6 +50,8 @@ func RemoveDeploymentArtifactsManually(ctx context.Context, numberOfDays int) ([
 				FunctionLocation: d.UploadResult.ServerLocation,
 				APILocation:      d.UploadResult.ServerlessLocation,
 				StorageLocation:  d.UploadResult.ClientLocation,
+				AppID:            d.AppID,
+				DeploymentID:     d.ID,
 			}
 
 			if err := client.DeleteArtifacts(ctx, args); err != nil {

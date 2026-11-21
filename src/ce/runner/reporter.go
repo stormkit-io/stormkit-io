@@ -44,8 +44,9 @@ func (r *ReporterModel) request(payload map[string]any) error {
 	return err
 }
 
-// SignUploads asks the API for the forms that upload the deployment.
-func (r *ReporterModel) SignUploads() (*integrations.SignedUploads, error) {
+// SignUploads asks the API for the forms that upload the deployment. The API
+// prepares the functions it names when they are published to Lambda.
+func (r *ReporterModel) SignUploads(functions integrations.FunctionHandlers) (*integrations.SignedUploads, error) {
 	if r.baseURL == "" {
 		return nil, errors.New("no deployment callback to ask for upload links")
 	}
@@ -53,6 +54,7 @@ func (r *ReporterModel) SignUploads() (*integrations.SignedUploads, error) {
 	body, err := r.send(map[string]any{
 		"deployId":    DeploymentIDEnc,
 		"signUploads": true,
+		"functions":   functions,
 	})
 
 	if err != nil {

@@ -70,8 +70,8 @@ func (s *JobDeploymentsSuite) Test_RemoveDeploymentsArtifacts() {
 		map[string]any{"CreatedAt": T60daysAgo, "Published": deploy.PublishedInfo{{EnvID: s.env.ID}}},
 	)
 
-	s.mockClient.On("DeleteArtifacts", mock.Anything, integrations.DeleteArtifactsArgs{StorageLocation: "local:/d-2"}).Return(nil).Once()
-	s.mockClient.On("DeleteArtifacts", mock.Anything, integrations.DeleteArtifactsArgs{StorageLocation: "local:/d-1"}).Return(nil).Once()
+	s.mockClient.On("DeleteArtifacts", mock.Anything, integrations.DeleteArtifactsArgs{StorageLocation: "local:/d-2", AppID: s.app.ID, DeploymentID: deployments[1].ID}).Return(nil).Once()
+	s.mockClient.On("DeleteArtifacts", mock.Anything, integrations.DeleteArtifactsArgs{StorageLocation: "local:/d-1", AppID: s.app.ID, DeploymentID: deployments[0].ID}).Return(nil).Once()
 
 	s.NoError(jobs.RemoveDeploymentArtifacts(context.Background()))
 

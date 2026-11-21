@@ -1,6 +1,8 @@
 package integrations
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -106,14 +108,6 @@ func (a *AWSClient) uploadToLambda(args UploadArgs) (UploadOverview, error) {
 		return result, nil
 	}
 
-	pieces := strings.Split(args.handler, ":")
-	handlerFile := strings.TrimSuffix(pieces[0], filepath.Ext(pieces[0]))
-	handlerExported := "handler"
-
-	if len(pieces) > 1 {
-		handlerExported = pieces[1]
-	}
-
 	arn := BuildFunctionARN(BuildFunctionARNProps{
 		EnvID:    args.EnvID,
 		AppID:    args.AppID,
@@ -144,7 +138,7 @@ func (a *AWSClient) uploadToLambda(args UploadArgs) (UploadOverview, error) {
 	}
 
 	version, err := a.createVersion(awsCreateFunctionArgs{
-		HandlerName:  fmt.Sprintf("%s.%s", handlerFile, handlerExported),
+		HandlerName:  lambdaHandler(args.handler),
 		FunctionName: arn,
 		S3BucketName: s3args.BucketName,
 		S3KeyPrefix:  path.Join(s3args.KeyPrefix, uploadFile.RelativePath),
@@ -204,6 +198,88 @@ func (a *AWSClient) uploadToLambda(args UploadArgs) (UploadOverview, error) {
 	return result, nil
 }
 
+// lambdaHandler turns a handler such as server/index.mjs:handler into the
+// one Lambda expects, server/index.handler.
+func lambdaHandler(handler string) string {
+	file, exported, ok := strings.Cut(handler, ":")
+
+	if !ok || exported == "" {
+		exported = "handler"
+	}
+
+	return fmt.Sprintf("%s.%s", strings.TrimSuffix(file, filepath.Ext(file)), exported)
+}
+
+type prepareFunctionParams struct {
+	arn     string
+	handler string
+	runtime string
+	envVars map[string]string
+}
+
+// prepareFunction makes sure that the function exists and runs the given
+// handler, so that publishing to it only needs to update its code. A new
+// function starts with placeholder code.
+func (a *AWSClient) prepareFunction(ctx context.Context, p prepareFunctionParams) error {
+	args := awsCreateFunctionArgs{
+		FunctionName: p.arn,
+		HandlerName:  lambdaHandler(p.handler),
+	}
+
+	_, err := a.lambdaClient.GetFunctionConfiguration(ctx, &lambda.GetFunctionConfigurationInput{FunctionName: &p.arn})
+
+	var rnf *types.ResourceNotFoundException
+
+	if !errors.As(err, &rnf) {
+		if err != nil {
+			return err
+		}
+
+		return a.syncHandler(args)
+	}
+
+	placeholder, err := placeholderZip()
+
+	if err != nil {
+		return err
+	}
+
+	args.RoleName = config.Get().AWS.LambdaRoleName
+	args.Runtime = types.Runtime(a.validRuntime(p.runtime))
+	args.EnvVars = p.envVars
+	args.ZipFile = placeholder
+
+	if _, err := a.createFunction(args); err != nil {
+		return err
+	}
+
+	// Code updates are refused until the new function is active.
+	return lambda.NewFunctionActiveV2Waiter(a.lambdaClient).Wait(ctx, &lambda.GetFunctionInput{FunctionName: &p.arn}, 2*time.Minute)
+}
+
+// placeholderZip returns the code of a function that has not been published
+// to yet.
+func placeholderZip() ([]byte, error) {
+	var buf bytes.Buffer
+
+	w := zip.NewWriter(&buf)
+	f, err := w.Create("index.js")
+
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := f.Write([]byte(`exports.handler = async () => ({ statusCode: 503 });`)); err != nil {
+		return nil, err
+	}
+
+	if err := w.Close(); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
 type awsCreateFunctionArgs struct {
 	AppID         sktypes.ID
 	FunctionName  string
@@ -215,6 +291,7 @@ type awsCreateFunctionArgs struct {
 	Timeout       int32
 	MemorySize    int32
 	EnvVars       map[string]string
+	ZipFile       []byte // Code to create the function with instead of S3
 	resourceRetry int
 }
 
@@ -227,6 +304,15 @@ func (a *AWSClient) createFunction(opts awsCreateFunctionArgs) (*string, error) 
 		opts.Timeout = 15
 	}
 
+	code := &types.FunctionCode{
+		S3Bucket: &opts.S3BucketName,
+		S3Key:    &opts.S3KeyPrefix,
+	}
+
+	if opts.ZipFile != nil {
+		code = &types.FunctionCode{ZipFile: opts.ZipFile}
+	}
+
 	out, err := a.lambdaClient.CreateFunction(context.Background(), &lambda.CreateFunctionInput{
 		FunctionName: &opts.FunctionName,
 		Handler:      &opts.HandlerName,
@@ -235,10 +321,7 @@ func (a *AWSClient) createFunction(opts awsCreateFunctionArgs) (*string, error) 
 		Runtime:      opts.Runtime,
 		Timeout:      &opts.Timeout,
 		Publish:      true,
-		Code: &types.FunctionCode{
-			S3Bucket: &opts.S3BucketName,
-			S3Key:    &opts.S3KeyPrefix,
-		},
+		Code:         code,
 		Environment: &types.Environment{
 			Variables: opts.EnvVars,
 		},

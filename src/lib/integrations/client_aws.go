@@ -2,6 +2,7 @@ package integrations
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -13,9 +14,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
+	lambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/stormkit-io/stormkit-io/src/lib/config"
 )
 
@@ -34,6 +37,7 @@ type AWSOptions struct {
 type AWSClient struct {
 	route53Client  *route53.Client
 	lambdaClient   *lambda.Client
+	stsClient      *sts.Client
 	S3Client       *s3.Client
 	uploader       *manager.Uploader
 	downloader     *manager.Downloader
@@ -143,6 +147,7 @@ func newAWSClient(args ClientArgs, opts *AWSOptions) (*AWSClient, error) {
 
 	if !opts.s3Only {
 		client.lambdaClient = lambda.NewFromConfig(awsConfig)
+		client.stsClient = sts.NewFromConfig(awsConfig)
 		client.route53Client = route53.NewFromConfig(awsConfig)
 	}
 
@@ -226,6 +231,14 @@ func (a *AWSClient) DeleteArtifacts(ctx context.Context, args DeleteArtifactsArg
 		}
 
 		_, err := a.lambdaClient.DeleteFunction(ctx, input)
+
+		// The version is gone already, which is what deleting it is for.
+		var rnf *lambdatypes.ResourceNotFoundException
+
+		if errors.As(err, &rnf) {
+			return nil
+		}
+
 		return err
 	}
 
