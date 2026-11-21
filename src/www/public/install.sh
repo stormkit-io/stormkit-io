@@ -16,8 +16,9 @@ command_exists() {
 # --email <email> to override the default agent@<domain> admin email, and
 # --api-key <SK_...> to use a caller-generated key instead of minting one here
 # (a provisioner that must keep the key without reading it back off the box),
-# and --trusted-login-url <https://...> to let the instance accept one-time
-# login codes redeemed at that URL.
+# --trusted-login-url <https://...> to let the instance accept one-time
+# login codes redeemed at that URL, and --console-credential <secret> for the
+# secret a Stormkit Cloud instance authenticates to its console with.
 #
 # On an instance that already has users, bootstrap is a no-op and no key is
 # provisioned. Do NOT pass --email matching an existing user of an instance
@@ -28,6 +29,7 @@ CUSTOM_DOMAIN_ARG=""
 ADMIN_EMAIL_ARG=""
 API_KEY_ARG=""
 TRUSTED_LOGIN_URL_ARG=""
+CONSOLE_CREDENTIAL_ARG=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -40,6 +42,8 @@ while [ $# -gt 0 ]; do
     --api-key=*) API_KEY_ARG="${1#*=}" ;;
     --trusted-login-url) TRUSTED_LOGIN_URL_ARG="$2"; shift ;;
     --trusted-login-url=*) TRUSTED_LOGIN_URL_ARG="${1#*=}" ;;
+    --console-credential) CONSOLE_CREDENTIAL_ARG="$2"; shift ;;
+    --console-credential=*) CONSOLE_CREDENTIAL_ARG="${1#*=}" ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
   shift
@@ -68,6 +72,19 @@ if [ -n "$TRUSTED_LOGIN_URL_ARG" ]; then
   # Written into .env, so only allow characters that are inert there.
   if ! echo "$TRUSTED_LOGIN_URL_ARG" | grep -qE '^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~-]+)*/?$'; then
     echo "Invalid --trusted-login-url: expected an https URL without query or fragment" >&2
+    exit 1
+  fi
+fi
+
+if [ -n "$CONSOLE_CREDENTIAL_ARG" ]; then
+  if [ "$AGENT_MODE" != "1" ]; then
+    echo "--console-credential requires --agent" >&2
+    exit 1
+  fi
+
+  # Written into .env through sed, so only allow base64url characters.
+  if ! echo "$CONSOLE_CREDENTIAL_ARG" | grep -qE '^[A-Za-z0-9_-]{32,128}$'; then
+    echo "Invalid --console-credential: expected 32 to 128 base64url characters" >&2
     exit 1
   fi
 fi
@@ -407,6 +424,10 @@ setup_agent_env() {
     mv .env.tmp .env
     echo "STORMKIT_TRUSTED_LOGIN_URL=$TRUSTED_LOGIN_URL_ARG" >> .env
   fi
+
+  if [ -n "$CONSOLE_CREDENTIAL_ARG" ]; then
+    update_env_var_in_env_file STORMKIT_CONSOLE_CREDENTIAL "$CONSOLE_CREDENTIAL_ARG"
+  fi
 }
 
 # For now keep this file here - we need to improve the docker swarm setup
@@ -420,6 +441,11 @@ setup_domain
 if [ "$AGENT_MODE" = "1" ]; then
   setup_agent_env
 fi
+
+# .env holds the database password, the app secret and, in agent mode, the
+# owner key and console credential. Rewrites above can recreate the file, so
+# restrict it once every value is in.
+chmod 600 .env
 
 docker compose up -d
 

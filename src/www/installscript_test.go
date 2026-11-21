@@ -74,6 +74,22 @@ func (s *InstallScriptSuite) Test_TrustedLoginURL_RejectsBadFormat() {
 	}
 }
 
+func (s *InstallScriptSuite) Test_ConsoleCredential_RequiresAgent() {
+	out, code := s.run("--console-credential", strings.Repeat("a", 43))
+
+	s.Equal(1, code)
+	s.Contains(out, "--console-credential requires --agent")
+}
+
+func (s *InstallScriptSuite) Test_ConsoleCredential_RejectsBadFormat() {
+	for _, c := range []string{"short", strings.Repeat("a", 129), strings.Repeat("a", 40) + "/x", strings.Repeat("a", 40) + "\"; rm -rf /", strings.Repeat("a", 40) + "$(id)"} {
+		out, code := s.run("--agent", "--console-credential="+c)
+
+		s.Equal(1, code, c)
+		s.Contains(out, "Invalid --console-credential", c)
+	}
+}
+
 func TestInstallScriptSuite(t *testing.T) {
 	suite.Run(t, new(InstallScriptSuite))
 }
