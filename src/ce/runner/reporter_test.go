@@ -29,15 +29,16 @@ func (s *ReporterSuite) Test_SignUploads() {
 
 	defer server.Close()
 
-	uploads, err := NewReporter(server.URL).SignUploads()
+	uploads, err := NewReporter(server.URL).SignUploads(integrations.FunctionHandlers{API: "stormkit-api.mjs:handler"})
 
 	s.Require().NoError(err)
 	s.Equal(true, received["signUploads"])
+	s.Equal(map[string]any{"api": "stormkit-api.mjs:handler"}, received["functions"])
 	s.Equal("hcloud:artifacts/1/2/sk-client.zip", uploads.Artifacts["sk-client.zip"].Location)
 }
 
 func (s *ReporterSuite) Test_SignUploads_NoCallback() {
-	_, err := NewReporter("").SignUploads()
+	_, err := NewReporter("").SignUploads(integrations.FunctionHandlers{})
 
 	s.ErrorContains(err, "no deployment callback")
 }

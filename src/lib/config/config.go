@@ -82,6 +82,11 @@ type AwsConfig struct {
 	AccountID      string
 	StorageBucket  string
 	LambdaRoleName string
+
+	// RunnerRoleARN is the role assumed for the short-lived credentials that
+	// let a build publish its functions to Lambda when deployments are stored
+	// on HCloud.
+	RunnerRoleARN string
 }
 
 type AlibabaConfig struct {
@@ -441,6 +446,7 @@ func New() *Config {
 			AccountID:      os.Getenv("AWS_ACCOUNT_ID"),
 			LambdaRoleName: os.Getenv("AWS_LAMBDA_ROLE_NAME"),
 			StorageBucket:  os.Getenv("AWS_S3_BUCKET_NAME"),
+			RunnerRoleARN:  os.Getenv("AWS_RUNNER_ROLE_ARN"),
 		}
 	}
 

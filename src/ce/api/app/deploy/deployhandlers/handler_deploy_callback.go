@@ -52,6 +52,9 @@ type deployCallbackRequest struct {
 	// that signs them instead of handing out its keys.
 	SignUploads bool `json:"signUploads"`
 
+	// Functions name the functions the runner is about to publish.
+	Functions *integrations.FunctionHandlers `json:"functions"`
+
 	deployment *deploy.Deployment
 }
 
@@ -184,10 +187,25 @@ func SignUploads(req *shttp.RequestContext, data deployCallbackRequest) *shttp.R
 		return shttp.BadRequest(map[string]any{"error": "The storage of this instance does not sign uploads"})
 	}
 
-	uploads, err := signer.SignUploads(req.Context(), integrations.SignUploadsParams{
-		AppID:        data.deployment.AppID,
-		DeploymentID: data.deployment.ID,
-	})
+	d := data.deployment
+	params := integrations.SignUploadsParams{
+		AppID:        d.AppID,
+		EnvID:        d.EnvID,
+		DeploymentID: d.ID,
+		Functions:    data.Functions,
+	}
+
+	if d.BuildConfig != nil {
+		params.EnvVars = d.BuildConfig.InterpolatedVars(buildconf.InterpolatedVarsOpts{
+			DeploymentID: d.ID.String(),
+			AppID:        d.AppID.String(),
+			EnvID:        d.EnvID.String(),
+			Env:          d.Env,
+			DisplayName:  d.DisplayName,
+		})
+	}
+
+	uploads, err := signer.SignUploads(req.Context(), params)
 
 	if err != nil {
 		return shttp.Error(err)

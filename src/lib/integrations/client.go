@@ -90,6 +90,11 @@ type DeleteArtifactsArgs struct {
 	APILocation      string
 	FunctionLocation string
 	StorageLocation  string
+
+	// AppID and DeploymentID name the deployment's folder in storage, for
+	// providers that cannot tell it from the locations alone.
+	AppID        types.ID
+	DeploymentID types.ID
 }
 
 type ClientInterface interface {

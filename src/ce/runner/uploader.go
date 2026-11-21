@@ -147,6 +147,11 @@ func (u *Uploader) Upload(args UploadArgs) (*integrations.UploadResult, error) {
 			ServerHandler: args.ServerHandler,
 			APIZip:        args.ApiZip,
 			APIHandler:    args.ApiHandler,
+			EnvVars:       args.EnvVars,
+			EnvID:         args.EnvID,
+			AppID:         args.AppID,
+			DeploymentID:  args.DeploymentID,
+			Runtime:       args.Runtime,
 		})
 	}
 
