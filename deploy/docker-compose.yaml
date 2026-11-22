@@ -185,6 +185,10 @@ services:
       # (set by `install.sh --trusted-login-url`). Leave empty to turn it off.
       - STORMKIT_TRUSTED_LOGIN_URL=${STORMKIT_TRUSTED_LOGIN_URL:-}
 
+      # The secret a Stormkit Cloud instance authenticates to its console with
+      # (set by `install.sh --console-credential`). Empty on self-hosted installs.
+      - STORMKIT_CONSOLE_CREDENTIAL=${STORMKIT_CONSOLE_CREDENTIAL:-}
+
       ####################################################################################
       #                                                                                  #
       # Configure these variables when `STORMKIT_DEPLOYER_SERVICE` is other than `local` #
