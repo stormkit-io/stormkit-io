@@ -219,7 +219,7 @@ update_env_var() {
 
   # Check if .env file exists, if not, create it
   if [ ! -f .env ]; then
-    touch .env
+    (umask 077 && touch .env)
   fi
 
   if [ -n "$default_value" ]; then
@@ -287,6 +287,12 @@ is_valid_domain() {
 }
 
 setup_base_env_variables() {
+  # .env holds the database password, the app secret and, in agent mode, the
+  # owner key and console credential, so lock it before the first value goes
+  # in. curl and sed keep the mode of a file that already exists.
+  (umask 077 && touch .env)
+  chmod 600 .env
+
   # Download the example .env file
   curl -o ".env" "https://raw.githubusercontent.com/stormkit-io/stormkit-io/main/deploy/.env.example" --silent
 
@@ -420,7 +426,7 @@ setup_agent_env() {
   # The URL contains slashes, which the sed in update_env_var_in_env_file
   # uses as its delimiter, so replace the line directly.
   if [ -n "$TRUSTED_LOGIN_URL_ARG" ]; then
-    grep -v "^STORMKIT_TRUSTED_LOGIN_URL=" .env > .env.tmp || true
+    (umask 077 && grep -v "^STORMKIT_TRUSTED_LOGIN_URL=" .env > .env.tmp) || true
     mv .env.tmp .env
     echo "STORMKIT_TRUSTED_LOGIN_URL=$TRUSTED_LOGIN_URL_ARG" >> .env
   fi
@@ -441,11 +447,6 @@ setup_domain
 if [ "$AGENT_MODE" = "1" ]; then
   setup_agent_env
 fi
-
-# .env holds the database password, the app secret and, in agent mode, the
-# owner key and console credential. Rewrites above can recreate the file, so
-# restrict it once every value is in.
-chmod 600 .env
 
 docker compose up -d
 
