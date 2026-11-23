@@ -95,7 +95,7 @@ CREATE INDEX idx_users_email ON users(email);
 The following environment variables are automatically injected into your application:
 
 ```bash
-DATABASE_URL=postgresql://user_name:secure_password@db_host:5432/db?options=-csearch_path=my_schema
+DATABASE_URL=postgresql://user_name:secure_password@db_host:5432/db?options=-csearch_path%3Dmy_schema&sslmode=disable
 POSTGRES_USER=user_name
 POSTGRES_PASSWORD=secure_password
 POSTGRES_HOST=db_host
