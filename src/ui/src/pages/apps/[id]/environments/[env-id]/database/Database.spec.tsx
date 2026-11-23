@@ -595,7 +595,7 @@ describe("~/pages/apps/[id]/environments/[env-id]/database/Database.tsx", () => 
         await waitFor(() => {
           expect(
             wrapper.getByText(
-              "postgresql://user:password@host:port/dbname?options=-csearch_path=schema_name",
+              "postgresql://user:password@host:port/dbname?options=-csearch_path%3Dschema_name",
             ),
           ).toBeTruthy();
         });

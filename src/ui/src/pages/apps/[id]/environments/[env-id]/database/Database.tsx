@@ -224,7 +224,7 @@ export default function Database() {
                         overflowX: "auto",
                       }}
                     >
-                      {`postgresql://user:password@host:port/dbname?options=-csearch_path=schema_name`}
+                      {`postgresql://user:password@host:port/dbname?options=-csearch_path%3Dschema_name`}
                     </Box>
                   </Box>
                 </Help>

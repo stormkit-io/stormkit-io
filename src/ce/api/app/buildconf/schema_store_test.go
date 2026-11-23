@@ -3,6 +3,7 @@ package buildconf_test
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"testing"
 
 	"github.com/stormkit-io/stormkit-io/src/ce/api/app/buildconf"
@@ -395,8 +396,31 @@ func (s *SchemaStoreSuite) Test_SchemaConf_URL() {
 		SSLMode:           "require",
 	}
 
-	expected := "postgresql://app_user:app_password@localhost:5432/test_db?options=-csearch_path=test_schema&sslmode=require"
+	expected := "postgresql://app_user:app_password@localhost:5432/test_db?options=-csearch_path%3Dtest_schema&sslmode=require"
 	s.Equal(expected, conf.URL())
+}
+
+// Test_SchemaConf_URL_EscapesValues verifies that reserved characters in the
+// credentials and the options value are percent-encoded and decode back intact.
+func (s *SchemaStoreSuite) Test_SchemaConf_URL_EscapesValues() {
+	conf := &buildconf.SchemaConf{
+		AppUserName: "app_user",
+		AppPassword: "p@ss:w/rd?#",
+		DBName:      "test_db",
+		SchemaName:  "test_schema",
+		Port:        "5432",
+		Host:        "localhost",
+	}
+
+	expected := "postgresql://app_user:p%40ss%3Aw%2Frd%3F%23@localhost:5432/test_db?options=-csearch_path%3Dtest_schema&sslmode=disable"
+	s.Equal(expected, conf.URL())
+
+	parsed, err := url.Parse(conf.URL())
+	s.Require().NoError(err)
+
+	password, _ := parsed.User.Password()
+	s.Equal("p@ss:w/rd?#", password)
+	s.Equal("-csearch_path=test_schema", parsed.Query().Get("options"))
 }
 
 // authSchemaConf creates the schema and returns a migration-role SchemaConf

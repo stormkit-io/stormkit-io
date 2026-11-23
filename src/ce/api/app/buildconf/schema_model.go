@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql/driver"
 	"fmt"
+	"net"
+	"net/url"
 	"sync"
 
 	"github.com/stormkit-io/stormkit-io/src/lib/types"
@@ -136,17 +138,23 @@ func (sc *SchemaConf) EnsureAuthSchema(ctx context.Context) error {
 	return nil
 }
 
-// URL returns the psql connection URL.
+// URL returns the psql connection URL. Credentials and query values are
+// percent-encoded so libpq-compatible parsers (psql, psycopg, pgx >= 5.11)
+// accept it: they reject a bare "=" inside a query value such as options.
 func (sc *SchemaConf) URL() string {
-	return fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?options=-csearch_path=%s&sslmode=%s",
-		sc.AppUserName,
-		sc.AppPassword,
-		sc.Host,
-		sc.Port,
-		sc.DBName,
-		sc.SchemaName,
-		utils.GetString(sc.SSLMode, "disable"),
-	)
+	query := url.Values{}
+	query.Set("options", "-csearch_path="+sc.SchemaName)
+	query.Set("sslmode", utils.GetString(sc.SSLMode, "disable"))
+
+	u := url.URL{
+		Scheme:   "postgresql",
+		User:     url.UserPassword(sc.AppUserName, sc.AppPassword),
+		Host:     net.JoinHostPort(sc.Host, sc.Port),
+		Path:     "/" + sc.DBName,
+		RawQuery: query.Encode(),
+	}
+
+	return u.String()
 }
 
 // String returns the psql connection string.
