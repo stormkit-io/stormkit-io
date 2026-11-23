@@ -90,6 +90,22 @@ func (s *InstallScriptSuite) Test_ConsoleCredential_RejectsBadFormat() {
 	}
 }
 
+func (s *InstallScriptSuite) Test_AdminPassword_RequiresAgent() {
+	out, code := s.run("--admin-password", strings.Repeat("a", 24))
+
+	s.Equal(1, code)
+	s.Contains(out, "--admin-password requires --agent")
+}
+
+func (s *InstallScriptSuite) Test_AdminPassword_RejectsBadFormat() {
+	for _, p := range []string{"short", strings.Repeat("a", 129), strings.Repeat("a", 20) + "/x", strings.Repeat("a", 20) + "\"; rm -rf /", strings.Repeat("a", 20) + "$(id)"} {
+		out, code := s.run("--agent", "--admin-password="+p)
+
+		s.Equal(1, code, p)
+		s.Contains(out, "Invalid --admin-password", p)
+	}
+}
+
 func TestInstallScriptSuite(t *testing.T) {
 	suite.Run(t, new(InstallScriptSuite))
 }
