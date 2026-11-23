@@ -17,8 +17,10 @@ command_exists() {
 # --api-key <SK_...> to use a caller-generated key instead of minting one here
 # (a provisioner that must keep the key without reading it back off the box),
 # --trusted-login-url <https://...> to let the instance accept one-time
-# login codes redeemed at that URL, and --console-credential <secret> for the
-# secret a Stormkit Cloud instance authenticates to its console with.
+# login codes redeemed at that URL, --console-credential <secret> for the
+# secret a Stormkit Cloud instance authenticates to its console with, and
+# --admin-password <password> to set the owner admin's password instead of
+# generating one (a provisioner that shows it to the customer).
 #
 # On an instance that already has users, bootstrap is a no-op and no key is
 # provisioned. Do NOT pass --email matching an existing user of an instance
@@ -30,6 +32,7 @@ ADMIN_EMAIL_ARG=""
 API_KEY_ARG=""
 TRUSTED_LOGIN_URL_ARG=""
 CONSOLE_CREDENTIAL_ARG=""
+ADMIN_PASSWORD_ARG=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -44,6 +47,8 @@ while [ $# -gt 0 ]; do
     --trusted-login-url=*) TRUSTED_LOGIN_URL_ARG="${1#*=}" ;;
     --console-credential) CONSOLE_CREDENTIAL_ARG="$2"; shift ;;
     --console-credential=*) CONSOLE_CREDENTIAL_ARG="${1#*=}" ;;
+    --admin-password) ADMIN_PASSWORD_ARG="$2"; shift ;;
+    --admin-password=*) ADMIN_PASSWORD_ARG="${1#*=}" ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
   shift
@@ -85,6 +90,19 @@ if [ -n "$CONSOLE_CREDENTIAL_ARG" ]; then
   # Written into .env through sed, so only allow base64url characters.
   if ! echo "$CONSOLE_CREDENTIAL_ARG" | grep -qE '^[A-Za-z0-9_-]{32,128}$'; then
     echo "Invalid --console-credential: expected 32 to 128 base64url characters" >&2
+    exit 1
+  fi
+fi
+
+if [ -n "$ADMIN_PASSWORD_ARG" ]; then
+  if [ "$AGENT_MODE" != "1" ]; then
+    echo "--admin-password requires --agent" >&2
+    exit 1
+  fi
+
+  # Written into .env through sed, so only allow letters and digits.
+  if ! echo "$ADMIN_PASSWORD_ARG" | grep -qE '^[A-Za-z0-9]{16,128}$'; then
+    echo "Invalid --admin-password: expected 16 to 128 letters or digits" >&2
     exit 1
   fi
 fi
@@ -412,7 +430,11 @@ setup_agent_env() {
     ADMIN_EMAIL="agent@$DOMAIN"
   fi
 
-  ADMIN_PASSWORD=$(rand_alnum 24 24)
+  ADMIN_PASSWORD="$ADMIN_PASSWORD_ARG"
+
+  if [ -z "$ADMIN_PASSWORD" ]; then
+    ADMIN_PASSWORD=$(rand_alnum 24 24)
+  fi
   AGENT_API_KEY="$API_KEY_ARG"
 
   if [ -z "$AGENT_API_KEY" ]; then
