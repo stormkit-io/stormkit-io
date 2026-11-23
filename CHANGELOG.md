@@ -1,5 +1,26 @@
 # Changelog
 
+## v2026.11.21.1...v2026.11.23.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.11.21.1...v2026.11.23.1)
+
+### 🚀 Enhancements
+
+- Add install.sh console credential flag ([#700](https://github.com/stormkit-io/stormkit-io/pull/700))
+- Add install.sh admin password flag ([#701](https://github.com/stormkit-io/stormkit-io/pull/701))
+
+### 🩹 Fixes
+
+- Escape database url options value ([#703](https://github.com/stormkit-io/stormkit-io/pull/703))
+
+### 🏡 Chore
+
+- Update changelog for v2026.11.21.1 ([#699](https://github.com/stormkit-io/stormkit-io/pull/699))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.11.12.2...v2026.11.21.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.11.12.2...v2026.11.21.1)
