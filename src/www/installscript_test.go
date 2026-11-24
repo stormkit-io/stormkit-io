@@ -30,13 +30,19 @@ func (s *InstallScriptSuite) SetupSuite() {
 
 // run executes install.sh with args and returns its combined output and exit code.
 func (s *InstallScriptSuite) run(args ...string) (string, int) {
-	return s.runWithEnv(nil, args...)
+	return s.runWithEnv(runWithEnvParams{args: args})
+}
+
+type runWithEnvParams struct {
+	env  []string
+	args []string
 }
 
 // runWithEnv is run with extra environment variables.
-func (s *InstallScriptSuite) runWithEnv(env []string, args ...string) (string, int) {
-	cmd := exec.Command("sh", append([]string{s.script}, args...)...)
-	cmd.Env = append(os.Environ(), env...)
+func (s *InstallScriptSuite) runWithEnv(p runWithEnvParams) (string, int) {
+	cmd := exec.Command("sh", append([]string{s.script}, p.args...)...)
+	cmd.Env = append(os.Environ(), p.env...)
+
 	out, err := cmd.CombinedOutput()
 
 	if exitErr, ok := err.(*exec.ExitError); ok {
@@ -117,26 +123,35 @@ func (s *InstallScriptSuite) Test_AdminPassword_RejectsBadFormat() {
 	}
 }
 
-// bootstrapServer serves body with status to POSTs carrying token, and
-// returns its URL and the environment that makes curl trust it.
-func (s *InstallScriptSuite) bootstrapServer(status int, body string) (string, []string) {
+type bootstrapServerParams struct {
+	status int
+	body   string
+}
+
+// bootstrapServer serves body with status to POSTs carrying bootstrapToken,
+// and runs install.sh in bootstrap mode against it.
+func (s *InstallScriptSuite) bootstrapServer(p bootstrapServerParams) (string, int) {
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.Header.Get("Authorization") != "Bearer "+bootstrapToken {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 
-		w.WriteHeader(status)
-		_, _ = w.Write([]byte(body))
+		w.WriteHeader(p.status)
+		_, _ = w.Write([]byte(p.body))
 	}))
 
 	s.T().Cleanup(srv.Close)
 
 	ca := filepath.Join(s.T().TempDir(), "ca.pem")
 	cert := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: srv.Certificate().Raw})
+
 	s.Require().NoError(os.WriteFile(ca, cert, 0o600))
 
-	return srv.URL + "/v1/instance/bootstrap", []string{"CURL_CA_BUNDLE=" + ca}
+	return s.runWithEnv(runWithEnvParams{
+		env:  []string{"CURL_CA_BUNDLE=" + ca},
+		args: []string{"--agent", "--bootstrap-url", srv.URL + "/v1/instance/bootstrap", "--bootstrap-token", bootstrapToken},
+	})
 }
 
 var bootstrapToken = strings.Repeat("t", 43)
@@ -181,18 +196,16 @@ func (s *InstallScriptSuite) Test_BootstrapURL_RejectsBadFormat() {
 }
 
 // Test_BootstrapURL_Rejected verifies that a token the console refuses, such
-// as one already used, stops the install at once.
+// as one whose setup ended, stops the install at once.
 func (s *InstallScriptSuite) Test_BootstrapURL_Rejected() {
-	url, env := s.bootstrapServer(http.StatusGone, "")
-	out, code := s.runWithEnv(env, "--agent", "--bootstrap-url", url, "--bootstrap-token", bootstrapToken)
+	out, code := s.bootstrapServer(bootstrapServerParams{status: http.StatusUnauthorized})
 
 	s.Equal(1, code)
 	s.Contains(out, "Could not fetch the bootstrap secrets")
 }
 
 func (s *InstallScriptSuite) Test_BootstrapURL_MissingValues() {
-	url, env := s.bootstrapServer(http.StatusOK, "api_key=SK_"+strings.Repeat("a", 62)+"\n")
-	out, code := s.runWithEnv(env, "--agent", "--bootstrap-url", url, "--bootstrap-token", bootstrapToken)
+	out, code := s.bootstrapServer(bootstrapServerParams{status: http.StatusOK, body: "api_key=SK_" + strings.Repeat("a", 62) + "\n"})
 
 	s.Equal(1, code)
 	s.Contains(out, "missing api_key or admin_password")
@@ -224,8 +237,7 @@ func (s *InstallScriptSuite) Test_BootstrapURL_ChecksValues() {
 			body += name + "=" + value + "\n"
 		}
 
-		url, env := s.bootstrapServer(http.StatusOK, body)
-		out, code := s.runWithEnv(env, "--agent", "--bootstrap-url", url, "--bootstrap-token", bootstrapToken)
+		out, code := s.bootstrapServer(bootstrapServerParams{status: http.StatusOK, body: body})
 
 		s.Equal(1, code, bad)
 		s.Contains(out, want, bad)

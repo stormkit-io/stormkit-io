@@ -25,9 +25,9 @@ command_exists() {
 # A provisioner that must not put secrets in a server's user-data passes
 # --bootstrap-url <https://...> and --bootstrap-token <token> instead of
 # --api-key, --admin-password and --console-credential: the script fetches
-# them from that URL once, with the token, which works a single time. Once
-# the owner key works, the admin credentials are removed from .env again,
-# since the provisioner keeps its own copy.
+# them from that URL with the token, which only works while the provisioner
+# is setting the server up. Once the owner key works, the admin credentials
+# are removed from .env again, since the provisioner keeps its own copy.
 #
 # On an instance that already has users, bootstrap is a no-op and no key is
 # provisioned. Do NOT pass --email matching an existing user of an instance
@@ -93,9 +93,9 @@ if [ -n "$BOOTSTRAP_URL_ARG" ] || [ -n "$BOOTSTRAP_TOKEN_ARG" ]; then
     exit 1
   fi
 
-  # The retries cover networking that is still settling on first boot, not a
-  # rejected token: it works once, so after a lost response the provisioner
-  # starts over. The values are checked below like the flags.
+  # The retries cover networking that is still settling on first boot and a
+  # lost response, since the token keeps working during setup. A rejected
+  # token is not retried. The values are checked below like the flags.
   if ! BOOTSTRAP_RESPONSE=$(curl -fsS --retry 5 --retry-connrefused --retry-delay 5 -X POST \
     -H "Authorization: Bearer $BOOTSTRAP_TOKEN_ARG" "$BOOTSTRAP_URL_ARG"); then
     echo "Could not fetch the bootstrap secrets from $BOOTSTRAP_URL_ARG" >&2
@@ -638,11 +638,13 @@ if [ "$AGENT_MODE" = "1" ]; then
 
   auth_status=$(agent_auth_status)
 
-  # With bootstrap credentials, keep checking for a couple of minutes, since
-  # they are only removed from .env once the key is confirmed.
+  # With bootstrap credentials, keep checking for up to 15 minutes, since they
+  # are only removed from .env once the key is confirmed and nobody waits on
+  # a provisioned server's first boot. Certificates for a domain whose DNS
+  # records were just created can take minutes.
   attempt=0
 
-  while [ -n "$BOOTSTRAP_URL_ARG" ] && [ "$attempt" -lt 24 ] &&
+  while [ -n "$BOOTSTRAP_URL_ARG" ] && [ "$attempt" -lt 180 ] &&
     [ "$auth_status" != "401" ] && [ "$auth_status" != "403" ] &&
     ! { [ "$auth_status" -ge 200 ] 2>/dev/null && [ "$auth_status" -lt 300 ]; }; do
     sleep 5
