@@ -22,6 +22,13 @@ command_exists() {
 # --admin-password <password> to set the owner admin's password instead of
 # generating one (a provisioner that shows it to the customer).
 #
+# A provisioner that must not put secrets in a server's user-data passes
+# --bootstrap-url <https://...> and --bootstrap-token <token> instead of
+# --api-key, --admin-password and --console-credential: the script fetches
+# them from that URL with the token, which only works while the provisioner
+# is setting the server up. Once the owner key works, the admin credentials
+# are removed from .env again, since the provisioner keeps its own copy.
+#
 # On an instance that already has users, bootstrap is a no-op and no key is
 # provisioned. Do NOT pass --email matching an existing user of an instance
 # first set up via OAuth/magic-link: on a single-user instance that collision
@@ -33,6 +40,8 @@ API_KEY_ARG=""
 TRUSTED_LOGIN_URL_ARG=""
 CONSOLE_CREDENTIAL_ARG=""
 ADMIN_PASSWORD_ARG=""
+BOOTSTRAP_URL_ARG=""
+BOOTSTRAP_TOKEN_ARG=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -49,10 +58,64 @@ while [ $# -gt 0 ]; do
     --console-credential=*) CONSOLE_CREDENTIAL_ARG="${1#*=}" ;;
     --admin-password) ADMIN_PASSWORD_ARG="$2"; shift ;;
     --admin-password=*) ADMIN_PASSWORD_ARG="${1#*=}" ;;
+    --bootstrap-url) BOOTSTRAP_URL_ARG="$2"; shift ;;
+    --bootstrap-url=*) BOOTSTRAP_URL_ARG="${1#*=}" ;;
+    --bootstrap-token) BOOTSTRAP_TOKEN_ARG="$2"; shift ;;
+    --bootstrap-token=*) BOOTSTRAP_TOKEN_ARG="${1#*=}" ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
   shift
 done
+
+if [ -n "$BOOTSTRAP_URL_ARG" ] || [ -n "$BOOTSTRAP_TOKEN_ARG" ]; then
+  if [ "$AGENT_MODE" != "1" ]; then
+    echo "--bootstrap-url requires --agent" >&2
+    exit 1
+  fi
+
+  if [ -z "$BOOTSTRAP_URL_ARG" ] || [ -z "$BOOTSTRAP_TOKEN_ARG" ]; then
+    echo "--bootstrap-url and --bootstrap-token go together" >&2
+    exit 1
+  fi
+
+  if [ -n "$API_KEY_ARG" ] || [ -n "$ADMIN_PASSWORD_ARG" ] || [ -n "$CONSOLE_CREDENTIAL_ARG" ]; then
+    echo "--bootstrap-url replaces --api-key, --admin-password and --console-credential" >&2
+    exit 1
+  fi
+
+  if ! echo "$BOOTSTRAP_URL_ARG" | grep -qE '^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~-]+)*/?$'; then
+    echo "Invalid --bootstrap-url: expected an https URL without query or fragment" >&2
+    exit 1
+  fi
+
+  if ! echo "$BOOTSTRAP_TOKEN_ARG" | grep -qE '^[A-Za-z0-9_-]{32,128}$'; then
+    echo "Invalid --bootstrap-token: expected 32 to 128 base64url characters" >&2
+    exit 1
+  fi
+
+  # The retries cover networking that is still settling on first boot and a
+  # lost response, since the token keeps working during setup. A rejected
+  # token is not retried. The values are checked below like the flags.
+  if ! BOOTSTRAP_RESPONSE=$(curl -fsS --retry 5 --retry-connrefused --retry-delay 5 -X POST \
+    -H "Authorization: Bearer $BOOTSTRAP_TOKEN_ARG" "$BOOTSTRAP_URL_ARG"); then
+    echo "Could not fetch the bootstrap secrets from $BOOTSTRAP_URL_ARG" >&2
+    exit 1
+  fi
+
+  bootstrap_value() {
+    printf '%s\n' "$BOOTSTRAP_RESPONSE" | sed -n "s/^$1=//p" | head -n 1
+  }
+
+  API_KEY_ARG=$(bootstrap_value api_key)
+  ADMIN_PASSWORD_ARG=$(bootstrap_value admin_password)
+  CONSOLE_CREDENTIAL_ARG=$(bootstrap_value console_credential)
+  BOOTSTRAP_RESPONSE=""
+
+  if [ -z "$API_KEY_ARG" ] || [ -z "$ADMIN_PASSWORD_ARG" ]; then
+    echo "The bootstrap response is missing api_key or admin_password" >&2
+    exit 1
+  fi
+fi
 
 if [ -n "$API_KEY_ARG" ]; then
   if [ "$AGENT_MODE" != "1" ]; then
@@ -541,6 +604,20 @@ EOF
   echo ""
 }
 
+# Removes the admin credentials from .env once the owner exists, and
+# recreates the hosting container so its environment drops them too. The
+# server keeps only their hashes, and the provisioner has its own copy.
+forget_agent_env() {
+  (umask 077 && grep -vE '^STORMKIT_(ADMIN_EMAIL|ADMIN_PASSWORD|AGENT_API_KEY)=' .env > .env.tmp) || true
+  mv .env.tmp .env
+
+  if docker compose up -d hosting; then
+    printf "${GRAY}Removed the one-time admin credentials from .env.${NC}\n"
+  else
+    printf "${GRAY}Removed the admin credentials from .env, but the hosting container could not be recreated.${NC}\n"
+  fi
+}
+
 if [ "$AGENT_MODE" = "1" ]; then
   # The server only provisions the admin + key on a *fresh* instance;
   # bootstrap is a no-op when an admin already exists (a re-run, or an
@@ -553,9 +630,27 @@ if [ "$AGENT_MODE" = "1" ]; then
   # cert that is not issued yet, a 5xx during boot, ...) is inconclusive:
   # the key is almost certainly valid on a fresh install, but we could not
   # confirm it here, so we say so instead of claiming success.
-  auth_status=$(curl -s -o /dev/null -w "%{http_code}" \
-    -X POST "https://api.${DOMAIN}/v1/mcp" \
-    -H "Authorization: Bearer $AGENT_API_KEY")
+  agent_auth_status() {
+    curl -s -o /dev/null -w "%{http_code}" \
+      -X POST "https://api.${DOMAIN}/v1/mcp" \
+      -H "Authorization: Bearer $AGENT_API_KEY"
+  }
+
+  auth_status=$(agent_auth_status)
+
+  # With bootstrap credentials, keep checking for up to 15 minutes, since they
+  # are only removed from .env once the key is confirmed and nobody waits on
+  # a provisioned server's first boot. Certificates for a domain whose DNS
+  # records were just created can take minutes.
+  attempt=0
+
+  while [ -n "$BOOTSTRAP_URL_ARG" ] && [ "$attempt" -lt 180 ] &&
+    [ "$auth_status" != "401" ] && [ "$auth_status" != "403" ] &&
+    ! { [ "$auth_status" -ge 200 ] 2>/dev/null && [ "$auth_status" -lt 300 ]; }; do
+    sleep 5
+    attempt=$((attempt + 1))
+    auth_status=$(agent_auth_status)
+  done
 
   echo ""
 
@@ -565,7 +660,17 @@ if [ "$AGENT_MODE" = "1" ]; then
     echo ""
   elif [ "$auth_status" -ge 200 ] 2>/dev/null && [ "$auth_status" -lt 300 ]; then
     printf "${GREEN}Your instance is agent-ready.${NC}\n"
-    print_mcp_config
+
+    # The provisioner already holds the key, so it is not printed into the
+    # boot log, and the bootstrap credentials are no longer needed.
+    if [ -n "$BOOTSTRAP_URL_ARG" ]; then
+      forget_agent_env
+    else
+      print_mcp_config
+    fi
+  elif [ -n "$BOOTSTRAP_URL_ARG" ]; then
+    printf "${GRAY}The agent key could not be verified yet (api.$DOMAIN returned '$auth_status'),${NC}\n"
+    printf "${GRAY}so the bootstrap credentials stay in .env for the next boot.${NC}\n"
   else
     printf "${GRAY}Your agent key was generated but could not be verified yet${NC}"
     printf "${GRAY} (api.$DOMAIN returned '$auth_status').${NC}\n"
