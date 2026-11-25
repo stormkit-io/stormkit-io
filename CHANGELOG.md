@@ -1,5 +1,25 @@
 # Changelog
 
+## v2026.11.23.1...v2026.11.25.1
+
+[compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.11.23.1...v2026.11.25.1)
+
+### 🚀 Enhancements
+
+- Fetch agent secrets from a bootstrap url ([#705](https://github.com/stormkit-io/stormkit-io/pull/705))
+
+### 🩹 Fixes
+
+- Forward the visitor ip to apps ([18e9637](https://github.com/stormkit-io/stormkit-io/commit/18e9637))
+
+### 🏡 Chore
+
+- Update changelog for v2026.11.23.1 ([#704](https://github.com/stormkit-io/stormkit-io/pull/704))
+
+### ❤️ Contributors
+
+- Savas Vedova <savas@stormkit.io>
+
 ## v2026.11.21.1...v2026.11.23.1
 
 [compare changes](https://github.com/stormkit-io/stormkit-io/compare/v2026.11.21.1...v2026.11.23.1)
