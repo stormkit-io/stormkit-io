@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/netip"
 	"os"
 	"path"
 	"regexp"
@@ -493,6 +494,27 @@ func (r *RequestServer) Static() *shttp.Response {
 	return r.res
 }
 
+// forwardVisitorIP replaces the client IP headers with the visitor's address
+// as Stormkit resolved it, from the socket or from trusted proxies. The app
+// gets a single address it can trust, never one the visitor wrote. Behind a
+// trusted proxy the address comes from headers, so one that is not an IP
+// drops the headers rather than passing the visitor's value on.
+func (r *RequestServer) forwardVisitorIP(headers http.Header) {
+	ip, err := netip.ParseAddr(r.req.RemoteIP())
+
+	if err != nil {
+		headers.Del("X-Forwarded-For")
+		headers.Del("X-Real-IP")
+		return
+	}
+
+	headers.Set("X-Forwarded-For", ip.String())
+
+	if headers.Get("X-Real-IP") != "" {
+		headers.Set("X-Real-IP", ip.String())
+	}
+}
+
 func (r *RequestServer) Dynamic() *shttp.Response {
 	cnf := r.req.Host.Config
 	url := r.req.URL()
@@ -520,12 +542,13 @@ func (r *RequestServer) Dynamic() *shttp.Response {
 	// body directly; if it ignores it, injectSnippets still decompresses as a
 	// fallback. Either way the edge gzip middleware re-compresses the final
 	// response for the client.
-	headers := r.req.Headers()
+	headers := r.req.Headers().Clone()
 
 	if cnf.Snippets != nil {
-		headers = headers.Clone()
 		headers.Set("Accept-Encoding", "identity")
 	}
+
+	r.forwardVisitorIP(headers)
 
 	result, err := integrations.Client().Invoke(integrations.InvokeArgs{
 		URL:           url,

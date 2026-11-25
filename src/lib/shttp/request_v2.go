@@ -322,8 +322,9 @@ func Proxy(req *RequestContext, args ProxyArgs) *Response {
 		if remoteAddr := req.RemoteAddr(); remoteAddr != "" {
 			addr, port, err := net.SplitHostPort(remoteAddr)
 
+			// An address read from headers without X-Forwarded-Port has no port.
 			if err != nil {
-				slog.Errorf("error splitting remote address: %s", remoteAddr)
+				addr, port = remoteAddr, ""
 			}
 
 			if addr != "" {
