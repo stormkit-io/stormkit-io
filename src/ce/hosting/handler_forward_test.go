@@ -312,6 +312,80 @@ func (s *HandlerForwardSuite) Test_ServeDynamic_ServerCmd() {
 	s.Equal("1", res.Headers.Get("x-sk-version"))
 }
 
+type forwardedForParams struct {
+	remoteAddr string
+	headers    http.Header
+}
+
+// forwardedFor serves a request through the server app and returns the
+// X-Forwarded-For and X-Real-IP the app was given.
+func (s *HandlerForwardSuite) forwardedFor(p forwardedForParams) (string, string) {
+	host := &hosting.Host{
+		Name: "www.stormkit.io",
+		Config: &appconf.Config{
+			DeploymentID:     types.ID(1),
+			FunctionLocation: "local:my-function/10",
+			ServerCmd:        "node index.js",
+		},
+	}
+
+	req := s.newRequest(host, "/", p.headers)
+	req.Request.RemoteAddr = p.remoteAddr
+
+	var forwardedFor, realIP string
+
+	s.mockClient.On("Invoke", mock.MatchedBy(func(args integrations.InvokeArgs) bool {
+		forwardedFor = args.Headers.Get("X-Forwarded-For")
+		realIP = args.Headers.Get("X-Real-IP")
+		return true
+	})).Return(&integrations.InvokeResult{StatusCode: http.StatusOK}, nil).Once()
+
+	hosting.HandlerForward(req)
+
+	return forwardedFor, realIP
+}
+
+// Test_ServeDynamic_ForwardsVisitorIP verifies that the app sees the
+// visitor's address from the connection, whatever the visitor claimed.
+func (s *HandlerForwardSuite) Test_ServeDynamic_ForwardsVisitorIP() {
+	config.Get().TrustProxyHeaders = false
+
+	xff, realIP := s.forwardedFor(forwardedForParams{
+		remoteAddr: "203.0.113.5:4321",
+		headers:    http.Header{"X-Forwarded-For": {"6.6.6.6"}, "X-Real-Ip": {"6.6.6.6"}},
+	})
+
+	s.Equal("203.0.113.5", xff)
+	s.Equal("203.0.113.5", realIP)
+
+	xff, realIP = s.forwardedFor(forwardedForParams{remoteAddr: "[2001:db8::1]:4321", headers: http.Header{}})
+
+	s.Equal("2001:db8::1", xff)
+	s.Empty(realIP, "not added when the visitor sent none")
+}
+
+// Test_ServeDynamic_ForwardsVisitorIPBehindProxy verifies that behind a
+// trusted proxy the app gets the client the proxy saw, not the chain with the
+// address the visitor wrote at its start.
+func (s *HandlerForwardSuite) Test_ServeDynamic_ForwardsVisitorIPBehindProxy() {
+	config.Get().TrustProxyHeaders = true
+
+	xff, _ := s.forwardedFor(forwardedForParams{
+		remoteAddr: "10.0.0.2:4321",
+		headers:    http.Header{"X-Forwarded-For": {"6.6.6.6, 203.0.113.5"}},
+	})
+
+	s.Equal("203.0.113.5", xff)
+
+	xff, realIP := s.forwardedFor(forwardedForParams{
+		remoteAddr: "10.0.0.2:4321",
+		headers:    http.Header{"X-Forwarded-For": {"not-an-ip"}, "X-Real-Ip": {"not-an-ip"}},
+	})
+
+	s.Empty(xff, "a value that is not an IP is dropped")
+	s.Empty(realIP)
+}
+
 func (s *HandlerForwardSuite) Test_CustomHeaders_AppliedToDynamic() {
 	customHeaders, err := deploy.ParseHeaders("/api/*\nAccess-Control-Allow-Origin: *\nX-Custom: yes")
 	s.NoError(err)

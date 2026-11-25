@@ -149,6 +149,25 @@ func (s *RequestV2DialSuite) Test_Proxy_LocalDial_TrustedChainUnchanged() {
 	s.Equal("203.0.113.7, 10.0.0.5", s.headers.Load().(http.Header).Get("X-Forwarded-For"))
 }
 
+// Test_Proxy_OverwritesAddressWithoutPort verifies that a visitor address
+// read from headers without a port still replaces X-Forwarded-For.
+func (s *RequestV2DialSuite) Test_Proxy_OverwritesAddressWithoutPort() {
+	req := s.proxyRequest(map[string]string{"X-Forwarded-For": "6.6.6.6, 198.51.100.9"})
+	req.Request.RemoteAddr = "127.0.0.1:40000"
+
+	res := Proxy(req, ProxyArgs{
+		Target:   "https://example.com/landing/",
+		DialAddr: s.server.Listener.Addr().String(),
+	})
+
+	s.Equal(http.StatusOK, res.Status)
+
+	h := s.headers.Load().(http.Header)
+
+	s.Equal("198.51.100.9", h.Get("X-Forwarded-For"))
+	s.Empty(h.Get("X-Forwarded-Port"))
+}
+
 func TestRequestV2DialSuite(t *testing.T) {
 	suite.Run(t, new(RequestV2DialSuite))
 }
