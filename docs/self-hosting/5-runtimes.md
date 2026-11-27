@@ -154,6 +154,21 @@ A `flake.nix` providing headless Chromium to a start-command server:
 
 Stormkit relies on the **[mise](https://mise.jdx.dev/)** open-source tool for runtime management. **Current version** is displayed in the **Mise** section.
 
+### Nix Package Manager
+
+Stormkit enables the `nix` plugin for `mise`, which means you can install Nix packages from the runtimes page in the same way you install language runtimes and development tools.
+
+This is especially useful for browser automation workloads. For example:
+
+- `nix:chromium` installs a headless Chromium binary
+- `npm:playwright` makes the Playwright CLI available on the instance
+
+When a tool exposes an executable, Stormkit injects its resolved path as an environment variable using the `MISE_<TOOL>_PATH` format. For example, `nix:chromium` becomes `MISE_CHROMIUM_PATH`.
+
+This makes it possible to run browser-based workloads in self-hosted instances, including deployment checks, Playwright-based automation, and application code that needs to visit JavaScript-rendered pages and extract HTML. A Playwright-based script can use `process.env.MISE_CHROMIUM_PATH` as the browser `executablePath`.
+
+For a feature overview, see [Headless Browsers](/docs/features/headless-browsers). To learn how to run checks after each deployment, see [Deployment Status Checks](/docs/deployments/status-checks).
+
 ### Upgrading Mise
 
 1. Click **Upgrade to latest**.
